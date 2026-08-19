@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {layout, type LayoutGraph} from "@nodes/layout"
 import {LayoutWorkerClient, runLayoutWorkerRequest} from "./layout-worker.ts"
+import {LayoutWorkerRemoteError} from "./layout-worker/transport.ts"
 import type {
   LayoutWorkerEndpoint,
   LayoutWorkerRequest,
@@ -72,6 +73,63 @@ describe("minimal layout Worker protocol", () => {
     client.dispose()
     expect(endpoint.terminated).toBeTrue()
   })
+
+  test("propagates policy, generation and endpoint failures without a main-thread fallback", async () => {
+    const invalid: LayoutGraph = {
+      ...graph({width: 900, height: 600}),
+      edges: [{id: "missing", sourcePortId: "source/out", targetPortId: "missing/in"}],
+    }
+    const policyEndpoint = new FakeWorkerEndpoint()
+    const policyClient = new LayoutWorkerClient(policyEndpoint)
+    const policyFailure = policyClient.layout({graph: invalid, generation: 1})
+    policyEndpoint.respond(0)
+    try {
+      await policyFailure
+      throw new Error("Expected fixed Worker failure")
+    } catch (error) {
+      expect(error).toBeInstanceOf(LayoutWorkerRemoteError)
+      expect(error).toHaveProperty("message", "Unknown target port: missing/missing/in")
+    } finally {
+      policyClient.dispose()
+    }
+
+    const mismatchEndpoint = new FakeWorkerEndpoint()
+    const mismatchClient = new LayoutWorkerClient(mismatchEndpoint)
+    const mismatch = mismatchClient.layout({graph: graph({width: 900, height: 600}), generation: 2})
+    mismatchEndpoint.respond(0, 3)
+    await expect(mismatch).rejects.toThrow("Layout Worker generation mismatch: 1")
+    mismatchClient.dispose()
+
+    const endpointFailure = new FakeWorkerEndpoint()
+    const endpointClient = new LayoutWorkerClient(endpointFailure)
+    const failed = endpointClient.layout({graph: graph({width: 900, height: 600}), generation: 3})
+    endpointFailure.fail("Worker crashed")
+    await expect(failed).rejects.toThrow("Worker crashed")
+    endpointClient.dispose()
+
+    const throwingEndpoint = new FakeWorkerEndpoint()
+    throwingEndpoint.postFailure = new Error("postMessage failed")
+    const throwingClient = new LayoutWorkerClient(throwingEndpoint)
+    await expect(throwingClient.layout({
+      graph: graph({width: 900, height: 600}),
+      generation: 4,
+    })).rejects.toThrow("postMessage failed")
+    expect(throwingEndpoint.requests).toHaveLength(0)
+    throwingClient.dispose()
+  })
+
+  test("dispose rejects pending work, terminates once and forbids reuse", async () => {
+    const endpoint = new FakeWorkerEndpoint()
+    const client = new LayoutWorkerClient(endpoint)
+    const pending = client.layout({graph: graph({width: 900, height: 600}), generation: 1})
+    client.dispose()
+    client.dispose()
+
+    await expect(pending).rejects.toThrow("Layout Worker is disposed")
+    await expect(client.layout({graph: graph({width: 900, height: 600}), generation: 2}))
+      .rejects.toThrow("Layout Worker is disposed")
+    expect(endpoint.terminateCalls).toBe(1)
+  })
 })
 
 class FakeWorkerEndpoint {
@@ -79,8 +137,11 @@ class FakeWorkerEndpoint {
   readonly messageListeners = new Set<(event: MessageEvent<LayoutWorkerResponse>) => void>()
   readonly errorListeners = new Set<(event: ErrorEvent) => void>()
   terminated = false
+  terminateCalls = 0
+  postFailure?: Error
 
   postMessage(message: LayoutWorkerRequest): void {
+    if (this.postFailure !== undefined) throw this.postFailure
     this.requests.push(structuredClone(message))
   }
 
@@ -96,12 +157,20 @@ class FakeWorkerEndpoint {
 
   terminate(): void {
     this.terminated = true
+    this.terminateCalls += 1
   }
 
-  respond(index: number): void {
+  respond(index: number, generation?: number): void {
     const response = runLayoutWorkerRequest(this.requests[index]!)
+    const delivered = generation === undefined ? response : {...response, generation}
     for (const listener of this.messageListeners) {
-      listener({data: structuredClone(response)} as MessageEvent<LayoutWorkerResponse>)
+      listener({data: structuredClone(delivered)} as MessageEvent<LayoutWorkerResponse>)
+    }
+  }
+
+  fail(message: string): void {
+    for (const listener of this.errorListeners) {
+      listener({message} as ErrorEvent)
     }
   }
 }

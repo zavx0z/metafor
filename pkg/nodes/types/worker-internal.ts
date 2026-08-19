@@ -1,8 +1,6 @@
-import type {LayoutWorkerSuccess} from "./worker.ts"
-
-/** Pending request state owned by LayoutWorkerClient. */
-export type PendingLayout = Readonly<{
+/** Pending request state owned by the policy-neutral Worker transport. */
+export type PendingLayout<Success> = Readonly<{
   generation: number
-  resolve(value: LayoutWorkerSuccess): void
+  resolve(value: Success): void
   reject(error: Error): void
 }>

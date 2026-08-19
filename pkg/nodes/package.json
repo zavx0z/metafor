@@ -12,6 +12,11 @@
     "./validation": "./validation.ts",
     "./containment": "./containment.ts",
     "./layout-worker": "./layout-worker.ts",
+    "./layout-worker/transport": "./layout-worker/transport.ts",
+    "./layout-worker/fixed/client": "./layout-worker/fixed/client.ts",
+    "./layout-worker/fixed/executor": "./layout-worker/fixed/executor.ts",
+    "./layout-worker/adaptive/client": "./layout-worker/adaptive/client.ts",
+    "./layout-worker/adaptive/executor": "./layout-worker/adaptive/executor.ts",
     "./incremental-layout": "./incremental-layout.ts"
   },
   "scripts": {
