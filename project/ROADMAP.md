@@ -275,10 +275,10 @@ Cache Storage разделён по владельцам `startup`, `release`, `
 module.
 
 Первый этап использует один signaling Hamiltonian peer и не проектирует каталог
-адресов нескольких peers. Его результатом владеет
-[`LOAD-001 — Загружать браузерный функционал через минимальный Service
-Worker`](tasks/LOAD-001.md). После доказанного loader contract линия обновлений
-может определять полный многосоставный browser release и его атомарную смену.
+адресов нескольких peers. Доказанным loader contract владеет
+[Hamiltonian](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader);
+каталог peers, первый предметный module и его ABI остаются отдельными будущими
+направлениями.
 
 ### Обновления Hamiltonian
 

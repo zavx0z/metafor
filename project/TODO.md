@@ -27,7 +27,6 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
-    LOAD001["LOAD-001 · минимальный browser loader"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
     MF427["MF-427 · несколько Вселенных"]
     MTX001["MTX-001 · причинный порядок"]
@@ -69,32 +68,10 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
-Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
-Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
-Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
-HTML/startup offline и запускает browser env package `@hamiltonian/release` из
-cache `release`. Release package разворачивает Window и Service Worker
-контуры; RPC и host publication принадлежат его `server`/`service` env,
-а другие internal packages остаются подключаемой функциональностью. Корневой
-`server.ts` явно показывает HTTP routes и WebSocket lifecycle.
-Ранее владелец подтвердил startup/import offline, cold-восстановление `internal` и
-текущий internal RPC/WebSocket. `LOAD-001.23` остановлен: Window loader не
-расширяет startup до появления первого предметного Window module. Стандартное
-пустое visual-окружение Window уже закреплено в Hamiltonian-контракте и не
-является дополнительным критерием minimal loader. Package SemVer, integrity,
-canonical owner caches и атомарное переключение сменяемого набора закреплены
-действующим Hamiltonian-контрактом; неизменяемый startup в этот выпуск не
-входит. Владелец признал текущий loader checkpoint
-достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
-Parent reconciliation завершён: первый Window/Metafor module и ABI отделены от
-minimal proof, current startup/release contract и live cache evidence записаны
-в closing handoff. `LOAD-001` находится в `REVIEW` до независимого verdict.
-
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
-| LOAD-001 | REVIEW      | нет       | [Открыть](tasks/LOAD-001.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
