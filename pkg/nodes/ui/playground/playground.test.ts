@@ -6,7 +6,6 @@ import {BLENDER_SOCKET_KINDS, BLENDER_SOCKET_SHAPES} from "../blender-node.ts"
 import {validatePositionedNodeTree} from "../node-editor.ts"
 import {
   SOCKET_CATALOG,
-  STANDALONE_FIELD_KINDS,
   createCatalogNodeTree,
   createNoiseComparisonTree,
 } from "./fixtures.ts"
@@ -14,14 +13,16 @@ import {
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 
 describe("Blender-like Node component playground", () => {
-  test("catalogs every universal field standalone and inside Nodes", () => {
-    expect(STANDALONE_FIELD_KINDS).toEqual(FIELD_KINDS)
+  test("imports universal fields only inside Node composition", async () => {
     const tree = createCatalogNodeTree()
     const insideKinds = new Set(tree.nodes.flatMap(({node}) => [
       ...(node.properties?.map(({kind}) => kind) ?? []),
       ...(node.parameters?.flatMap(({field}) => field === undefined ? [] : [field.kind]) ?? []),
     ]))
     for (const kind of FIELD_KINDS) expect(insideKinds.has(kind)).toBeTrue()
+    const surfaces = await Bun.file(join(playgroundRoot, "surfaces.ts")).text()
+    expect(surfaces).not.toContain("FieldCatalogSurface")
+    expect(surfaces).not.toContain("createStandaloneFields")
   })
 
   test("catalogs nineteen socket types, eight shapes and a valid positioned NodeTree", () => {
@@ -56,7 +57,7 @@ describe("Blender-like Node component playground", () => {
 
   test("uses one Card-free WebGPU component graph and disables HMR", async () => {
     const server = await Bun.file(join(playgroundRoot, "server.ts")).text()
-    expect(server).toContain("development: {hmr: false}")
+    expect(server).toContain("startPlaygroundServer")
     expect(server).toContain("/node-system-dev/blender-reference.png")
     const build = await Bun.build({
       entrypoints: [join(playgroundRoot, "client.ts")],
@@ -77,9 +78,9 @@ describe("Blender-like Node component playground", () => {
       "Bulk",
     ]) expect(source).not.toContain(forbidden)
     expect(source).toContain("NodeEditor")
-    expect(source).toContain("NodeCanvas")
+    expect(source).toContain("PlaygroundNavigationSurface")
     expect(source).toContain("BlenderReferenceSurface")
-    expect(source).toContain("FieldCatalogSurface")
     expect(source).toContain("SocketCatalogSurface")
+    expect(source).not.toContain("FieldCatalogSurface")
   })
 })

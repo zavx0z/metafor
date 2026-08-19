@@ -1,102 +1,56 @@
-import {flexColumnCss, flexRowCss} from "@ui/elements"
+import {flexRowCss} from "@ui/elements"
+import {planPlaygroundShell, type PlaygroundFrame} from "@ui/playground"
+import {nodePlaygroundGroup, type NodePlaygroundRoute} from "./routes.ts"
 
-export type PlaygroundFrame = Readonly<{x: number; y: number; w: number; h: number; visible?: boolean}>
 export type NodeComponentPlaygroundFrames = Readonly<{
-  fields: PlaygroundFrame
-  reference: PlaygroundFrame
-  detail: PlaygroundFrame
+  backdrop: PlaygroundFrame
+  catalog: PlaygroundFrame
+  section: PlaygroundFrame
   editor: PlaygroundFrame
   sockets: PlaygroundFrame
+  reference: PlaygroundFrame
+  detail: PlaygroundFrame
+  dock: PlaygroundFrame
+  info: PlaygroundFrame
 }>
 
-/** Plans every playground region through the shared Flexbox-oriented system. */
-export function planNodeComponentPlaygroundFrames(width: number, height: number): NodeComponentPlaygroundFrames {
-  let fields: PlaygroundFrame = {x: 0, y: 0, w: 0, h: 0}
-  let reference: PlaygroundFrame = {x: 0, y: 0, w: 0, h: 0}
-  let detail: PlaygroundFrame = {x: 0, y: 0, w: 0, h: 0}
-  let editor: PlaygroundFrame = {x: 0, y: 0, w: 0, h: 0}
-  let sockets: PlaygroundFrame = {x: 0, y: 0, w: 0, h: 0}
-  if (width <= 720 || height <= 500) {
-    fields = {x: 0, y: 0, w: 0, h: 0, visible: false}
-    reference = {x: 0, y: 0, w: 0, h: 0, visible: false}
-    detail = {x: 0, y: 0, w: 0, h: 0, visible: false}
-    sockets = {x: 0, y: 0, w: 0, h: 0, visible: false}
-    flexColumnCss({
-      x: 0,
-      y: 0,
-      w: width,
-      h: height,
-      items: [
-        {height: 70, draw: () => {}},
-        {height: "1fr", draw: (bodyX, bodyY, bodyW, bodyH) => flexColumnCss({
-          x: bodyX,
-          y: bodyY,
-          w: bodyW,
-          h: bodyH,
-          paddingLeft: 8,
-          paddingRight: 8,
-          paddingBottom: 8,
-          items: [{height: "1fr", draw: (x, y, w, h) => { editor = {x, y, w, h} }}],
-        })},
-      ],
-    })
-    return {fields, reference, detail, editor, sockets}
-  }
-  flexColumnCss({
-    x: 0,
-    y: 0,
-    w: width,
-    h: height,
+const hidden = (): PlaygroundFrame => ({x: 0, y: 0, w: 0, h: 0, visible: false})
+
+/** Adapts the generic shell only to package-specific preview surfaces. */
+export function planNodeComponentPlaygroundFrames(
+  width: number,
+  height: number,
+  route: NodePlaygroundRoute = "editor/scene",
+): NodeComponentPlaygroundFrames {
+  const shell = planPlaygroundShell(width, height)
+  let editor = hidden()
+  let sockets = hidden()
+  let reference = hidden()
+  let detail = hidden()
+  const group = nodePlaygroundGroup(route)
+  if (group === "editor") editor = shell.preview
+  else if (group === "socket") sockets = shell.preview
+  else if (shell.compact) detail = shell.preview
+  else flexRowCss({
+    x: shell.preview.x,
+    y: shell.preview.y,
+    w: shell.preview.w,
+    h: shell.preview.h,
+    gap: 18,
     items: [
-      {height: 70, draw: () => {}},
-      {height: "1fr", draw: (bodyX, bodyY, bodyW, bodyH) => flexRowCss({
-        x: bodyX,
-        y: bodyY,
-        w: bodyW,
-        h: bodyH,
-        paddingLeft: 16,
-        paddingRight: 16,
-        paddingBottom: 16,
-        gap: 16,
-        alignItems: "stretch",
-        items: [
-          {width: 520, draw: (x, y, w, h) => { fields = {x, y, w, h} }},
-          {width: "1fr", draw: (workspaceX, workspaceY, workspaceW, workspaceH) => flexColumnCss({
-            x: workspaceX,
-            y: workspaceY,
-            w: workspaceW,
-            h: workspaceH,
-            gap: 12,
-            items: [
-              {height: "3fr", draw: (compareX, compareY, compareW, compareH) => flexRowCss({
-                x: compareX,
-                y: compareY,
-                w: compareW,
-                h: compareH,
-                gap: 12,
-                alignItems: "stretch",
-                items: [
-                  {width: "1fr", draw: (x, y, w, h) => { reference = {x, y, w, h} }},
-                  {width: "1fr", draw: (x, y, w, h) => { detail = {x, y, w, h} }},
-                ],
-              })},
-              {height: "2fr", draw: (bottomX, bottomY, bottomW, bottomH) => flexRowCss({
-                x: bottomX,
-                y: bottomY,
-                w: bottomW,
-                h: bottomH,
-                gap: 12,
-                alignItems: "stretch",
-                items: [
-                  {width: "3fr", draw: (x, y, w, h) => { editor = {x, y, w, h} }},
-                  {width: "2fr", draw: (x, y, w, h) => { sockets = {x, y, w, h} }},
-                ],
-              })},
-            ],
-          })},
-        ],
-      })},
+      {width: "1fr", draw: (x, y, w, h) => { reference = {x, y, w, h} }},
+      {width: "1fr", draw: (x, y, w, h) => { detail = {x, y, w, h} }},
     ],
   })
-  return {fields, reference, detail, editor, sockets}
+  return {
+    backdrop: {x: 0, y: 0, w: width, h: height},
+    catalog: shell.catalog,
+    section: shell.section,
+    editor,
+    sockets,
+    reference,
+    detail,
+    dock: shell.dock,
+    info: shell.info,
+  }
 }

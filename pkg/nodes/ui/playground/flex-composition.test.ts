@@ -25,7 +25,7 @@ describe("Flexbox-oriented Node component composition", () => {
     expect(editor).toContain("flexRow")
     expect(catalog).toContain("flexColumn")
     expect(catalog).toContain("flexRow")
-    expect(regions).toContain("flexColumnCss")
+    expect(regions).toContain("planPlaygroundShell")
     expect(regions).toContain("flexRowCss")
     expect(await Bun.file(join(playgroundRoot, "client.ts")).text()).not.toMatch(/w \* 0\.|h \* 0\.|left =|top =/)
     expect(catalog).not.toMatch(/x \+ column \*|y \+ row \*|let y =/)

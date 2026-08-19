@@ -233,6 +233,7 @@
         "@metafor/engine": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
+        "@ui/playground": "workspace:*",
       },
     },
     "pkg/template": {

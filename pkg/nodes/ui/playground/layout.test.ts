@@ -1,35 +1,33 @@
 import {describe, expect, test} from "bun:test"
 import {planNodeComponentPlaygroundFrames} from "./layout.ts"
 
-describe("Node component playground Flexbox regions", () => {
-  test("plans equal-scale comparison above the full editor and socket catalog", () => {
-    const frames = planNodeComponentPlaygroundFrames(1920, 1080)
-    expect(frames.fields).toEqual({x: 16, y: 70, w: 520, h: 994})
-    expect(frames.reference.x).toBe(552)
-    expect(frames.reference.y).toBe(70)
-    expect(frames.reference.w).toBe(670)
-    expect(frames.reference.h).toBeCloseTo(589.2, 3)
-    expect(frames.detail.x).toBe(1234)
-    expect(frames.detail.y).toBe(70)
-    expect(frames.detail.w).toBe(670)
-    expect(frames.detail.h).toBeCloseTo(589.2, 3)
-    expect(frames.editor.x).toBe(552)
-    expect(frames.editor.y).toBeCloseTo(671.2, 3)
-    expect(frames.editor.w).toBe(804)
-    expect(frames.editor.h).toBeCloseTo(392.8, 3)
-    expect(frames.sockets.x).toBe(1368)
-    expect(frames.sockets.y).toBeCloseTo(671.2, 3)
-    expect(frames.sockets.w).toBe(536)
-    expect(frames.sockets.h).toBeCloseTo(392.8, 3)
+describe("Node playground on shared @ui/playground shell", () => {
+  test("gives editor the historical desktop preview region", () => {
+    const frames = planNodeComponentPlaygroundFrames(1920, 1080, "editor/scene")
+    expect(frames.catalog).toEqual({x: 130, y: 110, w: 210, h: 860})
+    expect(frames.section).toEqual({x: 358, y: 110, w: 160, h: 860})
+    expect(frames.editor).toEqual({x: 536, y: 110, w: 936, h: 742})
+    expect(frames.dock).toEqual({x: 536, y: 870, w: 936, h: 100})
+    expect(frames.info).toEqual({x: 1490, y: 110, w: 300, h: 860})
+    expect(frames.sockets.visible).toBeFalse()
+    expect(frames.reference.visible).toBeFalse()
   })
 
-  test("gives the mobile viewport to NodeEditor without overflowing catalogs", () => {
-    const frames = planNodeComponentPlaygroundFrames(390, 844)
-    expect(frames.fields).toEqual({x: 0, y: 0, w: 0, h: 0, visible: false})
-    expect(frames.reference).toEqual({x: 0, y: 0, w: 0, h: 0, visible: false})
-    expect(frames.detail).toEqual({x: 0, y: 0, w: 0, h: 0, visible: false})
-    expect(frames.sockets).toEqual({x: 0, y: 0, w: 0, h: 0, visible: false})
-    expect(frames.editor).toEqual({x: 8, y: 70, w: 374, h: 766})
-    expect(planNodeComponentPlaygroundFrames(844, 390).editor).toEqual({x: 8, y: 70, w: 828, h: 312})
+  test("uses the whole preview for sockets and equal slots for comparison", () => {
+    const sockets = planNodeComponentPlaygroundFrames(1920, 1080, "socket/types")
+    expect(sockets.sockets).toEqual({x: 536, y: 110, w: 936, h: 742})
+    expect(sockets.editor.visible).toBeFalse()
+    const comparison = planNodeComponentPlaygroundFrames(1920, 1080, "comparison/blender")
+    expect(comparison.reference).toEqual({x: 536, y: 110, w: 459, h: 742})
+    expect(comparison.detail).toEqual({x: 1013, y: 110, w: 459, h: 742})
+  })
+
+  test("gives mobile only the active package preview", () => {
+    const editor = planNodeComponentPlaygroundFrames(390, 844, "editor/scene")
+    expect(editor.editor).toEqual({x: 8, y: 8, w: 374, h: 828})
+    for (const frame of [editor.catalog, editor.section, editor.dock, editor.info]) expect(frame.visible).toBeFalse()
+    const comparison = planNodeComponentPlaygroundFrames(844, 390, "comparison/blender")
+    expect(comparison.detail).toEqual({x: 8, y: 8, w: 828, h: 374})
+    expect(comparison.reference.visible).toBeFalse()
   })
 })
