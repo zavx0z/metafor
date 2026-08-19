@@ -12,6 +12,21 @@
 - `bulk` не должен заново переводить оси или единицы;
 - любые адаптации под renderer должны жить внутри engine-layer, а не в application scene.
 
+## Иерархия преобразований
+
+Каждый `Object3D` задаёт только собственные локальные position, rotation и
+scale. Движок вычисляет `matrixWorld` visual child как композицию локальной
+матрицы со всей цепочкой parents, а renderer получает именно эту world matrix.
+Поэтому retained UI хранит visual children под своим `Object3D` parent и не
+запекает transform parent отдельно в geometry каждого child.
+
+Изменение только transform parent обновляет inherited `matrixWorld` и кадр, но
+само по себе не требует заново планировать или материализовывать неизменённые
+children. Text, icon, Socket, stroke, radius, padding, gap и другое visual
+содержимое непрерывно наследуют тот же transform. Screen-space minimum не может
+менять их visual geometry; он допустим только отдельному невидимому hit target,
+который не подменяет видимый child.
+
 ## Обычные и скелетные mesh
 
 Каждый видимый объект передаёт renderer только собственные данные модели и

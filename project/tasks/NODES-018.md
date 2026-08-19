@@ -105,13 +105,34 @@ public contracts; focused Node UI tests, три package typecheck и
 `git diff --check`. Browser pixels не являются приёмкой этого
 диагностического среза.
 
-Фактические действия: ещё не выполнены.
+Фактические действия: Engine contract закрепил inherited `matrixWorld` и
+запрет запекать transform parent в visual children. UI owner contract назвал
+систему FlexBox, оставил CSS-style только declarative-формой и закрепил
+`dirty local plan → changed subtree materialization → transform-only frame`,
+включая единственное исключение для отдельного невидимого hit target.
+`NodeCanvas` публикует frozen cumulative diagnostics
+`localLayoutPlans/materializations/transformOnlyFrames`; текущий flat path
+считает viewport plan, независимые background/foreground Node plan phases и
+завершённую полную materialization без изменения поведения.
 
-Результат и вывод: ещё не получены.
+Результат и вывод: regression с representative Blender NodeTree и настоящим
+шрифтом фиксирует после первого render `{3, 1, 0}`, а после одного
+`setCanvasTransform` и flush — `{6, 2, 0}`. Значит, текущий transform повторяет
+viewport plan, оба Node plan и полную materialization, а transform-only path
+ещё отсутствует и различим нулевым третьим счётчиком. Retained component parent
+и перенос NodeCanvas не выполнялись.
 
-Подготовительный commit: текущий project-коммит после этой регистрации.
+Проверки: `bun test pkg/nodes/ui` — `27/27`; `@ui/elements` и `@nodes/ui`
+package typechecks — pass; exact Engine source typecheck — pass;
+`git diff --check` — pass. Canonical `@metafor/engine` script выполнен, но его
+унаследованный root include по-прежнему останавливается на сохранённом после
+NODES-016 Hamiltonian/Card consumer gap; ошибок изменённых Engine/UI/Node files
+в выводе нет.
 
-Result checkpoint: ещё не записан.
+Подготовительный commit: `e3775ec107a9b69ff933c8b9a9ec43b434552afc`.
+
+Result checkpoint: текущий result commit NODES-018.1; точный hash записывается
+следующим project record после создания commit.
 
 ### NODES-018.2 — Добавить retained component parent в UiSurface
 

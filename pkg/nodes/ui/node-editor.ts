@@ -106,6 +106,13 @@ export type NodeEditorSelection =
   | Readonly<{kind: "node"; id: string}>
   | null
 
+/** Cumulative read-only evidence for the current NodeCanvas render path. */
+export type NodeCanvasDiagnostics = Readonly<{
+  localLayoutPlans: number
+  materializations: number
+  transformOnlyFrames: number
+}>
+
 export type FrameRendererContext<TFrame extends Frame> = Readonly<{
   host: UiSurface
   entry: PositionedFrame<TFrame>
@@ -242,6 +249,11 @@ export class NodeCanvas<
   #pinch: NodeEditorPinchState | null = null
   #fitPending = true
   #lastFrame = {w: 0, h: 0}
+  readonly #diagnostics = {
+    localLayoutPlans: 0,
+    materializations: 0,
+    transformOnlyFrames: 0,
+  }
 
   constructor(options: NodeCanvasOptions<TNode, TSocket, TLink, TFrame>) {
     super({
@@ -274,6 +286,14 @@ export class NodeCanvas<
 
   get selection(): NodeEditorSelection {
     return this.#selection
+  }
+
+  /**
+   * Returns a frozen snapshot. Reading diagnostics never resets counters or
+   * changes rendering; transformOnlyFrames remains zero on the flat baseline.
+   */
+  get diagnostics(): NodeCanvasDiagnostics {
+    return Object.freeze({...this.#diagnostics})
   }
 
   setTree(tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>): void {
@@ -315,6 +335,7 @@ export class NodeCanvas<
   }
 
   renderPlan(): NodeEditorRenderPlan<TNode, TSocket, TLink, TFrame> {
+    this.#diagnostics.localLayoutPlans += 1
     return planNodeEditorViewport(this.#tree, this.#transform, this.#contentRect())
   }
 
@@ -464,7 +485,9 @@ export class NodeCanvas<
           scale: plan.transform.scale,
           selected: isSelected(this.#selection, "node", entry.node.id),
         }
+        this.#diagnostics.localLayoutPlans += 1
         this.#renderers.node.renderBackground(context)
+        this.#diagnostics.localLayoutPlans += 1
         this.#renderers.node.renderForeground(context)
         for (const socket of entry.sockets) this.#renderers.socket.render({
           host: this,
@@ -488,6 +511,7 @@ export class NodeCanvas<
     } finally {
       this.popClip()
     }
+    this.#diagnostics.materializations += 1
   }
 
   #drawToolbar(): void {

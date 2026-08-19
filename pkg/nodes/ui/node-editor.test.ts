@@ -1,4 +1,14 @@
 import {describe, expect, test} from "bun:test"
+import {TrueTypeFont} from "@metafor/engine"
+import {
+  createBlenderNodeRenderers,
+  measureBlenderNode,
+  positionBlenderNode,
+  type BlenderFrame,
+  type BlenderLink,
+  type BlenderNode,
+  type BlenderSocket,
+} from "./blender-node.ts"
 import {
   NodeCanvas,
   NodeEditor,
@@ -58,6 +68,57 @@ const tree: PositionedNodeTree<TestNode, TestSocket, TestLink, TestFrame> = {
 }
 
 describe("generic Blender-like Node Editor contracts", () => {
+  test("reports the current flat layout/materialization baseline separately from transform-only frames", async () => {
+    const node: BlenderNode = {
+      id: "diagnostic-node",
+      title: "Diagnostic",
+      parameters: [{
+        id: "value",
+        label: "Value",
+        field: {id: "value", label: "Value", kind: "number", value: 0.5},
+      }],
+      sockets: [{
+        id: "value",
+        label: "Value",
+        direction: "input",
+        socketType: "float",
+        parameterId: "value",
+        side: "left",
+      }],
+    }
+    const measured = measureBlenderNode(node)
+    const rect = {x: 20, y: 20, w: 220, h: measured.height}
+    const diagnosticTree: PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> = {
+      bounds: rect,
+      frames: [],
+      nodes: [positionBlenderNode(node, rect)],
+      links: [],
+    }
+    const canvas = new NodeCanvas({renderers: createBlenderNodeRenderers(), toolbar: false})
+    const initial = canvas.diagnostics
+    expect(initial).toEqual({localLayoutPlans: 0, materializations: 0, transformOnlyFrames: 0})
+    expect(Object.isFrozen(initial)).toBeTrue()
+
+    canvas.setTree(diagnosticTree)
+    const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    canvas.setRect({x: 0, y: 0, w: 640, h: 360}, 0.001, new TrueTypeFont(fontBytes))
+    expect(canvas.diagnostics).toEqual({
+      localLayoutPlans: 3,
+      materializations: 1,
+      transformOnlyFrames: 0,
+    })
+
+    expect(canvas.setCanvasTransform({x: 40, y: 30, scale: 0.75})).toBeTrue()
+    canvas.flushPendingRender()
+    expect(canvas.diagnostics).toEqual({
+      localLayoutPlans: 6,
+      materializations: 2,
+      transformOnlyFrames: 0,
+    })
+    expect(initial).toEqual({localLayoutPlans: 0, materializations: 0, transformOnlyFrames: 0})
+    canvas.dispose()
+  })
+
   test("publishes exact read-only Canvas and interactive Editor component names", () => {
     const renderers = {
       frame: {renderBackground() {}, renderForeground() {}},

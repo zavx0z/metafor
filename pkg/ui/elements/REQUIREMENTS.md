@@ -1,12 +1,27 @@
 # Требования @ui/elements
 
-`@ui/elements` владеет UI primitives, immediate-mode Flex и browser-like
-Flex adapter. Этот документ задаёт обязательный layout law для всего UI
-репозитория.
+`@ui/elements` владеет UI primitives, FlexBox и его browser-like declarative
+adapter. Этот документ задаёт обязательный layout law для всего UI репозитория.
 
-Система вёрстки является Flexbox-ориентированной: parent описывает flow и
-ограничения, общий Flex единолично вычисляет child slots, а child только рисует
-в переданном `x/y/w/h` и не знает geometry siblings.
+Система вёрстки называется FlexBox: parent описывает flow и ограничения, общий
+FlexBox единолично вычисляет local child slots, а child только рисует в
+переданном `x/y/w/h` и не знает geometry siblings. CSS-style `%`, `fr`, `grow`
+и `auto` являются привычной декларативной формой описания того же FlexBox, а не
+отдельной системой layout.
+
+## Retained UI-закон
+
+1. FlexBox заново планирует local child slots только при dirty-изменении
+   content, доступного size или style соответствующего component subtree.
+2. Изменённый subtree материализуется в локальных координатах под retained
+   engine `Object3D` parent. Параллельный UI scene graph и ручное повторение
+   parent scale/translation в каждом visual child запрещены.
+3. Pan, zoom и другое transform-only изменение чистого parent обновляют его
+   transform и inherited `matrixWorld` children без нового FlexBox plan и без
+   materialization неизменённого subtree.
+4. Любой visual child, включая text, icon, Socket, stroke, border, radius,
+   padding и gap, непрерывно наследует transform parent. Screen-space minimum
+   разрешён только отдельному невидимому hit target и не меняет visual child.
 
 ## Обязательный Flex-закон
 
