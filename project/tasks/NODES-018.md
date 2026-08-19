@@ -67,9 +67,51 @@ engine. Culling, clipping и pointer conversion читают тот же transfo
 
 ### NODES-018.1 — Закрепить engine/UI retained contract и baseline
 
-Расширить документы-владельцы engine и UI, зафиксировать точный существующий
-flat/materialize path и добавить instrumentation: число layout plans,
-materializations и transform-only frames для representative NodeTree.
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+`NODES-018.1 — Закрепить engine/UI retained contract и baseline`.
+
+Классификация: диагностический contract/baseline-срез; он закрепляет один
+наблюдаемый разрыв до изменения retained lifecycle.
+
+Требование или диагностический результат: документы-владельцы Engine и UI
+задают inherited parent/child transform, local FlexBox dirty-law и границу
+невидимого screen-space hit target. Representative NodeTree сообщает число
+local layout plans, materializations и transform-only frames.
+
+Основание и связанная история: task baseline `8a78b50c9`, NODES-016 result
+`7aab6269a` и NODES-017 research checkpoint `5ca434ae4`.
+
+Наблюдаемое расхождение: текущий `NodeCanvas` вызывает
+`planNodeEditorViewport` из полного `UiSurface.render`, CPU-преобразует каждую
+Frame/Node/Socket/Link и при каждом pan/zoom очищает и заново materializes
+плоские drawing layers. `renderBackground` и `renderForeground` независимо
+вызывают intrinsic Node plan.
+
+Причина: подтверждена — engine hierarchy уже наследует `matrixWorld`, но
+immediate-mode UI path не сохраняет component parent/children и не различает
+dirty materialization от transform-only frame.
+
+Разрешённое изменение одного механизма: постоянные Engine/UI owner contracts и
+read-only diagnostics/counters текущего NodeCanvas path. Retained component
+parent и перенос NodeCanvas относятся только к NODES-018.2/.3.
+
+Regression или опровергающее доказательство: focused test на representative
+NodeTree сначала фиксирует baseline полного plan/materialization при transform,
+а diagnostics различает layout, materialization и transform-only frame без
+изменения semantic NodeTree либо layout solver.
+
+Среда и критерий приёмки: `@metafor/engine`, `@ui/elements` и `@nodes/ui`
+public contracts; focused Node UI tests, три package typecheck и
+`git diff --check`. Browser pixels не являются приёмкой этого
+диагностического среза.
+
+Фактические действия: ещё не выполнены.
+
+Результат и вывод: ещё не получены.
+
+Подготовительный commit: текущий project-коммит после этой регистрации.
+
+Result checkpoint: ещё не записан.
 
 ### NODES-018.2 — Добавить retained component parent в UiSurface
 
