@@ -55,4 +55,27 @@ Dev-only SVG playground явно показывает и сравнивает а
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`.
+`REVIEW`.
+
+## Результат
+
+* Playground содержит шесть fixtures: fixed compound RIGHT/DOWN, adaptive flat
+  RIGHT/DOWN и adaptive compound RIGHT/DOWN.
+* Новая nested pair использует прежние shared port, capabilities, allowed sides
+  и edges; добавлены только `source-zone`, `target-zone` и `parentId`.
+* Public adaptive policy вернула RIGHT `604×424`, shared=`EAST`, и DOWN
+  `316×588`, shared=`WEST`; оба результата имеют 2 compounds и 4 gateways.
+* Repeats и reversed nodes/ports/allowedSides/edges дают тот же result,
+  diagnostics и SVG. Все прежние baselines остались неизменными.
+* [Browser evidence](../artifacts/NODES-013/README.md) показывает русскую nested
+  adaptive matrix после NODES-012 painting-order correction.
+
+## Проверки
+
+* `bun test pkg/nodes` — 128 pass, 0 fail, 2295 expect.
+* Playground TypeScript typecheck — pass.
+* `git diff --check` — pass.
+* Browser DOM: обе панели имеют 2 compounds, 3 leaves, 4 gateways и parent-first
+  node order `source-zone → source → target-zone → target-a → target-b`.
+* `ai-macos` console capture — 0 entries; visual inspection соответствует
+  ожидаемой nested RIGHT/DOWN matrix без z-order regression.

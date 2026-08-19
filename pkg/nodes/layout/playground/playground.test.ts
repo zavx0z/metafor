@@ -42,6 +42,23 @@ const ADAPTIVE_BASELINES = {
   },
 } as const
 
+const ADAPTIVE_COMPOUND_BASELINES = {
+  "adaptive-compound-right": {
+    direction: "RIGHT",
+    side: "EAST",
+    bounds: {x: 0, y: 0, width: 604, height: 424},
+    resultHash: "9732f683af8925702f04db46a49a674acc87b6a5cf0a828011c2c5720d4448a0",
+    svgHash: "932bd71690288438330faff6669268e9d8dacdc036395b5e8be00750c6a5ac11",
+  },
+  "adaptive-compound-down": {
+    direction: "DOWN",
+    side: "WEST",
+    bounds: {x: 0, y: 0, width: 316, height: 588},
+    resultHash: "8cd59ef4c9c367c7ad5c1cca22f8a8dc629d59b6de8a4d31b9c564a045331264",
+    svgHash: "36d37794a948f8b8c0df903b9cbbedf447823ba3b8f53696d21a73c215655a54",
+  },
+} as const
+
 describe("dev-only nodes layout playground", () => {
   test("runs the public fixed policy against frozen RIGHT and DOWN inputs", () => {
     expect(PLAYGROUND_POLICIES.map(({id}) => id)).toEqual(["fixed", "adaptive"])
@@ -63,13 +80,57 @@ describe("dev-only nodes layout playground", () => {
   })
 
   test("keeps the comparison fixtures topology-identical apart from viewport", () => {
-    for (const family of ["fixed-baseline", "adaptive-side-selection"]) {
+    for (const family of [
+      "fixed-baseline",
+      "adaptive-side-selection",
+      "adaptive-compound-side-selection",
+    ]) {
       const [right, down] = getFixtureFamily(family)
       expect(right).toBeDefined()
       expect(down).toBeDefined()
       expect(withoutViewport(right!.graph)).toEqual(withoutViewport(down!.graph))
       expect(right!.graph.viewport.width).toBeGreaterThan(right!.graph.viewport.height)
       expect(down!.graph.viewport.width).toBeLessThan(down!.graph.viewport.height)
+    }
+  })
+
+  test("runs the public adaptive policy through nested compounds in RIGHT and DOWN", () => {
+    const fixtures = getFixtureFamily("adaptive-compound-side-selection")
+    expect(fixtures).toHaveLength(2)
+
+    for (const fixture of fixtures) {
+      const baseline = ADAPTIVE_COMPOUND_BASELINES[
+        fixture.id as keyof typeof ADAPTIVE_COMPOUND_BASELINES
+      ]
+      const first = runPlaygroundLayout("adaptive", fixture.graph)
+      const repeated = runPlaygroundLayout("adaptive", fixture.graph)
+      const permuted = runPlaygroundLayout("adaptive", permuteGraph(fixture.graph))
+      const shared = first.result.ports.find(({id}) => id === "source/shared")
+      const compoundIds = new Set(fixture.graph.nodes.flatMap(({parentId}) =>
+        parentId === undefined ? [] : [parentId]))
+
+      expect(baseline, `missing baseline for ${fixture.id}`).toBeDefined()
+      expect(compoundIds).toEqual(new Set(["source-zone", "target-zone"]))
+      expect(first.result.direction).toBe(fixture.expectedDirection)
+      expect(first.result.direction).toBe(baseline.direction)
+      expect(first.result.bounds).toEqual(baseline.bounds)
+      expect(shared?.side).toBe(baseline.side)
+      expect(first.metrics.compoundCount).toBe(2)
+      expect(first.metrics.gatewayCount).toBe(4)
+      expect(first.policyDiagnostics).toMatchObject({
+        candidateBudget: 16,
+        theoreticalCandidateCount: "2",
+        dynamicPortCount: 1,
+        attemptedCandidates: 2,
+      })
+      expect(hash(first.result)).toBe(baseline.resultHash)
+      expect(hash(first.svg)).toBe(baseline.svgHash)
+      expect(repeated.result).toEqual(first.result)
+      expect(repeated.policyDiagnostics).toEqual(first.policyDiagnostics)
+      expect(repeated.svg).toBe(first.svg)
+      expect(permuted.result).toEqual(first.result)
+      expect(permuted.policyDiagnostics).toEqual(first.policyDiagnostics)
+      expect(permuted.svg).toBe(first.svg)
     }
   })
 
@@ -209,6 +270,7 @@ describe("dev-only nodes layout playground", () => {
       "Диагностика",
       "Фиксированная",
       "Адаптивная",
+      "Вложенная адаптивная раскладка",
       "Горизонтальная (RIGHT)",
       "Вертикальная (DOWN)",
       "мс",
@@ -298,6 +360,20 @@ describe("dev-only nodes layout playground", () => {
 function withoutViewport(graph: (typeof PLAYGROUND_FIXTURES)[number]["graph"]): unknown {
   const {viewport: _, ...topology} = graph
   return topology
+}
+
+function permuteGraph(
+  graph: (typeof PLAYGROUND_FIXTURES)[number]["graph"],
+): (typeof PLAYGROUND_FIXTURES)[number]["graph"] {
+  return {
+    ...graph,
+    nodes: [...graph.nodes].reverse(),
+    ports: [...graph.ports].reverse().map((port) => ({
+      ...port,
+      allowedSides: [...port.allowedSides].reverse(),
+    })),
+    edges: [...graph.edges].reverse(),
+  }
 }
 
 function hash(value: unknown): string {

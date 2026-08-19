@@ -44,6 +44,18 @@ const adaptiveTopology = {
   layoutOptions: {spacing: 28, layerSpacing: 36, padding: 28, clearance: 28},
 } as const satisfies Omit<AdaptiveLayoutGraph, "viewport">
 
+const adaptiveCompoundTopology = {
+  ...adaptiveTopology,
+  nodes: [
+    {id: "source-zone", width: 176, height: 58, contentHeight: 38},
+    {id: "target-zone", width: 176, height: 58, contentHeight: 38},
+    ...adaptiveTopology.nodes.map((node) => ({
+      ...node,
+      parentId: node.id === "source" ? "source-zone" : "target-zone",
+    })),
+  ],
+} as const satisfies Omit<AdaptiveLayoutGraph, "viewport">
+
 function fixedFixture(
   id: string,
   label: string,
@@ -76,11 +88,29 @@ function adaptiveFixture(
   }
 }
 
+function adaptiveCompoundFixture(
+  id: string,
+  label: string,
+  expectedDirection: PlaygroundFixture["expectedDirection"],
+  viewport: AdaptiveLayoutGraph["viewport"],
+): PlaygroundFixture {
+  return {
+    id,
+    family: "adaptive-compound-side-selection",
+    label,
+    description: "Один общий двунаправленный сокет (inout) связывает дочерние ноды двух контейнеров, а публичная адаптивная политика выбирает ему одну сторону.",
+    expectedDirection,
+    graph: {...adaptiveCompoundTopology, viewport},
+  }
+}
+
 export const PLAYGROUND_FIXTURES: readonly PlaygroundFixture[] = [
   fixedFixture("fixed-baseline-right", "Фиксированная основа · альбомная", "RIGHT", {width: 1180, height: 680}),
   fixedFixture("fixed-baseline-down", "Фиксированная основа · портретная", "DOWN", {width: 520, height: 920}),
   adaptiveFixture("adaptive-shared-right", "Общий адаптивный порт · альбомная", "RIGHT", {width: 960, height: 560}),
   adaptiveFixture("adaptive-shared-down", "Общий адаптивный порт · портретная", "DOWN", {width: 480, height: 820}),
+  adaptiveCompoundFixture("adaptive-compound-right", "Вложенная адаптивная раскладка · альбомная", "RIGHT", {width: 960, height: 560}),
+  adaptiveCompoundFixture("adaptive-compound-down", "Вложенная адаптивная раскладка · портретная", "DOWN", {width: 480, height: 820}),
 ]
 
 export function getPlaygroundFixture(id: string): PlaygroundFixture {
