@@ -123,6 +123,32 @@
   Multiple origin targets теперь дают explicit ambiguity и никогда не создают
   ещё одну вкладку либо не закрываются молча.
 
+## elements/{desktop,portrait,landscape}.png
+
+* Источник: `UI dev` background exact-target viewport matrix route
+  `/layout/flex-css`, selector `elements`, origin
+  `http://127.0.0.1:7901`.
+* Версия проекта: correction result
+  `144700feb1471a08c6a74f1d29c971b54e15f3ae`.
+* Exact process/target: dispatcher session `38877`, PID `67883`, target
+  `E2087390E08913DD8CA4142D5D9E8C48`. Target count оставался `1` при
+  последовательной навигации всех двенадцати historical path routes.
+* Ожидание: desktop показывает public five-panel shell с historical Flex CSS
+  preview; portrait и landscape показывают только непустой consumer preview.
+* Фактическое наблюдение: desktop shell и Flex CSS content видимы; mobile
+  captures содержат только preview. Каждый route опубликовал
+  `elementsPlayground=ready` и точный route ID; console sample `0`,
+  preview counters на каждом reload `layoutPlans=1/materializations=1`.
+  Native `1920×1088 @2` восстановлен после portrait `390×844 @2` и
+  landscape `844×390 @2`.
+* Граница evidence: renderer activity emulation не является physical-device
+  proof либо owner acceptance.
+* Чувствительные сведения: нет.
+* Контрольные суммы: desktop
+  `8792b16a26ce2e3139f46f639f846a7da4d98fc60f589d6d2379221a847b3bb8`;
+  portrait `54dd782b924fea21fc485151fe2829601720e8b2b1505096032e621f0e367065`;
+  landscape `3562d044904591f922d5db548a054b649cb2b4d799d505aff9936b95c7099c00`.
+
 Все captures созданы через background exact target; renderer activity emulation
 не меняла OS/browser focus. `visible/focused` внутри отдельных capture phases —
 CDP focus emulation, final restored targets вернулись в `hidden/unfocused`.
