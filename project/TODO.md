@@ -29,7 +29,6 @@ flowchart LR
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
     UPD002["UPD-002 · клиентская сборка через Service Worker"]
-    UPD003["UPD-003 · пакетные сборки по среде"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
     MF427["MF-427 · несколько Вселенных"]
     MTX001["MTX-001 · причинный порядок"]
@@ -101,132 +100,6 @@ build. Срез `UPD-002.15` заново опубликовал development art
 source maps и owner-scoped diagnostics и устранил смешанный
 production/development contour после `.13`. Оба результата ожидают review в
 оставленном live contour.
-Отдельная следующая задача
-`UPD-003 — Синхронизировать пакетные сборки по среде и состоянию кэша`
-зарегистрирована по решению владельца и открыта его прямым поручением до
-формального закрытия `UPD-002`. Она не исправляет оставленный checkpoint: её
-первый срез фиксирует env-контракт, а следующие введут cache-derived browser
-state, server delta `update/remove`, одну фиксированную восстанавливаемую
-transaction и root-first host intent без дополнительного release manifest или
-ID.
-Contract-срез `UPD-003.1` закреплён result-коммитом `6509a4a2e`. Срез
-`UPD-003.2` перевёл шесть Hamiltonian packages на conditional exports,
-env-specific build/typecheck units и свежее чтение manifests; результат
-закреплён result-коммитом `9573865d1`. Срез `UPD-003.3` выполняется: он меняет
-только canonical browser URL и artifact identity; RPC delta, host recovery и
-browser transaction остаются следующими отдельными механизмами. Проверка
-перехода подтвердила, что изменённые package contracts требуют новых patch
-versions: старые immutable bytes под прежним SemVer не подменяются. Срез `.3`
-находится в `REVIEW`: canonical URL, SHA-256/size и namespace cache ownership
-доказаны unit, exact-response и полным browser suite; result checkpoint
-`d47e89e96`. Срез `.4` находится в `REVIEW`: membership/dependency closure,
-startup dependencies и public Loader type boundary доказаны focused и полным
-suite; result checkpoint `4b71b61f9`. Срез `.5` находится в `REVIEW`:
-root-first host intent, normal rollback, immutable exact checks и cold-start
-forward recovery до открытия routes доказаны focused и полным suite; result
-checkpoint `5d35a7818`. Срез `.6` находится в `REVIEW`: payload-free release signal,
-фактический current state из canonical browser caches и server delta только из
-`update/remove` без desired state или дополнительных IDs. Результат доказан
-focused, development/production build и полным browser suite; срез находится в
-`REVIEW`, result checkpoint `81d5d8269`. Срез `.7` выполняется: один fixed
-`transaction`, first intent write, guarded canonical apply/recovery, removal и
-полное удаление постоянной active metadata и UUID caches. Результат `.7`
-закреплён checkpoint `a8dbf5059`, а guide correction `.7.1` — checkpoint
-`7ef8e87d7`. Closing-срез `.8` выполняет двухпрофильный automated proof и
-owner-visible development update в единственном managed contour; destructive
-failure/crash остаются доказательствами своих изолированных сред. `.8` теперь в
-`REVIEW`: two-profile regression и две live development publications прошли,
-managed iTerm/CDP contour оставлен владельцу. По следующему прямому решению
-владельца срез `.9` объединяет release и startup env в packages
-`@hamiltonian/release` и `@hamiltonian/startup`, закрепляет `<env>/index.ts`,
-один package-wide typecheck без prebuild и единый all-env build/update path.
-Срез находится в `REVIEW`: conditional type proof, all-env build failure
-boundary, recovery без повторной сборки завершённых artifacts, полный suite и
-live cold transaction с точными новыми cache URLs прошли; managed contour
-оставлен владельцу.
-Owner review обнаружил глобальную ошибку результата `.7`: после полной staging
-canonical commit заменяет slots по одному и удаляет old entry раньше, чем
-доказан полный new composition. В текущую задачу принят correction-срез
-`UPD-003.10` завершён result checkpoint `cd7712e69`: все candidates
-устанавливаются и проверяются без old deletion, cleanup идёт только вперёд,
-old service-worker release удаляется последним, а `transaction` — после
-финальной canonical проверки. Срез `.11` находится в `REVIEW`: startup
-синхронно регистрирует browser event
-bridge, сразу запускает release, передаёт frozen one-way dependencies и меняет
-inert runtime после durable commit без `unregister`; focused suite и browser
-update/recovery contour прошли, result checkpoint `d346b6dd6`; новый immutable
-artifact будет опубликован в финальном contour после структурного среза.
-Срез `.12` находится в `REVIEW`, result checkpoint `e9cf6e3fb`:
-`hamiltonian/web` удалён, `static` поднят, общие package-функции перенесены в
-`shared/package`, release server/service-worker разложены по предметным
-директориям, а development `@hamiltonian/release 0.1.4` опубликован без
-изменения package identity law. Полный production cold browser proof открыл
-отдельный runtime-дефект: stale delta ошибочно считала уже установленную и
-проверенную exact entry изменением и выполняла лишнюю Window navigation.
-Correction-срез `.13` находится в `REVIEW`: фактические canonical mutations
-отделены от входной delta, stale exact update доказана как no-op, production
-cold и полный browser suite прошли. Development release `0.1.5` находится в
-чистом managed contour с одной registration, точными caches, debug/source maps
-и без transaction; result checkpoint — текущий result commit.
-По прямому решению владельца срез `.14` закрепил единое сокращение Service
-Worker как `service` во всех project-controlled env, paths, artifact URLs,
-diagnostics и lifecycle identities. Platform Web API сохраняет имя
-`ServiceWorker`, а отдельный `server-worker` env не меняется. Срез находится в
-`REVIEW`: source directories/files, contracts и tests согласованы; development
-startup `0.1.1` и release `0.1.6` установлены в чистом managed contour без
-legacy adapter, old cache env и незавершённой transaction. Result checkpoint —
-текущий result commit.
-После IDE evidence `TS6196` correction-срез `UPD-003.15` находится в `REVIEW`:
-правка владельца в type import сохранена, четыре подтверждённых unused-остатка
-удалены, strict startup/test compiler regression проходит. Metafile не нашёл
-мёртвых implementation modules; development release `0.1.7` установлен в
-чистом managed contour без transaction. Result checkpoint — текущий result
-commit.
-Observability-срез `UPD-003.16` находится в `REVIEW`: permanent guide и
-исполняемая матрица закрепили `8` stories, `49` точных production checkpoints
-и `20` behavior proofs; AST inventory отвергает лишний, неизвестный либо
-неструктурированный log. Startup, publication success/rollback/recovery,
-delivery, RPC reconnect/no-op/failure, transaction/handover и Window realm
-проверены предметными tests. Согласованный host start не выдаётся за recovery,
-а repeated reconnect не создаёт spam. Development startup `0.1.2` и release
-`0.1.9` установлены в managed contour; полный suite прошёл `297/297`, рабочее
-и browser-состояние до/после tests совпало. Result checkpoint — текущий result
-commit. Prerequisite `UPD-003.17` доказан result commit `870fc73c7` и находится
-в `REVIEW`:
-build/publication/recovery/browser tests переведены на test-owned временные
-workspace, artifacts, origin и state, а production не получил test hooks.
-Focused regression прошёл `28/28`, browser — `8/8`, полный Hamiltonian suite —
-`289/289`; рабочие digests, PID/TTY/Chrome target, registration/controller и
-Cache Storage постоянного contour совпали до и после полного прогона. Result
-checkpoint — текущий result commit.
-Родительский результат `UPD-003` был повторно проверен на `580b0be94`: strict
-typechecks startup/release/Visual/tests и полный Hamiltonian suite прошли
-`297/297`; managed PID, TTY, Chrome target, controller, server state и
-побайтовые SHA каждого browser code artifact не изменились. Независимая
-closing review на `205c72cdb` вернула задачу в `IN_PROGRESS`: cold recovery не
-сверяет полностью существующий exact composition с fresh source build, а `.14`
-повредила standard header `Service-Worker-Allowed` отдельно запускаемого
-prototype. `UPD-003.18` исправила complete-source recovery checkpoint
-`49ccff514`, а `UPD-003.19` восстановила platform header checkpoint
-`27f821e55`. Совмещённые focused regressions, strict release/test/prototype
-typechecks и полный Hamiltonian suite прошли `298/298`; managed contour и
-browser code caches не изменились. Повторная closing review подтвердила эти
-исправления, но вернула родителя в `IN_PROGRESS`: canonical `bun run typecheck`
-смешивает service/server TypeScript environments и сохраняет strict errors
-prototype update, а точный счётчик `expect()` оказался неустойчивым evidence.
-Validation-срезы зарегистрированы как `UPD-003.20` и `UPD-003.21`; assertion
-count больше не является acceptance-инвариантом. `.20` checkpoint `db3f739c8`
-разделил package/test/root TypeScript environments и актуализировал canonical
-verification; `.21` checkpoint `0ba474cac` устранил strict errors prototype
-update. `bun run typecheck` и полный Hamiltonian suite `299/299` проходят;
-managed contour и browser caches не изменились. Родитель снова находится в
-`REVIEW`; owner-visible contour оставлен работающим.
-Третья closing review подтвердила code/typecheck/test result, но вернула `.20`
-в работу: verification block README потерял переход в каталог `hamiltonian`
-перед prototype build-командами. Это то же требование и тот же механизм, новый
-срез не создаётся. Correction checkpoint `885d45bab` восстановил exact cwd;
-Hamiltonian `299/299`, nodes/orchestration `137/137`, canonical typecheck и все
-prototype build-команды README проходят. Родитель снова находится в `REVIEW`.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
@@ -239,9 +112,9 @@ cache `release`. Release package разворачивает Window и Service Wo
 расширяет startup до появления первого предметного Window module. Стандартное
 пустое visual-окружение Window уже закреплено в Hamiltonian-контракте и не
 является дополнительным критерием minimal loader. Package SemVer, integrity,
-canonical owner caches и атомарное переключение сменяемого набора принадлежат
-`UPD-002`/`UPD-003`; неизменяемый startup в этот выпуск не входит. Владелец
-признал текущий loader checkpoint
+canonical owner caches и атомарное переключение сменяемого набора закреплены
+действующим Hamiltonian-контрактом; неизменяемый startup в этот выпуск не
+входит. Владелец признал текущий loader checkpoint
 достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
 Development checkpoint `UPD-002.2`–`UPD-002.5` принят владельцем: групповой
 build, одно уведомление и один browser restart сохранены, а единственный
@@ -266,7 +139,6 @@ production удаляет `console.debug` и не публикует карту.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
-| UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |

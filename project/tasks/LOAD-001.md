@@ -1698,7 +1698,7 @@ loader из startup. Срез `.24` находится в `REVIEW`: владел
 
 Имена `@startup/*`, `@import/*`, cache `import` и отдельный `@internal/rpc`
 ниже сохраняются только как история первоначального loader proof. После
-`UPD-002`/`UPD-003` текущий реализованный путь имеет вид
+последующих package/release-срезов текущий реализованный путь имеет вид
 `HTML → @hamiltonian/startup(main/service) →
 @hamiltonian/release(main/service) → @internal/visual`; RPC входит в env
 `service` release package, а постоянные code caches принадлежат `startup`,

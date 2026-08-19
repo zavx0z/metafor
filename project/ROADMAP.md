@@ -300,8 +300,8 @@ dependencies задают состояние без отдельного release
 [`UPD-002 — Обновлять всю клиентскую сборку через Service
 Worker`](tasks/UPD-002.md).
 
-Следующий этап различает несколько сред одного package без изменения bare
-import: стандартный conditional `exports` выбирает `main`, `worker`,
+Действующий clean-room release различает несколько сред одного package без
+изменения bare import: стандартный conditional `exports` выбирает `main`, `worker`,
 `service`, `server` или `server-worker`, а env входит в artifact и
 browser cache identity. Service Worker сообщает server фактический полный
 состав постоянных code caches, получает только `update/remove` и применяет
@@ -309,9 +309,8 @@ browser cache identity. Service Worker сообщает server фактичес�
 Hamiltonian manifest записывает host intent до действий и остаётся единственным
 источником восстановления; отдельные active/release manifests, endpoints,
 generation, release ID и transaction UUID не добавляются. Живые Bun processes
-этот browser release не заменяет. Этим следующим результатом владеет
-[`UPD-003 — Синхронизировать пакетные сборки по среде и состоянию
-кэша`](tasks/UPD-003.md).
+этот browser release не заменяет. Этим результатом владеет
+[Hamiltonian-контракт](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader).
 
 ## Oracle и Force
 
