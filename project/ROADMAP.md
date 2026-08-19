@@ -212,6 +212,12 @@ layout integration существующие policies продолжают нез
 Links, containment и generic renderer boundary. Этот catalog не заменяет
 layout playground и не является product acceptance Hamiltonian.
 
+Визуальный эталон component library — настоящий локальный Blender 4.5.5 LTS,
+а не свободная стилизация по его терминологии. Canvas, Node/Frame, Socket rows,
+controls, Links и interaction states проверяются side-by-side при сопоставимом
+масштабе. Automated screenshot не является visual acceptance: завершение
+этого направления требует явного принятия владельца.
+
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
 signaling, secrets или authority и не заменяет существующие WSS, MessagePort,
