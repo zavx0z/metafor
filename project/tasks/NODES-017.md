@@ -143,6 +143,15 @@ isolated lifecycle, desktop/portrait/landscape captures и atomic pan/pinch
 exact target `1E982…`, touch и native restore зелёные. Production Node/UI не
 менялись; physical-device и owner acceptance не подменены.
 
+#### NODES-017.7.1 — Удерживать playground в long-lived PTY
+
+Независимая следующая проверка обнаружила, что `nohup` child уничтожается
+вместе с завершением Codex tool process group: target остаётся, но listener
+4016 исчезает. Заменить ложный background lifecycle на foreground `serve`,
+который запускается в unified long-lived PTY; `status/health/stop` продолжают
+проверять точный checkout-owned PID. Повторить cross-command status, reload,
+touch и viewport matrix, не называя helper persistent между отдельными задачами.
+
 ### NODES-017.8 — Side-by-side playground и owner acceptance
 
 Playground показывает одну сопоставимую Blender scene при одинаковом масштабе,
@@ -200,5 +209,5 @@ console, DOM и visual matrix, затем оставить contour владел�
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; NODES-017.7 complete, physical mobile gate
-открыт; текущий срез NODES-017.8 — side-by-side и owner acceptance.
+`IN_PROGRESS`, исполнитель `/root`; physical mobile gate открыт; текущий срез
+NODES-017.7.1 исправляет lifecycle skill перед NODES-017.8.

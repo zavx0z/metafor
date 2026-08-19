@@ -74,9 +74,10 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 исправляет отклонённый владельцем visual result NODES-016. Текущий срез
-предъявляет side-by-side owner acceptance; versioned `node-system-dev` skill,
-Frame/Parameter/visual rhythm/Links и isolated mobile proof уже закреплены
-checkpoint-коммитами. Physical mobile и owner acceptance остаются gate.
+исправляет lifecycle `node-system-dev`: server должен жить в long-lived PTY,
+а не в исчезающем `nohup` child. Frame/Parameter/visual rhythm/Links и isolated
+mobile proof уже закреплены checkpoint-коммитами. Physical mobile и owner
+acceptance остаются gate.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
