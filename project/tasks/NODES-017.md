@@ -37,6 +37,13 @@
 * Владелец уточнил терминологию layout: система называется `FlexBox`; CSS —
   только привычная декларативная форма описания её размеров и flow. `FlexCss`
   не является отдельной системой или допустимым архитектурным термином.
+* Владелец потребовал разделить перегруженный playground на отдельный component
+  catalog. Независимая dev-only задача
+  [`NODES-019 — Разделить playground Node System на каталог компонентов`](NODES-019.md)
+  выполняется параллельно retained prerequisite NODES-018. Socket section не
+  содержит Parameter/input controls. Universal inputs принадлежат отдельной
+  [`UI-001 — Создать playground универсальных UI Components`](UI-001.md) в
+  `pkg/ui/components/playground`, а Node playground только импортирует их.
 * На машине установлен Blender `4.5.5 LTS`. Создан изолированный reference
   `/tmp/blender-node-reference.blend` с Texture Coordinate, Mapping, Noise
   Texture, Color Ramp, Principled BSDF, Material Output, Links и Frame.
@@ -387,8 +394,10 @@ engine/UI contract, а не исправляется локально в Node re
 ## Состояние
 
 `WAITING`: row order, texture header и полноширинные enums исправлены. Владелец
-отделил engine parent/child hierarchy в NODES-018; до её результата NODES-017
-не продолжает Socket/header/shadow/LOD/alignment corrections на старом flat path.
+отделил engine parent/child hierarchy в NODES-018, Node catalog shell в
+NODES-019 и owner-local input catalog в UI-001; до этих результатов NODES-017
+не продолжает
+Socket/header/shadow/LOD/alignment corrections на старом flat path.
 NODES-017.8.4 сохраняет rounded header, но исправляет collapse chevron и title
 alignment. NODES-017.8.5 переносит selection с border на четырёхстороннюю тень
 в оттенке header. NODES-017.8.6 устраняет пустые Node при zoom-out без отказа от

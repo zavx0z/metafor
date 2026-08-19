@@ -27,6 +27,8 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     NODES018["NODES-018 · retained parent/child UI transforms"]
+    NODES019["NODES-019 · разделить playground на каталог"]
+    UI001["UI-001 · playground универсальных UI Components"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
@@ -50,6 +52,8 @@ flowchart LR
     MF405 --> MF406
     MF411 --> MF414
     NODES018 --> NODES017
+    NODES019 --> NODES017
+    UI001 --> NODES017
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -79,6 +83,16 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 поддерживает inherited `matrixWorld`, но immediate-mode `UiSurface` и NodeCanvas
 запекают transform каждого child на CPU и пересоздают плоские layers. Текущий
 срез закрепляет retained engine/UI contract и baseline перед переносом NodeCanvas.
+
+[`NODES-019 — Разделить playground Node System на каталог компонентов`](tasks/NODES-019.md)
+параллельно меняет только dev playground: отдельные sections для полного Node
+Editor, Socket и Blender comparison вместо одной перегруженной страницы. Socket
+catalog не представляет input rows как Parameter.
+
+[`UI-001 — Создать playground универсальных UI Components`](tasks/UI-001.md)
+поднимает отдельный owner-local catalog text/number/slider/Switcher/enum/color/
+vector/rotation/matrix/reference/read-only Fields. Node playground больше не
+владеет standalone input examples и только импортирует components в Node.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
@@ -285,7 +299,9 @@ production удаляет `console.debug` и не публикует карту.
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | NODES-018 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-018.md) |
-| NODES-017 | WAITING     | NODES-018 | [Открыть](tasks/NODES-017.md) |
+| NODES-019 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-019.md) |
+| UI-001 | IN_PROGRESS | нет       | [Открыть](tasks/UI-001.md) |
+| NODES-017 | WAITING     | NODES-018, NODES-019, UI-001 | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |
