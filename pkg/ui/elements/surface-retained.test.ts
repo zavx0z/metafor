@@ -360,6 +360,72 @@ describe("UiSurface retained component parent", () => {
     expect(actions.at(-1)).toBe("bottom")
   })
 
+  test("automatically retains ordinary hit and wheel controls in exact parent-local coordinates", () => {
+    const fake = createFakeRuntime()
+    const surface = new RetainedTestSurface()
+    surface.attachCanvas(fake.runtime)
+    surface.setRect({x: 0, y: 0, w: 200, h: 120}, 0.001, font)
+    const root = surface.createParent("root")
+    const component = surface.createParent("component", root)
+    const actions: string[] = []
+    let wheelCalls = 0
+    const pointerMoves: Array<Readonly<{x: number; y: number}>> = []
+
+    surface.materialize(component, () => {
+      surface.hit(0, 0, 100, 80, () => actions.push("container"), {key: "container"})
+      surface.hit(10, 10, 30, 20, () => actions.push("control"), {
+        key: "control",
+        onPointerMove: (x, y) => { pointerMoves.push({x, y}) },
+      })
+      surface.wheel(10, 10, 30, 20, () => { wheelCalls += 1 }, "control-wheel")
+    })
+    surface.transform(root, (parent) => {
+      parent.position.set(0.05, -0.04, 0)
+      parent.scale.set(0.5, 0.5, 1)
+    })
+
+    surface.onPointerMove({} as MouseEvent, 60, 47.5)
+    expect(surface.hoveredPointer()?.x).toBeCloseTo(20, 5)
+    expect(surface.hoveredPointer()?.y).toBeCloseTo(15, 5)
+    surface.onPointerDown({} as MouseEvent, 60, 47.5)
+    surface.onPointerMove({} as MouseEvent, 61, 48)
+    surface.onPointerUp({} as MouseEvent, 61, 48)
+    expect(pointerMoves.at(-1)?.x).toBeCloseTo(22, 5)
+    expect(pointerMoves.at(-1)?.y).toBeCloseTo(16, 5)
+    expect(actions).toEqual(["control"])
+    surface.onWheel({} as WheelEvent, 60, 47.5)
+    expect(wheelCalls).toBe(1)
+
+    expect(() => surface.materialize(component, () => {
+      surface.hit(10, 10, 30, 20, () => actions.push("staged-control"), {key: "staged-control"})
+      surface.wheel(10, 10, 30, 20, () => { wheelCalls += 100 }, "staged-wheel")
+      throw new Error("ordinary input staging failed")
+    })).toThrow("ordinary input staging failed")
+    surface.onPointerDown({} as MouseEvent, 60, 47.5)
+    surface.onPointerUp({} as MouseEvent, 60, 47.5)
+    surface.onWheel({} as WheelEvent, 60, 47.5)
+    expect(actions).toEqual(["control", "control"])
+    expect(wheelCalls).toBe(2)
+
+    surface.onPointerMove({} as MouseEvent, 60, 47.5)
+    surface.onPointerDown({} as MouseEvent, 60, 47.5)
+    surface.setVisibility(component, false)
+    expect(surface.hitState(10, 10, 30, 20, "control")).toEqual({hovered: false, pressed: false})
+    surface.onPointerUp({} as MouseEvent, 60, 47.5)
+    surface.onWheel({} as WheelEvent, 60, 47.5)
+    expect(actions).toEqual(["control", "control"])
+    expect(wheelCalls).toBe(2)
+
+    surface.setVisibility(component, true)
+    surface.removeParent(component)
+    surface.onPointerDown({} as MouseEvent, 60, 47.5)
+    surface.onPointerUp({} as MouseEvent, 60, 47.5)
+    surface.onWheel({} as WheelEvent, 60, 47.5)
+    surface.dispose()
+    expect(actions).toEqual(["control", "control"])
+    expect(wheelCalls).toBe(2)
+  })
+
   test("keeps fixed viewport and projected local material clips current without rematerialization", () => {
     const fake = createFakeRuntime()
     const surface = new RetainedTestSurface()

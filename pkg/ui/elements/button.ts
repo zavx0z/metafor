@@ -104,8 +104,8 @@ function holdPressedVisual(surface: UiSurface, key: string): void {
     entry.timer = null
     if (entry.key !== key) return
     entry.key = null
-    surface.requestRender()
+    surface.requestHitRender(key)
   }, MIN_PRESS_VISUAL_MS)
   pressedVisuals.set(surface, entry)
-  surface.requestRender()
+  surface.requestHitRender(key)
 }

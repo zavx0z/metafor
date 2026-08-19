@@ -85,6 +85,7 @@ type RetainedMaterialization = {
   staging: Object3D
   provisionalParents: Set<Object3D>
   hits: RetainedHitRecord[]
+  wheelHits: RetainedWheelHitRecord[]
 }
 
 const scheduleUiFrame = (callback: FrameRequestCallback): UiFrameHandle => {
@@ -319,7 +320,18 @@ type RetainedHitRecord = {
   screenMinimum?: RetainedHitScreenMinimum
 }
 
+type RetainedWheelHitRecord = Readonly<{
+  parent: Object3D
+  x: number
+  y: number
+  w: number
+  h: number
+  key: string
+  onWheel(event: WheelEvent): void
+}>
+
 type ResolvedHitBox = HitBox & Readonly<{retainedParent?: Object3D}>
+type ResolvedWheelHitBox = WheelHitBox & Readonly<{retainedParent?: Object3D}>
 
 const RETAINED_UNBOUNDED_CLIP: ClipLocalRect = {
   xMin: Number.NEGATIVE_INFINITY,
@@ -401,6 +413,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #retainedLayer: Object3D
   readonly #retainedParents = new Set<Object3D>()
   readonly #retainedHits = new Map<Object3D, readonly RetainedHitRecord[]>()
+  readonly #retainedWheelHits = new Map<Object3D, readonly RetainedWheelHitRecord[]>()
   readonly #retainedViewportClips = new Map<Object3D, ClipLocalRect>()
   #retainedMaterialization: RetainedMaterialization | null = null
   #drawLayer: UiSurfaceDrawLayer = "main"
@@ -422,6 +435,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   #hoverTooltipTimer: ReturnType<typeof setTimeout> | null = null
   #pointerX = 0
   #pointerY = 0
+  #lastRetainedInteraction: Readonly<{key: string; parent: Object3D}> | null = null
   #pendingTooltipDraws: PendingTooltipDraw[] = []
   #backgroundImage: BackgroundImageOpts | null = null
   #rerenderRafId: UiFrameHandle | null = null
@@ -656,6 +670,25 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.canvas?.requestRender()
   }
 
+  /** Re-renders the exact retained owner of a delayed keyed interaction, if any. */
+  requestHitRender(key: string): void {
+    let parent = this.#lastRetainedInteraction?.key === key
+      ? this.#lastRetainedInteraction.parent
+      : null
+    if (parent === null || !this.#retainedParents.has(parent)) {
+      for (const [candidate, hits] of this.#retainedHits) {
+        if (hits.some((hit) => hit.key === key)) parent = candidate
+      }
+    }
+    if (parent !== null && this.#retainedParents.has(parent)) {
+      this.#notifyRetainedInteraction(parent, key)
+    }
+    this.requestRender()
+  }
+
+  /** Subclasses can dirty the exact existing component parent without a second graph. */
+  protected onRetainedInteractionChange(_parent: Object3D): void {}
+
   flushPendingRender(): void {
     if (this.font === null) return
     if (this.#rerenderRafId !== null) {
@@ -738,6 +771,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       staging,
       provisionalParents: new Set<Object3D>(),
       hits: [],
+      wheelHits: [],
     }
     const previousClipStack = this.#clipStack
     this.#retainedMaterialization = transaction
@@ -764,6 +798,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
     for (const retainedParent of transaction.provisionalParents) this.#retainedParents.add(retainedParent)
     this.#replaceRetainedHits(parent, transaction.hits)
+    this.#replaceRetainedWheelHits(parent, transaction.wheelHits)
     this.#disposeSubtrees(previousChildren)
     this.canvas?.requestRender()
   }
@@ -848,6 +883,22 @@ export abstract class UiSurface implements UiSurfaceNode {
     h: number,
     action: () => void,
     options: RetainedHitOptions = {},
+  ): void {
+    const transaction = this.#retainedMaterialization
+    if (transaction === null || transaction.target !== parent) {
+      throw new Error("A retained hit must be staged while materializing its exact parent")
+    }
+    this.#stageRetainedHit(parent, x, y, w, h, action, options)
+  }
+
+  #stageRetainedHit(
+    parent: Object3D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    action: () => void,
+    options: RetainedHitOptions,
   ): void {
     this.#requireRetainedParent(parent)
     const transaction = this.#retainedMaterialization
@@ -1167,14 +1218,18 @@ export abstract class UiSurface implements UiSurfaceNode {
   ): void {
     if (label.length === 0) return
     const delayMs = opts.delayMs ?? 450
-    const key = tooltipKey(x, y, w, h, label)
+    const transaction = this.#retainedMaterialization
+    const target = transaction === null
+      ? {x, y, w, h}
+      : this.retainedToSurfaceRect(transaction.target, {x, y, w, h})
+    const key = tooltipKey(target.x, target.y, target.w, target.h, label)
     if (this.#hoverTooltipKey !== key) return
     if (performance.now() - this.#hoverTooltipSince < delayMs) return
     this.#pendingTooltipDraws.push({
-      x,
-      y,
-      w,
-      h,
+      x: target.x,
+      y: target.y,
+      w: target.w,
+      h: target.h,
       label,
       anchor: opts.anchor ?? "hit",
       cursorX: this.#pointerX,
@@ -1310,9 +1365,13 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
   }
 
-  /** Pointer inside the currently hovered surface hit, in surface coordinates. */
+  /** Pointer inside the hovered hit: retained-parent local or immediate surface coordinates. */
   hoveredPointer(): Readonly<{x: number; y: number}> | null {
     if (this.#hoveredHitKey === null) return null
+    const hovered = this.hoveredHit as ResolvedHitBox | null
+    if (hovered?.retainedParent !== undefined) {
+      return this.surfaceToRetainedPoint(hovered.retainedParent, {x: this.#pointerX, y: this.#pointerY})
+    }
     return {x: this.#pointerX, y: this.#pointerY}
   }
 
@@ -1332,6 +1391,11 @@ export abstract class UiSurface implements UiSurfaceNode {
           ? {cursor: cursorOrOptions}
           : {cursor: cursorOrOptions, tooltip}
         : cursorOrOptions
+    const transaction = this.#retainedMaterialization
+    if (transaction !== null) {
+      this.#stageRetainedHit(transaction.target, x, y, w, h, action, options)
+      return
+    }
     const hit: HitBox = {
       x,
       y,
@@ -1353,6 +1417,22 @@ export abstract class UiSurface implements UiSurfaceNode {
 
   /** Регистрирует wheel-rect в surface-px coords. Поздние побеждают. */
   wheel(x: number, y: number, w: number, h: number, onWheel: (event: WheelEvent) => void, key?: string): void {
+    const transaction = this.#retainedMaterialization
+    if (transaction !== null) {
+      if (![x, y, w, h].every(Number.isFinite) || w < 0 || h < 0) {
+        throw new Error("A retained wheel hit requires a finite non-negative local rect")
+      }
+      transaction.wheelHits.push({
+        parent: transaction.target,
+        x,
+        y,
+        w,
+        h,
+        key: key ?? hitKeyFor(x, y, w, h),
+        onWheel,
+      })
+      return
+    }
     this.#wheelHits.push({
       x,
       y,
@@ -1366,8 +1446,16 @@ export abstract class UiSurface implements UiSurfaceNode {
   // ────────────────────────── Pointer events ──────────────────────────
 
   onWheel(event: WheelEvent, localX: number, localY: number): void {
-    const hit = this.#wheelHitAt(localX - this.#padLeft, localY - this.#padTop)
-    hit?.onWheel(event)
+    this.dispatchWheelHit(event, localX - this.#padLeft, localY - this.#padTop)
+  }
+
+  protected dispatchWheelHit(event: WheelEvent, innerX: number, innerY: number): boolean {
+    const hit = this.#wheelHitAt(innerX, innerY)
+    if (hit === null) return false
+    const retained = hit as ResolvedWheelHitBox
+    if (retained.retainedParent !== undefined) this.#notifyRetainedInteraction(retained.retainedParent, retained.key)
+    hit.onWheel(event)
+    return true
   }
 
   onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
@@ -1375,6 +1463,8 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#pointerX = localX - this.#padLeft
     this.#pointerY = localY - this.#padTop
     if (this.pressedHit !== null) {
+      const pressed = this.pressedHit as ResolvedHitBox
+      if (pressed.retainedParent !== undefined) this.#notifyRetainedInteraction(pressed.retainedParent, pressed.key)
       this.pressedHit.onPointerMove?.(localX - this.#padLeft, localY - this.#padTop, _event)
       this.canvas.canvas.style.cursor = this.#cursorFor(this.pressedHit, true)
       return
@@ -1393,6 +1483,8 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (hit === null) return
     this.pressedHit = hit
     this.#pressedHitKey = hit.key
+    const retained = hit as ResolvedHitBox
+    if (retained.retainedParent !== undefined) this.#notifyRetainedInteraction(retained.retainedParent, retained.key)
     hit.onPointerDown?.(localX - this.#padLeft, localY - this.#padTop, _event)
     if (this.canvas !== null) this.canvas.canvas.style.cursor = this.#cursorFor(hit, true)
     this.requestRender()
@@ -1404,6 +1496,8 @@ export abstract class UiSurface implements UiSurfaceNode {
     const releaseHit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
     this.pressedHit = null
     this.#pressedHitKey = null
+    const retained = pressed as ResolvedHitBox
+    if (retained.retainedParent !== undefined) this.#notifyRetainedInteraction(retained.retainedParent, retained.key)
     pressed.onPointerUp?.(_event)
     if (releaseHit?.key === pressed.key) {
       pressed.action()
@@ -1428,6 +1522,8 @@ export abstract class UiSurface implements UiSurfaceNode {
   onDeactivate(): void {
     if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
     this.#setHoveredHit(null)
+    const pressed = this.pressedHit as ResolvedHitBox | null
+    if (pressed?.retainedParent !== undefined) this.#notifyRetainedInteraction(pressed.retainedParent, pressed.key)
     this.pressedHit = null
     this.#pressedHitKey = null
     this.#setHoverTooltip(null)
@@ -1778,14 +1874,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   #retainedHitAt(x: number, y: number): ResolvedHitBox | null {
-    const records: RetainedHitRecord[] = []
-    const visit = (object: Object3D): void => {
-      if (!object.visible) return
-      const owned = this.#retainedHits.get(object)
-      if (owned !== undefined) records.push(...owned)
-      for (const child of object.children) visit(child)
-    }
-    visit(this.#retainedLayer)
+    const records = this.#retainedRecordsInPaintOrder(this.#retainedHits)
     for (let index = records.length - 1; index >= 0; index -= 1) {
       const record = records[index]!
       const viewport = this.#retainedViewportClip(record.parent)
@@ -1795,44 +1884,88 @@ export abstract class UiSurface implements UiSurfaceNode {
       const projected = this.retainedToSurfaceRect(record.parent, record)
       const target = expandRectToMinimum(projected, record.screenMinimum)
       if (!intrinsic && (record.screenMinimum === undefined || !pointInsideRect({x, y}, target))) continue
-      const resolved: ResolvedHitBox = {
-        x: target.x,
-        y: target.y,
-        w: target.w,
-        h: target.h,
-        key: record.key,
-        action: record.action,
-        cursor: record.cursor,
-        retainedParent: record.parent,
-      }
-      if (record.activeCursor !== undefined) resolved.activeCursor = record.activeCursor
-      if (record.tooltip !== undefined) resolved.tooltip = record.tooltip
-      if (record.onPointerEnter !== undefined) resolved.onPointerEnter = record.onPointerEnter
-      if (record.onPointerLeave !== undefined) resolved.onPointerLeave = record.onPointerLeave
-      if (record.onPointerDown !== undefined) {
-        resolved.onPointerDown = (surfaceX, surfaceY, event) => {
-          const point = this.surfaceToRetainedPoint(record.parent, {x: surfaceX, y: surfaceY})
-          record.onPointerDown?.(point.x, point.y, event)
-        }
-      }
-      if (record.onPointerMove !== undefined) {
-        resolved.onPointerMove = (surfaceX, surfaceY, event) => {
-          const point = this.surfaceToRetainedPoint(record.parent, {x: surfaceX, y: surfaceY})
-          record.onPointerMove?.(point.x, point.y, event)
-        }
-      }
-      if (record.onPointerUp !== undefined) resolved.onPointerUp = record.onPointerUp
-      return resolved
+      return this.#resolveRetainedHit(record, target)
     }
     return null
   }
 
+  #resolveRetainedHit(record: RetainedHitRecord, target?: UiSurfaceRect): ResolvedHitBox {
+    const projected = target ?? expandRectToMinimum(
+      this.retainedToSurfaceRect(record.parent, record),
+      record.screenMinimum,
+    )
+    const resolved: ResolvedHitBox = {
+      x: projected.x,
+      y: projected.y,
+      w: projected.w,
+      h: projected.h,
+      key: record.key,
+      action: record.action,
+      cursor: record.cursor,
+      retainedParent: record.parent,
+    }
+    if (record.activeCursor !== undefined) resolved.activeCursor = record.activeCursor
+    if (record.tooltip !== undefined) resolved.tooltip = record.tooltip
+    if (record.onPointerEnter !== undefined) resolved.onPointerEnter = record.onPointerEnter
+    if (record.onPointerLeave !== undefined) resolved.onPointerLeave = record.onPointerLeave
+    if (record.onPointerDown !== undefined) {
+      resolved.onPointerDown = (surfaceX, surfaceY, event) => {
+        const point = this.surfaceToRetainedPoint(record.parent, {x: surfaceX, y: surfaceY})
+        record.onPointerDown?.(point.x, point.y, event)
+      }
+    }
+    if (record.onPointerMove !== undefined) {
+      resolved.onPointerMove = (surfaceX, surfaceY, event) => {
+        const point = this.surfaceToRetainedPoint(record.parent, {x: surfaceX, y: surfaceY})
+        record.onPointerMove?.(point.x, point.y, event)
+      }
+    }
+    if (record.onPointerUp !== undefined) resolved.onPointerUp = record.onPointerUp
+    return resolved
+  }
+
   #wheelHitAt(x: number, y: number): WheelHitBox | null {
+    const retained = this.#retainedWheelHitAt(x, y)
+    if (retained !== null) return retained
     for (let i = this.#wheelHits.length - 1; i >= 0; i--) {
       const h = this.#wheelHits[i]!
       if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h
     }
     return null
+  }
+
+  #retainedWheelHitAt(x: number, y: number): ResolvedWheelHitBox | null {
+    const records = this.#retainedRecordsInPaintOrder(this.#retainedWheelHits)
+    for (let index = records.length - 1; index >= 0; index -= 1) {
+      const record = records[index]!
+      const viewport = this.#retainedViewportClip(record.parent)
+      if (!pointInsideClip({x, y}, viewport)) continue
+      const localPoint = this.surfaceToRetainedPoint(record.parent, {x, y})
+      if (!pointInsideRect(localPoint, record)) continue
+      const projected = this.retainedToSurfaceRect(record.parent, record)
+      return {
+        x: projected.x,
+        y: projected.y,
+        w: projected.w,
+        h: projected.h,
+        key: record.key,
+        onWheel: record.onWheel,
+        retainedParent: record.parent,
+      }
+    }
+    return null
+  }
+
+  #retainedRecordsInPaintOrder<T>(records: ReadonlyMap<Object3D, readonly T[]>): T[] {
+    const ordered: T[] = []
+    const visit = (object: Object3D): void => {
+      if (!object.visible) return
+      const owned = records.get(object)
+      if (owned !== undefined) ordered.push(...owned)
+      for (const child of object.children) visit(child)
+    }
+    visit(this.#retainedLayer)
+    return ordered
   }
 
   #setHoverTooltip(hit: HitBox | null): void {
@@ -1853,6 +1986,8 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#hoverTooltipDelayMs = hit.tooltip.delayMs
     this.#hoverTooltipTimer = setTimeout(() => {
       this.#hoverTooltipTimer = null
+      const hovered = this.hoveredHit as ResolvedHitBox | null
+      if (hovered?.retainedParent !== undefined) this.#notifyRetainedInteraction(hovered.retainedParent, hovered.key)
       this.requestRender()
     }, this.#hoverTooltipDelayMs)
     this.requestRender()
@@ -1864,10 +1999,20 @@ export abstract class UiSurface implements UiSurfaceNode {
       this.#hoveredHitKey = hit?.key ?? null
       return
     }
-    this.hoveredHit?.onPointerLeave?.()
+    const previous = this.hoveredHit as ResolvedHitBox | null
+    previous?.onPointerLeave?.()
     this.hoveredHit = hit
     this.#hoveredHitKey = hit?.key ?? null
     hit?.onPointerEnter?.()
+    const next = hit as ResolvedHitBox | null
+    if (previous?.retainedParent !== undefined) {
+      this.#notifyRetainedInteraction(previous.retainedParent, previous.key)
+    }
+    if (next?.retainedParent !== undefined && next.retainedParent !== previous?.retainedParent) {
+      this.#notifyRetainedInteraction(next.retainedParent, next.key)
+    } else if (next?.retainedParent !== undefined) {
+      this.#lastRetainedInteraction = {key: next.key, parent: next.retainedParent}
+    }
     this.requestRender()
   }
 
@@ -1910,9 +2055,46 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   #replaceRetainedHits(parent: Object3D, hits: readonly RetainedHitRecord[]): void {
-    this.#releaseRetainedHitState(parent)
+    const hovered = this.hoveredHit as ResolvedHitBox | null
+    const pressed = this.pressedHit as ResolvedHitBox | null
     if (hits.length === 0) this.#retainedHits.delete(parent)
     else this.#retainedHits.set(parent, [...hits])
+
+    if (hovered?.retainedParent === parent) {
+      const next = this.#retainedHitAt(this.#pointerX, this.#pointerY)
+      if (next?.retainedParent === parent && next.key === hovered.key) {
+        this.hoveredHit = next
+        this.#hoveredHitKey = next.key
+        const tooltip = next.tooltip === undefined ? null : tooltipKey(next.x, next.y, next.w, next.h, next.tooltip.label)
+        if (tooltip !== this.#hoverTooltipKey) this.#setHoverTooltip(next)
+      } else {
+        this.#setHoveredHit(null)
+        this.#setHoverTooltip(null)
+      }
+    }
+
+    if (pressed?.retainedParent === parent) {
+      const replacement = hits.find((record) => record.key === pressed.key)
+      if (replacement === undefined) {
+        this.pressedHit = null
+        this.#pressedHitKey = null
+        if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
+      } else {
+        this.pressedHit = this.#resolveRetainedHit(replacement)
+        this.#pressedHitKey = replacement.key
+      }
+    }
+  }
+
+  #replaceRetainedWheelHits(parent: Object3D, hits: readonly RetainedWheelHitRecord[]): void {
+    if (hits.length === 0) this.#retainedWheelHits.delete(parent)
+    else this.#retainedWheelHits.set(parent, [...hits])
+  }
+
+  #notifyRetainedInteraction(parent: Object3D, key: string): void {
+    if (!this.#retainedParents.has(parent)) return
+    this.#lastRetainedInteraction = {key, parent}
+    this.onRetainedInteractionChange(parent)
   }
 
   #releaseRetainedHitState(parent: Object3D): void {
@@ -1923,6 +2105,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
     const pressed = this.pressedHit as ResolvedHitBox | null
     if (pressed?.retainedParent === parent) {
+      this.#notifyRetainedInteraction(parent, pressed.key)
       this.pressedHit = null
       this.#pressedHitKey = null
       if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
@@ -1971,8 +2154,10 @@ export abstract class UiSurface implements UiSurfaceNode {
       obj.parent?.remove(obj)
       this.#releaseRetainedHitState(obj)
       this.#retainedHits.delete(obj)
+      this.#retainedWheelHits.delete(obj)
       this.#retainedViewportClips.delete(obj)
       this.#retainedParents.delete(obj)
+      if (this.#lastRetainedInteraction?.parent === obj) this.#lastRetainedInteraction = null
     }
 
     for (const root of roots) disposeObject(root)

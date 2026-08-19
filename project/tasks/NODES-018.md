@@ -67,7 +67,7 @@ engine. Culling, clipping и pointer conversion читают тот же transfo
 
 ### NODES-018.1 — Закрепить engine/UI retained contract и baseline
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель
 `NODES-018.1 — Закрепить engine/UI retained contract и baseline`.
 
 Классификация: диагностический contract/baseline-срез; он закрепляет один
@@ -370,6 +370,23 @@ Links и Nodes без materialization. `set`, wheel, single-touch pan и pinch �
 matrix conversion; runtime больше не вызывает оставшийся read-only pure pinch
 helper.
 
+Correction расширила тот же transaction: обычные public `hit()`/`wheel()`
+внутри materialization теперь автоматически staging-ятся у exact target parent
+и атомарно заменяются только после успешного subtree swap. Retained wheel
+resolver использует тот же inverse, clip, visibility и DFS order; cleanup
+удаляет обе record-группы. `hoveredPointer()` различает immediate Surface и
+retained parent и возвращает последнему local point. Node, Link и Frame
+container records регистрируются до renderer controls, а Frame selection снова
+ограничена intrinsic header высотой не более `36` local px.
+
+Root review также проверил retained Button interaction presentation. Surface
+теперь сообщает subclass exact parent при hover/press/wheel transition и
+отложенном keyed render. NodeCanvas хранит только dirty-set существующих engine
+parents, materializes owning component и очищает mark после success; sibling
+parents не меняются. Button использует keyed render только для завершения
+своего уже существующего `120ms` pressed visual, когда исходный pointer callback
+уже завершён.
+
 Результат и вывод: representative two-Link tree после initial dirty имел
 `{localLayoutPlans: 2, materializations: 1, transformOnlyFrames: 0}`, а после
 `setCanvasTransform`, wheel и pinch — `{2,1,3}` с теми же geometry. Matrix
@@ -382,8 +399,26 @@ transform, selected Link победил ordinary Link по фактическо�
 rematerialization. Staging exception сохранила прежние subtree, hitmap и clip,
 а hide/remove/dispose очистили interaction state.
 
-Проверки: focused retained projection — `17/17`; общий affected suite
-`@ui/components` + `@ui/elements` + `@nodes/ui` — `95/95`, `1382` assertions;
+Correction regression вызвал обычные `surface.hit()` и `surface.wheel()` внутри
+retained component после translate/scale: поздний control победил container,
+получил local pointer `{22,16}`, action и wheel, тогда как staging exception
+сохранила прежние records. Hide/remove/dispose очистили hover/press и не вызвали
+старые action/wheel. Отдельный Node renderer зарегистрировал `host.hit()` и
+`host.wheel()` внутри Node: transformed control оставил selection `null`, wheel
+не изменил canvas transform, geometry и counters остались прежними; offscreen
+Node не вызвала control. Frame header выбирался, а blank point в body прошла к
+canvas background.
+
+Actual `button()` regression с двумя retained Nodes отдельно доказал:
+hover/press/tooltip и delayed pressed reset меняли children/render state только
+source Node (`hover → active → idle`), а target Node сохранила те же child
+objects и единственный initial `idle` render. Tooltip из component-local hit
+попал в projected overlay. Pure parent transform до interaction не вызвал ни
+одной materialization.
+
+Проверки: focused retained projection — `20/20`, `1111` assertions; общий
+affected suite `@ui/components` + `@ui/elements` + `@nodes/ui` — `98/98`,
+`1425` assertions;
 Engine basic clip upload/shader — `2/2`; три package typecheck и Node
 playground typecheck — pass; package-boundary — `4/4`, `70` assertions; strict
 exact Engine source typecheck — pass; `git diff --check` — pass. Browser
@@ -394,8 +429,10 @@ desktop/mobile correctness и visual/performance capture не выполняли
 
 Result checkpoint: `a4d611767094611ff7a233adc57adf94e643bbd0`.
 
-Correction preparation: текущий project commit; correction result ещё не
-записан.
+Correction preparation: `1531868b8a0994cea21751d8aaf065be6da04b50`.
+
+Correction result checkpoint: текущий correction result commit; exact hash
+записывается следующим project-only commit.
 
 ### NODES-018.5 — Доказать correctness и performance
 

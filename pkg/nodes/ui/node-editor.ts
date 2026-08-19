@@ -268,6 +268,7 @@ export class NodeCanvas<
   readonly #links = new Map<string, RetainedComponent<PositionedLink<TLink>>>()
   readonly #frameForegrounds = new Map<string, RetainedComponent<PositionedFrame<TFrame>>>()
   readonly #nodes = new Map<string, RetainedComponent<PositionedNode<TNode, TSocket>>>()
+  readonly #interactionDirtyParents = new Set<Object3D>()
   #tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
   #transform = DEFAULT_TRANSFORM
   #selection: NodeEditorSelection = null
@@ -382,6 +383,7 @@ export class NodeCanvas<
   override onWheel(event: WheelEvent, localX: number, localY: number): void {
     if (!this.interactive()) return
     const pointer = this.surfaceInnerPoint(localX, localY)
+    if (this.dispatchWheelHit(event, pointer.x, pointer.y)) return
     if (pointer.y < this.#headerHeight()) return
     event.preventDefault()
     const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1
@@ -529,18 +531,19 @@ export class NodeCanvas<
         `NodeCanvas.frame-background:${entry.frame.id}`,
       )
       if (background.created) changed = true
-      if (forceAll || background.component.entry !== entry || background.component.selected !== selected) {
-        this.materializeRetainedParent(background.component.parent, () => {
-          this.#renderers.frame.renderBackground({host: this, entry, selected})
+      if (forceAll || background.component.entry !== entry || background.component.selected !== selected ||
+        this.#interactionDirtyParents.has(background.component.parent)) {
+        this.#materializeComponent(background.component.parent, () => {
           if (this.interactive()) this.retainedHit(
             background.component.parent,
             entry.rect.x,
             entry.rect.y,
             entry.rect.w,
-            entry.rect.h,
+            Math.min(36, entry.rect.h),
             () => this.select({kind: "frame", id: entry.frame.id}),
             {key: `node-editor:frame:${entry.frame.id}`},
           )
+          this.#renderers.frame.renderBackground({host: this, entry, selected})
         })
         background.component.entry = entry
         background.component.selected = selected
@@ -553,8 +556,9 @@ export class NodeCanvas<
         `NodeCanvas.frame-foreground:${entry.frame.id}`,
       )
       if (foreground.created) changed = true
-      if (forceAll || foreground.component.entry !== entry || foreground.component.selected !== selected) {
-        this.materializeRetainedParent(foreground.component.parent, () => {
+      if (forceAll || foreground.component.entry !== entry || foreground.component.selected !== selected ||
+        this.#interactionDirtyParents.has(foreground.component.parent)) {
+        this.#materializeComponent(foreground.component.parent, () => {
           this.#renderers.frame.renderForeground({host: this, entry, selected})
         })
         foreground.component.entry = entry
@@ -567,9 +571,9 @@ export class NodeCanvas<
       const selected = isSelected(this.#selection, "link", entry.link.id)
       const retained = this.#component(this.#links, entry.link.id, `NodeCanvas.link:${entry.link.id}`)
       if (retained.created) changed = true
-      if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected) {
-        this.materializeRetainedParent(retained.component.parent, () => {
-          this.#renderers.link.render({host: this, entry, selected})
+      if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected ||
+        this.#interactionDirtyParents.has(retained.component.parent)) {
+        this.#materializeComponent(retained.component.parent, () => {
           if (this.interactive()) {
             for (const [index, rect] of planNodeEditorLinkHitRects(entry.points).entries()) {
               this.retainedHit(
@@ -586,6 +590,7 @@ export class NodeCanvas<
               )
             }
           }
+          this.#renderers.link.render({host: this, entry, selected})
         })
         retained.component.entry = entry
         retained.component.selected = selected
@@ -599,18 +604,12 @@ export class NodeCanvas<
       const stateKey = [...connectedSocketIds].sort().join("\u0000")
       const retained = this.#component(this.#nodes, entry.node.id, `NodeCanvas.node:${entry.node.id}`)
       if (retained.created) changed = true
-      if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected || retained.component.stateKey !== stateKey) {
+      if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected ||
+        retained.component.stateKey !== stateKey || this.#interactionDirtyParents.has(retained.component.parent)) {
         const planContext: NodeRendererPlanContext<TNode, TSocket> = {entry, connectedSocketIds, selected}
         this.#diagnostics.localLayoutPlans += 1
         const plan = this.#renderers.node.plan(planContext)
-        this.materializeRetainedParent(retained.component.parent, () => {
-          this.#renderers.node.render({host: this, ...planContext, plan})
-          for (const socket of entry.sockets) this.#renderers.socket.render({
-            host: this,
-            entry: socket,
-            selected,
-            nodeId: entry.node.id,
-          })
+        this.#materializeComponent(retained.component.parent, () => {
           if (this.interactive()) this.retainedHit(
             retained.component.parent,
             entry.rect.x,
@@ -620,6 +619,13 @@ export class NodeCanvas<
             () => this.select({kind: "node", id: entry.node.id}),
             {key: `node-editor:node:${entry.node.id}`},
           )
+          this.#renderers.node.render({host: this, ...planContext, plan})
+          for (const socket of entry.sockets) this.#renderers.socket.render({
+            host: this,
+            entry: socket,
+            selected,
+            nodeId: entry.node.id,
+          })
         })
         retained.component.entry = entry
         retained.component.selected = selected
@@ -665,6 +671,16 @@ export class NodeCanvas<
     return {component, created: true}
   }
 
+  #materializeComponent(parent: Object3D, draw: () => void): void {
+    const interactionDirty = this.#interactionDirtyParents.delete(parent)
+    try {
+      this.materializeRetainedParent(parent, draw)
+    } catch (error) {
+      if (interactionDirty) this.#interactionDirtyParents.add(parent)
+      throw error
+    }
+  }
+
   #removeMissingComponents<TEntry>(
     components: Map<string, RetainedComponent<TEntry>>,
     retainedIds: ReadonlySet<string>,
@@ -672,7 +688,9 @@ export class NodeCanvas<
     let changed = false
     for (const [id, component] of components) {
       if (retainedIds.has(id)) continue
+      this.#interactionDirtyParents.delete(component.parent)
       this.removeRetainedParent(component.parent)
+      this.#interactionDirtyParents.delete(component.parent)
       components.delete(id)
       changed = true
     }
@@ -758,6 +776,10 @@ export class NodeCanvas<
       const component = this.#links.get(entry.link.id)
       if (component !== undefined) this.updateRetainedVisibility(component.parent, visible)
     }
+  }
+
+  protected override onRetainedInteractionChange(parent: Object3D): void {
+    this.#interactionDirtyParents.add(parent)
   }
 
   override setActive(active: boolean): void {

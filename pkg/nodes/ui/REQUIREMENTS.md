@@ -103,7 +103,9 @@ format и автоматическое размещение принадлежа
     Links. Node container регистрируется перед внутренними controls, поэтому
     поздний control получает input первым. Frame выбирается только своей
     intrinsic header area высотой не более `36` local px; body не перекрывает
-    Links и вложенные controls.
+    Links и вложенные controls. Изменение hover/press/tooltip одного retained
+    control materializes только owning component parent; siblings сохраняют
+    identity, а чистый transform не становится interaction dirty.
 12. Wheel и pinch получают local anchor через Surface↔content-root matrix
     conversion и меняют тот же retained root. Transform-only input обновляет
     culling, hit mapping и material clip, не увеличивая layout или

@@ -40,7 +40,9 @@ FlexBox единолично вычисляет local child slots, а child то
    Обычные public `hit()` и `wheel()`, вызванные component-ом внутри retained
    materialization, автоматически становятся records exact parent; component
    не выбирает отдельный input API. Его hovered pointer возвращается в local
-   coordinates того же parent.
+   coordinates того же parent. Hover/press/wheel transition и отложенный
+   keyed visual render сообщают Surface-subclass тот же exact parent, чтобы
+   изменить только его interaction presentation.
 8. Surface point/rect переводится в retained local space и обратно только через
    actual `matrixWorld`/inverse chain тех же engine parents. Hit testing
    уважает ancestor visibility и фактический порядок `Object3D.children`.

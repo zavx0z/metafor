@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {Color, Mesh, MeshBasicMaterial, TrueTypeFont, type Object3D} from "@metafor/engine"
+import {button, type UiRuntime} from "@ui/elements"
 import {
   createBlenderNodeRenderers,
   measureBlenderNode,
@@ -86,6 +87,28 @@ function clickSurface(
 ): void {
   canvas.onPointerDown({} as MouseEvent, x, y)
   canvas.onPointerUp({} as MouseEvent, x, y)
+}
+
+function attachPointerRuntime(canvas: Readonly<{attachCanvas(runtime: UiRuntime): void}>): void {
+  canvas.attachCanvas({
+    canvas: {style: {}},
+    renderer: {
+      pixelRatio: 1,
+      invalidateGeometry() {},
+    },
+    requestRender() {},
+    surfaceFrame() {
+      return {rect: {x: 0, y: 0, w: 640, h: 360}, bounds: {w: 640, h: 360}}
+    },
+    uiRectToFramebufferClipBounds(
+      xMin: number,
+      yMin: number,
+      xMax: number,
+      yMax: number,
+    ): [number, number, number, number] {
+      return [xMin, yMin, xMax, yMax]
+    },
+  } as unknown as UiRuntime)
 }
 
 describe("generic Blender-like Node Editor contracts", () => {
@@ -406,6 +429,9 @@ describe("generic Blender-like Node Editor contracts", () => {
     clickSurface(canvas, 140, 90)
     expect(canvas.selection).toEqual({kind: "frame", id: "frame"})
     canvas.flushPendingRender()
+    clickSurface(canvas, 140, 170)
+    expect(canvas.selection).toBeNull()
+    canvas.flushPendingRender()
     clickSurface(canvas, 300, 250)
     expect(canvas.selection).toEqual({kind: "node", id: "source"})
     canvas.flushPendingRender()
@@ -442,6 +468,167 @@ describe("generic Blender-like Node Editor contracts", () => {
     canvas.flushPendingRender()
     expect(canvas.diagnostics.localLayoutPlans).toBe(beforeOffscreenClick.localLayoutPlans)
     expect(selectedLinkMaterial.clipBounds).toEqual([0, 38, 640, 360])
+    canvas.dispose()
+  })
+
+  test("lets an ordinary retained Node control beat its container after transform", async () => {
+    let controlActions = 0
+    let wheelActions = 0
+    const controlNode: TestNode = {id: "source", title: "Source"}
+    const controlTree: PositionedNodeTree<TestNode, TestSocket, TestLink, TestFrame> = {
+      bounds: {x: 40, y: 70, w: 140, h: 100},
+      frames: [],
+      nodes: [{...tree.nodes[0]!, node: controlNode}],
+      links: [],
+    }
+    const renderers: NodeEditorRenderers<TestNode, TestSocket, TestLink, TestFrame, {rect: NodeRect}> = {
+      frame: {renderBackground() {}, renderForeground() {}},
+      node: {
+        plan({entry}) {
+          return {rect: entry.rect}
+        },
+        render({host, plan}) {
+          host.drawRoundedRect(plan.rect.x, plan.rect.y, plan.rect.w, plan.rect.h, {
+            radius: 6,
+            fill: new Color(0.2, 0.3, 0.4, 1),
+          })
+          host.hit(plan.rect.x + 20, plan.rect.y + 20, 40, 20, () => { controlActions += 1 }, {
+            key: "node-control",
+          })
+          host.wheel(plan.rect.x + 20, plan.rect.y + 20, 40, 20, () => { wheelActions += 1 }, "node-control-wheel")
+        },
+      },
+      socket: {render() {}},
+      link: {render() {}},
+    }
+    const canvas = new NodeEditor<TestNode, TestSocket, TestLink, TestFrame, {rect: NodeRect}>({
+      renderers,
+      toolbar: false,
+    })
+    canvas.setTree(controlTree)
+    const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    canvas.setRect({x: 0, y: 0, w: 640, h: 360}, 0.001, new TrueTypeFont(fontBytes))
+    const nodeParent = requiredObject(canvas.node, "NodeCanvas.node:source")
+    const initialGeometry = (nodeParent.children[0] as Mesh).geometry
+    const initial = canvas.diagnostics
+
+    canvas.setCanvasTransform({x: 100, y: 50, scale: 2})
+    const transformed = canvas.diagnostics
+    expect(transformed.localLayoutPlans).toBe(initial.localLayoutPlans)
+    expect(transformed.materializations).toBe(initial.materializations)
+    expect(transformed.transformOnlyFrames).toBe(initial.transformOnlyFrames + 1)
+    clickSurface(canvas, 240, 250)
+    expect(controlActions).toBe(1)
+    expect(canvas.selection).toBeNull()
+    const transformBeforeWheel = canvas.canvasTransform
+    canvas.onWheel({
+      deltaMode: 0,
+      deltaX: 40,
+      deltaY: 20,
+      ctrlKey: false,
+      preventDefault() {},
+    } as WheelEvent, 240, 250)
+    expect(wheelActions).toBe(1)
+    expect(canvas.canvasTransform).toBe(transformBeforeWheel)
+    expect((nodeParent.children[0] as Mesh).geometry).toBe(initialGeometry)
+    expect(canvas.diagnostics.localLayoutPlans).toBe(initial.localLayoutPlans)
+    expect(canvas.diagnostics.materializations).toBe(initial.materializations)
+
+    canvas.setCanvasTransform({x: -1000, y: 0, scale: 1})
+    expect(nodeParent.visible).toBeFalse()
+    clickSurface(canvas, 240, 250)
+    canvas.onWheel({
+      deltaMode: 0,
+      deltaX: 0,
+      deltaY: 10,
+      ctrlKey: false,
+      preventDefault() {},
+    } as WheelEvent, 240, 250)
+    expect(controlActions).toBe(1)
+    expect(wheelActions).toBe(1)
+    canvas.dispose()
+  })
+
+  test("rematerializes only the retained Node whose ordinary Button interaction state changed", async () => {
+    const states = new Map<string, string[]>()
+    let sourceClicks = 0
+    const sourceNode: TestNode = {id: "source", title: "Source"}
+    const targetNode: TestNode = {id: "target", title: "Target"}
+    const interactionTree: PositionedNodeTree<TestNode, TestSocket, TestLink, TestFrame> = {
+      bounds: tree.bounds,
+      frames: [],
+      nodes: [
+        {...tree.nodes[0]!, node: sourceNode},
+        {...tree.nodes[1]!, node: targetNode},
+      ],
+      links: [],
+    }
+    const renderers: NodeEditorRenderers<TestNode, TestSocket, TestLink, TestFrame, {rect: NodeRect}> = {
+      frame: {renderBackground() {}, renderForeground() {}},
+      node: {
+        plan({entry}) {
+          return {rect: entry.rect}
+        },
+        render({host, entry, plan}) {
+          const history = states.get(entry.node.id) ?? []
+          button(host, plan.rect.x + 20, plan.rect.y + 20, 64, 24, {
+            key: `button:${entry.node.id}`,
+            tooltip: `Action ${entry.node.id}`,
+            tooltipDelayMs: 0,
+            ...(entry.node.id === "source" ? {onClick: () => { sourceClicks += 1 }} : {}),
+            children: (state) => { history.push(state) },
+          })
+          states.set(entry.node.id, history)
+        },
+      },
+      socket: {render() {}},
+      link: {render() {}},
+    }
+    const canvas = new NodeEditor<TestNode, TestSocket, TestLink, TestFrame, {rect: NodeRect}>({
+      renderers,
+      toolbar: false,
+    })
+    attachPointerRuntime(canvas)
+    canvas.setTree(interactionTree)
+    const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    canvas.setRect({x: 0, y: 0, w: 640, h: 360}, 0.001, new TrueTypeFont(fontBytes))
+    const sourceParent = requiredObject(canvas.node, "NodeCanvas.node:source")
+    const targetParent = requiredObject(canvas.node, "NodeCanvas.node:target")
+    const targetChildren = [...targetParent.children]
+    const beforeTransform = canvas.diagnostics
+
+    canvas.setCanvasTransform({x: 100, y: 50, scale: 2})
+    expect(canvas.diagnostics.localLayoutPlans).toBe(beforeTransform.localLayoutPlans)
+    expect(canvas.diagnostics.materializations).toBe(beforeTransform.materializations)
+    const sourceChildrenBeforeHover = [...sourceParent.children]
+    canvas.onPointerMove({} as MouseEvent, 240, 250)
+    canvas.flushPendingRender()
+    expect(states.get("source")?.at(-1)).toBe("hover")
+    expect(sourceParent.children[0]).not.toBe(sourceChildrenBeforeHover[0])
+    expect(targetParent.children).toEqual(targetChildren)
+    const overlay = canvas.node.children.find(({name}) => name.endsWith(".overlayLayer"))
+    expect(overlay?.children.length).toBeGreaterThan(0)
+
+    const sourceChildrenBeforePress = [...sourceParent.children]
+    canvas.onPointerDown({} as MouseEvent, 240, 250)
+    canvas.flushPendingRender()
+    expect(states.get("source")?.at(-1)).toBe("active")
+    expect(sourceParent.children[0]).not.toBe(sourceChildrenBeforePress[0])
+    expect(targetParent.children).toEqual(targetChildren)
+
+    canvas.onPointerUp({} as MouseEvent, 240, 250)
+    canvas.flushPendingRender()
+    expect(sourceClicks).toBe(1)
+    expect(states.get("source")?.at(-1)).toBe("active")
+    expect(targetParent.children).toEqual(targetChildren)
+
+    canvas.onPointerLeave()
+    canvas.flushPendingRender()
+    await new Promise((resolve) => setTimeout(resolve, 140))
+    canvas.flushPendingRender()
+    expect(states.get("source")?.at(-1)).toBe("idle")
+    expect(targetParent.children).toEqual(targetChildren)
+    expect(states.get("target")).toEqual(["idle"])
     canvas.dispose()
   })
 
