@@ -3,16 +3,13 @@ import {
   getPlaygroundFixture,
   PLAYGROUND_FIXTURES,
 } from "./fixtures.ts"
-import {
-  getPlaygroundPolicy,
-  PLAYGROUND_POLICIES,
-} from "./policy-registry.ts"
+import {getPlaygroundPolicy} from "./policy-registry.ts"
 import {runPlaygroundLayout} from "./runner.ts"
 import type {PlaygroundFixture, PlaygroundRun} from "./types.ts"
 
 const fixtureSelect = query<HTMLSelectElement>("#fixture")
 const fixtureDescription = query<HTMLElement>("#fixture-description")
-const policySelect = query<HTMLSelectElement>("#policy")
+const policyOutput = query<HTMLOutputElement>("#policy-value")
 const policyDescription = query<HTMLElement>("#policy-description")
 const inputEditor = query<HTMLTextAreaElement>("#input-json")
 const singleView = query<HTMLElement>("#single-view")
@@ -31,14 +28,9 @@ let currentRun: PlaygroundRun | null = null
 for (const fixture of PLAYGROUND_FIXTURES) {
   fixtureSelect.add(new Option(fixture.label, fixture.id))
 }
-for (const policy of PLAYGROUND_POLICIES) {
-  policySelect.add(new Option(policy.label, policy.id))
-}
-
-fixtureSelect.addEventListener("change", resetFixture)
-policySelect.addEventListener("change", updatePolicyDescription)
+fixtureSelect.addEventListener("change", resetAndRunFixture)
 query<HTMLButtonElement>("#run").addEventListener("click", runEditedInput)
-query<HTMLButtonElement>("#reset").addEventListener("click", resetFixture)
+query<HTMLButtonElement>("#reset").addEventListener("click", resetAndRunFixture)
 query<HTMLButtonElement>("#compare").addEventListener("click", compareFixtureFamily)
 query<HTMLButtonElement>("#export-input").addEventListener("click", () => {
   download("nodes-layout-input.json", inputEditor.value, "application/json")
@@ -57,17 +49,17 @@ for (const checkbox of document.querySelectorAll<HTMLInputElement>("[data-layer-
 }
 
 resetFixture()
-updatePolicyDescription()
 runEditedInput()
 
 function runEditedInput(): void {
   try {
     const graph = JSON.parse(inputEditor.value) as PlaygroundFixture["graph"]
-    const fixture = PLAYGROUND_FIXTURES.find(({id}) => id === fixtureSelect.value)
-    const run = runPlaygroundLayout(policySelect.value, graph)
+    const fixture = getPlaygroundFixture(fixtureSelect.value)
+    const run = runPlaygroundLayout(fixture.policyId, graph)
     currentRun = run
     singleView.hidden = false
     comparison.hidden = true
+    comparison.replaceChildren()
     viewTitle.textContent = `${getPlaygroundPolicy(run.policyId).label} · ${formatDirection(run.result.direction)}`
     svgView.innerHTML = run.svg
     metricsOutput.textContent = formatMetrics(run)
@@ -97,11 +89,14 @@ function compareFixtureFamily(): void {
     const fixtures = orientations.map((orientation) => {
       const fixture = family.find((candidate) => candidate.expectedDirection === orientation)
       if (fixture === undefined) throw new Error(`В семействе сценариев ${selected.family} нет варианта ${orientation}`)
+      if (fixture.policyId !== selected.policyId) {
+        throw new Error(`В семействе сценариев ${selected.family} смешаны политики ${selected.policyId} и ${fixture.policyId}`)
+      }
       return fixture
     })
     const runs = fixtures.map((fixture) => ({
       fixture,
-      run: runPlaygroundLayout(policySelect.value, fixture.graph),
+      run: runPlaygroundLayout(selected.policyId, fixture.graph),
     }))
     comparison.replaceChildren(...runs.map(({fixture, run}) => comparisonArticle(fixture, run)))
     comparison.hidden = false
@@ -110,7 +105,7 @@ function compareFixtureFamily(): void {
     resultOutput.textContent = pretty(Object.fromEntries(runs.map(({fixture, run}) => [fixture.expectedDirection, run.result])))
     diagnosticsOutput.textContent = pretty({
       status: "ok",
-      policy: policySelect.value,
+      policy: selected.policyId,
       comparison: runs.map(({fixture, run}) => successDiagnostics(run, fixture)),
       validation: "Стенд показывает результат публичной политики и не реализует отдельный валидатор раскладки.",
     })
@@ -141,20 +136,29 @@ function resetFixture(): void {
   fixtureSelect.value = fixture.id
   fixtureDescription.textContent = `${fixture.description} Ожидаемое направление: ${formatDirection(fixture.expectedDirection)}.`
   inputEditor.value = pretty(fixture.graph)
+  updatePolicyPresentation(fixture)
 }
 
-function updatePolicyDescription(): void {
-  policyDescription.textContent = getPlaygroundPolicy(policySelect.value || PLAYGROUND_POLICIES[0]!.id).description
+function resetAndRunFixture(): void {
+  resetFixture()
+  runEditedInput()
 }
 
-function successDiagnostics(run: PlaygroundRun, fixture: PlaygroundFixture | undefined): unknown {
-  const expectedDirection = fixture?.expectedDirection
+function updatePolicyPresentation(fixture: PlaygroundFixture): void {
+  const policy = getPlaygroundPolicy(fixture.policyId)
+  policyOutput.value = policy.label
+  policyOutput.dataset.policyId = policy.id
+  policyDescription.textContent = policy.description
+}
+
+function successDiagnostics(run: PlaygroundRun, fixture: PlaygroundFixture): unknown {
+  const expectedDirection = fixture.expectedDirection
   return {
     status: "ok",
     policy: run.policyId,
-    expectedDirection: expectedDirection ?? null,
+    expectedDirection,
     actualDirection: run.result.direction,
-    directionMatchesFixture: expectedDirection === undefined ? null : expectedDirection === run.result.direction,
+    directionMatchesFixture: expectedDirection === run.result.direction,
     metrics: run.metrics,
     policyDiagnostics: run.policyDiagnostics,
     validation: "Публичная политика завершилась успешно. Стенд не запускал собственную раскладку, маршрутизацию или строгий валидатор.",

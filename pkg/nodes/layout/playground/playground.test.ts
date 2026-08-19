@@ -94,6 +94,32 @@ describe("dev-only nodes layout playground", () => {
     }
   })
 
+  test("binds every scenario family to exactly one policy", async () => {
+    expect(PLAYGROUND_FIXTURES.map(({id, policyId}) => [id, policyId])).toEqual([
+      ["fixed-baseline-right", "fixed"],
+      ["fixed-baseline-down", "fixed"],
+      ["adaptive-shared-right", "adaptive"],
+      ["adaptive-shared-down", "adaptive"],
+      ["adaptive-compound-right", "adaptive"],
+      ["adaptive-compound-down", "adaptive"],
+    ])
+    for (const family of new Set(PLAYGROUND_FIXTURES.map(({family}) => family))) {
+      expect(new Set(getFixtureFamily(family).map(({policyId}) => policyId)).size).toBe(1)
+    }
+
+    const html = await Bun.file(join(playgroundRoot, "index.html")).text()
+    const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
+    const styles = await Bun.file(join(playgroundRoot, "styles.css")).text()
+    expect(html).toContain('<output id="policy-value" class="readonly-value"></output>')
+    expect(html).not.toContain('<select id="policy"')
+    expect(client).not.toContain("policySelect")
+    expect(client).toContain("runPlaygroundLayout(fixture.policyId, graph)")
+    expect(client).toContain("runPlaygroundLayout(selected.policyId, fixture.graph)")
+    expect(client).toContain('fixtureSelect.addEventListener("change", resetAndRunFixture)')
+    expect(client).toContain("comparison.replaceChildren()")
+    expect(styles).toContain(".comparison[hidden] { display: none; }")
+  })
+
   test("runs the public adaptive policy through nested compounds in RIGHT and DOWN", () => {
     const fixtures = getFixtureFamily("adaptive-compound-side-selection")
     expect(fixtures).toHaveLength(2)
@@ -316,7 +342,7 @@ describe("dev-only nodes layout playground", () => {
     for (const required of [
       "Стенд раскладки",
       "Сценарий",
-      "Политика / вариант",
+      "Политика сценария",
       "Нормализованный числовой вход",
       "Запустить",
       "Сбросить",
@@ -357,6 +383,7 @@ describe("dev-only nodes layout playground", () => {
       "числовые anchors",
       "форме viewport",
       "hard-валидатор",
+      "Политика / вариант",
     ]) expect(visibleSource).not.toContain(removed)
   })
 

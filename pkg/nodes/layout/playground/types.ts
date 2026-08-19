@@ -2,10 +2,12 @@ import type {LayoutResult} from "@nodes/layout"
 import type {AdaptiveLayoutGraph} from "@nodes/layout/adaptive"
 
 export type PlaygroundOrientation = "RIGHT" | "DOWN"
+export type PlaygroundPolicyId = "fixed" | "adaptive"
 
 export type PlaygroundFixture = Readonly<{
   id: string
   family: string
+  policyId: PlaygroundPolicyId
   label: string
   description: string
   expectedDirection: PlaygroundOrientation
@@ -18,7 +20,7 @@ export type PlaygroundPolicyOutcome = Readonly<{
 }>
 
 export type PlaygroundPolicy = Readonly<{
-  id: string
+  id: PlaygroundPolicyId
   label: string
   description: string
   run(graph: AdaptiveLayoutGraph): PlaygroundPolicyOutcome
@@ -38,7 +40,7 @@ export type PlaygroundMetrics = Readonly<{
 }>
 
 export type PlaygroundRun = Readonly<{
-  policyId: string
+  policyId: PlaygroundPolicyId
   input: AdaptiveLayoutGraph
   result: LayoutResult
   policyDiagnostics: unknown

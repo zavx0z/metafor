@@ -54,7 +54,7 @@ main {
 }
 
 label, legend { font-size: 12px; font-weight: 650; color: #cbd5e1; }
-select, textarea, button {
+select, textarea, button, .readonly-value {
   width: 100%;
   border: 1px solid #334155;
   border-radius: 7px;
@@ -62,7 +62,8 @@ select, textarea, button {
   color: #e5edf6;
 }
 
-select { margin: 7px 0 6px; padding: 9px; }
+select, .readonly-value { margin: 7px 0 6px; padding: 9px; }
+.readonly-value { display: block; min-height: 36px; font-size: 13px; }
 textarea {
   height: 340px;
   margin-top: 7px;
@@ -98,6 +99,7 @@ fieldset input { width: auto; }
 .svg-view [data-layer].hidden-layer { display: none; }
 
 .comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; border: 0; background: transparent; }
+.comparison[hidden] { display: none; }
 .comparison article h2 { padding: 13px 15px 0; }
 .comparison .svg-view { min-height: 390px; }
 .comparison .svg-view svg { min-width: 380px; height: 410px; }

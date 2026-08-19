@@ -57,4 +57,33 @@ topology, viewport, expected direction и точная fixed/adaptive policy. В
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`.
+`REVIEW`.
+
+## Результат
+
+* `PlaygroundPolicyId` является union `fixed | adaptive`; fixture, registry,
+  runner и result используют один typed ID.
+* Все шесть fixtures явно владеют policy: fixed baseline pair — `fixed`, обе
+  adaptive families — `adaptive`.
+* Policy select удалён. UI содержит `output#policy-value`, который вместе с
+  description обновляется из registry при смене scenario.
+* Fixture change/reset атомарно обновляет policy, input и запускает canonical
+  result. Single run удаляет старые comparison panels; `.comparison[hidden]`
+  имеет `display:none`.
+* Run и RIGHT/DOWN comparison используют только `fixture.policyId`; смешанная
+  family fail-fast отклоняется.
+* Все result/SVG hashes остались неизменными.
+* [Owner-before и final visual evidence](../artifacts/NODES-015/README.md)
+  сохранены в result.
+
+## Проверки
+
+* `bun test pkg/nodes` — 130 pass, 0 fail, 2447 expect.
+* Playground TypeScript typecheck — pass.
+* `git diff --check` — pass.
+* Browser fixed/adaptive/fixed: controls содержат только select `fixture`;
+  read-only policy ID, title и diagnostics всегда совпадают.
+* Fixed/adaptive comparison: по 2 панели с policy family; после смены scenario
+  comparison имеет `hidden=true`, `display=none`, `panels=0`.
+* Browser console — 0 entries; visual final содержит только текущий fixed
+  preset без stale adaptive panels.

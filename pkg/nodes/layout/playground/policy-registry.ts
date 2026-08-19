@@ -1,6 +1,6 @@
 import {layoutAdaptiveWithDiagnostics} from "@nodes/layout/adaptive"
 import {layoutFixed} from "@nodes/layout/fixed"
-import type {PlaygroundPolicy} from "./types.ts"
+import type {PlaygroundPolicy, PlaygroundPolicyId} from "./types.ts"
 
 const fixed: PlaygroundPolicy = {
   id: "fixed",
@@ -31,7 +31,7 @@ const adaptive: PlaygroundPolicy = {
  */
 export const PLAYGROUND_POLICIES: readonly PlaygroundPolicy[] = [fixed, adaptive]
 
-export function getPlaygroundPolicy(id: string): PlaygroundPolicy {
+export function getPlaygroundPolicy(id: PlaygroundPolicyId): PlaygroundPolicy {
   const policy = PLAYGROUND_POLICIES.find((candidate) => candidate.id === id)
   if (policy === undefined) throw new Error(`Неизвестная политика стенда: ${id}`)
   return policy

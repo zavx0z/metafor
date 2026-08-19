@@ -65,6 +65,7 @@ function fixedFixture(
   return {
     id,
     family: "fixed-baseline",
+    policyId: "fixed",
     label,
     description: "Одна и та же составная топология и числовые привязки портов при разной форме области просмотра.",
     expectedDirection,
@@ -81,6 +82,7 @@ function adaptiveFixture(
   return {
     id,
     family: "adaptive-side-selection",
+    policyId: "adaptive",
     label,
     description: "Один общий двунаправленный сокет (inout) получает одну сторону сразу для обеих связей через публичную адаптивную политику.",
     expectedDirection,
@@ -97,6 +99,7 @@ function adaptiveCompoundFixture(
   return {
     id,
     family: "adaptive-compound-side-selection",
+    policyId: "adaptive",
     label,
     description: "Один общий двунаправленный сокет (inout) связывает дочерние ноды двух контейнеров, а публичная адаптивная политика выбирает ему одну сторону.",
     expectedDirection,
