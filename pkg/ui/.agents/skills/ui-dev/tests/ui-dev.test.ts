@@ -2,6 +2,7 @@ import {afterAll, describe, expect, test} from "bun:test"
 import {mkdtemp, readFile, rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join, resolve} from "node:path"
+import {playgroundTargetUrl} from "../scripts/target-url.ts"
 
 type RunResult = Readonly<{exitCode: number; stdout: string; stderr: string}>
 type Status = Readonly<{
@@ -43,11 +44,24 @@ describe("ui-dev registry", () => {
         port?: number
         command?: string[]
         canvas?: {capability: string}
+        routes?: {mode: "none" | "path" | "hash"; default: string}
       }>
     }
     expect(Object.keys(registry.selectors).sort()).toEqual(["components", "elements", "node-ui", "ui-fixture"])
-    expect(registry.selectors["node-ui"]).toMatchObject({supported: true, port: 4016, command: ["bun", "playground/server.ts"], canvas: {capability: "webgpu"}})
-    expect(registry.selectors.components).toMatchObject({supported: true, port: 4017, command: ["bun", "playground/server.ts"], canvas: {capability: "webgpu"}})
+    expect(registry.selectors["node-ui"]).toMatchObject({
+      supported: true,
+      port: 4016,
+      command: ["bun", "playground/server.ts"],
+      canvas: {capability: "webgpu"},
+      routes: {mode: "hash", default: "/editor/scene"},
+    })
+    expect(registry.selectors.components).toMatchObject({
+      supported: true,
+      port: 4017,
+      command: ["bun", "playground/server.ts"],
+      canvas: {capability: "webgpu"},
+      routes: {mode: "path", default: "/button/basic"},
+    })
     expect(registry.selectors["ui-fixture"]).toMatchObject({supported: true, port: 4192, command: ["bun", "fixture/server.ts"], canvas: {capability: "webgpu-diagnostic"}})
     expect(registry.selectors.elements).toEqual({
       supported: false,
@@ -59,6 +73,25 @@ describe("ui-dev registry", () => {
     const result = await run("status", "elements", undefined, await stateRoot())
     expect(result.exitCode).toBe(3)
     expect(parseStatus(result).status).toBe("unsupported")
+  })
+
+  test("builds exact Node hash targets while Components remain pathname targets", async () => {
+    const registry = await Bun.file(registryPath).json() as {
+      selectors: Record<string, {routes?: {mode: "none" | "path" | "hash"; default: string}}>
+    }
+    const nodeRoutes = registry.selectors["node-ui"]!.routes!
+    const componentRoutes = registry.selectors.components!.routes!
+
+    expect(playgroundTargetUrl("http://127.0.0.1:4016", nodeRoutes.default, nodeRoutes.mode))
+      .toBe("http://127.0.0.1:4016/#/editor/scene")
+    expect(playgroundTargetUrl("http://127.0.0.1:4016", "/editor/scene", nodeRoutes.mode))
+      .toBe("http://127.0.0.1:4016/#/editor/scene")
+    expect(playgroundTargetUrl("http://127.0.0.1:4016", "/socket/types", nodeRoutes.mode))
+      .toBe("http://127.0.0.1:4016/#/socket/types")
+    expect(playgroundTargetUrl("http://127.0.0.1:4016", "/editor/scene", nodeRoutes.mode))
+      .not.toBe("http://127.0.0.1:4016/editor/scene")
+    expect(playgroundTargetUrl("http://127.0.0.1:4017", componentRoutes.default, componentRoutes.mode))
+      .toBe("http://127.0.0.1:4017/button/basic")
   })
 
   test("keeps automated browser source background-only", async () => {
@@ -73,6 +106,10 @@ describe("ui-dev registry", () => {
       "osascript",
     ]) expect(source).not.toContain(forbidden)
     expect(source).toContain('cdp.send("Target.createTarget", {url, background: true})')
+    expect(source).toContain("candidateTargets(config, port)")
+    expect(source).toContain('>("Page.navigate", {url})')
+    expect(source).toContain("ambiguous ${config.selector} targets")
+    expect(source).toContain('cdp.send<{success?: boolean}>("Target.closeTarget", {targetId})')
     expect(source).toContain('canvas.toDataURL("image/png")')
     expect(source).toContain('("Performance.getMetrics")')
     expect(source).toContain('("Runtime.getHeapUsage")')

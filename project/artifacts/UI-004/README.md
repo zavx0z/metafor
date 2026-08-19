@@ -95,6 +95,34 @@
   portrait `fdc30313ed5cbe62fb0177b8368007c40fa599995e29ac2d92fbe1e1787d0ef0`;
   landscape `700bfba8aa435ea0c4c68587cf4866a9ec9837bc68e4ea39649e0ed9227cd915`.
 
+## UI-004.14 hash route evidence
+
+* Источник: `UI dev` background exact-target `open`, `reload`, `console` и
+  viewport matrix; существующий canonical listener `node-ui`, PID `31521`, не
+  перезапускался и не присваивался.
+* Exact stable target: `809BF08D88E4582CA819EFE847FE1450`. Один и тот же ID
+  последовательно навигирован на `/#/editor/scene`, `/#/socket/types` и
+  `/#/comparison/blender`; target count на origin до/после каждой операции — `1`.
+* Фактическое наблюдение: URL hash совпал с `nodePlaygroundHash`, route без
+  префикса совпал с `nodePlaygroundRoute`, `nodeReferenceReady=ready`, console
+  sample содержит `0` записей. Mobile emulation восстановила native
+  `1920×1088 @2`; helper не создавал route tabs.
+* Новые canvas capture не создавались: этот срез доказывает route identity, а
+  не повторяет visual acceptance UI-004.13.
+
+## UI-004.17 singleton target evidence
+
+* Источник: `UI dev targets`, route `dom` navigation и exact-ID `close`.
+* До correction эта задача создала шесть Node targets и две лишние Components
+  targets. Закрыты только exact task-created IDs; pre-existing Components
+  `D0775AE44CFF0E299A0C28EECB3872D2` сохранён.
+* После correction: Node — один target `809BF08D88E4582CA819EFE847FE1450`;
+  Components — один target `D0775AE44CFF0E299A0C28EECB3872D2`;
+  fixture — один target `1AFE2E4404B88E32A4CBA6C26AF4C633`.
+* Один и тот же ID каждого selector сохранился при навигации на другой route.
+  Multiple origin targets теперь дают explicit ambiguity и никогда не создают
+  ещё одну вкладку либо не закрываются молча.
+
 Все captures созданы через background exact target; renderer activity emulation
 не меняла OS/browser focus. `visible/focused` внутри отдельных capture phases —
 CDP focus emulation, final restored targets вернулись в `hidden/unfocused`.

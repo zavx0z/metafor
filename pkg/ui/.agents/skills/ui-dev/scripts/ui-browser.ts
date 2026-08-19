@@ -2,6 +2,7 @@
 
 import {mkdir} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
+import {playgroundTargetUrl} from "./target-url.ts"
 
 type JsonObject = Record<string, unknown>
 type SupportedSelector = Readonly<{
@@ -47,6 +48,7 @@ type TargetConfig = Readonly<{
   checkout: string
   selector: string | null
   package: string | null
+  origin: string | null
   targetUrl: string
   ready: ReadyMarker | null
   canvas: CanvasDescriptor
@@ -54,6 +56,7 @@ type TargetConfig = Readonly<{
 }>
 type Options = Readonly<{
   route?: string
+  targetId?: string
   output?: string
   outputDir?: string
   canvasSelector?: string
@@ -70,10 +73,10 @@ type ConsoleEntry = Readonly<{
 }>
 
 const [action, checkoutInput, selectorOrUrl, ...optionArgs] = Bun.argv.slice(2)
-const actions = new Set(["target", "open", "reload", "dom", "console", "canvas", "viewports", "touch", "profile"])
+const actions = new Set(["targets", "target", "open", "close", "reload", "dom", "console", "canvas", "viewports", "touch", "profile"])
 
 if (!actions.has(action) || !checkoutInput || !selectorOrUrl) {
-  fail("usage: ui-browser.ts {target|open|reload|dom|console|canvas|viewports|touch|profile} <checkout> <selector|exact-url> [options]")
+  fail("usage: ui-browser.ts {targets|target|open|close|reload|dom|console|canvas|viewports|touch|profile} <checkout> <selector|exact-url> [options]")
 }
 
 const checkout = resolve(checkoutInput)
@@ -84,10 +87,22 @@ const config = resolveTargetConfig(registry, checkout, selectorOrUrl, options)
 const cdpPort = Number(Bun.env.UI_DEV_CDP_PORT ?? 9222)
 if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65535) fail("UI_DEV_CDP_PORT must be 1..65535")
 
-const target = await exactTarget(config.targetUrl, action === "open", cdpPort)
-if (action === "target") output({action, ...targetResult(config, target)})
+if (action === "targets") {
+  output({action, checkout, selector: config.selector, origin: config.origin, targets: await candidateTargets(config, cdpPort)})
+  process.exit(0)
+}
+if (action === "close") {
+  if (!options.targetId) fail("close requires --target-id <exact-created-target-id>")
+  output({action, checkout, selector: config.selector, closed: await closeTarget(config, options.targetId, cdpPort)})
+  process.exit(0)
+}
+
+const selected = await selectTarget(config, action === "open", options.targetId, cdpPort)
+const target = selected.target
+if (action === "target") output({action, ...targetResult(config, target), currentUrl: target.url})
 else await withPage(target, async (cdp) => {
   await setFocusEmulation(cdp, false)
+  if (selected.navigate) await navigateAndWait(cdp, config.targetUrl, config.ready)
   if (action === "open") {
     await waitReady(cdp, config.ready)
     output({action, ...targetResult(config, target), dom: await readDom(cdp, config.canvas.selector)})
@@ -120,6 +135,7 @@ else await withPage(target, async (cdp) => {
 
 function parseOptions(args: readonly string[]): Options {
   let route: string | undefined
+  let targetId: string | undefined
   let outputPath: string | undefined
   let outputDir: string | undefined
   let canvasSelector: string | undefined
@@ -130,6 +146,7 @@ function parseOptions(args: readonly string[]): Options {
     const value = args[index + 1]
     if (!value) fail(`missing value for ${key}`)
     if (key === "--route") route = value
+    else if (key === "--target-id") targetId = value
     else if (key === "--output") outputPath = value
     else if (key === "--output-dir") outputDir = value
     else if (key === "--canvas-selector") canvasSelector = value
@@ -138,7 +155,7 @@ function parseOptions(args: readonly string[]): Options {
     else fail(`unknown option: ${key}`)
     index++
   }
-  return {route, output: outputPath, outputDir, canvasSelector, durationMs, frames}
+  return {route, targetId, output: outputPath, outputDir, canvasSelector, durationMs, frames}
 }
 
 function positiveInteger(value: string, label: string): number {
@@ -156,11 +173,14 @@ function validateCheckout(path: string): void {
 
 function resolveTargetConfig(registry: Registry, checkout: string, input: string, options: Options): TargetConfig {
   if (input.startsWith("http://") || input.startsWith("https://")) {
-    const targetUrl = options.route === undefined ? new URL(input).href : routeUrl(new URL(input).origin, options.route)
+    const targetUrl = options.route === undefined
+      ? new URL(input).href
+      : playgroundTargetUrl(new URL(input).origin, options.route)
     return {
       checkout,
       selector: null,
       package: null,
+      origin: null,
       targetUrl,
       ready: null,
       canvas: {selector: options.canvasSelector ?? "canvas", capability: "none", touch: false},
@@ -190,16 +210,12 @@ function resolveTargetConfig(registry: Registry, checkout: string, input: string
     checkout,
     selector: input,
     package: descriptor.package,
-    targetUrl: routeUrl(origin, route),
+    origin,
+    targetUrl: playgroundTargetUrl(origin, route, descriptor.routes.mode),
     ready: descriptor.ready,
     canvas: {...descriptor.canvas, selector: options.canvasSelector ?? descriptor.canvas.selector},
     testOverride,
   }
-}
-
-function routeUrl(origin: string, route: string): string {
-  if (route.startsWith("#")) return `${origin}/${route}`
-  return new URL(route, `${origin}/`).href
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -230,6 +246,62 @@ async function exactTarget(url: string, create: boolean, port: number): Promise<
   if (matches.length !== 1) throw new Error(`ambiguous exact background targets for ${url}: ${matches.map(({id}) => id).join(",")}`)
   if (!matches[0]!.webSocketDebuggerUrl) throw new Error(`target websocket is missing: ${matches[0]!.id}`)
   return matches[0]!
+}
+
+async function candidateTargets(config: TargetConfig, port: number): Promise<Target[]> {
+  const pages = (await listTargets(port)).filter((target) => target.type === "page")
+  if (config.origin === null) return pages.filter((target) => target.url === config.targetUrl)
+  return pages.filter((target) => targetOrigin(target.url) === config.origin)
+}
+
+async function selectTarget(
+  config: TargetConfig,
+  create: boolean,
+  requestedId: string | undefined,
+  port: number,
+): Promise<{target: Target; navigate: boolean}> {
+  if (config.origin === null) {
+    const target = await exactTarget(config.targetUrl, create, port)
+    return {target, navigate: false}
+  }
+
+  let candidates = await candidateTargets(config, port)
+  if (requestedId !== undefined) {
+    candidates = candidates.filter((candidate) => candidate.id === requestedId)
+    if (candidates.length !== 1) throw new Error(`target ${requestedId} is not an existing ${config.selector} target at ${config.origin}`)
+  } else if (candidates.length > 1) {
+    throw new Error(`ambiguous ${config.selector} targets at ${config.origin}; pass --target-id or reconcile exact created duplicates: ${candidates.map(({id, url}) => `${id}=${url}`).join(",")}`)
+  }
+
+  if (candidates.length === 0 && create) {
+    const created = await exactTarget(config.targetUrl, true, port)
+    return {target: created, navigate: false}
+  }
+  if (candidates.length === 0) throw new Error(`no background target for ${config.selector} at ${config.origin}; run open`)
+  const target = candidates[0]!
+  if (!target.webSocketDebuggerUrl) throw new Error(`target websocket is missing: ${target.id}`)
+  return {target, navigate: target.url !== config.targetUrl}
+}
+
+async function closeTarget(config: TargetConfig, targetId: string, port: number): Promise<{id: string; url: string}> {
+  if (config.origin === null) throw new Error("close is supported only for registry selectors")
+  const candidate = (await candidateTargets(config, port)).find(({id}) => id === targetId)
+  if (!candidate) throw new Error(`refusing to close target outside ${config.selector} origin: ${targetId}`)
+  const version = await fetchJson<{webSocketDebuggerUrl?: string}>(`http://127.0.0.1:${port}/json/version`)
+  if (!version.webSocketDebuggerUrl) throw new Error(`browser CDP websocket is unavailable on ${port}`)
+  await withCdp(version.webSocketDebuggerUrl, async (cdp) => {
+    const result = await cdp.send<{success?: boolean}>("Target.closeTarget", {targetId})
+    if (result.success !== true) throw new Error(`Target.closeTarget rejected ${targetId}`)
+  })
+  return {id: candidate.id, url: candidate.url}
+}
+
+function targetOrigin(url: string): string | null {
+  try {
+    return new URL(url).origin
+  } catch {
+    return null
+  }
 }
 
 class CdpConnection {
@@ -368,6 +440,13 @@ async function waitReady(cdp: CdpConnection, marker: ReadyMarker | null): Promis
 async function reloadAndWait(cdp: CdpConnection, marker: ReadyMarker | null): Promise<void> {
   await cdp.send("Page.enable")
   await cdp.send("Page.reload", {ignoreCache: false})
+  await waitReady(cdp, marker)
+}
+
+async function navigateAndWait(cdp: CdpConnection, url: string, marker: ReadyMarker | null): Promise<void> {
+  await cdp.send("Page.enable")
+  const result = await cdp.send<{errorText?: string}>("Page.navigate", {url})
+  if (result.errorText) throw new Error(`Page.navigate failed: ${result.errorText}`)
   await waitReady(cdp, marker)
 }
 
@@ -643,7 +722,7 @@ function targetResult(config: TargetConfig, target: Target): JsonObject {
     selector: config.selector,
     package: config.package,
     targetId: target.id,
-    targetUrl: target.url,
+    targetUrl: config.targetUrl,
     testOverride: config.testOverride,
     backgroundOnly: true,
   }

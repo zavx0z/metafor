@@ -48,10 +48,18 @@ unsupported selector until that package owns a real runnable playground.
   reference, read [references/blender-reference.md](references/blender-reference.md).
 
 Automated browser operations are background-only. The helper resolves one exact
-URL and target ID and never calls `Page.bringToFront`, focus/activate/window
+selector-owned target ID and never calls `Page.bringToFront`, focus/activate/window
 endpoints, AI macOS, or a screenshot service. Canvas evidence comes from
 `toDataURL` on the exact target. Intentional emulation is always cleared in a
 `finally` path before handoff.
+
+Each registry selector owns at most one stable browser target for its origin.
+Route operations attach to that existing target and navigate it in place; they
+never create one tab per path/hash. A target is created only when the selector
+origin has no page target. Multiple existing targets are an explicit ambiguity:
+the helper does not choose or close them silently. `targets` lists candidates,
+`--target-id` selects one explicitly, and `close --target-id` is permitted only
+for an exact duplicate known to have been created by the current task.
 
 ## Evidence boundary
 

@@ -159,8 +159,11 @@ describe("Blender-like Node component playground", () => {
       httpMarker: "<title>Node Component Library</title>",
       ready: {kind: "dataset", name: "nodeComponentPlayground", value: "ready"},
       canvas: {selector: "#node-component-canvas", capability: "webgpu", touch: true},
-      routes: {mode: "path", default: "/editor/scene"},
+      routes: {mode: "hash", default: "/editor/scene"},
     })
+    expect(client).toContain('new PlaygroundRouter<NodePlaygroundRoute>(NODE_PLAYGROUND_ROUTES, "editor/scene")')
+    expect(client).not.toContain('{mode: "path"}')
+    expect(client).toContain("document.documentElement.dataset.nodePlaygroundHash = window.location.hash")
     expect(browser).toContain('cdp.send("Target.createTarget", {url, background: true})')
     expect(browser).toContain('canvas.toDataURL("image/png")')
     expect(browser).toContain('action === "profile"')

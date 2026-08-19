@@ -47,7 +47,7 @@ try {
     fontUrl: "/JetBrainsMono-Bold.ttf",
     virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
   })
-  const router = new PlaygroundRouter<NodePlaygroundRoute>(NODE_PLAYGROUND_ROUTES, "editor/scene", {mode: "path"})
+  const router = new PlaygroundRouter<NodePlaygroundRoute>(NODE_PLAYGROUND_ROUTES, "editor/scene")
   const navigate = (route: NodePlaygroundRoute): void => router.go(route)
   const tree = createCatalogNodeTree()
   const comparisonTree = createNoiseComparisonTree()
@@ -135,6 +135,7 @@ try {
     else if (route === "editor/scene") editor.select(null)
     const group = nodePlaygroundGroup(route)
     document.documentElement.dataset.nodePlaygroundRoute = route
+    document.documentElement.dataset.nodePlaygroundHash = window.location.hash
     document.documentElement.dataset.nodePlaygroundGroup = group
     document.documentElement.dataset.comparison = group === "comparison" ? "blender-reference-live-editor" : ""
     runtime.handleResize()

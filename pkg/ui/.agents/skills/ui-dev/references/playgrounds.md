@@ -9,7 +9,7 @@ The executable registry is `scripts/playgrounds.json`.
 
 | Selector | Package contour | Origin | Ready and canvas capability |
 | --- | --- | --- | --- |
-| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, path routes |
+| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, hash routes |
 | `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, path routes |
 | `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, path routes |
 | `elements` | `@ui/elements` | none | typed `unsupported`; no runnable playground exists |
@@ -41,10 +41,11 @@ unowned listener returns a typed `foreign` outcome and remains untouched.
 Use `UI_DEV_TEST_MODE=1 UI_DEV_TEST_PORT=<free-port>` only for isolated tests;
 normal work always uses the registry port.
 
-## Exact background browser target
+## One stable background browser target
 
-The browser helper uses the existing CDP Chrome and creates missing targets with
-`Target.createTarget({background:true})`:
+The browser helper uses the existing CDP Chrome. One selector reuses one target
+for its origin and navigates that target between routes. Only a selector with no
+existing origin target may call `Target.createTarget({background:true})`:
 
 ```bash
 bun "$SKILL/scripts/ui-browser.ts" open "$PWD" components --route /button/basic/text
@@ -57,10 +58,18 @@ bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" node-ui \
   --route /comparison/blender --output /tmp/node-comparison.png
 ```
 
-The full route is part of target identity. Zero matches fail unless `open` was
-requested; multiple exact matches are ambiguous and fail. The helper never
-selects the active tab, the first matching origin, or a different path/hash.
-It never exposes a focus action.
+Registry route mode is part of exact target identity. For `node-ui`, the default
+route and a normal CLI `--route /editor/scene` both resolve to
+`http://127.0.0.1:4016/#/editor/scene`; Components routes remain pathname URLs.
+
+Route is page state, not a reason to create another tab. `open`, `dom`,
+`console`, `canvas`, `viewports`, `touch` and `profile` attach to the same
+selector target and navigate it when necessary. Zero origin targets fail unless
+`open` was requested; multiple origin targets are ambiguous and fail. Use
+`targets` to list exact IDs and `--target-id` to name an existing one. Close only
+an exact task-created duplicate with `close --target-id`; never reconcile by
+closing an unknown owner tab. The helper never selects the active tab and never
+exposes a focus action.
 
 For an exact URL outside the registry, pass the URL in place of a selector and
 provide `--canvas-selector` when canvas capture is needed. This does not grant
