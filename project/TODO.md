@@ -206,8 +206,12 @@ typechecks startup/release/Visual/tests и полный Hamiltonian suite про
 closing review на `205c72cdb` вернула задачу в `IN_PROGRESS`: cold recovery не
 сверяет полностью существующий exact composition с fresh source build, а `.14`
 повредила standard header `Service-Worker-Allowed` отдельно запускаемого
-prototype. Исправления зарегистрированы как `UPD-003.18` и `UPD-003.19`;
-owner-visible contour оставлен работающим и в их приёмку не входит.
+prototype. `UPD-003.18` исправила complete-source recovery checkpoint
+`49ccff514`, а `UPD-003.19` восстановила platform header checkpoint
+`27f821e55`. Совмещённые focused regressions, strict release/test/prototype
+typechecks и полный Hamiltonian suite прошли `298/298`; managed contour и
+browser code caches не изменились. Родитель снова находится в `REVIEW` и ждёт
+повторной независимой closing review; owner-visible contour оставлен работающим.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
@@ -247,7 +251,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
-| UPD-003 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-003.md) |
+| UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
