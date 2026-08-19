@@ -53,7 +53,8 @@ format и автоматическое размещение принадлежа
    `color`, `string`, `menu`, `object`, `collection`, `image`, `material`,
    `texture`, `geometry`, `matrix`, `shader`, `bundle`, `closure`, `custom`.
 2. Socket shapes: `circle`, `square`, `diamond`, `circle-dot`, `square-dot`,
-   `diamond-dot`.
+   `diamond-dot`, `line`, `volume-grid`. Первые шесть являются обычными public
+   Blender display shapes; последние два сохраняют specialized source states.
 3. Type color является presentation preset и может быть переопределён consumer.
    Link и связанные sockets одного типа получают одну color identity.
 4. Unconnected Parameter может показать default Field независимо от того,

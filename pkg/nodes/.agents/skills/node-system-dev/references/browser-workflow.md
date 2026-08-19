@@ -37,11 +37,14 @@ the exact URL `http://127.0.0.1:4016/` from `GET /cdp/targets`:
 python3 "$SKILL/scripts/browser.py" target
 python3 "$SKILL/scripts/browser.py" open
 python3 "$SKILL/scripts/browser.py" reload
+python3 "$SKILL/scripts/browser.py" focus
 ```
 
 `open` creates the URL through `POST /cdp/targets` only when no exact target
 exists. More than one exact target is ambiguous and stops the workflow. Never
 substitute `/windows`, an active tab, a first target, or a different origin.
+`focus` calls `Page.bringToFront` only for that exact target; it does not guess
+an ordinary Chrome profile or OS window.
 
 ## DOM, console, and images
 

@@ -89,3 +89,17 @@
   остается читаемой в landscape.
 * Контрольная сумма: SHA-256
   `4fa99340d6a13a441222421a426e3b9dd084542486d364a9740e4e2d79c2bff9`.
+
+## final-captures/
+
+* Источник: corrected `$node-system-dev` viewport matrix на long-lived PTY
+  server PID 64921 и exact target `1E982…`.
+* Состав: `node-system-desktop.png`, `node-system-portrait.png`,
+  `node-system-landscape.png`.
+* Фактическое наблюдение: DOM ready, horizontal overflow отсутствует, console
+  0 во всех viewports; native metrics `1920×1088 @2` восстановлены.
+
+## visual-comparison.md
+
+* Назначение: per-area Blender/MetaFor matrix с отдельными `match`, project
+  divergence, project extension и открытыми gates.

@@ -106,6 +106,8 @@ return {
   url: location.href,
   title: document.title,
   readyState: document.readyState,
+  visibility: document.visibilityState,
+  focused: document.hasFocus(),
   ready: document.documentElement.dataset.nodeComponentPlayground ?? null,
   selection: {
     kind: document.documentElement.dataset.selectedKind ?? null,
@@ -372,6 +374,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("target")
     subparsers.add_parser("open")
     subparsers.add_parser("reload")
+    subparsers.add_parser("focus")
     subparsers.add_parser("dom")
     console_parser = subparsers.add_parser("console")
     console_parser.add_argument("--duration-ms", type=int, default=1200)
@@ -398,6 +401,12 @@ def main() -> int:
         print_json(target)
     elif args.command == "reload":
         print_json(reload(target_id))
+    elif args.command == "focus":
+        print_json(request_json("/cdp/command", "POST", {
+            "targetId": target_id,
+            "method": "Page.bringToFront",
+            "params": {},
+        }))
     elif args.command == "dom":
         print_json({"target": target, "dom": dom(target_id)})
     elif args.command == "console":

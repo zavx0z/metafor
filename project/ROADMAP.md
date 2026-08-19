@@ -174,7 +174,7 @@ platform lifecycle и transport adapters могут различаться.
 
 Универсальная модель и логика node-system принадлежат пакету `nodes`.
 Публичный словарь компонентной библиотеки следует Blender-подобной границе
-`NodeTree → Node → Socket → Link`; интерактивный компонент называется
+`NodeTree → Frame / Node → Parameter → Socket → Link`; интерактивный компонент называется
 `NodeEditor`, а read-only вариант — `NodeCanvas`. `@nodes/ui` владеет generic
 viewport/editor renderer contracts и подключаемыми Node/Socket/Link renderers.
 Прежние Card model, Card adapters и `NodeSystemSurface` не входят в новую

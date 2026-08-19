@@ -51,7 +51,7 @@
 * [Hamiltonian](../hamiltonian/README.md) — причинный монитор, clean-room
   loader и стандартная Window-среда визуализации оркестратора.
 * [Node system](../pkg/nodes/README.md) — Blender-подобная компонентная
-  библиотека `NodeTree → Node → Socket → Link`, universal fields и отдельно
+  библиотека `NodeTree → Frame / Node → Parameter → Socket → Link`, universal fields и отдельно
   сохранённое layout-ядро `@nodes/layout`. Node Editor и его Flexbox/view законы
   принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), временная
   semantic/measured/Worker граница — [`nodes`](../pkg/nodes/REQUIREMENTS.md),

@@ -57,7 +57,8 @@ do not promise that a tool PTY survives a separate Codex task.
 Use `scripts/browser.py` for the repeated fragile browser operations. It
 selects one page whose URL is exactly `http://127.0.0.1:4016/`; it never falls
 back to an active tab, ordinary Chrome window, or first target. Its viewport and
-touch checks restore native device metrics even when a check fails.
+touch checks restore native device metrics even when a check fails. Use its
+exact `focus` command for owner-visible handoff.
 
 ## Evidence boundary
 

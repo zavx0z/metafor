@@ -167,6 +167,18 @@ Playground показывает одну сопоставимую Blender scene 
 console, DOM и visual matrix, затем оставить contour владельцу. Задача не
 закрывается без явного принятия владельца.
 
+`READY_FOR_OWNER`: corrected skill на `e29d374fd` поднял long-lived PTY server
+PID 64921 и создал exact desktop/portrait/landscape captures в
+`project/artifacts/NODES-017/final-captures`. `visual-comparison.md` содержит
+per-area matrix: Canvas/Frame/Node/Parameter/Socket/Controls совпадают с
+принятыми Blender constraints; project font, two-sided Parameter и rounded
+orthogonal Links записаны как явные divergences/extensions. Mobile emulation
+проходит без overflow и с pan/pinch, но physical Android отсутствует. Full
+relevant suite: 154 tests / 1239 assertions, четыре typechecks, TypeDoc, skill
+validation и diff check зелёные. Root gate неизменен: 240 cascades в прежних
+8 Hamiltonian Card-consumer files. Exact target `1E982…` сфокусирован,
+`visibility=visible`, `focused=true`. Owner acceptance ещё не выдан.
+
 ## Визуальный контракт
 
 1. Reference — локальный Blender `4.5.5 LTS`, не приблизительный mockup.
