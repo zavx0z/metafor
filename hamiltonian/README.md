@@ -1010,6 +1010,7 @@ cd /Users/zavx0z/repozitarium/metafor
 bun test hamiltonian
 bun test pkg/nodes hamiltonian/browser/orchestration
 bun run typecheck
+cd /Users/zavx0z/repozitarium/metafor/hamiltonian
 bun build public/app.js public/embodiment-worker.js \
   --outdir /tmp/hamiltonian-build-check --target browser \
   --external /core/monitor.js \
