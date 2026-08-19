@@ -37,7 +37,7 @@ acceptance.
 сообщение существующего transport.
 
 Каждый контур передаёт current declaration по закону
-[`@hamiltonian/visual`](../../../hamiltonian/visual/README.md#декларации-контуров). Registry
+[`@internal/visual`](../../../hamiltonian/internal/visual/README.md#декларации-контуров). Registry
 сопоставляет logical contour identity и incarnation. Declaration более нового
 воплощения атомарно заменяет predecessor; stale snapshot и позднее событие
 старой incarnation получают отказ.

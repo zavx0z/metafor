@@ -49,8 +49,7 @@
   пространства имён: [`@internal/*`](../hamiltonian/internal/README.md).
   Владельцы пакетов: [`@hamiltonian/startup`](../hamiltonian/startup/README.md),
   [`@hamiltonian/release`](../hamiltonian/release/README.md),
-  [`@internal/visual`](../hamiltonian/internal/visual/README.md) и
-  [`@hamiltonian/visual`](../hamiltonian/visual/README.md).
+  [`@internal/visual`](../hamiltonian/internal/visual/README.md).
 * [Node system](../pkg/nodes/README.md) — универсальная model/geometry граница,
   минимальная раскладка `@nodes/layout`, HUD-free renderer `@nodes/ui` и
   необязательная HUD-интеграция `@nodes/hud`. Model и Worker transport

@@ -210,10 +210,11 @@ Hamiltonian contour. Дальнейшую детализацию topology и к�
 Причинная topology всех Hamiltonian-контуров должна собираться только из их
 текущих деклараций: новая incarnation одного logical contour атомарно заменяет
 прежнюю, тогда как независимые контуры остаются раздельными. Этот закон
-закреплён в [`hamiltonian/README.md`](../hamiltonian/README.md#декларация-нодовой-системы-каждого-контура)
-и принадлежит lifecycle Hamiltonian, а не presentation, renderer или
-`@nodes/layout`. Его применение к новому clean-room контуру оформляется
-отдельной точной работой.
+закреплён у
+[`@internal/visual`](../hamiltonian/internal/visual/README.md#декларации-контуров).
+Источники наблюдений принадлежат своим lifecycle owners, а универсальная
+геометрия — `@nodes/layout`. Реализация закона в новом clean-room контуре
+оформляется отдельной точной работой.
 Текущая работа
 [`MF-424 — Визуально довести Hamiltonian вместе с владельцем`](tasks/MF-424.md)
 одновременно уточняет управление одной Вселенной на серверной и браузерной
@@ -227,7 +228,7 @@ product-specific projection, composition, панели, стили и live prese
 прежнего Hamiltonian находятся в отдельно запускаемом прототипе под
 `hamiltonian/visual`. Clean-room loader не импортирует и не переносит этот
 source. Первый clean-room visual-шаг выбран отдельно: в
-действующем [Hamiltonian-контракте](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader)
+действующем [контракте `@internal/visual`](../hamiltonian/internal/visual/README.md#визуальная-среда-main)
 release env `main` импортирует `@internal/visual`, который создаёт общий пустой
 `UiRuntime` с `Space`, `HUD`, полом, display и navigation dock, не импортируя
 prototype visual и не выбирая предметный Window module.
@@ -278,13 +279,13 @@ Cache Storage разделён по владельцам `startup`, `release`, `
 стандартный `UIDisplay` и navigation dock готовы для последующего предметного
 наполнения. HTML, style и font resources обслуживает `hamiltonian/static`.
 Этим результатом владеет
-[Hamiltonian-контракт](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader),
+[контракт `@internal/visual`](../hamiltonian/internal/visual/README.md#визуальная-среда-main),
 а не prototype `hamiltonian/visual` или первый предметный `internal`/`metafor`
 module.
 
 Первый этап использует один signaling Hamiltonian peer и не проектирует каталог
 адресов нескольких peers. Доказанным loader contract владеет
-[Hamiltonian](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader);
+[`@internal/visual`](../hamiltonian/internal/visual/README.md#визуальная-среда-main);
 каталог peers, первый предметный module и его ABI остаются отдельными будущими
 направлениями.
 
@@ -305,7 +306,7 @@ dependencies задают состояние без отдельного release
 Ручная версия отдельного испытательного модуля и самостоятельное решение
 страницы по host source fingerprint больше не являются параллельными
 механизмами браузерного обновления. Этим доказанным checkpoint владеет
-[Hamiltonian-контракт](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader).
+[контракт выпуска](../hamiltonian/release/README.md#обновление-browser-release).
 
 Действующий clean-room release различает несколько сред одного package без
 изменения bare import: стандартный conditional `exports` выбирает `main`, `worker`,
@@ -317,7 +318,7 @@ Hamiltonian manifest записывает host intent до действий и �
 источником восстановления; отдельные active/release manifests, endpoints,
 generation, release ID и transaction UUID не добавляются. Живые Bun processes
 этот browser release не заменяет. Этим результатом владеет
-[Hamiltonian-контракт](../hamiltonian/README.md#стандартная-window-среда-clean-room-loader).
+[контракт выпуска](../hamiltonian/release/README.md#обновление-browser-release).
 
 ## Oracle и Force
 
