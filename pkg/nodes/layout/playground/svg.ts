@@ -39,7 +39,7 @@ export function renderLayoutSvg(
     }
   }
   const nodeInput = new Map(graph.nodes.map((node) => [node.id, node]))
-  const nodeGeometry = [...result.nodes].sort(compareById)
+  const nodeGeometry = orderNodeGeometryForPainting(graph, result.nodes)
   const ports = [...result.ports].sort(compareById)
   const edges = [...result.edges].sort(compareById)
   const gateways = findGatewayPoints(graph, result)
@@ -126,6 +126,46 @@ export function renderLayoutSvg(
     `<g data-layer="port-labels" data-layer-owner="ports">${portLabelMarkup}</g>`,
     "</svg>",
   ].join("")
+}
+
+/** Orders every compound before its descendants while keeping sibling order stable. */
+export function orderNodeGeometryForPainting(
+  graph: Pick<LayoutGraph, "nodes">,
+  geometry: LayoutResult["nodes"],
+): LayoutResult["nodes"] {
+  const geometryById = new Map(geometry.map((node) => [node.id, node]))
+  const parentIdByNode = new Map(graph.nodes.map((node) => [node.id, node.parentId]))
+  const childIdsByParent = new Map<string, string[]>()
+  const rootIds: string[] = []
+
+  for (const node of geometry) {
+    const parentId = parentIdByNode.get(node.id)
+    if (parentId === undefined || !geometryById.has(parentId)) {
+      rootIds.push(node.id)
+      continue
+    }
+    const childIds = childIdsByParent.get(parentId) ?? []
+    childIds.push(node.id)
+    childIdsByParent.set(parentId, childIds)
+  }
+
+  rootIds.sort(compareStrings)
+  for (const childIds of childIdsByParent.values()) childIds.sort(compareStrings)
+
+  const ordered: LayoutResult["nodes"][number][] = []
+  const visited = new Set<string>()
+  const appendSubtree = (id: string): void => {
+    if (visited.has(id)) return
+    visited.add(id)
+    const node = geometryById.get(id)
+    if (node === undefined) return
+    ordered.push(node)
+    for (const childId of childIdsByParent.get(id) ?? []) appendSubtree(childId)
+  }
+
+  for (const id of rootIds) appendSubtree(id)
+  for (const {id} of [...geometry].sort(compareById)) appendSubtree(id)
+  return ordered
 }
 
 /** Places debug labels outside route bounds and attaches each with one straight leader. */
@@ -242,5 +282,9 @@ function escapeXml(value: string): string {
 }
 
 function compareById(left: Readonly<{id: string}>, right: Readonly<{id: string}>): number {
-  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+  return compareStrings(left.id, right.id)
+}
+
+function compareStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
 }

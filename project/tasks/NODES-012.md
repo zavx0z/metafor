@@ -71,4 +71,30 @@ presentation defects; layout, routing и координаты портов ко�
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`.
+`REVIEW`.
+
+## Результат
+
+* `port-label-leader`, exact ports и внешние labels разделены на независимые
+  SVG-слои. Toggle `ports` по-прежнему управляет всеми тремя слоями.
+* Node painting order строится parent-first обходом: один индекс parent IDs,
+  один индекс children, stable ID-order siblings. Parent предшествует любому
+  descendant без квадратичного поиска по graph nodes.
+* Fixed/adaptive RIGHT/DOWN result hashes не изменились. SVG hashes обновлены
+  только из-за presentation DOM order.
+* В [артефактах](../artifacts/NODES-012/README.md) сохранены owner-before,
+  nested fixed after и обе сравнительные after-матрицы.
+
+## Проверки
+
+* `bun test pkg/nodes` — 127 pass, 0 fail, 2190 expect.
+* Playground TypeScript typecheck — pass.
+* `git diff --check` — pass.
+* Browser DOM fixed RIGHT/DOWN: `edges → port-label-leaders → nodes → gateways
+  → ports → port-labels`; node order `source-zone → observer → producer →
+  target-zone → consumer-a → consumer-b`.
+* Browser DOM adaptive RIGHT/DOWN: тот же общий layer order, по 3 leaders,
+  0 leaders внутри верхнего label layer.
+* `ai-macos` console capture — 0 entries; визуальная проверка всех трёх after
+  screenshots не обнаружила leader поверх leaf-ноды или parent fill поверх
+  потомка.

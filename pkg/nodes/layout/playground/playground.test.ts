@@ -5,7 +5,7 @@ import {fileURLToPath} from "node:url"
 import {getFixtureFamily, PLAYGROUND_FIXTURES} from "./fixtures.ts"
 import {PLAYGROUND_POLICIES} from "./policy-registry.ts"
 import {runPlaygroundLayout} from "./runner.ts"
-import {layoutPortLabels} from "./svg.ts"
+import {layoutPortLabels, orderNodeGeometryForPainting} from "./svg.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 const layoutRoot = fileURLToPath(new URL("..", import.meta.url))
@@ -15,13 +15,13 @@ const BASELINES = {
     direction: "RIGHT",
     bounds: {x: 0, y: 0, width: 632, height: 446},
     resultHash: "78d036df9a386533218936d0f2366e32f233f28a4f28d892d17bf1bb0fb4c844",
-    svgHash: "dfa2925688d8aeb17fcf58a9ce8ba73e0603c4d9a16c11eede5d4f5632c4deb0",
+    svgHash: "a0223d8f86f291e774f33c226f9e553deddc19af181b8ca6ad6192938108eca2",
   },
   "fixed-baseline-down": {
     direction: "DOWN",
     bounds: {x: 0, y: 0, width: 396, height: 830},
     resultHash: "bb8fd47580182a40198e6aff388dcf7d26b28651ed9d592fa825efc02b4929c1",
-    svgHash: "293bba82e7953e25e5969c722e4dd435182b16e90cd06d411f414c19fb098cd8",
+    svgHash: "6d033f2432bcad512c29ea0599382b833e6715ae18243d6abc3ff9ac7440f62c",
   },
 } as const
 
@@ -104,6 +104,7 @@ describe("dev-only nodes layout playground", () => {
   test("renders inspectable nodes, compounds, exact ports, routes, bends, gateways and bounds", () => {
     for (const fixture of getFixtureFamily("fixed-baseline")) {
       const run = runPlaygroundLayout("fixed", fixture.graph)
+      const paintedNodeIds = orderNodeGeometryForPainting(fixture.graph, run.result.nodes).map(({id}) => id)
       expect(run.svg).toContain(`data-direction="${fixture.expectedDirection}"`)
       expect(run.svg).toContain("data-kind=\"layout-bounds\"")
       expect(run.svg).toContain("data-layer=\"nodes\"")
@@ -119,6 +120,20 @@ describe("dev-only nodes layout playground", () => {
       expect(run.metrics.bendCount).toBeGreaterThan(0)
       expect(run.metrics.gatewayCount).toBeGreaterThan(0)
       expect(run.metrics.totalManhattan).toBeGreaterThan(0)
+      expect(paintedNodeIds).toEqual([
+        "source-zone",
+        "observer",
+        "producer",
+        "target-zone",
+        "consumer-a",
+        "consumer-b",
+      ])
+      for (const {id, parentId} of fixture.graph.nodes) {
+        if (parentId === undefined) continue
+        expect(run.svg.indexOf(`data-node-id="${parentId}"`)).toBeLessThan(
+          run.svg.indexOf(`data-node-id="${id}"`),
+        )
+      }
     }
   })
 
