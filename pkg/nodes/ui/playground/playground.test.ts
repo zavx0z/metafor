@@ -82,4 +82,36 @@ describe("Blender-like Node component playground", () => {
     expect(source).toContain("FieldCatalogSurface")
     expect(source).toContain("SocketCatalogSurface")
   })
+
+  test("keeps retained observation dev-only and routes exact browser evidence through UI dev", async () => {
+    const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
+    const observer = await Bun.file(join(playgroundRoot, "retained-observer.ts")).text()
+    const production = await Bun.file(join(playgroundRoot, "../node-editor.ts")).text()
+    const browser = await Bun.file(join(
+      playgroundRoot,
+      "../../../ui/.agents/skills/ui-dev/scripts/ui-browser.ts",
+    )).text()
+    const registry = await Bun.file(join(
+      playgroundRoot,
+      "../../../ui/.agents/skills/ui-dev/scripts/playgrounds.json",
+    )).json() as {selectors: Record<string, unknown>}
+
+    expect(client).toContain("createPlaygroundRetainedObserver(editor)")
+    expect(observer).toContain("NodeCanvas.contentRoot")
+    expect(observer).toContain("readRibbonEndpointCenters")
+    expect(observer).toContain("worldScaleRatioToContentRoot")
+    expect(production).not.toContain("__nodeComponentRetainedObserver")
+    expect(registry.selectors["node-ui"]).toMatchObject({
+      package: "@nodes/ui",
+      ready: {kind: "dataset", name: "nodeComponentPlayground", value: "ready"},
+      canvas: {selector: "#node-component-canvas", capability: "webgpu", touch: true},
+    })
+    expect(browser).toContain('cdp.send("Target.createTarget", {url, background: true})')
+    expect(browser).toContain('canvas.toDataURL("image/png")')
+    expect(browser).toContain('action === "profile"')
+    expect(browser).toContain("nativeMetricsRestored")
+    for (const forbidden of ["Page.bringToFront", '"/focus"', '"/activate"', '"/windows"']) {
+      expect(browser).not.toContain(forbidden)
+    }
+  })
 })

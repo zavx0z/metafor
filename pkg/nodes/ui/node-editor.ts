@@ -1,4 +1,4 @@
-import {Color} from "@metafor/engine"
+import {Color, Object3D} from "@metafor/engine"
 import {Typography} from "@ui/components"
 import {
   UiSurface,
@@ -106,25 +106,37 @@ export type NodeEditorSelection =
   | Readonly<{kind: "node"; id: string}>
   | null
 
+/** Cumulative read-only evidence for the current NodeCanvas render path. */
+export type NodeCanvasDiagnostics = Readonly<{
+  localLayoutPlans: number
+  materializations: number
+  transformOnlyFrames: number
+}>
+
 export type FrameRendererContext<TFrame extends Frame> = Readonly<{
   host: UiSurface
   entry: PositionedFrame<TFrame>
-  scale: number
   selected: boolean
 }>
 
-export type NodeRendererContext<TNode extends Node, TSocket extends Socket> = Readonly<{
-  host: UiSurface
+export type NodeRendererPlanContext<TNode extends Node, TSocket extends Socket> = Readonly<{
   entry: PositionedNode<TNode, TSocket>
   connectedSocketIds: ReadonlySet<string>
-  scale: number
   selected: boolean
+}>
+
+export type NodeRendererContext<
+  TNode extends Node,
+  TSocket extends Socket,
+  TPlan,
+> = NodeRendererPlanContext<TNode, TSocket> & Readonly<{
+  host: UiSurface
+  plan: TPlan
 }>
 
 export type SocketRendererContext<TSocket extends Socket> = Readonly<{
   host: UiSurface
   entry: PositionedSocket<TSocket>
-  scale: number
   selected: boolean
   nodeId: string
 }>
@@ -132,14 +144,13 @@ export type SocketRendererContext<TSocket extends Socket> = Readonly<{
 export type LinkRendererContext<TLink extends Link> = Readonly<{
   host: UiSurface
   entry: PositionedLink<TLink>
-  scale: number
   selected: boolean
 }>
 
-export type NodeRenderer<TNode extends Node, TSocket extends Socket> = Readonly<{
+export type NodeRenderer<TNode extends Node, TSocket extends Socket, TPlan = unknown> = Readonly<{
   measure?(node: TNode): Readonly<{width: number; height: number}>
-  renderBackground(context: NodeRendererContext<TNode, TSocket>): void
-  renderForeground(context: NodeRendererContext<TNode, TSocket>): void
+  plan(context: NodeRendererPlanContext<TNode, TSocket>): TPlan
+  render(context: NodeRendererContext<TNode, TSocket, TPlan>): void
 }>
 
 export type FrameRenderer<TFrame extends Frame> = Readonly<{
@@ -160,9 +171,10 @@ export type NodeEditorRenderers<
   TSocket extends Socket,
   TLink extends Link,
   TFrame extends Frame = Frame,
+  TNodePlan = unknown,
 > = Readonly<{
   frame: FrameRenderer<TFrame>
-  node: NodeRenderer<TNode, TSocket>
+  node: NodeRenderer<TNode, TSocket, TNodePlan>
   socket: SocketRenderer<TSocket>
   link: LinkRenderer<TLink>
 }>
@@ -192,13 +204,19 @@ export type NodeEditorPinchState = Readonly<{
   points: readonly [UiTouchPoint, UiTouchPoint]
 }>
 
+type RetainedNodeEditorPinchState = NodeEditorPinchState & Readonly<{
+  localAnchor: NodePoint
+  startDistance: number
+}>
+
 export type NodeCanvasOptions<
   TNode extends Node,
   TSocket extends Socket,
   TLink extends Link,
   TFrame extends Frame = Frame,
+  TNodePlan = unknown,
 > = UiSurfaceOpts & Readonly<{
-  renderers: NodeEditorRenderers<TNode, TSocket, TLink, TFrame>
+  renderers: NodeEditorRenderers<TNode, TSocket, TLink, TFrame, TNodePlan>
   title?: string
   toolbar?: boolean
   minScale?: number
@@ -213,11 +231,19 @@ export type NodeEditorOptions<
   TSocket extends Socket,
   TLink extends Link,
   TFrame extends Frame = Frame,
-> = NodeCanvasOptions<TNode, TSocket, TLink, TFrame>
+  TNodePlan = unknown,
+> = NodeCanvasOptions<TNode, TSocket, TLink, TFrame, TNodePlan>
 
 const DEFAULT_TRANSFORM: NodeCanvasTransform = Object.freeze({x: 0, y: 0, scale: 1})
 const TOOLBAR_HEIGHT = 38
 const EMPTY_IDS: ReadonlySet<string> = new Set()
+
+type RetainedComponent<TEntry> = {
+  parent: Object3D
+  entry: TEntry | null
+  selected: boolean | null
+  stateKey: string
+}
 
 /** Read-only Blender-like Node canvas with no layout or product dependency. */
 export class NodeCanvas<
@@ -225,8 +251,9 @@ export class NodeCanvas<
   TSocket extends Socket,
   TLink extends Link,
   TFrame extends Frame = Frame,
+  TNodePlan = unknown,
 > extends UiSurface {
-  readonly #renderers: NodeEditorRenderers<TNode, TSocket, TLink, TFrame>
+  readonly #renderers: NodeEditorRenderers<TNode, TSocket, TLink, TFrame, TNodePlan>
   readonly #title: string
   readonly #toolbar: boolean
   readonly #minScale: number
@@ -235,15 +262,32 @@ export class NodeCanvas<
   readonly #interactionHint: string
   readonly #onSelectionChange: ((selection: NodeEditorSelection) => void) | undefined
   readonly #onCanvasTransformChange: ((transform: NodeCanvasTransform) => void) | undefined
+  readonly #contentRoot: Object3D
+  readonly #gridParent: Object3D
+  readonly #frameBackgrounds = new Map<string, RetainedComponent<PositionedFrame<TFrame>>>()
+  readonly #links = new Map<string, RetainedComponent<PositionedLink<TLink>>>()
+  readonly #frameForegrounds = new Map<string, RetainedComponent<PositionedFrame<TFrame>>>()
+  readonly #nodes = new Map<string, RetainedComponent<PositionedNode<TNode, TSocket>>>()
+  readonly #interactionDirtyParents = new Set<Object3D>()
   #tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
   #transform = DEFAULT_TRANSFORM
   #selection: NodeEditorSelection = null
   #pan: Readonly<{x: number; y: number; transform: NodeCanvasTransform}> | null = null
-  #pinch: NodeEditorPinchState | null = null
+  #pinch: RetainedNodeEditorPinchState | null = null
   #fitPending = true
   #lastFrame = {w: 0, h: 0}
+  #styleDirty = false
+  #contentClean = false
+  #gridStateKey = ""
+  #materializedPixelScale = Number.NaN
+  #materializedFont: unknown = null
+  readonly #diagnostics = {
+    localLayoutPlans: 0,
+    materializations: 0,
+    transformOnlyFrames: 0,
+  }
 
-  constructor(options: NodeCanvasOptions<TNode, TSocket, TLink, TFrame>) {
+  constructor(options: NodeCanvasOptions<TNode, TSocket, TLink, TFrame, TNodePlan>) {
     super({
       bgColor: options.bgColor ?? palette.bg,
       borderColor: options.borderColor ?? null,
@@ -262,6 +306,10 @@ export class NodeCanvas<
     this.#onCanvasTransformChange = options.onCanvasTransformChange
     this.#tree = emptyNodeTree<TNode, TSocket, TLink, TFrame>()
     this.node.name = "NodeCanvas"
+    this.#contentRoot = this.createRetainedParent()
+    this.#contentRoot.name = "NodeCanvas.contentRoot"
+    this.#gridParent = this.createRetainedParent(this.#contentRoot)
+    this.#gridParent.name = "NodeCanvas.grid"
   }
 
   get tree(): PositionedNodeTree<TNode, TSocket, TLink, TFrame> {
@@ -276,14 +324,27 @@ export class NodeCanvas<
     return this.#selection
   }
 
+  /** Returns a frozen cumulative snapshot without changing render state. */
+  get diagnostics(): NodeCanvasDiagnostics {
+    return Object.freeze({...this.#diagnostics})
+  }
+
   setTree(tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>): void {
     validatePositionedNodeTree(tree)
     this.#tree = tree
+    const frameIds = new Set(tree.frames.map(({frame}) => frame.id))
+    const linkIds = new Set(tree.links.map(({link}) => link.id))
+    const nodeIds = new Set(tree.nodes.map(({node}) => node.id))
+    this.#removeMissingComponents(this.#frameBackgrounds, frameIds)
+    this.#removeMissingComponents(this.#links, linkIds)
+    this.#removeMissingComponents(this.#frameForegrounds, frameIds)
+    this.#removeMissingComponents(this.#nodes, nodeIds)
     if (this.#selection !== null && !selectionExists(tree, this.#selection)) {
       this.#selection = null
       this.#onSelectionChange?.(null)
     }
     this.#fitPending = true
+    this.#contentClean = false
     this.requestRender()
   }
 
@@ -292,6 +353,7 @@ export class NodeCanvas<
     if (sameSelection(selection, this.#selection)) return true
     this.#selection = selection
     this.#onSelectionChange?.(selection)
+    this.#contentClean = false
     this.requestRender()
     return true
   }
@@ -303,62 +365,71 @@ export class NodeCanvas<
 
   setCanvasTransform(transform: NodeCanvasTransform): boolean {
     if (![transform.x, transform.y, transform.scale].every(Number.isFinite) || transform.scale <= 0) return false
-    this.#transform = {
+    const next = {
       x: transform.x,
       y: transform.y,
       scale: clamp(transform.scale, this.#minScale, this.#maxScale),
     }
     this.#fitPending = false
-    this.#onCanvasTransformChange?.(this.#transform)
-    this.requestRender()
+    this.#presentTransform(next)
     return true
   }
 
+  /** Explicit read-only CPU projection; retained rendering never calls it. */
   renderPlan(): NodeEditorRenderPlan<TNode, TSocket, TLink, TFrame> {
     return planNodeEditorViewport(this.#tree, this.#transform, this.#contentRect())
   }
 
   override onWheel(event: WheelEvent, localX: number, localY: number): void {
     if (!this.interactive()) return
-    if (localY < this.#headerHeight()) return
+    const pointer = this.surfaceInnerPoint(localX, localY)
+    if (this.dispatchWheelHit(event, pointer.x, pointer.y)) return
+    if (pointer.y < this.#headerHeight()) return
     event.preventDefault()
     const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1
     const dx = finite(event.deltaX * unit)
     const dy = finite(event.deltaY * unit)
+    let next: NodeCanvasTransform
     if (event.ctrlKey) {
       const factor = clamp(Math.exp(-dy * 0.0025), 0.85, 1.18)
       const scale = clamp(this.#transform.scale * factor, this.#minScale, this.#maxScale)
-      const ratio = scale / this.#transform.scale
-      this.#transform = {
-        x: localX - (localX - this.#transform.x) * ratio,
-        y: localY - (localY - this.#transform.y) * ratio,
-        scale,
-      }
+      this.#fitPending = false
+      this.#presentScaleAtSurfaceAnchor(scale, pointer)
+      return
     } else {
-      this.#transform = {x: this.#transform.x - dx, y: this.#transform.y - dy, scale: this.#transform.scale}
+      next = {x: this.#transform.x - dx, y: this.#transform.y - dy, scale: this.#transform.scale}
     }
     this.#fitPending = false
-    this.#onCanvasTransformChange?.(this.#transform)
-    this.requestRender()
+    this.#presentTransform(next)
   }
 
   onMultiTouchStart(points: readonly UiTouchPoint[]): void {
-    const pair = touchPair(points)
+    const pair = touchPair(points.map((point) => ({...point, ...this.surfaceInnerPoint(point.x, point.y)})))
     if (!this.interactive() || pair === null) return
+    const midpoint = pointMidpoint(pair[0], pair[1])
+    const startDistance = pointDistance(pair[0], pair[1])
+    if (startDistance <= Number.EPSILON) return
     this.#pan = null
-    this.#pinch = {transform: this.#transform, points: pair}
+    this.#pinch = {
+      transform: this.#transform,
+      points: pair,
+      localAnchor: this.surfaceToRetainedPoint(this.#contentRoot, midpoint),
+      startDistance,
+    }
   }
 
   onMultiTouchMove(points: readonly UiTouchPoint[]): void {
-    const pair = touchPair(points)
+    const pair = touchPair(points.map((point) => ({...point, ...this.surfaceInnerPoint(point.x, point.y)})))
     if (this.#pinch === null || pair === null) return
-    this.#applyGestureTransform(planNodeEditorPinchTransform(
-      this.#pinch.transform,
-      this.#pinch.points,
-      pair,
+    const currentDistance = pointDistance(pair[0], pair[1])
+    if (!Number.isFinite(currentDistance)) return
+    const scale = clamp(
+      this.#pinch.transform.scale * currentDistance / this.#pinch.startDistance,
       this.#minScale,
       this.#maxScale,
-    ))
+    )
+    this.#fitPending = false
+    this.#presentScaleAtRetainedAnchor(scale, this.#pinch.localAnchor, pointMidpoint(pair[0], pair[1]))
   }
 
   onMultiTouchEnd(): void {
@@ -370,9 +441,11 @@ export class NodeCanvas<
   }
 
   protected override render(): void {
-    if (this.rectW !== this.#lastFrame.w || this.rectH !== this.#lastFrame.h) {
+    const sizeChanged = this.rectW !== this.#lastFrame.w || this.rectH !== this.#lastFrame.h
+    if (sizeChanged) {
       this.#lastFrame = {w: this.rectW, h: this.rectH}
       this.#fitPending = true
+      this.#contentClean = false
     }
     if (this.#fitPending) {
       this.#fitPending = false
@@ -384,110 +457,336 @@ export class NodeCanvas<
         this.#maxScale,
       )
     }
+
     this.withLayer("underlay", () => this.drawRect(0, 0, this.rectW, this.rectH, new Color(0.075, 0.073, 0.071, 1), Z.CONTAINER))
     if (this.#toolbar) this.#drawToolbar()
     const content = this.#contentRect()
-    this.withLayer("underlay", () => drawNodeEditorGrid(this, content, this.#transform))
-    this.pushClip(content.x, content.y, content.w, content.h)
-    try {
-      const plan = this.renderPlan()
-      const visibleById = new Map(plan.nodes.map((entry) => [entry.node.id, entry] as const))
-      const visibleFramesById = new Map(plan.frames.map((entry) => [entry.frame.id, entry] as const))
-      const connectedByNode = connectedSocketIdsByNode(this.#tree.links)
-      if (this.interactive()) this.hit(content.x, content.y, content.w, content.h, () => this.select(null), {
-        key: "node-editor:background",
-        cursor: "grab",
-        activeCursor: "grabbing",
-        onPointerDown: (x, y) => {
-          this.#pan = {x, y, transform: this.#transform}
-        },
-        onPointerMove: (x, y) => {
-          if (this.#pan === null) return
-          this.#applyGestureTransform({
-            x: this.#pan.transform.x + x - this.#pan.x,
-            y: this.#pan.transform.y + y - this.#pan.y,
-            scale: this.#pan.transform.scale,
-          })
-        },
-        onPointerUp: () => {
-          this.#pan = null
-        },
-      })
-      for (const step of planNodeEditorPaintSteps(this.#tree.frames, plan.frames, plan.nodes)) {
-        if (step.kind === "frame-background") {
-          const entry = visibleFramesById.get(step.frameId)
-          if (entry !== undefined) this.withLayer("underlay", () => this.#renderers.frame.renderBackground({
-            host: this,
-            entry,
-            scale: plan.transform.scale,
-            selected: isSelected(this.#selection, "frame", entry.frame.id),
-          }))
-          continue
-        }
-        if (step.kind === "links") {
-          this.withLayer("contentUnderlay", () => {
-            const links = orderNodeEditorLinksForPaint(plan.links, this.#selection)
-            for (const entry of links) {
-              const selected = isSelected(this.#selection, "link", entry.link.id)
-              this.#renderers.link.render({host: this, entry, scale: plan.transform.scale, selected})
-              if (this.interactive()) planNodeEditorLinkHitRects(entry.points, Math.max(6, 8 * plan.transform.scale)).forEach((rect, index) => {
-                this.hit(rect.x, rect.y, rect.w, rect.h, () => this.select({kind: "link", id: entry.link.id}), {
-                  key: `node-editor:link:${entry.link.id}:${index}`,
-                  cursor: "pointer",
-                })
-              })
-            }
-          })
-          continue
-        }
-        if (step.kind === "frame-foreground") {
-          const entry = visibleFramesById.get(step.frameId)
-          if (entry === undefined) continue
-          this.#renderers.frame.renderForeground({
-            host: this,
-            entry,
-            scale: plan.transform.scale,
-            selected: isSelected(this.#selection, "frame", entry.frame.id),
-          })
-          if (this.interactive()) this.hit(entry.rect.x, entry.rect.y, entry.rect.w, Math.min(entry.rect.h, Math.max(28, 36 * plan.transform.scale)), () => this.select({kind: "frame", id: entry.frame.id}), {
-            key: `node-editor:frame:${entry.frame.id}`,
-            cursor: "pointer",
-          })
-          continue
-        }
-        const entry = visibleById.get(step.nodeId)
-        if (entry === undefined) continue
-        const context: NodeRendererContext<TNode, TSocket> = {
-          host: this,
-          entry,
-          connectedSocketIds: connectedByNode.get(entry.node.id) ?? EMPTY_IDS,
-          scale: plan.transform.scale,
-          selected: isSelected(this.#selection, "node", entry.node.id),
-        }
-        this.#renderers.node.renderBackground(context)
-        this.#renderers.node.renderForeground(context)
-        for (const socket of entry.sockets) this.#renderers.socket.render({
-          host: this,
-          entry: socket,
-          scale: plan.transform.scale,
-          selected: context.selected,
-          nodeId: entry.node.id,
+
+    if (this.interactive()) this.hit(content.x, content.y, content.w, content.h, () => this.select(null), {
+      key: "node-editor:background",
+      cursor: "grab",
+      activeCursor: "grabbing",
+      onPointerDown: (x, y) => {
+        this.#pan = {x, y, transform: this.#transform}
+      },
+      onPointerMove: (x, y) => {
+        if (this.#pan === null) return
+        this.#applyGestureTransform({
+          x: this.#pan.transform.x + x - this.#pan.x,
+          y: this.#pan.transform.y + y - this.#pan.y,
+          scale: this.#pan.transform.scale,
         })
-        if (this.interactive()) this.hit(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, () => this.select({kind: "node", id: entry.node.id}), {
-          key: `node-editor:node:${entry.node.id}`,
-          cursor: "pointer",
-        })
-      }
-      if (plan.nodes.length === 0) {
-        Typography(this, content.x, content.y, content.w, content.h, {
-          children: this.#emptyMessage,
-          color: "muted",
-          sx: {textAlign: "center"},
-        })
-      }
-    } finally {
-      this.popClip()
+      },
+      onPointerUp: () => {
+        this.#pan = null
+      },
+    })
+
+    const forceAll = this.#styleDirty ||
+      this.#materializedPixelScale !== this.pixelScale ||
+      this.#materializedFont !== this.font
+    if (this.#reconcileRetainedContent(content, forceAll)) {
+      this.#diagnostics.materializations += 1
     }
+    if (this.#tree.nodes.length === 0) {
+      Typography(this, content.x, content.y, content.w, content.h, {
+        children: this.#emptyMessage,
+        color: "muted",
+        sx: {textAlign: "center"},
+      })
+    }
+    this.#syncContentTransform()
+    this.#syncContentProjection(content)
+    this.#styleDirty = false
+    this.#materializedPixelScale = this.pixelScale
+    this.#materializedFont = this.font
+    this.#contentClean = true
+  }
+
+  #reconcileRetainedContent(content: NodeRect, forceAll: boolean): boolean {
+    let changed = false
+    const connectedByNode = connectedSocketIdsByNode(this.#tree.links)
+    const frameIds = new Set(this.#tree.frames.map(({frame}) => frame.id))
+    const linkIds = new Set(this.#tree.links.map(({link}) => link.id))
+    const nodeIds = new Set(this.#tree.nodes.map(({node}) => node.id))
+
+    changed = this.#removeMissingComponents(this.#frameBackgrounds, frameIds) || changed
+    changed = this.#removeMissingComponents(this.#links, linkIds) || changed
+    changed = this.#removeMissingComponents(this.#frameForegrounds, frameIds) || changed
+    changed = this.#removeMissingComponents(this.#nodes, nodeIds) || changed
+
+    const gridFrame = retainedNodeEditorGridFrame(this.#tree.bounds, content)
+    const gridStateKey = rectStateKey(gridFrame)
+    if (forceAll || gridStateKey !== this.#gridStateKey) {
+      this.materializeRetainedParent(this.#gridParent, () => drawRetainedNodeEditorGrid(this, gridFrame))
+      this.#gridStateKey = gridStateKey
+      changed = true
+    }
+
+    for (const entry of this.#tree.frames) {
+      const selected = isSelected(this.#selection, "frame", entry.frame.id)
+      const background = this.#component(
+        this.#frameBackgrounds,
+        entry.frame.id,
+        `NodeCanvas.frame-background:${entry.frame.id}`,
+      )
+      if (background.created) changed = true
+      if (forceAll || background.component.entry !== entry || background.component.selected !== selected ||
+        this.#interactionDirtyParents.has(background.component.parent)) {
+        this.#materializeComponent(background.component.parent, () => {
+          if (this.interactive()) this.retainedHit(
+            background.component.parent,
+            entry.rect.x,
+            entry.rect.y,
+            entry.rect.w,
+            Math.min(36, entry.rect.h),
+            () => this.select({kind: "frame", id: entry.frame.id}),
+            {key: `node-editor:frame:${entry.frame.id}`},
+          )
+          this.#renderers.frame.renderBackground({host: this, entry, selected})
+        })
+        background.component.entry = entry
+        background.component.selected = selected
+        changed = true
+      }
+
+      const foreground = this.#component(
+        this.#frameForegrounds,
+        entry.frame.id,
+        `NodeCanvas.frame-foreground:${entry.frame.id}`,
+      )
+      if (foreground.created) changed = true
+      if (forceAll || foreground.component.entry !== entry || foreground.component.selected !== selected ||
+        this.#interactionDirtyParents.has(foreground.component.parent)) {
+        this.#materializeComponent(foreground.component.parent, () => {
+          this.#renderers.frame.renderForeground({host: this, entry, selected})
+        })
+        foreground.component.entry = entry
+        foreground.component.selected = selected
+        changed = true
+      }
+    }
+
+    for (const entry of this.#tree.links) {
+      const selected = isSelected(this.#selection, "link", entry.link.id)
+      const retained = this.#component(this.#links, entry.link.id, `NodeCanvas.link:${entry.link.id}`)
+      if (retained.created) changed = true
+      if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected ||
+        this.#interactionDirtyParents.has(retained.component.parent)) {
+        this.#materializeComponent(retained.component.parent, () => {
+          if (this.interactive()) {
+            for (const [index, rect] of planNodeEditorLinkHitRects(entry.points).entries()) {
+              this.retainedHit(
+                retained.component.parent,
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                () => this.select({kind: "link", id: entry.link.id}),
+                {
+                  key: `node-editor:link:${entry.link.id}:${index}`,
+                  screenMinimum: {width: 16, height: 16},
+                },
+              )
+            }
+          }
+          this.#renderers.link.render({host: this, entry, selected})
+        })
+        retained.component.entry = entry
+        retained.component.selected = selected
+        changed = true
+      }
+    }
+
+    for (const entry of this.#tree.nodes) {
+      const connectedSocketIds = connectedByNode.get(entry.node.id) ?? EMPTY_IDS
+      const selected = isSelected(this.#selection, "node", entry.node.id)
+      const stateKey = [...connectedSocketIds].sort().join("\u0000")
+      const retained = this.#component(this.#nodes, entry.node.id, `NodeCanvas.node:${entry.node.id}`)
+      if (retained.created) changed = true
+      if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected ||
+        retained.component.stateKey !== stateKey || this.#interactionDirtyParents.has(retained.component.parent)) {
+        const planContext: NodeRendererPlanContext<TNode, TSocket> = {entry, connectedSocketIds, selected}
+        this.#diagnostics.localLayoutPlans += 1
+        const plan = this.#renderers.node.plan(planContext)
+        this.#materializeComponent(retained.component.parent, () => {
+          if (this.interactive()) this.retainedHit(
+            retained.component.parent,
+            entry.rect.x,
+            entry.rect.y,
+            entry.rect.w,
+            entry.rect.h,
+            () => this.select({kind: "node", id: entry.node.id}),
+            {key: `node-editor:node:${entry.node.id}`},
+          )
+          this.#renderers.node.render({host: this, ...planContext, plan})
+          for (const socket of entry.sockets) this.#renderers.socket.render({
+            host: this,
+            entry: socket,
+            selected,
+            nodeId: entry.node.id,
+          })
+        })
+        retained.component.entry = entry
+        retained.component.selected = selected
+        retained.component.stateKey = stateKey
+        changed = true
+      }
+    }
+
+    const frameById = new Map(this.#tree.frames.map((entry) => [entry.frame.id, entry] as const))
+    const nodeById = new Map(this.#tree.nodes.map((entry) => [entry.node.id, entry] as const))
+    const ordered: Object3D[] = [this.#gridParent]
+    for (const step of planNodeEditorPaintSteps(this.#tree.frames, this.#tree.frames, this.#tree.nodes)) {
+      if (step.kind === "frame-background") {
+        const frame = frameById.get(step.frameId)
+        if (frame !== undefined) ordered.push(this.#frameBackgrounds.get(frame.frame.id)!.parent)
+      } else if (step.kind === "links") {
+        for (const {link} of orderNodeEditorLinksForPaint(this.#tree.links, this.#selection)) {
+          ordered.push(this.#links.get(link.id)!.parent)
+        }
+      } else if (step.kind === "frame-foreground") {
+        const frame = frameById.get(step.frameId)
+        if (frame !== undefined) ordered.push(this.#frameForegrounds.get(frame.frame.id)!.parent)
+      } else {
+        const node = nodeById.get(step.nodeId)
+        if (node !== undefined) ordered.push(this.#nodes.get(node.node.id)!.parent)
+      }
+    }
+    this.#setContentOrder(ordered)
+    return changed
+  }
+
+  #component<TEntry>(
+    components: Map<string, RetainedComponent<TEntry>>,
+    id: string,
+    name: string,
+  ): Readonly<{component: RetainedComponent<TEntry>; created: boolean}> {
+    const current = components.get(id)
+    if (current !== undefined) return {component: current, created: false}
+    const parent = this.createRetainedParent(this.#contentRoot)
+    parent.name = name
+    const component = {parent, entry: null, selected: null, stateKey: ""}
+    components.set(id, component)
+    return {component, created: true}
+  }
+
+  #materializeComponent(parent: Object3D, draw: () => void): void {
+    const interactionDirty = this.#interactionDirtyParents.delete(parent)
+    try {
+      this.materializeRetainedParent(parent, draw)
+    } catch (error) {
+      if (interactionDirty) this.#interactionDirtyParents.add(parent)
+      throw error
+    }
+  }
+
+  #removeMissingComponents<TEntry>(
+    components: Map<string, RetainedComponent<TEntry>>,
+    retainedIds: ReadonlySet<string>,
+  ): boolean {
+    let changed = false
+    for (const [id, component] of components) {
+      if (retainedIds.has(id)) continue
+      this.#interactionDirtyParents.delete(component.parent)
+      this.removeRetainedParent(component.parent)
+      this.#interactionDirtyParents.delete(component.parent)
+      components.delete(id)
+      changed = true
+    }
+    return changed
+  }
+
+  #setContentOrder(ordered: readonly Object3D[]): void {
+    if (ordered.length === this.#contentRoot.children.length &&
+      ordered.every((child, index) => this.#contentRoot.children[index] === child)) return
+    for (const child of ordered) {
+      this.#contentRoot.remove(child)
+      this.#contentRoot.add(child)
+    }
+  }
+
+  #presentTransform(transform: NodeCanvasTransform): void {
+    const changed = !sameCanvasTransform(transform, this.#transform)
+    this.#transform = transform
+    this.#onCanvasTransformChange?.(this.#transform)
+    if (!changed) return
+    this.#syncContentTransform()
+    this.#syncContentProjection(this.#contentRect())
+    if (this.#contentClean) this.#diagnostics.transformOnlyFrames += 1
+  }
+
+  #presentScaleAtSurfaceAnchor(scale: number, surfaceAnchor: NodePoint): void {
+    const localAnchor = this.surfaceToRetainedPoint(this.#contentRoot, surfaceAnchor)
+    this.#presentScaleAtRetainedAnchor(scale, localAnchor, surfaceAnchor)
+  }
+
+  #presentScaleAtRetainedAnchor(scale: number, localAnchor: NodePoint, surfaceAnchor: NodePoint): void {
+    const previous = this.#transform
+    let next: NodeCanvasTransform = {x: previous.x, y: previous.y, scale}
+    this.updateRetainedTransform(this.#contentRoot, (parent) => {
+      parent.position.set(next.x * this.pixelScale, -next.y * this.pixelScale, 0)
+      parent.scale.set(next.scale, next.scale, 1)
+      parent.updateMatrix()
+      const projected = this.retainedToSurfacePoint(parent, localAnchor)
+      next = {
+        x: next.x + surfaceAnchor.x - projected.x,
+        y: next.y + surfaceAnchor.y - projected.y,
+        scale,
+      }
+      parent.position.set(next.x * this.pixelScale, -next.y * this.pixelScale, 0)
+    })
+    if (sameCanvasTransform(next, previous)) return
+    this.#transform = next
+    this.#onCanvasTransformChange?.(next)
+    this.#syncContentProjection(this.#contentRect())
+    if (this.#contentClean) this.#diagnostics.transformOnlyFrames += 1
+  }
+
+  #syncContentTransform(): void {
+    const transform = this.#transform
+    const pixelScale = this.pixelScale
+    this.updateRetainedTransform(this.#contentRoot, (parent) => {
+      parent.position.set(transform.x * pixelScale, -transform.y * pixelScale, 0)
+      parent.scale.set(transform.scale, transform.scale, 1)
+    })
+  }
+
+  #syncContentProjection(content: NodeRect): void {
+    this.updateRetainedViewportClip(this.#contentRoot, content)
+    const viewport = this.surfaceToRetainedRect(this.#contentRoot, content)
+    const visibleNodeIds = new Set<string>()
+    for (const entry of this.#tree.nodes) {
+      const visible = intersects(entry.rect, viewport)
+      const component = this.#nodes.get(entry.node.id)
+      if (component !== undefined) this.updateRetainedVisibility(component.parent, visible)
+      if (visible) visibleNodeIds.add(entry.node.id)
+    }
+    for (const entry of this.#tree.frames) {
+      const visible = intersects(entry.rect, viewport)
+      const background = this.#frameBackgrounds.get(entry.frame.id)
+      const foreground = this.#frameForegrounds.get(entry.frame.id)
+      if (background !== undefined) this.updateRetainedVisibility(background.parent, visible)
+      if (foreground !== undefined) this.updateRetainedVisibility(foreground.parent, visible)
+    }
+    for (const entry of this.#tree.links) {
+      const visible = visibleNodeIds.has(entry.link.from.nodeId) ||
+        visibleNodeIds.has(entry.link.to.nodeId) ||
+        intersects(pointsBounds(entry.points), viewport)
+      const component = this.#links.get(entry.link.id)
+      if (component !== undefined) this.updateRetainedVisibility(component.parent, visible)
+    }
+  }
+
+  protected override onRetainedInteractionChange(parent: Object3D): void {
+    this.#interactionDirtyParents.add(parent)
+  }
+
+  override setActive(active: boolean): void {
+    if (this.active === active) return
+    this.#styleDirty = true
+    this.#contentClean = false
+    super.setActive(active)
   }
 
   #drawToolbar(): void {
@@ -527,14 +826,13 @@ export class NodeCanvas<
   }
 
   #applyGestureTransform(transform: NodeCanvasTransform): void {
-    this.#transform = {
+    const next = {
       x: finite(transform.x),
       y: finite(transform.y),
       scale: clamp(transform.scale, this.#minScale, this.#maxScale),
     }
     this.#fitPending = false
-    this.#onCanvasTransformChange?.(this.#transform)
-    this.requestRender()
+    this.#presentTransform(next)
   }
 
   protected interactive(): boolean {
@@ -548,8 +846,9 @@ export class NodeEditor<
   TSocket extends Socket,
   TLink extends Link,
   TFrame extends Frame = Frame,
-> extends NodeCanvas<TNode, TSocket, TLink, TFrame> {
-  constructor(options: NodeEditorOptions<TNode, TSocket, TLink, TFrame>) {
+  TNodePlan = unknown,
+> extends NodeCanvas<TNode, TSocket, TLink, TFrame, TNodePlan> {
+  constructor(options: NodeEditorOptions<TNode, TSocket, TLink, TFrame, TNodePlan>) {
     super({
       ...options,
       title: options.title ?? "NODE EDITOR",
@@ -920,9 +1219,16 @@ function connectedSocketIdsByNode<TLink extends Link>(links: readonly Positioned
   return mutable
 }
 
-function drawNodeEditorGrid(host: UiSurface, frame: NodeRect, transform: NodeCanvasTransform): void {
-  host.drawRect(frame.x, frame.y, frame.w, frame.h, new Color(0.075, 0.073, 0.071, 1), Z.CONTAINER)
-  for (const point of planNodeEditorGrid(frame, transform)) {
+function retainedNodeEditorGridFrame(bounds: NodeRect, viewport: NodeRect): NodeRect {
+  const xMin = Math.min(bounds.x, 0)
+  const yMin = Math.min(bounds.y, 0)
+  const xMax = Math.max(bounds.x + bounds.w, viewport.w)
+  const yMax = Math.max(bounds.y + bounds.h, viewport.h)
+  return {x: xMin, y: yMin, w: xMax - xMin, h: yMax - yMin}
+}
+
+function drawRetainedNodeEditorGrid(host: UiSurface, frame: NodeRect): void {
+  for (const point of planNodeEditorGrid(frame, DEFAULT_TRANSFORM)) {
     const size = point.major ? 1.8 : 1.1
     const color = point.major
       ? new Color(0.22, 0.22, 0.22, 0.72)
@@ -934,6 +1240,14 @@ function drawNodeEditorGrid(host: UiSurface, frame: NodeRect, transform: NodeCan
       z: Z.CONTAINER + 0.01,
     })
   }
+}
+
+function rectStateKey(rect: NodeRect): string {
+  return `${rect.x}:${rect.y}:${rect.w}:${rect.h}`
+}
+
+function sameCanvasTransform(left: NodeCanvasTransform, right: NodeCanvasTransform): boolean {
+  return left.x === right.x && left.y === right.y && left.scale === right.scale
 }
 
 function positiveModulo(value: number, divisor: number): number {

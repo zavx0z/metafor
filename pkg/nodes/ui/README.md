@@ -11,10 +11,11 @@ import {
   type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
+  type BlenderNodePlan,
   type BlenderSocket,
 } from "@nodes/ui/blender-node"
 
-const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>({
+const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
   renderers: createBlenderNodeRenderers(),
 })
 ```
@@ -30,7 +31,8 @@ pan/zoom и selection и вызывает независимые `NodeRenderer`,
 Frame через `parentFrameId`. Validation отвергает cycles, неизвестного parent и
 children за пределами direct Frame.
 
-`blender-node` предоставляет стандартный Node renderer, 19 Socket presets,
+`blender-node` предоставляет стандартный Node renderer с одним typed local
+plan и одной materialization, 19 Socket presets,
 8 Socket shapes и Link renderer. Это сменяемый preset: consumer может передать
 собственные typed Node/Socket/Link renderer-ы без изменения editor.
 

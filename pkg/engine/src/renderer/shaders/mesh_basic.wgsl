@@ -7,6 +7,7 @@ struct PerObjectUniforms {
     modelMatrix: mat4x4<f32>,
     normalMatrix: mat4x4<f32>,
     color: vec4<f32>,
+    clipBounds: vec4<f32>,
 };
 @binding(0) @group(1) var<uniform> perObject: PerObjectUniforms;
 
@@ -29,6 +30,10 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    _ = in;
+    let b = perObject.clipBounds;
+    let clipDisabled = b.x == 0.0 && b.y == 0.0 && b.z == 0.0 && b.w == 0.0;
+    if (!clipDisabled && (in.position.x < b.x || in.position.x > b.z || in.position.y < b.y || in.position.y > b.w)) {
+        discard;
+    }
     return perObject.color;
 }

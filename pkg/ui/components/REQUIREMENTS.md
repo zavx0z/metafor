@@ -27,8 +27,10 @@
    существующие `@ui/elements` `flexRow`/`flexColumn`. Ручные cursor/column/row
    offsets для размещения дочерних UI-компонентов запрещены.
 9. Field имеет один semantic contract и два presentation density: regular для
-   обычной панели и scale-aware compact для плотных embedded surfaces. Compact
-   не является Node-specific renderer и доступен любому consumer.
+   обычной панели и intrinsic compact для плотных embedded surfaces. Compact
+   не принимает scene/canvas scale: внешний retained parent одинаково
+   преобразует Field и соседние visual children. Compact не является
+   Node-specific renderer и доступен любому consumer.
 10. Inline Slider является общим layout `SliderControl`, а не локальной
     имитацией внутри Node. Vector/rotation/matrix compact rows также планируются
     nested Flex.

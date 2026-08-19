@@ -17,6 +17,8 @@ export interface MeshBasicMaterialParameters extends MaterialParameters {
  */
 export class MeshBasicMaterial extends Material {
   public color: Color
+  /** Optional framebuffer-pixel clip used by retained UI presentation. */
+  public clipBounds: [number, number, number, number] | null = null
 
   /**
    * @param parameters - Параметры для материала.
