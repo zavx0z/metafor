@@ -86,3 +86,6 @@
    соединяется одним прямым leader с exact port center. Label boxes не
    пересекаются между собой или semantic routes; leader не является layout
    route и не меняет policy input/result geometry.
+5. SVG playground рисует semantic routes и debug leaders под нодами, каждый
+   compound — до всех его descendants, а exact ports и внешние label boxes —
+   поверх нод. Этот presentation order не меняет layout input/result geometry.
