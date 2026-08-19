@@ -275,7 +275,7 @@ production удаляет `console.debug` и не публикует карту.
 | UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| NODES-011 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-011.md) |
+| NODES-011 | REVIEW      | нет       | [Открыть](tasks/NODES-011.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |

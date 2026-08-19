@@ -15,8 +15,12 @@ export function runPlaygroundLayout(policyId: string, input: PlaygroundFixture["
     result,
     policyDiagnostics,
     metrics,
-    svg: renderLayoutSvg(input, result, `${policy.label} · ${result.direction}`),
+    svg: renderLayoutSvg(input, result, `${policy.label} · ${formatDirection(result.direction)}`),
   }
+}
+
+function formatDirection(direction: LayoutResult["direction"]): string {
+  return direction === "RIGHT" ? "Горизонтальная (RIGHT)" : "Вертикальная (DOWN)"
 }
 
 export function measureResult(

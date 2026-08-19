@@ -68,24 +68,24 @@ function runEditedInput(): void {
     currentRun = run
     singleView.hidden = false
     comparison.hidden = true
-    viewTitle.textContent = `${getPlaygroundPolicy(run.policyId).label} · ${run.result.direction}`
+    viewTitle.textContent = `${getPlaygroundPolicy(run.policyId).label} · ${formatDirection(run.result.direction)}`
     svgView.innerHTML = run.svg
     metricsOutput.textContent = formatMetrics(run)
     resultOutput.textContent = pretty(run.result)
     diagnosticsOutput.textContent = pretty(successDiagnostics(run, fixture))
     exportResult.disabled = false
     exportSvg.disabled = false
-    setStatus("ok", `OK · ${run.result.direction} · ${formatDuration(run.metrics.durationMs)}`)
+    setStatus("ok", `Готово · ${formatDirection(run.result.direction)} · ${formatDuration(run.metrics.durationMs)}`)
     applyLayerVisibility()
   } catch (error) {
     currentRun = null
     svgView.replaceChildren()
     metricsOutput.textContent = ""
-    resultOutput.textContent = "No public layout result."
+    resultOutput.textContent = "Публичный результат раскладки не получен."
     diagnosticsOutput.textContent = pretty(errorDiagnostics(error))
     exportResult.disabled = true
     exportSvg.disabled = true
-    setStatus("error", "Layout rejected input")
+    setStatus("error", "Раскладка отклонила входные данные")
   }
 }
 
@@ -96,7 +96,7 @@ function compareFixtureFamily(): void {
     const orientations = ["RIGHT", "DOWN"] as const
     const fixtures = orientations.map((orientation) => {
       const fixture = family.find((candidate) => candidate.expectedDirection === orientation)
-      if (fixture === undefined) throw new Error(`Fixture family ${selected.family} has no ${orientation} baseline`)
+      if (fixture === undefined) throw new Error(`В семействе сценариев ${selected.family} нет варианта ${orientation}`)
       return fixture
     })
     const runs = fixtures.map((fixture) => ({
@@ -112,15 +112,15 @@ function compareFixtureFamily(): void {
       status: "ok",
       policy: policySelect.value,
       comparison: runs.map(({fixture, run}) => successDiagnostics(run, fixture)),
-      validation: "The playground reports the public policy outcome and does not implement an independent layout validator.",
+      validation: "Стенд показывает результат публичной политики и не реализует отдельный валидатор раскладки.",
     })
     exportResult.disabled = false
     exportSvg.disabled = false
-    setStatus("ok", "Compared RIGHT / DOWN")
+    setStatus("ok", "Сравнены RIGHT / DOWN")
     applyLayerVisibility()
   } catch (error) {
     diagnosticsOutput.textContent = pretty(errorDiagnostics(error))
-    setStatus("error", "Comparison failed")
+    setStatus("error", "Не удалось сравнить раскладки")
   }
 }
 
@@ -128,7 +128,7 @@ function comparisonArticle(fixture: PlaygroundFixture, run: PlaygroundRun): HTML
   const article = document.createElement("article")
   article.dataset.direction = fixture.expectedDirection
   const heading = document.createElement("h2")
-  heading.textContent = `${fixture.expectedDirection} · ${formatMetrics(run)}`
+  heading.textContent = `${formatDirection(fixture.expectedDirection)} · ${formatMetrics(run)}`
   const view = document.createElement("div")
   view.className = "svg-view"
   view.innerHTML = run.svg
@@ -139,7 +139,7 @@ function comparisonArticle(fixture: PlaygroundFixture, run: PlaygroundRun): HTML
 function resetFixture(): void {
   const fixture = getPlaygroundFixture(fixtureSelect.value || PLAYGROUND_FIXTURES[0]!.id)
   fixtureSelect.value = fixture.id
-  fixtureDescription.textContent = `${fixture.description} Expected: ${fixture.expectedDirection}.`
+  fixtureDescription.textContent = `${fixture.description} Ожидаемое направление: ${formatDirection(fixture.expectedDirection)}.`
   inputEditor.value = pretty(fixture.graph)
 }
 
@@ -157,7 +157,7 @@ function successDiagnostics(run: PlaygroundRun, fixture: PlaygroundFixture | und
     directionMatchesFixture: expectedDirection === undefined ? null : expectedDirection === run.result.direction,
     metrics: run.metrics,
     policyDiagnostics: run.policyDiagnostics,
-    validation: "The public policy returned successfully. No playground-owned layout, routing or hard validator was run.",
+    validation: "Публичная политика завершилась успешно. Стенд не запускал собственную раскладку, маршрутизацию или строгий валидатор.",
   }
 }
 
@@ -166,25 +166,42 @@ function errorDiagnostics(error: unknown): unknown {
     status: "error",
     error: error instanceof Error ? error.message : String(error),
     stack: error instanceof Error ? error.stack ?? null : null,
-    source: "public layout policy",
+    source: "публичная политика раскладки",
   }
 }
 
 function formatMetrics(run: PlaygroundRun): string {
   const metrics = run.metrics
   return [
-    `${metrics.nodeCount} nodes`,
-    `${metrics.compoundCount} compounds`,
-    `${metrics.portCount} ports`,
-    `${metrics.edgeCount} edges`,
-    `${metrics.bendCount} bends`,
-    `${metrics.gatewayCount} gateways`,
+    formatCount(metrics.nodeCount, ["нода", "ноды", "нод"]),
+    formatCount(metrics.compoundCount, ["контейнер", "контейнера", "контейнеров"]),
+    formatCount(metrics.portCount, ["порт", "порта", "портов"]),
+    formatCount(metrics.edgeCount, ["связь", "связи", "связей"]),
+    formatCount(metrics.bendCount, ["изгиб", "изгиба", "изгибов"]),
+    formatCount(metrics.gatewayCount, ["шлюз", "шлюза", "шлюзов"]),
     `${formatDuration(metrics.durationMs)}`,
   ].join(" · ")
 }
 
+function formatCount(value: number, forms: readonly [string, string, string]): string {
+  const lastTwo = Math.abs(value) % 100
+  const last = lastTwo % 10
+  const form = lastTwo >= 11 && lastTwo <= 14
+    ? forms[2]
+    : last === 1
+      ? forms[0]
+      : last >= 2 && last <= 4
+        ? forms[1]
+        : forms[2]
+  return `${value} ${form}`
+}
+
 function formatDuration(value: number): string {
-  return `${value.toFixed(2)} ms`
+  return `${value.toFixed(2)} мс`
+}
+
+function formatDirection(direction: "RIGHT" | "DOWN"): string {
+  return direction === "RIGHT" ? "Горизонтальная (RIGHT)" : "Вертикальная (DOWN)"
 }
 
 function applyLayerVisibility(): void {
@@ -217,6 +234,6 @@ function pretty(value: unknown): string {
 
 function query<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector)
-  if (element === null) throw new Error(`Missing playground element: ${selector}`)
+  if (element === null) throw new Error(`Не найден элемент интерфейса стенда: ${selector}`)
   return element
 }

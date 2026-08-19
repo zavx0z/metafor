@@ -30,7 +30,7 @@ export type PlaygroundPortLabel = Readonly<{
 export function renderLayoutSvg(
   graph: LayoutGraph,
   result: LayoutResult,
-  title = `${result.direction} layout`,
+  title = `${result.direction === "RIGHT" ? "Горизонтальная (RIGHT)" : "Вертикальная (DOWN)"} раскладка`,
 ): string {
   const childCount = new Map<string, number>()
   for (const node of graph.nodes) {
@@ -223,7 +223,7 @@ function pointAttribute(point: LayoutPoint): string {
 }
 
 function formatNumber(value: number): string {
-  if (!Number.isFinite(value)) throw new Error(`SVG coordinate must be finite: ${value}`)
+  if (!Number.isFinite(value)) throw new Error(`Координата SVG должна быть конечным числом: ${value}`)
   const rounded = Math.round(value * 1_000) / 1_000
   return Object.is(rounded, -0) ? "0" : String(rounded)
 }

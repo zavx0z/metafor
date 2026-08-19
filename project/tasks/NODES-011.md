@@ -27,8 +27,9 @@
 2. `RIGHT`, `DOWN`, policy IDs, JSON field names, node/port/edge IDs и точные
    machine diagnostics остаются техническими данными; интерфейс объясняет их
    по-русски и при необходимости показывает technical token в скобках.
-3. Layout, routing, side-selection, fixtures, hashes и package boundaries не
-   меняются.
+3. Layout, routing, side-selection, fixture topology, result hashes и package
+   boundaries не меняются. SVG hashes меняются только вместе с русским
+   доступным заголовком `<title>`.
 
 ## Границы
 
@@ -52,4 +53,23 @@
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`.
+`REVIEW`.
+
+## Результат
+
+* Весь видимый chrome стенда, описания fixed/adaptive сценариев, статусы,
+  метрики, кнопки и доступные SVG-заголовки переведены на русский.
+* `RIGHT`, `DOWN`, `WEST`, `EAST`, `inout`, JSON keys и graph IDs сохранены как
+  технические значения и объяснены русским текстом.
+* Счётчики используют русские формы слов, а время отображается в `мс`.
+* Layout result hashes и geometry не изменились; обновлены только SVG hashes,
+  содержащие локализованный `<title>`.
+
+## Проверки
+
+* `bun test pkg/nodes` — 127 pass, 0 fail, 2140 expect.
+* Playground TypeScript typecheck — pass.
+* `git diff --check` — pass.
+* `ai-macos` target `116F2A03988C2FA4FD5515BDAE7A83F5`: adaptive RIGHT/DOWN
+  comparison отображает русские labels и `мс`; console — 0 entries; screenshot
+  визуально не обнаружил overlap.

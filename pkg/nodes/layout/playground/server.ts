@@ -6,8 +6,8 @@ const server = Bun.serve({
   development: {hmr: true},
   routes: {"/": index},
   fetch() {
-    return new Response("Not found", {status: 404})
+    return new Response("Не найдено", {status: 404})
   },
 })
 
-console.log(`Nodes layout playground: ${server.url}`)
+console.log(`Стенд раскладки нод: ${server.url}`)

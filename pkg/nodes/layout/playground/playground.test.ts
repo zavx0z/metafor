@@ -15,13 +15,13 @@ const BASELINES = {
     direction: "RIGHT",
     bounds: {x: 0, y: 0, width: 632, height: 446},
     resultHash: "78d036df9a386533218936d0f2366e32f233f28a4f28d892d17bf1bb0fb4c844",
-    svgHash: "9f44acb2779ac8c222e37108de0c05d7001e2d736935cfaea327ceed21a7aaca",
+    svgHash: "669cfd905908e7f6caffd2a64174c7083fdf70750c54d18c7294dfb6b0be54e9",
   },
   "fixed-baseline-down": {
     direction: "DOWN",
     bounds: {x: 0, y: 0, width: 396, height: 830},
     resultHash: "bb8fd47580182a40198e6aff388dcf7d26b28651ed9d592fa825efc02b4929c1",
-    svgHash: "598d2e75b43b1390696c75b645eb4b626748b0af48631b1a58ed0887db1ba4e2",
+    svgHash: "59186f691751ee1650baeb5f66c0efb6cdc6cd20eee1fb678f1e625f27eaad81",
   },
 } as const
 
@@ -31,14 +31,14 @@ const ADAPTIVE_BASELINES = {
     side: "EAST",
     bounds: {x: 0, y: 0, width: 540, height: 330},
     resultHash: "908e21c560fc58850a831e4b865123d650e4d1b6c72917476d23ed033aee115a",
-    svgHash: "1584ac516c98b3c36491348387c7fb874be4089c7cf11e3465992583834e1ab1",
+    svgHash: "34fbaa72de71ff1139b7ea87af878e09686ba47970ea1b74bbab4f25d168b75b",
   },
   "adaptive-shared-down": {
     direction: "DOWN",
     side: "WEST",
     bounds: {x: 0, y: 0, width: 280, height: 400},
     resultHash: "5c50a710cb8f79b6c42cc79b9eb7ea219798e1700f2606952bc97f8a4899af3d",
-    svgHash: "6fad4af5516405f8f87e1e5155685b1cb06ab7d7dba758d713c8b5ebc795c249",
+    svgHash: "c7716c25c22f0c71e08a3a7be72f1d0fdca93a8c4afdb724c8c5dcdee2ea9d21",
   },
 } as const
 
@@ -155,6 +155,60 @@ describe("dev-only nodes layout playground", () => {
         }
       }
     }
+  })
+
+  test("keeps the complete visible playground interface in Russian", async () => {
+    const html = await Bun.file(join(playgroundRoot, "index.html")).text()
+    const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
+    const fixtures = await Bun.file(join(playgroundRoot, "fixtures.ts")).text()
+    const policies = await Bun.file(join(playgroundRoot, "policy-registry.ts")).text()
+    const visibleSource = [html, client, fixtures, policies].join("\n")
+
+    expect(html).toContain('<html lang="ru">')
+    for (const required of [
+      "Стенд раскладки",
+      "Сценарий",
+      "Политика / вариант",
+      "Нормализованный числовой вход",
+      "Запустить",
+      "Сбросить",
+      "Сравнить RIGHT / DOWN",
+      "Слои SVG",
+      "Сохранить результат",
+      "Результат JSON",
+      "Диагностика",
+      "Фиксированная",
+      "Адаптивная",
+      "Горизонтальная (RIGHT)",
+      "Вертикальная (DOWN)",
+      "мс",
+    ]) expect(visibleSource).toContain(required)
+
+    for (const removed of [
+      "Layout playground",
+      "Public policy in",
+      ">Fixture<",
+      "Policy / variant",
+      "Normalized numeric input",
+      ">Run<",
+      ">Reset<",
+      "Compare RIGHT / DOWN",
+      "SVG layers",
+      "Export input",
+      "Export result",
+      "Export SVG",
+      "Result JSON",
+      "No diagnostics yet",
+      "Fixed baseline",
+      "Adaptive shared port",
+      "Public fixed-port policy",
+      "Public bounded policy",
+      "продуктового renderer",
+      "составная topology",
+      "числовые anchors",
+      "форме viewport",
+      "hard-валидатор",
+    ]) expect(visibleSource).not.toContain(removed)
   })
 
   test("keeps all playground sources outside production exports and free of forbidden imports", async () => {

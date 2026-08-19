@@ -54,7 +54,7 @@ function fixedFixture(
     id,
     family: "fixed-baseline",
     label,
-    description: "The same compound topology and numeric port anchors under a different viewport shape.",
+    description: "Одна и та же составная топология и числовые привязки портов при разной форме области просмотра.",
     expectedDirection,
     graph: {...fixedTopology, viewport},
   }
@@ -70,22 +70,22 @@ function adaptiveFixture(
     id,
     family: "adaptive-side-selection",
     label,
-    description: "One shared inout socket is resolved once for both edges through the public adaptive policy.",
+    description: "Один общий двунаправленный сокет (inout) получает одну сторону сразу для обеих связей через публичную адаптивную политику.",
     expectedDirection,
     graph: {...adaptiveTopology, viewport},
   }
 }
 
 export const PLAYGROUND_FIXTURES: readonly PlaygroundFixture[] = [
-  fixedFixture("fixed-baseline-right", "Fixed baseline · landscape", "RIGHT", {width: 1180, height: 680}),
-  fixedFixture("fixed-baseline-down", "Fixed baseline · portrait", "DOWN", {width: 520, height: 920}),
-  adaptiveFixture("adaptive-shared-right", "Adaptive shared port · landscape", "RIGHT", {width: 960, height: 560}),
-  adaptiveFixture("adaptive-shared-down", "Adaptive shared port · portrait", "DOWN", {width: 480, height: 820}),
+  fixedFixture("fixed-baseline-right", "Фиксированная основа · альбомная", "RIGHT", {width: 1180, height: 680}),
+  fixedFixture("fixed-baseline-down", "Фиксированная основа · портретная", "DOWN", {width: 520, height: 920}),
+  adaptiveFixture("adaptive-shared-right", "Общий адаптивный порт · альбомная", "RIGHT", {width: 960, height: 560}),
+  adaptiveFixture("adaptive-shared-down", "Общий адаптивный порт · портретная", "DOWN", {width: 480, height: 820}),
 ]
 
 export function getPlaygroundFixture(id: string): PlaygroundFixture {
   const fixture = PLAYGROUND_FIXTURES.find((candidate) => candidate.id === id)
-  if (fixture === undefined) throw new Error(`Unknown playground fixture: ${id}`)
+  if (fixture === undefined) throw new Error(`Неизвестный сценарий стенда: ${id}`)
   return fixture
 }
 
