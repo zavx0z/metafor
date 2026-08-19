@@ -382,10 +382,9 @@ exact Engine source typecheck — pass; `git diff --check` — pass. Browser
 desktop/mobile correctness и visual/performance capture не выполнялись и
 остаются только NODES-018.5.
 
-Подготовительный commit: текущий project-коммит после этой регистрации.
+Подготовительный commit: `bbffb817f2bea9c0ccabebca77cb7b6340e5c8b0`.
 
-Result checkpoint: текущий result commit; exact hash записывается следующим
-project-only commit.
+Result checkpoint: `a4d611767094611ff7a233adc57adf94e643bbd0`.
 
 ### NODES-018.5 — Доказать correctness и performance
 
