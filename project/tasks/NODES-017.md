@@ -236,5 +236,8 @@ long-lived PTY PID 68355, target сфокусирован. Owner acceptance ещ
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; physical mobile gate открыт; текущий срез
-NODES-017.8 — side-by-side и owner acceptance.
+`GATE`: implementation, live side-by-side, desktop/mobile emulation, touch,
+tests и package checks завершены. Exact target 4016 остаётся focused/healthy.
+Для продолжения требуется внешнее событие: явное owner acceptance либо
+конкретный visual defect; physical proof также ждёт Android device
+(`@meta/android devices: []`).
