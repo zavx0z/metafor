@@ -19,15 +19,6 @@
 Наблюдаемый результат — один current release runtime с подтверждёнными package
 identity, env и version, которому platform передаёт последующие события.
 
-## Распределение ответственности
-
-| Владелец | Ответственность |
-| --- | --- |
-| Startup | Bootstrap, проверка release artifact, current runtime и handover |
-| [`@hamiltonian/release`](../release/README.md) | Composition, cache/update policy, control RPC и lifecycle сменяемого состава |
-| [`@internal/*`](../docs/INTERNAL.md) | Служебные функции Hamiltonian после release startup |
-| [`@metafor/*`](../docs/METAFOR.md) | Загружаемые функции самой MetaFor |
-
 ## Реализованные browser-среды
 
 | Env | Событие и результат |

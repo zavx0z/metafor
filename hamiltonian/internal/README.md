@@ -61,16 +61,6 @@ membership. Release composition проверяет присутствие runtim
 release применяет тот же package-wide закон после появления `startup/server` и
 полной server composition.
 
-## Распределение ответственности
-
-| Владелец | Ответственность |
-| --- | --- |
-| `@hamiltonian/startup` | Platform bootstrap и запуск выбранного release |
-| `@hamiltonian/release` | Membership, version selection, delivery и замена состава |
-| `@internal/*` package | Предметная внутренняя функция и её env-specific воплощения |
-| [`@metafor/*`](METAFOR.md) package | Загружаемая функциональность самой MetaFor |
-| Dark и Boundary | Domain authority, Particle/Force и канонические факты |
-
 ## Документация каждого package
 
 Каждый `@internal/*` package имеет собственный `README.md` в корне package. Он
@@ -84,4 +74,4 @@ release применяет тот же package-wide закон после поя
 
 Точные API и build operations принадлежат public source, manifest и
 руководству разработки. Текущий пример package-документа —
-[`@internal/visual`](../internal/visual/README.md).
+[`@internal/visual`](visual/README.md).

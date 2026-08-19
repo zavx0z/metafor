@@ -19,17 +19,14 @@
 1. наблюдатель получает сцену, совпадающую с current declarations и causal
    frontier.
 
-## Распределение ответственности
+## Состав package
 
-| Владелец | Ответственность |
+| Зависимость | Роль |
 | --- | --- |
-| Lifecycle sources прототипа | Наблюдение runtime и публикация declarations/messages |
-| `@hamiltonian/visual` | Registry semantics, Hamiltonian projection, colors, selection и traffic presentation |
 | [`nodes`](../../pkg/nodes/README.md) | Универсальная node-system model и geometry boundary |
 | [`@nodes/layout`](../../pkg/nodes/layout/requirements/COMMON.md) | Pure layout geometry |
 | [`@nodes/ui`](../../pkg/nodes/ui/REQUIREMENTS.md) | Cards, ports, canvas transform и renderer surface |
 | `@nodes/hud` | Необязательная HUD-интеграция generic node system |
-| Bulk | Производная visual-проекция конкретного наблюдателя Вселенной |
 
 ## Декларации контуров
 

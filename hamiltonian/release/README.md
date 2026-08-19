@@ -2,8 +2,8 @@
 
 `@hamiltonian/release` владеет composition и update-механикой сменяемой среды
 после устойчивого [`@hamiltonian/startup`](../startup/README.md). Release
-собирает `@hamiltonian/release`, [`@internal/*`](../docs/INTERNAL.md) и будущие
-[`@metafor/*`](../docs/METAFOR.md) packages в один совместимый выпуск.
+собирает `@hamiltonian/release`, [`@internal/*`](../internal/README.md) и будущие
+`@metafor/*` packages в один совместимый выпуск.
 
 ## Закон release
 
@@ -17,21 +17,6 @@
 1. release завершает forward cleanup, а startup активирует candidate;
 1. новое воплощение подтверждает composition, env versions и готовность
    обязательных связей.
-
-## Распределение ответственности
-
-| Владелец | Ответственность |
-| --- | --- |
-| Hamiltonian | Решение о placement и требуемом выпуске |
-| Startup | Проверка release artifact, запуск runtime и handover |
-| Release | Composition, package version update, delivery и control update protocol |
-| `@internal/*` package | Служебная функция Hamiltonian и её env воплощения |
-| `@metafor/*` package | Функция MetaFor и её domain-owned результат |
-| Dark | Обычный Oracle/Force realtime после знакомства |
-
-Code bytes проходят через `fetch`. Control RPC/WSS переносит состояние
-обновления и signaling. После готовности participants рабочий Oracle/Force
-traffic проходит через transport Dark contract.
 
 ## Среды package
 
@@ -105,8 +90,8 @@ Service Worker подтверждает собственный current по ло
 
 Текущий `release/server` управляет browser packages со стороны host. Следующий
 server result помещает его за `startup/server` и расширяет composition всей
-рабочей server-средой: release выбирает [`@internal/*`](../docs/INTERNAL.md) и
-[`@metafor/*`](../docs/METAFOR.md) packages, startup создаёт новое process
+рабочей server-средой: release выбирает [`@internal/*`](../internal/README.md) и
+`@metafor/*` packages, startup создаёт новое process
 воплощение, а readiness подтверждает version и восстановленные обязательные
 связи.
 

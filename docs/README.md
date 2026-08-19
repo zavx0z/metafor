@@ -46,8 +46,7 @@
   transport наблюдения.
 * [Hamiltonian](../hamiltonian/README.md) — общий закон распределённой доставки,
   размещения, знакомства, обновления и повторного воплощения. Общие владельцы:
-  [`@internal/*`](../hamiltonian/docs/INTERNAL.md),
-  [будущий `@metafor/*`](../hamiltonian/docs/METAFOR.md) и
+  [`@internal/*`](../hamiltonian/internal/README.md) и
   [рабочий прототип](../hamiltonian/docs/PROTOTYPE.md). Package owners:
   [`startup`](../hamiltonian/startup/README.md),
   [`release`](../hamiltonian/release/README.md),

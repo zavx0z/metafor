@@ -51,9 +51,9 @@ server-состояние и переход описаны у
 
 Release delivery передаёт code bytes через `fetch` от разрешённого источника,
 а startup проверяет bytes до исполнения. Control WSS переносит identity,
-signaling и команды управления. После знакомства Dark владеет обычным
-Oracle/Force realtime, а доменные воплощения используют принадлежащий их
-контракту непосредственный transport.
+signaling и команды управления. После знакомства готовые воплощения переходят
+к непосредственной рабочей связи; её transport и смысл задаёт contract
+загруженной функции из [карты MetaFor](../docs/README.md#карта-документов).
 
 В первой целевой реализации Bun-воплощение публикует один фиксированный внешний
 listener для HTTP(S) startup/code delivery и WSS signaling/control. Доменные
@@ -69,17 +69,14 @@ listener для HTTP(S) startup/code delivery и WSS signaling/control. Доме
 | Владелец | Ответственность |
 | --- | --- |
 | Hamiltonian | Delivery, placement, знакомство, startup, update и повторное воплощение |
-| Dark | Particle, Force и рабочая координация Oracle/Force |
-| Boundary | Канонические факты и commit |
-| Matrix | State, Transition и Process |
-| Energy | Lifecycle живых ресурсов |
-| Bulk | Производная проекция конкретного наблюдателя |
-| `@internal/*` packages | Сменяемые служебные функции Hamiltonian |
-| `@metafor/*` packages | Загружаемые функции самой MetaFor |
+| [`@hamiltonian/startup`](startup/README.md) | Bootstrap, проверка release artifact, current runtime и handover |
+| [`@hamiltonian/release`](release/README.md) | Composition, cache/update policy, control RPC и lifecycle сменяемого состава |
+| [`@internal/*`](internal/README.md) | Сменяемые служебные функции Hamiltonian после release startup |
+| `@metafor/*` | Загружаемые функции самой MetaFor |
+| [Документы MetaFor](../docs/README.md#карта-документов) | Предметные contracts и критерии готовности загружаемых функций |
 
-Universe продолжает собственную identity через причинную непрерывность
-доменов. Отдельный cardinality/epoch contract задаёт количество допустимых
-воплощений и защиту authority Dark/Boundary.
+Hamiltonian использует принятый contract при placement и проверке готовности;
+предметный закон сохраняется у владельца загруженной функции.
 
 ## Карта документации
 
@@ -87,16 +84,12 @@ Universe продолжает собственную identity через при�
 
 | Владелец | Что описывает |
 | --- | --- |
-| [`@internal/*`](docs/INTERNAL.md) | Namespace сменяемой внутренней функциональности Hamiltonian и общий закон его packages |
-| [`@metafor/*`](docs/METAFOR.md) | Будущая граница загружаемой функциональности MetaFor |
 | [Рабочий прототип](docs/PROTOTYPE.md) | Доказанные lifecycle, signaling и peer-законы отдельно запускаемого опыта |
 
 Документы конкретных packages:
 
 | Владелец | Что описывает |
 | --- | --- |
-| [`@hamiltonian/startup`](startup/README.md) | Устойчивая bootstrap-оболочка, её среды и передача управления release |
-| [`@hamiltonian/release`](release/README.md) | Состав сменяемого выпуска, browser update и host-side publication/delivery |
 | [`@internal/visual`](internal/visual/README.md) | Visual function Hamiltonian и её текущие `main`/`server` среды |
 | [`@hamiltonian/visual`](visual/README.md) | Проекция и presentation причинного node-system монитора прототипа |
 
@@ -130,7 +123,8 @@ Clean-room browser path реализует устойчивые `startup` entryp
 
 Server env сейчас публикует и доставляет browser releases. Следующий server
 результат добавляет `startup/server` и новое воплощение всей рабочей среды после
-него. Production Dark, Boundary, Matrix, Energy и Bulk продолжают действовать в
-своих текущих contours; их подключение к clean-room Hamiltonian требует
-отдельного domain acceptance. Рабочий прототип доказывает ограниченные
-lifecycle/signaling сценарии в собственной среде.
+него. Production domain owners продолжают действовать в своих текущих
+contours; их подключение к clean-room Hamiltonian требует отдельного domain
+acceptance по [канонической документации](../docs/README.md#карта-документов).
+Рабочий прототип доказывает ограниченные lifecycle/signaling сценарии в
+собственной среде.

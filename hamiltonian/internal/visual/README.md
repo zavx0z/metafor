@@ -1,7 +1,7 @@
 # `@internal/visual`
 
 `@internal/visual` — package визуальной функции Hamiltonian внутри общего
-namespace [`@internal/*`](../../docs/INTERNAL.md). Одно функциональное имя
+namespace [`@internal/*`](../README.md). Одно функциональное имя
 объединяет все поддерживаемые env-воплощения package.
 
 ## Закон visual function
@@ -27,7 +27,7 @@ versioned единицу общего выпуска.
 Следующий env добавляется под тем же package name, когда для него принят
 предметный visual result и критерий готовности. Изменение выпускает новую
 package-wide version и полный набор объявленных env artifacts по
-[общему internal law](../../docs/INTERNAL.md#identity-и-версия-package).
+[общему internal law](../README.md#identity-и-версия-package).
 
 ## Visual в env `main`
 
@@ -42,17 +42,6 @@ package-wide version и полный набор объявленных env artif
 
 Стандартный `UIDisplay` начинает пустым. Последующие packages наполняют его
 предметной сценой и используют тот же visual runtime.
-
-## Распределение ответственности
-
-| Владелец | Ответственность |
-| --- | --- |
-| `@internal/visual` | Visual function и env-specific public result |
-| Static shell Hamiltonian | HTML, canvas и font resources |
-| `@hamiltonian/release` | Version selection, delivery и замена package |
-| Последующие functional packages | Предметное содержимое `UIDisplay` |
-| [`@hamiltonian/visual`](../../visual/README.md) | Причинная node-system presentation рабочего прототипа |
-| Bulk | Производная visual-проекция конкретного наблюдателя Вселенной |
 
 ## Текущее состояние env `server`
 
