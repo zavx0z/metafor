@@ -45,9 +45,8 @@
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
 * [Hamiltonian](../hamiltonian/README.md) — общий закон распределённой доставки,
-  размещения, знакомства, обновления и повторного воплощения. Общие владельцы:
-  [`@internal/*`](../hamiltonian/internal/README.md) и
-  [рабочий прототип](../hamiltonian/docs/PROTOTYPE.md). Package owners:
+  размещения, знакомства, обновления и повторного воплощения. Владелец
+  namespace: [`@internal/*`](../hamiltonian/internal/README.md). Package owners:
   [`startup`](../hamiltonian/startup/README.md),
   [`release`](../hamiltonian/release/README.md),
   [visual function](../hamiltonian/internal/visual/README.md) и

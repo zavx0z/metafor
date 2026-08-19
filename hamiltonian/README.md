@@ -80,12 +80,6 @@ Hamiltonian использует принятый contract при placement и �
 
 ## Карта документации
 
-Общие контракты вне отдельного package:
-
-| Владелец | Что описывает |
-| --- | --- |
-| [Рабочий прототип](docs/PROTOTYPE.md) | Доказанные lifecycle, signaling и peer-законы отдельно запускаемого опыта |
-
 Документы конкретных packages:
 
 | Владелец | Что описывает |
@@ -104,9 +98,7 @@ Public types и код задают точные API перечисленных 
 ## Декларация нодовой системы каждого контура
 
 Закон current declarations и причинного монитора принадлежит
-[`@hamiltonian/visual`](visual/README.md#декларации-контуров), а доказанная
-среда его применения —
-[рабочему прототипу](docs/PROTOTYPE.md#причинный-монитор).
+[`@hamiltonian/visual`](visual/README.md#декларации-контуров).
 
 ## Стандартная Window-среда clean-room loader
 
@@ -126,5 +118,3 @@ Server env сейчас публикует и доставляет browser relea
 него. Production domain owners продолжают действовать в своих текущих
 contours; их подключение к clean-room Hamiltonian требует отдельного domain
 acceptance по [канонической документации](../docs/README.md#карта-документов).
-Рабочий прототип доказывает ограниченные lifecycle/signaling сценарии в
-собственной среде.

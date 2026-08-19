@@ -2,8 +2,8 @@
 
 `@hamiltonian/visual` проецирует причинные observations Hamiltonian в
 универсальную node system и владеет её Hamiltonian-specific presentation.
-Источник observations и доказанная среда описаны в
-[документе прототипа](../docs/PROTOTYPE.md#причинный-монитор).
+Текущая prototype implementation и её cleanup принадлежат
+[`HAM-006`](../../project/tasks/HAM-006.md).
 
 ## Закон visual-проекции
 

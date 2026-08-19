@@ -1,6 +1,8 @@
-# Рабочий прототип Hamiltonian
+# Evidence рабочего прототипа Hamiltonian
 
-Рабочий прототип — отдельно запускаемая среда доказательства lifecycle,
+Это временный evidence pack задачи
+[`HAM-006`](../../tasks/HAM-006.md). Рабочий прототип — отдельно запускаемая
+среда доказательства lifecycle,
 signaling, placement и прямой peer-связи Hamiltonian. Он связывает Bun host,
 browser profile, Service Worker, Window, Dedicated Worker и дочерние Bun
 processes через синтетические роли.
@@ -9,10 +11,10 @@ Clean-room startup/release образуют самостоятельную ре�
 их packages развиваются из собственных contracts, а prototype source остаётся
 в standalone contour.
 Поддерживаемый development contour и его проверки описаны в
-[руководстве разработки](../../.agents/skills/metafor-dev/references/development.md).
+[руководстве разработки](../../../.agents/skills/metafor-dev/references/development.md).
 Прототип поднимается изолированно для задач, которым требуется его точная
 приёмка. Общий целевой смысл Hamiltonian определён в
-[корневом README](../README.md).
+[корневом README](../../../hamiltonian/README.md).
 
 ## Область доказательства
 
@@ -35,7 +37,7 @@ acceptance.
 сообщение существующего transport.
 
 Каждый контур передаёт current declaration по закону
-[`@hamiltonian/visual`](../visual/README.md#декларации-контуров). Registry
+[`@hamiltonian/visual`](../../../hamiltonian/visual/README.md#декларации-контуров). Registry
 сопоставляет logical contour identity и incarnation. Declaration более нового
 воплощения атомарно заменяет predecessor; stale snapshot и позднее событие
 старой incarnation получают отказ.
@@ -149,12 +151,12 @@ Loader проверяет versioned module по фактическим bytes д�
 Window применяет новый код через новое page execution, Dedicated Worker и Bun
 process — через cold rebirth. Clean-room browser update выполняет собственный
 release lifecycle, описанный у
-[`@hamiltonian/release`](../release/README.md#обновление-browser-release).
+[`@hamiltonian/release`](../../../hamiltonian/release/README.md#обновление-browser-release).
 
 ## Визуальная проекция
 
 Прототип передаёт retained lifecycle в
-[`@hamiltonian/visual`](../visual/README.md), а package адаптирует его к generic
+[`@hamiltonian/visual`](../../../hamiltonian/visual/README.md), а package адаптирует его к generic
 `nodes`, layout и UI. Presentation-only containers группируют доказанные
 runtime nodes. Transient traffic показывает факт и направление сообщения,
 сохраняя payload, token, signaling data, RPC values и Particle content у их
