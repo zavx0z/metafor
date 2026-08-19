@@ -56,6 +56,7 @@
 import {
   Color,
   ImageMaterial,
+  Matrix4,
   Mesh,
   MeshBasicMaterial,
   Object3D,
@@ -70,6 +71,7 @@ import {
   TextureLoader,
   type BufferGeometry,
   type ImageFit,
+  Vector3,
   type ImageViewBox as EngineImageViewBox,
 } from "@metafor/engine"
 import type {UiDisplayId, UiSurfaceRect, UiRuntime, UiSurfaceNode} from "./runtime.ts"
@@ -82,6 +84,7 @@ type RetainedMaterialization = {
   target: Object3D
   staging: Object3D
   provisionalParents: Set<Object3D>
+  hits: RetainedHitRecord[]
 }
 
 const scheduleUiFrame = (callback: FrameRequestCallback): UiFrameHandle => {
@@ -142,6 +145,16 @@ export type HitOptions = {
   onPointerMove?: (localX: number, localY: number, event?: MouseEvent) => void
   onPointerUp?: (event?: MouseEvent) => void
 }
+
+export type RetainedHitScreenMinimum = Readonly<{
+  width: number
+  height: number
+}>
+
+export type RetainedHitOptions = HitOptions & Readonly<{
+  /** Invisible surface-space floor; it never changes visual geometry. */
+  screenMinimum?: RetainedHitScreenMinimum
+}>
 
 export type HitState = {
   hovered: boolean
@@ -264,11 +277,14 @@ export type TextBlockMetrics = {
 // явно в UiSurfaceOpts. null отключает явно.
 const DEFAULT_BG: Color | null = null
 const DEFAULT_BORDER: Color | null = null
-const CLIP_LOCAL_RECT: unique symbol = Symbol("UiSurface.clipLocalRect")
+const CLIP_EVIDENCE: unique symbol = Symbol("UiSurface.clipEvidence")
 
 type ClipLocalRect = {xMin: number; yMin: number; xMax: number; yMax: number}
+type ClipEvidence =
+  | Readonly<{space: "surface"; local: ClipLocalRect}>
+  | Readonly<{space: "retained"; parent: Object3D; local: ClipLocalRect | null}>
 type ClipTagged = {
-  [CLIP_LOCAL_RECT]?: ClipLocalRect
+  [CLIP_EVIDENCE]?: ClipEvidence
 }
 type ClipBoundsHost = ClipTagged & {
   clipBounds: [number, number, number, number] | null
@@ -282,6 +298,34 @@ type PendingTooltipDraw = {
   anchor: "hit" | "cursor"
   cursorX: number
   cursorY: number
+}
+
+type RetainedHitRecord = {
+  parent: Object3D
+  x: number
+  y: number
+  w: number
+  h: number
+  key: string
+  action(): void
+  cursor: string
+  activeCursor?: string
+  tooltip?: TooltipHit
+  onPointerEnter?: () => void
+  onPointerLeave?: () => void
+  onPointerDown?: (localX: number, localY: number, event?: MouseEvent) => void
+  onPointerMove?: (localX: number, localY: number, event?: MouseEvent) => void
+  onPointerUp?: (event?: MouseEvent) => void
+  screenMinimum?: RetainedHitScreenMinimum
+}
+
+type ResolvedHitBox = HitBox & Readonly<{retainedParent?: Object3D}>
+
+const RETAINED_UNBOUNDED_CLIP: ClipLocalRect = {
+  xMin: Number.NEGATIVE_INFINITY,
+  yMin: Number.NEGATIVE_INFINITY,
+  xMax: Number.POSITIVE_INFINITY,
+  yMax: Number.POSITIVE_INFINITY,
 }
 
 export type UiCursorTooltipPlacement = Readonly<{
@@ -356,6 +400,8 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #overlayLayer: Object3D
   readonly #retainedLayer: Object3D
   readonly #retainedParents = new Set<Object3D>()
+  readonly #retainedHits = new Map<Object3D, readonly RetainedHitRecord[]>()
+  readonly #retainedViewportClips = new Map<Object3D, ClipLocalRect>()
   #retainedMaterialization: RetainedMaterialization | null = null
   #drawLayer: UiSurfaceDrawLayer = "main"
   #framebufferDisplayId: UiDisplayId = "default"
@@ -691,10 +737,11 @@ export abstract class UiSurface implements UiSurfaceNode {
       target: parent,
       staging,
       provisionalParents: new Set<Object3D>(),
+      hits: [],
     }
     const previousClipStack = this.#clipStack
     this.#retainedMaterialization = transaction
-    this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
+    this.#clipStack = [{...RETAINED_UNBOUNDED_CLIP}]
 
     try {
       draw()
@@ -716,6 +763,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       parent.add(child)
     }
     for (const retainedParent of transaction.provisionalParents) this.#retainedParents.add(retainedParent)
+    this.#replaceRetainedHits(parent, transaction.hits)
     this.#disposeSubtrees(previousChildren)
     this.canvas?.requestRender()
   }
@@ -725,7 +773,115 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#requireRetainedParent(parent)
     update(parent)
     parent.updateMatrix()
+    this.#refreshClipBoundsForObject(parent)
     this.canvas?.requestRender()
+  }
+
+  /** Sets one fixed surface-local viewport clip without rematerializing its subtree. */
+  protected updateRetainedViewportClip(parent: Object3D, clip: UiSurfaceRect | null): void {
+    this.#requireRetainedParent(parent)
+    if (clip === null) {
+      if (!this.#retainedViewportClips.delete(parent)) return
+    } else {
+      if (![clip.x, clip.y, clip.w, clip.h].every(Number.isFinite) || clip.w < 0 || clip.h < 0) {
+        throw new Error("A retained viewport clip requires a finite non-negative surface rect")
+      }
+      const next = normaliseClipRect(clip)
+      const current = this.#retainedViewportClips.get(parent)
+      if (current !== undefined && sameClipRect(current, next)) return
+      this.#retainedViewportClips.set(parent, next)
+    }
+    this.#refreshClipBoundsForObject(parent)
+    this.canvas?.requestRender()
+  }
+
+  /** Changes retained visibility and releases any interaction owned by a hidden subtree. */
+  protected updateRetainedVisibility(parent: Object3D, visible: boolean): void {
+    this.#requireRetainedParent(parent)
+    if (parent.visible === visible) return
+    parent.visible = visible
+    if (!visible) this.#releaseRetainedHitStateForSubtree(parent)
+    this.canvas?.requestRender()
+  }
+
+  /** Surface outer event coordinates to the inner coordinate origin used by retainedLayer. */
+  protected surfaceInnerPoint(localX: number, localY: number): Readonly<{x: number; y: number}> {
+    return {x: localX - this.#padLeft, y: localY - this.#padTop}
+  }
+
+  /** Converts one inner-surface logical point through the actual retained parent inverse. */
+  protected surfaceToRetainedPoint(parent: Object3D, point: Readonly<{x: number; y: number}>): Readonly<{x: number; y: number}> {
+    this.#requireRetainedParent(parent)
+    this.#updateRetainedMatrices()
+    const parentInverse = new Matrix4().copy(parent.matrixWorld).invert()
+    const local = new Vector3(point.x * this.pixelScale, -point.y * this.pixelScale, 0)
+      .applyMatrix4(this.#retainedLayer.matrixWorld)
+      .applyMatrix4(parentInverse)
+    return {x: local.x / this.pixelScale, y: -local.y / this.pixelScale}
+  }
+
+  /** Converts one retained logical point to the inner-surface origin through actual matrixWorld. */
+  protected retainedToSurfacePoint(parent: Object3D, point: Readonly<{x: number; y: number}>): Readonly<{x: number; y: number}> {
+    this.#requireRetainedParent(parent)
+    this.#updateRetainedMatrices()
+    const surfaceInverse = new Matrix4().copy(this.#retainedLayer.matrixWorld).invert()
+    const local = new Vector3(point.x * this.pixelScale, -point.y * this.pixelScale, 0)
+      .applyMatrix4(parent.matrixWorld)
+      .applyMatrix4(surfaceInverse)
+    return {x: local.x / this.pixelScale, y: -local.y / this.pixelScale}
+  }
+
+  protected surfaceToRetainedRect(parent: Object3D, rect: UiSurfaceRect): UiSurfaceRect {
+    return this.#convertRect(rect, (point) => this.surfaceToRetainedPoint(parent, point))
+  }
+
+  protected retainedToSurfaceRect(parent: Object3D, rect: UiSurfaceRect): UiSurfaceRect {
+    return this.#convertRect(rect, (point) => this.retainedToSurfacePoint(parent, point))
+  }
+
+  /** Stages one invisible hit record with the same atomic lifecycle as target's subtree. */
+  protected retainedHit(
+    parent: Object3D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    action: () => void,
+    options: RetainedHitOptions = {},
+  ): void {
+    this.#requireRetainedParent(parent)
+    const transaction = this.#retainedMaterialization
+    if (transaction === null || transaction.target !== parent) {
+      throw new Error("A retained hit must be staged while materializing its exact parent")
+    }
+    if (![x, y, w, h].every(Number.isFinite) || w < 0 || h < 0) {
+      throw new Error("A retained hit requires a finite non-negative local rect")
+    }
+    const record: RetainedHitRecord = {
+      parent,
+      x,
+      y,
+      w,
+      h,
+      key: options.key ?? hitKeyFor(x, y, w, h),
+      action,
+      cursor: options.cursor ?? "pointer",
+    }
+    if (options.activeCursor !== undefined) record.activeCursor = options.activeCursor
+    if (options.tooltip !== undefined) record.tooltip = options.tooltip
+    if (options.onPointerEnter !== undefined) record.onPointerEnter = options.onPointerEnter
+    if (options.onPointerLeave !== undefined) record.onPointerLeave = options.onPointerLeave
+    if (options.onPointerDown !== undefined) record.onPointerDown = options.onPointerDown
+    if (options.onPointerMove !== undefined) record.onPointerMove = options.onPointerMove
+    if (options.onPointerUp !== undefined) record.onPointerUp = options.onPointerUp
+    if (options.screenMinimum !== undefined) {
+      const {width, height} = options.screenMinimum
+      if (![width, height].every(Number.isFinite) || width < 0 || height < 0) {
+        throw new Error("A retained hit screen minimum must be finite and non-negative")
+      }
+      record.screenMinimum = {width, height}
+    }
+    transaction.hits.push(record)
   }
 
   /** Removes a retained parent and its complete owned subtree. Repeated removal is a no-op. */
@@ -902,9 +1058,11 @@ export abstract class UiSurface implements UiSurfaceNode {
     const cw = x1 - x0
     const ch = y1 - y0
     if (cw <= 0 || ch <= 0) return
+    const material = new MeshBasicMaterial({color})
+    this.#applyBasicClipTo(material)
     const mesh = new Mesh(
       new PlaneGeometry({width: cw * this.pixelScale, height: ch * this.pixelScale}),
-      new MeshBasicMaterial({color}),
+      material,
     )
     mesh.position.x = (x0 + cw / 2) * this.pixelScale
     mesh.position.y = -(y0 + ch / 2) * this.pixelScale
@@ -918,9 +1076,11 @@ export abstract class UiSurface implements UiSurfaceNode {
     const dy = y1 - y0
     const length = Math.hypot(dx, dy)
     if (length <= 0 || thicknessPx <= 0) return
+    const material = new MeshBasicMaterial({color})
+    this.#applyBasicClipTo(material)
     const mesh = new Mesh(
       new PlaneGeometry({width: length * this.pixelScale, height: thicknessPx * this.pixelScale}),
-      new MeshBasicMaterial({color}),
+      material,
     )
     mesh.position.x = ((x0 + x1) / 2) * this.pixelScale
     mesh.position.y = -((y0 + y1) / 2) * this.pixelScale
@@ -937,15 +1097,17 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (length <= 0 || thicknessPx <= 0) return
     const width = length * this.pixelScale
     const height = thicknessPx * this.pixelScale
+    const material = new RoundedRectMaterial({
+      width,
+      height,
+      radius: height / 2,
+      fill: color,
+      border: null,
+    })
+    this.#applyRoundedClipTo(material)
     const mesh = new Mesh(
       new PlaneGeometry({width, height}),
-      new RoundedRectMaterial({
-        width,
-        height,
-        radius: height / 2,
-        fill: color,
-        border: null,
-      }),
+      material,
     )
     mesh.position.x = ((x0 + x1) / 2) * this.pixelScale
     mesh.position.y = -((y0 + y1) / 2) * this.pixelScale
@@ -962,7 +1124,9 @@ export abstract class UiSurface implements UiSurfaceNode {
   drawPolyline(points: readonly UiPolylinePoint[], color: Color, thicknessPx = 2, z = Z.ELEMENT): void {
     const geometry = createUiPolylineStrokeGeometry(points, thicknessPx)
     if (geometry === null) return
-    const mesh = new Mesh(geometry, new MeshBasicMaterial({color}))
+    const material = new MeshBasicMaterial({color})
+    this.#applyBasicClipTo(material)
+    const mesh = new Mesh(geometry, material)
     mesh.scale.set(this.pixelScale, -this.pixelScale, 1)
     mesh.position.z = z
     mesh.updateMatrix()
@@ -1272,6 +1436,12 @@ export abstract class UiSurface implements UiSurfaceNode {
   dispose(): void {
     this.#cancelPendingRerender()
     this.#cancelPendingLayerRerender()
+    this.#hits = []
+    this.#wheelHits = []
+    this.#setHoveredHit(null)
+    this.pressedHit = null
+    this.#pressedHitKey = null
+    this.#setHoverTooltip(null)
     for (const layer of this.#contentLayers()) this.#clearLayer(layer)
     this.#clearLayer(this.#retainedLayer)
     this.#clearLayer(this.#backgroundLayer)
@@ -1506,27 +1676,50 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#tagClipBounds(material as ImageMaterial & ClipBoundsHost, clip)
   }
 
+  #applyBasicClipTo(material: MeshBasicMaterial): void {
+    const clip = this.#clipStack[this.#clipStack.length - 1]!
+    if (this.#retainedMaterialization === null && this.#isCompleteSurfaceClip(clip)) return
+    this.#tagClipBounds(material as MeshBasicMaterial & ClipBoundsHost, clip)
+  }
+
   #applyRoundedClipTo(material: RoundedRectMaterial): void {
     const clip = this.#clipStack[this.#clipStack.length - 1]!
-    const ox = this.#screenOriginX
-    const oy = this.#screenOriginY
     // Если clipStack — это вся surface-rect (без активного pushClip), оставляем
     // zeros — шейдер их детектит и skip'ает scissor (быстрее).
-    if (clip.xMin === 0 && clip.yMin === 0 && clip.xMax === this.rectW && clip.yMax === this.rectH) {
-      return
-    }
+    if (this.#retainedMaterialization === null && this.#isCompleteSurfaceClip(clip)) return
     this.#tagClipBounds(material as RoundedRectMaterial & ClipBoundsHost, clip)
   }
 
   #tagClipBounds(host: ClipBoundsHost, clip: ClipLocalRect): void {
-    const localClip = {...clip}
-    host[CLIP_LOCAL_RECT] = localClip
-    host.clipBounds = this.#clipBoundsForLocal(localClip)
+    const transaction = this.#retainedMaterialization
+    const evidence: ClipEvidence = transaction === null
+      ? {space: "surface", local: {...clip}}
+      : {
+          space: "retained",
+          parent: transaction.target,
+          local: isUnboundedClip(clip) ? null : {...clip},
+        }
+    host[CLIP_EVIDENCE] = evidence
+    host.clipBounds = this.#clipBoundsForEvidence(evidence)
   }
 
   #clipBoundsForLocal(clip: ClipLocalRect): [number, number, number, number] {
-    const ox = this.#screenOriginX
-    const oy = this.#screenOriginY
+    return this.#framebufferClipBoundsForInner(clip)
+  }
+
+  #clipBoundsForEvidence(evidence: ClipEvidence): [number, number, number, number] {
+    if (evidence.space === "surface") return this.#clipBoundsForLocal(evidence.local)
+    let clip = this.#retainedViewportClip(evidence.parent)
+    if (evidence.local !== null) {
+      const localRect = clipLocalRectToSurfaceRect(evidence.local)
+      clip = intersectClipRects(clip, normaliseClipRect(this.retainedToSurfaceRect(evidence.parent, localRect)))
+    }
+    return this.#framebufferClipBoundsForInner(clip)
+  }
+
+  #framebufferClipBoundsForInner(clip: ClipLocalRect): [number, number, number, number] {
+    const ox = this.#screenOriginX + this.#padLeft
+    const oy = this.#screenOriginY + this.#padTop
     // Screen-pixel scissor (framebuffer-pixels). Runtime учитывает pixelRatio
     // и transform виртуального дисплея, если surface отрисован не 1:1 на canvas.
     return this.#uiRectToFramebufferClipBounds(
@@ -1538,21 +1731,27 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   #refreshClipBounds(): void {
-    for (const layer of [this.#backgroundLayer, ...this.#contentLayers()]) this.#refreshClipBoundsForObject(layer)
+    for (const layer of [this.#backgroundLayer, ...this.#contentLayers(), this.#retainedLayer]) {
+      this.#refreshClipBoundsForObject(layer)
+    }
   }
 
   #refreshClipBoundsForObject(obj: Object3D): void {
     const text = obj as Text & ClipBoundsHost
-    if (text.isText === true && text[CLIP_LOCAL_RECT] !== undefined) {
-      text.clipBounds = this.#clipBoundsForLocal(text[CLIP_LOCAL_RECT])
+    if (text.isText === true && text[CLIP_EVIDENCE] !== undefined) {
+      text.clipBounds = this.#clipBoundsForEvidence(text[CLIP_EVIDENCE])
     }
 
     const material = (obj as {material?: unknown}).material as (ClipBoundsHost | undefined)
-    if (material?.[CLIP_LOCAL_RECT] !== undefined) {
-      material.clipBounds = this.#clipBoundsForLocal(material[CLIP_LOCAL_RECT])
+    if (material?.[CLIP_EVIDENCE] !== undefined) {
+      material.clipBounds = this.#clipBoundsForEvidence(material[CLIP_EVIDENCE])
     }
 
     for (const child of obj.children) this.#refreshClipBoundsForObject(child)
+  }
+
+  #isCompleteSurfaceClip(clip: ClipLocalRect): boolean {
+    return clip.xMin === 0 && clip.yMin === 0 && clip.xMax === this.rectW && clip.yMax === this.rectH
   }
 
   #uiRectToFramebufferClipBounds(xMin: number, yMin: number, xMax: number, yMax: number): [number, number, number, number] {
@@ -1569,9 +1768,61 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   #hitAt(x: number, y: number): HitBox | null {
+    const retained = this.#retainedHitAt(x, y)
+    if (retained !== null) return retained
     for (let i = this.#hits.length - 1; i >= 0; i--) {
       const h = this.#hits[i]!
       if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h
+    }
+    return null
+  }
+
+  #retainedHitAt(x: number, y: number): ResolvedHitBox | null {
+    const records: RetainedHitRecord[] = []
+    const visit = (object: Object3D): void => {
+      if (!object.visible) return
+      const owned = this.#retainedHits.get(object)
+      if (owned !== undefined) records.push(...owned)
+      for (const child of object.children) visit(child)
+    }
+    visit(this.#retainedLayer)
+    for (let index = records.length - 1; index >= 0; index -= 1) {
+      const record = records[index]!
+      const viewport = this.#retainedViewportClip(record.parent)
+      if (!pointInsideClip({x, y}, viewport)) continue
+      const localPoint = this.surfaceToRetainedPoint(record.parent, {x, y})
+      const intrinsic = pointInsideRect(localPoint, record)
+      const projected = this.retainedToSurfaceRect(record.parent, record)
+      const target = expandRectToMinimum(projected, record.screenMinimum)
+      if (!intrinsic && (record.screenMinimum === undefined || !pointInsideRect({x, y}, target))) continue
+      const resolved: ResolvedHitBox = {
+        x: target.x,
+        y: target.y,
+        w: target.w,
+        h: target.h,
+        key: record.key,
+        action: record.action,
+        cursor: record.cursor,
+        retainedParent: record.parent,
+      }
+      if (record.activeCursor !== undefined) resolved.activeCursor = record.activeCursor
+      if (record.tooltip !== undefined) resolved.tooltip = record.tooltip
+      if (record.onPointerEnter !== undefined) resolved.onPointerEnter = record.onPointerEnter
+      if (record.onPointerLeave !== undefined) resolved.onPointerLeave = record.onPointerLeave
+      if (record.onPointerDown !== undefined) {
+        resolved.onPointerDown = (surfaceX, surfaceY, event) => {
+          const point = this.surfaceToRetainedPoint(record.parent, {x: surfaceX, y: surfaceY})
+          record.onPointerDown?.(point.x, point.y, event)
+        }
+      }
+      if (record.onPointerMove !== undefined) {
+        resolved.onPointerMove = (surfaceX, surfaceY, event) => {
+          const point = this.surfaceToRetainedPoint(record.parent, {x: surfaceX, y: surfaceY})
+          record.onPointerMove?.(point.x, point.y, event)
+        }
+      }
+      if (record.onPointerUp !== undefined) resolved.onPointerUp = record.onPointerUp
+      return resolved
     }
     return null
   }
@@ -1626,6 +1877,63 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
   }
 
+  #updateRetainedMatrices(): void {
+    this.node.updateWorldMatrix()
+  }
+
+  #convertRect(
+    rect: UiSurfaceRect,
+    convert: (point: Readonly<{x: number; y: number}>) => Readonly<{x: number; y: number}>,
+  ): UiSurfaceRect {
+    const points = [
+      convert({x: rect.x, y: rect.y}),
+      convert({x: rect.x + rect.w, y: rect.y}),
+      convert({x: rect.x + rect.w, y: rect.y + rect.h}),
+      convert({x: rect.x, y: rect.y + rect.h}),
+    ]
+    const xs = points.map(({x}) => x)
+    const ys = points.map(({y}) => y)
+    const x = Math.min(...xs)
+    const y = Math.min(...ys)
+    return {x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y}
+  }
+
+  #retainedViewportClip(parent: Object3D): ClipLocalRect {
+    let clip: ClipLocalRect = {xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}
+    let current: Object3D | null = parent
+    while (current !== null && current !== this.#retainedLayer) {
+      const owned = this.#retainedViewportClips.get(current)
+      if (owned !== undefined) clip = intersectClipRects(clip, owned)
+      current = current.parent
+    }
+    return clip
+  }
+
+  #replaceRetainedHits(parent: Object3D, hits: readonly RetainedHitRecord[]): void {
+    this.#releaseRetainedHitState(parent)
+    if (hits.length === 0) this.#retainedHits.delete(parent)
+    else this.#retainedHits.set(parent, [...hits])
+  }
+
+  #releaseRetainedHitState(parent: Object3D): void {
+    const hovered = this.hoveredHit as ResolvedHitBox | null
+    if (hovered?.retainedParent === parent) {
+      this.#setHoveredHit(null)
+      this.#setHoverTooltip(null)
+    }
+    const pressed = this.pressedHit as ResolvedHitBox | null
+    if (pressed?.retainedParent === parent) {
+      this.pressedHit = null
+      this.#pressedHitKey = null
+      if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
+    }
+  }
+
+  #releaseRetainedHitStateForSubtree(root: Object3D): void {
+    this.#releaseRetainedHitState(root)
+    for (const child of root.children) this.#releaseRetainedHitStateForSubtree(child)
+  }
+
   #clearLayer(layer: Object3D = this.#layer): void {
     this.#disposeChildren(layer)
   }
@@ -1661,6 +1969,9 @@ export abstract class UiSurface implements UiSurfaceNode {
 
       obj.children = []
       obj.parent?.remove(obj)
+      this.#releaseRetainedHitState(obj)
+      this.#retainedHits.delete(obj)
+      this.#retainedViewportClips.delete(obj)
       this.#retainedParents.delete(obj)
     }
 
@@ -1755,6 +2066,65 @@ function normaliseViewBox(viewBox: ImageViewBox | undefined): ImageViewBox {
     y: clamp01(viewBox.y),
     w: Math.max(0.0001, Math.min(1, viewBox.w)),
     h: Math.max(0.0001, Math.min(1, viewBox.h)),
+  }
+}
+
+function normaliseClipRect(rect: UiSurfaceRect): ClipLocalRect {
+  const x0 = Math.min(rect.x, rect.x + rect.w)
+  const y0 = Math.min(rect.y, rect.y + rect.h)
+  const x1 = Math.max(rect.x, rect.x + rect.w)
+  const y1 = Math.max(rect.y, rect.y + rect.h)
+  return {xMin: x0, yMin: y0, xMax: x1, yMax: y1}
+}
+
+function sameClipRect(left: ClipLocalRect, right: ClipLocalRect): boolean {
+  return left.xMin === right.xMin && left.yMin === right.yMin &&
+    left.xMax === right.xMax && left.yMax === right.yMax
+}
+
+function isUnboundedClip(clip: ClipLocalRect): boolean {
+  return clip.xMin === Number.NEGATIVE_INFINITY && clip.yMin === Number.NEGATIVE_INFINITY &&
+    clip.xMax === Number.POSITIVE_INFINITY && clip.yMax === Number.POSITIVE_INFINITY
+}
+
+function clipLocalRectToSurfaceRect(clip: ClipLocalRect): UiSurfaceRect {
+  return {x: clip.xMin, y: clip.yMin, w: clip.xMax - clip.xMin, h: clip.yMax - clip.yMin}
+}
+
+function intersectClipRects(left: ClipLocalRect, right: ClipLocalRect): ClipLocalRect {
+  const xMin = Math.max(left.xMin, right.xMin)
+  const yMin = Math.max(left.yMin, right.yMin)
+  return {
+    xMin,
+    yMin,
+    xMax: Math.max(xMin, Math.min(left.xMax, right.xMax)),
+    yMax: Math.max(yMin, Math.min(left.yMax, right.yMax)),
+  }
+}
+
+function pointInsideClip(point: Readonly<{x: number; y: number}>, clip: ClipLocalRect): boolean {
+  return point.x >= clip.xMin && point.x <= clip.xMax && point.y >= clip.yMin && point.y <= clip.yMax
+}
+
+function pointInsideRect(
+  point: Readonly<{x: number; y: number}>,
+  rect: Readonly<{x: number; y: number; w: number; h: number}>,
+): boolean {
+  return point.x >= rect.x && point.x <= rect.x + rect.w && point.y >= rect.y && point.y <= rect.y + rect.h
+}
+
+function expandRectToMinimum(
+  rect: UiSurfaceRect,
+  minimum: RetainedHitScreenMinimum | undefined,
+): UiSurfaceRect {
+  if (minimum === undefined) return rect
+  const w = Math.max(rect.w, minimum.width)
+  const h = Math.max(rect.h, minimum.height)
+  return {
+    x: rect.x + (rect.w - w) / 2,
+    y: rect.y + (rect.h - h) / 2,
+    w,
+    h,
   }
 }
 

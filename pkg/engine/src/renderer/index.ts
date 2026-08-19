@@ -1662,6 +1662,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     if (material instanceof MeshBasicMaterial || material instanceof MeshLambertMaterial) {
       this.writePerObjectRgba(offsetFloats + 32, material.color)
+      if (material instanceof MeshBasicMaterial && material.clipBounds !== null) {
+        this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 36)
+      }
     } else if (material instanceof ThinFilmMaterial) {
       this.writePerObjectRgba(offsetFloats + 32, material.color)
       this.writePerObjectRgba(offsetFloats + 36, material.rimColor)

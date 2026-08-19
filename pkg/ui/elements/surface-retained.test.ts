@@ -11,6 +11,7 @@ import {
   type CachedText,
 } from "@metafor/engine"
 import {UiSurface} from "./surface.ts"
+import type {RetainedHitOptions} from "./surface.ts"
 import type {UiRuntime} from "./runtime.ts"
 
 class RetainedTestSurface extends UiSurface {
@@ -26,6 +27,31 @@ class RetainedTestSurface extends UiSurface {
 
   materialize(parent: Object3D, draw: () => void): void {
     this.materializeRetainedParent(parent, draw)
+  }
+
+  stageHit(
+    parent: Object3D,
+    rect: Readonly<{x: number; y: number; w: number; h: number}>,
+    action: () => void,
+    options: RetainedHitOptions = {},
+  ): void {
+    this.retainedHit(parent, rect.x, rect.y, rect.w, rect.h, action, options)
+  }
+
+  setViewportClip(parent: Object3D, rect: Readonly<{x: number; y: number; w: number; h: number}> | null): void {
+    this.updateRetainedViewportClip(parent, rect)
+  }
+
+  setVisibility(parent: Object3D, visible: boolean): void {
+    this.updateRetainedVisibility(parent, visible)
+  }
+
+  toRetained(parent: Object3D, point: Readonly<{x: number; y: number}>): Readonly<{x: number; y: number}> {
+    return this.surfaceToRetainedPoint(parent, point)
+  }
+
+  toSurface(parent: Object3D, point: Readonly<{x: number; y: number}>): Readonly<{x: number; y: number}> {
+    return this.retainedToSurfacePoint(parent, point)
   }
 
   transform(parent: Object3D, update: (parent: Object3D) => void): void {
@@ -248,5 +274,152 @@ describe("UiSurface retained component parent", () => {
     expect(mesh.parent).toBeNull()
     expect(countGeometry(fake.invalidated, geometry)).toBe(1)
     expect(fake.invalidated).toHaveLength(1)
+  })
+
+  test("stages retained hits atomically in actual paint order and clears stale interaction state", () => {
+    const fake = createFakeRuntime()
+    const surface = new RetainedTestSurface()
+    surface.attachCanvas(fake.runtime)
+    surface.setRect({x: 0, y: 0, w: 200, h: 120}, 0.001, font)
+    const root = surface.createParent("root")
+    const bottom = surface.createParent("bottom", root)
+    const top = surface.createParent("top", root)
+    const actions: string[] = []
+    let leaves = 0
+
+    surface.materialize(bottom, () => {
+      surface.drawRect(10, 10, 30, 30, new Color(0.2, 0.4, 0.6, 1))
+      surface.stageHit(bottom, {x: 10, y: 10, w: 30, h: 30}, () => actions.push("bottom"), {
+        key: "bottom",
+      })
+    })
+    surface.materialize(top, () => {
+      surface.drawRect(10, 10, 30, 30, new Color(0.7, 0.4, 0.2, 1))
+      surface.stageHit(top, {x: 10, y: 10, w: 30, h: 30}, () => actions.push("top"), {
+        key: "top",
+        tooltip: {label: "top", delayMs: 10_000},
+        onPointerLeave: () => { leaves += 1 },
+      })
+    })
+
+    surface.onPointerDown({} as MouseEvent, 20, 20)
+    surface.onPointerUp({} as MouseEvent, 20, 20)
+    expect(actions).toEqual(["top"])
+
+    surface.setVisibility(top, false)
+    surface.onPointerDown({} as MouseEvent, 20, 20)
+    surface.onPointerUp({} as MouseEvent, 20, 20)
+    expect(actions).toEqual(["top", "bottom"])
+    surface.setVisibility(top, true)
+
+    expect(() => surface.materialize(top, () => {
+      surface.stageHit(top, {x: 10, y: 10, w: 30, h: 30}, () => actions.push("staged"), {key: "staged"})
+      throw new Error("hit staging failed")
+    })).toThrow("hit staging failed")
+    surface.onPointerDown({} as MouseEvent, 20, 20)
+    surface.onPointerUp({} as MouseEvent, 20, 20)
+    expect(actions).toEqual(["top", "bottom", "top"])
+
+    const minimum = surface.createParent("screen-minimum", root)
+    surface.materialize(minimum, () => {
+      surface.drawRect(0, 0, 1, 1, new Color(1, 1, 1, 1))
+      surface.stageHit(minimum, {x: 0, y: 0, w: 1, h: 1}, () => actions.push("minimum"), {
+        key: "minimum",
+        screenMinimum: {width: 20, height: 20},
+      })
+    })
+    surface.transform(root, (parent) => {
+      parent.position.set(0.05, -0.05, 0)
+      parent.scale.set(0.1, 0.1, 1)
+    })
+    const visualGeometry = (minimum.children[0] as Mesh).geometry
+    surface.onPointerDown({} as MouseEvent, 58, 50)
+    surface.onPointerUp({} as MouseEvent, 58, 50)
+    expect(actions.at(-1)).toBe("minimum")
+    expect((minimum.children[0] as Mesh).geometry).toBe(visualGeometry)
+
+    minimum.visible = false
+    surface.onPointerMove({} as MouseEvent, 52, 52)
+    surface.setVisibility(top, false)
+    expect(surface.hitState(10, 10, 30, 30, "top")).toEqual({hovered: false, pressed: false})
+    surface.setVisibility(top, true)
+    surface.onPointerMove({} as MouseEvent, 52, 52)
+    surface.onPointerDown({} as MouseEvent, 52, 52)
+    surface.removeParent(top)
+    expect(surface.hitState(10, 10, 30, 30, "top")).toEqual({hovered: false, pressed: false})
+    surface.onPointerUp({} as MouseEvent, 52, 52)
+    expect(actions).not.toContain("staged")
+    expect(leaves).toBe(2)
+
+    surface.onPointerDown({} as MouseEvent, 52, 52)
+    surface.onPointerUp({} as MouseEvent, 52, 52)
+    expect(actions.at(-1)).toBe("bottom")
+    surface.dispose()
+    surface.onPointerDown({} as MouseEvent, 52, 52)
+    surface.onPointerUp({} as MouseEvent, 52, 52)
+    expect(actions.at(-1)).toBe("bottom")
+  })
+
+  test("keeps fixed viewport and projected local material clips current without rematerialization", () => {
+    const fake = createFakeRuntime()
+    const surface = new RetainedTestSurface()
+    surface.attachCanvas(fake.runtime)
+    surface.setRect({x: 10, y: 20, w: 200, h: 120}, 0.001, font)
+    const root = surface.createParent("root")
+    const component = surface.createParent("component", root)
+    surface.setViewportClip(root, {x: 20, y: 10, w: 100, h: 60})
+    surface.materialize(component, () => {
+      surface.drawPolyline([{x: -100, y: 30}, {x: 300, y: 30}], new Color(0.2, 0.8, 1, 1), 2)
+    })
+    const retainedMesh = component.children[0] as Mesh
+    const retainedMaterial = retainedMesh.material as MeshBasicMaterial
+    const retainedGeometry = retainedMesh.geometry
+    expect(retainedMaterial.clipBounds).toEqual([30, 30, 130, 90])
+
+    surface.transform(root, (parent) => {
+      parent.position.set(0.04, -0.03, 0)
+      parent.scale.set(0.5, 0.5, 1)
+    })
+    expect(retainedMaterial.clipBounds).toEqual([30, 30, 130, 90])
+    expect(retainedMesh.geometry).toBe(retainedGeometry)
+
+    surface.moveRect({x: 50, y: 70, w: 200, h: 120}, 0.001, font)
+    expect(retainedMaterial.clipBounds).toEqual([70, 80, 170, 140])
+    expect(retainedMesh.geometry).toBe(retainedGeometry)
+
+    surface.transform(root, (parent) => {
+      parent.position.set(0, 0, 0)
+      parent.scale.set(1, 1, 1)
+    })
+    surface.transform(component, (parent) => {
+      parent.position.set(0.02, -0.01, 0)
+      parent.scale.set(2, 2, 1)
+    })
+    surface.setViewportClip(root, null)
+    surface.materialize(component, () => {
+      surface.pushClip(0, 0, 10, 10)
+      surface.drawRect(-20, -20, 80, 80, new Color(0.8, 0.3, 0.2, 1))
+      surface.popClip()
+    })
+    const localClipMesh = component.children[0] as Mesh
+    const localClipMaterial = localClipMesh.material as MeshBasicMaterial
+    expect(localClipMaterial.clipBounds).not.toBeNull()
+    for (const [index, expected] of [70, 80, 90, 100].entries()) {
+      expect(localClipMaterial.clipBounds![index]).toBeCloseTo(expected, 5)
+    }
+    const clipBeforeFailure = localClipMaterial.clipBounds!.slice() as [number, number, number, number]
+    expect(() => surface.materialize(component, () => {
+      surface.pushClip(30, 30, 10, 10)
+      surface.drawRect(0, 0, 60, 60, new Color(0.1, 0.9, 0.4, 1))
+      throw new Error("clip staging failed")
+    })).toThrow("clip staging failed")
+    expect(component.children).toEqual([localClipMesh])
+    expect(localClipMaterial.clipBounds).toEqual(clipBeforeFailure)
+
+    const point = {x: 37, y: 29}
+    const retainedPoint = surface.toRetained(component, point)
+    const roundTrip = surface.toSurface(component, retainedPoint)
+    expect(roundTrip.x).toBeCloseTo(point.x, 6)
+    expect(roundTrip.y).toBeCloseTo(point.y, 6)
   })
 })

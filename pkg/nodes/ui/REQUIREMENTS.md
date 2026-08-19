@@ -96,6 +96,15 @@ format и автоматическое размещение принадлежа
    FlexCss скрывает catalog surfaces, но не создаёт отдельную mobile Node.
 10. На overview-scale Node сохраняет структуру body через progressive LOD в тех
     же Flex rows; детали controls возвращаются после pinch без второй Node model.
+11. Content viewport переводится через inverse `matrixWorld` единственного
+    content-root для culling Frame, Link и Node. Те же retained parents владеют
+    selection hits: invisible ancestor не принимает input, actual paint order
+    определяет победивший target, а selected Link остаётся последним среди
+    Links.
+12. Wheel и pinch получают local anchor через Surface↔content-root matrix
+    conversion и меняют тот же retained root. Transform-only input обновляет
+    culling, hit mapping и material clip, не увеличивая layout или
+    materialization counters.
 
 ## Package boundary и удаление legacy
 

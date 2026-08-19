@@ -204,6 +204,11 @@ export type NodeEditorPinchState = Readonly<{
   points: readonly [UiTouchPoint, UiTouchPoint]
 }>
 
+type RetainedNodeEditorPinchState = NodeEditorPinchState & Readonly<{
+  localAnchor: NodePoint
+  startDistance: number
+}>
+
 export type NodeCanvasOptions<
   TNode extends Node,
   TSocket extends Socket,
@@ -267,7 +272,7 @@ export class NodeCanvas<
   #transform = DEFAULT_TRANSFORM
   #selection: NodeEditorSelection = null
   #pan: Readonly<{x: number; y: number; transform: NodeCanvasTransform}> | null = null
-  #pinch: NodeEditorPinchState | null = null
+  #pinch: RetainedNodeEditorPinchState | null = null
   #fitPending = true
   #lastFrame = {w: 0, h: 0}
   #styleDirty = false
@@ -326,6 +331,13 @@ export class NodeCanvas<
   setTree(tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>): void {
     validatePositionedNodeTree(tree)
     this.#tree = tree
+    const frameIds = new Set(tree.frames.map(({frame}) => frame.id))
+    const linkIds = new Set(tree.links.map(({link}) => link.id))
+    const nodeIds = new Set(tree.nodes.map(({node}) => node.id))
+    this.#removeMissingComponents(this.#frameBackgrounds, frameIds)
+    this.#removeMissingComponents(this.#links, linkIds)
+    this.#removeMissingComponents(this.#frameForegrounds, frameIds)
+    this.#removeMissingComponents(this.#nodes, nodeIds)
     if (this.#selection !== null && !selectionExists(tree, this.#selection)) {
       this.#selection = null
       this.#onSelectionChange?.(null)
@@ -369,7 +381,8 @@ export class NodeCanvas<
 
   override onWheel(event: WheelEvent, localX: number, localY: number): void {
     if (!this.interactive()) return
-    if (localY < this.#headerHeight()) return
+    const pointer = this.surfaceInnerPoint(localX, localY)
+    if (pointer.y < this.#headerHeight()) return
     event.preventDefault()
     const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 800 : 1
     const dx = finite(event.deltaX * unit)
@@ -378,12 +391,9 @@ export class NodeCanvas<
     if (event.ctrlKey) {
       const factor = clamp(Math.exp(-dy * 0.0025), 0.85, 1.18)
       const scale = clamp(this.#transform.scale * factor, this.#minScale, this.#maxScale)
-      const ratio = scale / this.#transform.scale
-      next = {
-        x: localX - (localX - this.#transform.x) * ratio,
-        y: localY - (localY - this.#transform.y) * ratio,
-        scale,
-      }
+      this.#fitPending = false
+      this.#presentScaleAtSurfaceAnchor(scale, pointer)
+      return
     } else {
       next = {x: this.#transform.x - dx, y: this.#transform.y - dy, scale: this.#transform.scale}
     }
@@ -392,22 +402,32 @@ export class NodeCanvas<
   }
 
   onMultiTouchStart(points: readonly UiTouchPoint[]): void {
-    const pair = touchPair(points)
+    const pair = touchPair(points.map((point) => ({...point, ...this.surfaceInnerPoint(point.x, point.y)})))
     if (!this.interactive() || pair === null) return
+    const midpoint = pointMidpoint(pair[0], pair[1])
+    const startDistance = pointDistance(pair[0], pair[1])
+    if (startDistance <= Number.EPSILON) return
     this.#pan = null
-    this.#pinch = {transform: this.#transform, points: pair}
+    this.#pinch = {
+      transform: this.#transform,
+      points: pair,
+      localAnchor: this.surfaceToRetainedPoint(this.#contentRoot, midpoint),
+      startDistance,
+    }
   }
 
   onMultiTouchMove(points: readonly UiTouchPoint[]): void {
-    const pair = touchPair(points)
+    const pair = touchPair(points.map((point) => ({...point, ...this.surfaceInnerPoint(point.x, point.y)})))
     if (this.#pinch === null || pair === null) return
-    this.#applyGestureTransform(planNodeEditorPinchTransform(
-      this.#pinch.transform,
-      this.#pinch.points,
-      pair,
+    const currentDistance = pointDistance(pair[0], pair[1])
+    if (!Number.isFinite(currentDistance)) return
+    const scale = clamp(
+      this.#pinch.transform.scale * currentDistance / this.#pinch.startDistance,
       this.#minScale,
       this.#maxScale,
-    ))
+    )
+    this.#fitPending = false
+    this.#presentScaleAtRetainedAnchor(scale, this.#pinch.localAnchor, pointMidpoint(pair[0], pair[1]))
   }
 
   onMultiTouchEnd(): void {
@@ -474,6 +494,7 @@ export class NodeCanvas<
       })
     }
     this.#syncContentTransform()
+    this.#syncContentProjection(content)
     this.#styleDirty = false
     this.#materializedPixelScale = this.pixelScale
     this.#materializedFont = this.font
@@ -511,6 +532,15 @@ export class NodeCanvas<
       if (forceAll || background.component.entry !== entry || background.component.selected !== selected) {
         this.materializeRetainedParent(background.component.parent, () => {
           this.#renderers.frame.renderBackground({host: this, entry, selected})
+          if (this.interactive()) this.retainedHit(
+            background.component.parent,
+            entry.rect.x,
+            entry.rect.y,
+            entry.rect.w,
+            entry.rect.h,
+            () => this.select({kind: "frame", id: entry.frame.id}),
+            {key: `node-editor:frame:${entry.frame.id}`},
+          )
         })
         background.component.entry = entry
         background.component.selected = selected
@@ -540,6 +570,22 @@ export class NodeCanvas<
       if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected) {
         this.materializeRetainedParent(retained.component.parent, () => {
           this.#renderers.link.render({host: this, entry, selected})
+          if (this.interactive()) {
+            for (const [index, rect] of planNodeEditorLinkHitRects(entry.points).entries()) {
+              this.retainedHit(
+                retained.component.parent,
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                () => this.select({kind: "link", id: entry.link.id}),
+                {
+                  key: `node-editor:link:${entry.link.id}:${index}`,
+                  screenMinimum: {width: 16, height: 16},
+                },
+              )
+            }
+          }
         })
         retained.component.entry = entry
         retained.component.selected = selected
@@ -565,6 +611,15 @@ export class NodeCanvas<
             selected,
             nodeId: entry.node.id,
           })
+          if (this.interactive()) this.retainedHit(
+            retained.component.parent,
+            entry.rect.x,
+            entry.rect.y,
+            entry.rect.w,
+            entry.rect.h,
+            () => this.select({kind: "node", id: entry.node.id}),
+            {key: `node-editor:node:${entry.node.id}`},
+          )
         })
         retained.component.entry = entry
         retained.component.selected = selected
@@ -639,6 +694,34 @@ export class NodeCanvas<
     this.#onCanvasTransformChange?.(this.#transform)
     if (!changed) return
     this.#syncContentTransform()
+    this.#syncContentProjection(this.#contentRect())
+    if (this.#contentClean) this.#diagnostics.transformOnlyFrames += 1
+  }
+
+  #presentScaleAtSurfaceAnchor(scale: number, surfaceAnchor: NodePoint): void {
+    const localAnchor = this.surfaceToRetainedPoint(this.#contentRoot, surfaceAnchor)
+    this.#presentScaleAtRetainedAnchor(scale, localAnchor, surfaceAnchor)
+  }
+
+  #presentScaleAtRetainedAnchor(scale: number, localAnchor: NodePoint, surfaceAnchor: NodePoint): void {
+    const previous = this.#transform
+    let next: NodeCanvasTransform = {x: previous.x, y: previous.y, scale}
+    this.updateRetainedTransform(this.#contentRoot, (parent) => {
+      parent.position.set(next.x * this.pixelScale, -next.y * this.pixelScale, 0)
+      parent.scale.set(next.scale, next.scale, 1)
+      parent.updateMatrix()
+      const projected = this.retainedToSurfacePoint(parent, localAnchor)
+      next = {
+        x: next.x + surfaceAnchor.x - projected.x,
+        y: next.y + surfaceAnchor.y - projected.y,
+        scale,
+      }
+      parent.position.set(next.x * this.pixelScale, -next.y * this.pixelScale, 0)
+    })
+    if (sameCanvasTransform(next, previous)) return
+    this.#transform = next
+    this.#onCanvasTransformChange?.(next)
+    this.#syncContentProjection(this.#contentRect())
     if (this.#contentClean) this.#diagnostics.transformOnlyFrames += 1
   }
 
@@ -649,6 +732,32 @@ export class NodeCanvas<
       parent.position.set(transform.x * pixelScale, -transform.y * pixelScale, 0)
       parent.scale.set(transform.scale, transform.scale, 1)
     })
+  }
+
+  #syncContentProjection(content: NodeRect): void {
+    this.updateRetainedViewportClip(this.#contentRoot, content)
+    const viewport = this.surfaceToRetainedRect(this.#contentRoot, content)
+    const visibleNodeIds = new Set<string>()
+    for (const entry of this.#tree.nodes) {
+      const visible = intersects(entry.rect, viewport)
+      const component = this.#nodes.get(entry.node.id)
+      if (component !== undefined) this.updateRetainedVisibility(component.parent, visible)
+      if (visible) visibleNodeIds.add(entry.node.id)
+    }
+    for (const entry of this.#tree.frames) {
+      const visible = intersects(entry.rect, viewport)
+      const background = this.#frameBackgrounds.get(entry.frame.id)
+      const foreground = this.#frameForegrounds.get(entry.frame.id)
+      if (background !== undefined) this.updateRetainedVisibility(background.parent, visible)
+      if (foreground !== undefined) this.updateRetainedVisibility(foreground.parent, visible)
+    }
+    for (const entry of this.#tree.links) {
+      const visible = visibleNodeIds.has(entry.link.from.nodeId) ||
+        visibleNodeIds.has(entry.link.to.nodeId) ||
+        intersects(pointsBounds(entry.points), viewport)
+      const component = this.#links.get(entry.link.id)
+      if (component !== undefined) this.updateRetainedVisibility(component.parent, visible)
+    }
   }
 
   override setActive(active: boolean): void {

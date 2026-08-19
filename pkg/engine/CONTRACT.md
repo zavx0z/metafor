@@ -27,6 +27,14 @@ children. Text, icon, Socket, stroke, radius, padding, gap и другое visua
 менять их visual geometry; он допустим только отдельному невидимому hit target,
 который не подменяет видимый child.
 
+Framebuffer clip retained UI остаётся свойством material presentation, а не
+изменением geometry. Он вычисляется из фактической `matrixWorld` цепочки того
+же `Object3D` subtree и фиксированного viewport владельца, поэтому transform
+parent может обновить clip следующего кадра без повторной materialization.
+Обычный одноцветный UI mesh подчиняется тому же optional clip, что text, image
+и rounded mesh; отсутствие собственного material adapter не разрешает ему
+выходить за viewport.
+
 ## Обычные и скелетные mesh
 
 Каждый видимый объект передаёт renderer только собственные данные модели и

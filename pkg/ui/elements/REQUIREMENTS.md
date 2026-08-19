@@ -33,6 +33,18 @@ FlexBox единолично вычисляет local child slots, а child то
    принадлежащий subtree и освобождают каждую некэшированную geometry ровно один
    раз. Разделяемая geometry `CachedText` остаётся в renderer cache до
    действующего LRU-вытеснения.
+7. Retained hit и local clip evidence принадлежат точному retained parent и
+   staging lifecycle его materialization: успешная materialization атомарно
+   заменяет subtree и records, ошибка сохраняет оба прежних, а remove/dispose
+   не оставляют hover, press, tooltip либо material clip старого target.
+8. Surface point/rect переводится в retained local space и обратно только через
+   actual `matrixWorld`/inverse chain тех же engine parents. Hit testing
+   уважает ancestor visibility и фактический порядок `Object3D.children`.
+   Screen-space minimum остаётся отдельной невидимой hit policy.
+9. Fixed viewport clip принадлежит Surface или её retained clip-owner и
+   пересекается с matrix-projected local clip material-а. Move, resize и
+   transform-only frame обновляют framebuffer clip и visibility без нового
+   FlexBox plan либо materialization.
 
 ## Обязательный Flex-закон
 

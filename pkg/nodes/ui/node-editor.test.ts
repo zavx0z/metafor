@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {Color, TrueTypeFont, type Object3D} from "@metafor/engine"
+import {Color, Mesh, MeshBasicMaterial, TrueTypeFont, type Object3D} from "@metafor/engine"
 import {
   createBlenderNodeRenderers,
   measureBlenderNode,
@@ -25,6 +25,7 @@ import {
   type Link,
   type Frame,
   type Node,
+  type NodeRect,
   type NodeEditorRenderers,
   type PositionedNodeTree,
   type Socket,
@@ -73,6 +74,18 @@ function requiredObject(root: Object3D, name: string): Object3D {
   const object = root.getObjectByName(name)
   if (object === undefined) throw new Error(`Missing retained object: ${name}`)
   return object
+}
+
+function clickSurface(
+  canvas: Readonly<{
+    onPointerDown(event: MouseEvent, x: number, y: number): void
+    onPointerUp(event: MouseEvent, x: number, y: number): void
+  }>,
+  x: number,
+  y: number,
+): void {
+  canvas.onPointerDown({} as MouseEvent, x, y)
+  canvas.onPointerUp({} as MouseEvent, x, y)
 }
 
 describe("generic Blender-like Node Editor contracts", () => {
@@ -293,6 +306,142 @@ describe("generic Blender-like Node Editor contracts", () => {
     canvas.flushPendingRender()
     expect(actualPlans).toBe(2)
     expect(canvas.diagnostics).toEqual({localLayoutPlans: 2, materializations: 2, transformOnlyFrames: 2})
+    canvas.dispose()
+  })
+
+  test("projects retained selection, clipping, culling and gesture anchors through the content root", async () => {
+    const renderers: NodeEditorRenderers<TestNode, TestSocket, TestLink, TestFrame, {rect: NodeRect}> = {
+      frame: {
+        renderBackground({host, entry}) {
+          host.drawRoundedRect(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, {
+            radius: 8,
+            fill: new Color(0.08, 0.12, 0.16, 1),
+          })
+        },
+        renderForeground({host, entry}) {
+          host.drawLine(entry.rect.x, entry.rect.y + 24, entry.rect.x + entry.rect.w, entry.rect.y + 24, new Color(1, 1, 1, 1), 1)
+        },
+      },
+      node: {
+        plan({entry}) {
+          return {rect: entry.rect}
+        },
+        render({host, plan}) {
+          host.drawRoundedRect(plan.rect.x, plan.rect.y, plan.rect.w, plan.rect.h, {
+            radius: 6,
+            fill: new Color(0.2, 0.3, 0.4, 1),
+          })
+        },
+      },
+      socket: {
+        render({host, entry}) {
+          host.drawRoundedRect(entry.center.x - 4, entry.center.y - 4, 8, 8, {
+            radius: 4,
+            fill: new Color(0.8, 0.4, 0.2, 1),
+          })
+        },
+      },
+      link: {
+        render({host, entry}) {
+          host.drawPolyline(entry.points, new Color(0.3, 0.7, 0.9, 1), 2)
+        },
+      },
+    }
+    const secondLink = {...tree.links[0]!, link: {...tree.links[0]!.link, id: "second-link"}}
+    const retainedTree = {...tree, links: [tree.links[0]!, secondLink]}
+    const canvas = new NodeEditor<TestNode, TestSocket, TestLink, TestFrame, {rect: NodeRect}>({
+      renderers,
+      toolbar: true,
+    })
+    canvas.setTree(retainedTree)
+    const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    canvas.setRect({x: 0, y: 0, w: 640, h: 360}, 0.001, new TrueTypeFont(fontBytes))
+
+    const contentRoot = requiredObject(canvas.node, "NodeCanvas.contentRoot")
+    const frameParent = requiredObject(canvas.node, "NodeCanvas.frame-background:frame")
+    const firstLinkParent = requiredObject(canvas.node, "NodeCanvas.link:value-link")
+    const secondLinkParent = requiredObject(canvas.node, "NodeCanvas.link:second-link")
+    const sourceParent = requiredObject(canvas.node, "NodeCanvas.node:source")
+    const targetParent = requiredObject(canvas.node, "NodeCanvas.node:target")
+    const linkMesh = firstLinkParent.children[0] as Mesh
+    const linkMaterial = linkMesh.material as MeshBasicMaterial
+    const linkGeometry = linkMesh.geometry
+    expect(linkMaterial.clipBounds).toEqual([0, 38, 640, 360])
+
+    const beforeTransforms = canvas.diagnostics
+    expect(canvas.setCanvasTransform({x: 100, y: 50, scale: 1})).toBeTrue()
+    const wheelAnchor = {x: 400, y: 200}
+    const wheelLocal = {
+      x: (wheelAnchor.x - canvas.canvasTransform.x) / canvas.canvasTransform.scale,
+      y: (wheelAnchor.y - canvas.canvasTransform.y) / canvas.canvasTransform.scale,
+    }
+    canvas.onWheel({
+      deltaMode: 0,
+      deltaX: 0,
+      deltaY: -80,
+      ctrlKey: true,
+      preventDefault() {},
+    } as WheelEvent, wheelAnchor.x, wheelAnchor.y)
+    expect(canvas.canvasTransform.x + wheelLocal.x * canvas.canvasTransform.scale).toBeCloseTo(wheelAnchor.x, 4)
+    expect(canvas.canvasTransform.y + wheelLocal.y * canvas.canvasTransform.scale).toBeCloseTo(wheelAnchor.y, 4)
+
+    const pinchStart = [{id: 1, x: 300, y: 200}, {id: 2, x: 500, y: 200}]
+    const pinchStartMidpoint = {x: 400, y: 200}
+    const pinchLocal = {
+      x: (pinchStartMidpoint.x - canvas.canvasTransform.x) / canvas.canvasTransform.scale,
+      y: (pinchStartMidpoint.y - canvas.canvasTransform.y) / canvas.canvasTransform.scale,
+    }
+    canvas.onMultiTouchStart(pinchStart)
+    canvas.onMultiTouchMove([{id: 1, x: 250, y: 220}, {id: 2, x: 550, y: 220}])
+    canvas.onMultiTouchEnd()
+    expect(canvas.canvasTransform.x + pinchLocal.x * canvas.canvasTransform.scale).toBeCloseTo(400, 4)
+    expect(canvas.canvasTransform.y + pinchLocal.y * canvas.canvasTransform.scale).toBeCloseTo(220, 4)
+    expect(canvas.diagnostics.localLayoutPlans).toBe(beforeTransforms.localLayoutPlans)
+    expect(canvas.diagnostics.materializations).toBe(beforeTransforms.materializations)
+    expect(canvas.diagnostics.transformOnlyFrames).toBe(beforeTransforms.transformOnlyFrames + 3)
+    expect(linkMesh.geometry).toBe(linkGeometry)
+    expect(linkMaterial.clipBounds).toEqual([0, 38, 640, 360])
+
+    canvas.setCanvasTransform({x: 100, y: 50, scale: 2})
+    clickSurface(canvas, 140, 90)
+    expect(canvas.selection).toEqual({kind: "frame", id: "frame"})
+    canvas.flushPendingRender()
+    clickSurface(canvas, 300, 250)
+    expect(canvas.selection).toEqual({kind: "node", id: "source"})
+    canvas.flushPendingRender()
+    clickSurface(canvas, 560, 300)
+    expect(canvas.selection).toEqual({kind: "link", id: "second-link"})
+    canvas.flushPendingRender()
+    expect(canvas.select({kind: "link", id: "value-link"})).toBeTrue()
+    canvas.flushPendingRender()
+    clickSurface(canvas, 560, 300)
+    expect(canvas.selection).toEqual({kind: "link", id: "value-link"})
+    expect(contentRoot.children.indexOf(firstLinkParent)).toBeGreaterThan(contentRoot.children.indexOf(secondLinkParent))
+
+    const selectedLinkMesh = firstLinkParent.children[0] as Mesh
+    const selectedLinkMaterial = selectedLinkMesh.material as MeshBasicMaterial
+    const selectedLinkGeometry = selectedLinkMesh.geometry
+    const beforeMinimumTransform = canvas.diagnostics
+    canvas.setCanvasTransform({x: 100, y: 100, scale: 0.16})
+    const materializationsBeforeMinimumHit = canvas.diagnostics.materializations
+    clickSurface(canvas, 136.8, 125.2)
+    expect(canvas.selection).toEqual({kind: "link", id: "value-link"})
+    expect(selectedLinkMesh.geometry).toBe(selectedLinkGeometry)
+    expect(canvas.diagnostics.localLayoutPlans).toBe(beforeMinimumTransform.localLayoutPlans)
+    expect(canvas.diagnostics.materializations).toBe(materializationsBeforeMinimumHit)
+
+    canvas.setCanvasTransform({x: -1000, y: 0, scale: 1})
+    expect(frameParent.visible).toBeFalse()
+    expect(firstLinkParent.visible).toBeFalse()
+    expect(secondLinkParent.visible).toBeFalse()
+    expect(sourceParent.visible).toBeFalse()
+    expect(targetParent.visible).toBeFalse()
+    const beforeOffscreenClick = canvas.diagnostics
+    clickSurface(canvas, 320, 180)
+    expect(canvas.selection).toBeNull()
+    canvas.flushPendingRender()
+    expect(canvas.diagnostics.localLayoutPlans).toBe(beforeOffscreenClick.localLayoutPlans)
+    expect(selectedLinkMaterial.clipBounds).toEqual([0, 38, 640, 360])
     canvas.dispose()
   })
 

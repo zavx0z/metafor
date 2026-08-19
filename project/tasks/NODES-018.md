@@ -294,7 +294,7 @@ Result checkpoint: `0f511a5758c381c3f2c814df793ef6b0c286c340`.
 
 ### NODES-018.4 — Согласовать clipping, culling и input transforms
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель
 `NODES-018.4 — Согласовать clipping, culling и input transforms`.
 
 Классификация: следующий implementation-срез; он меняет один projection-
@@ -340,13 +340,52 @@ NodeCanvas matrix/culling/input tests, affected UI/Node suites и typechecks,
 package-boundary, exact Engine source typecheck и `git diff --check`. Exact
 browser desktop/mobile behavior и captures остаются NODES-018.5.
 
-Фактические действия: ещё не выполнены.
+Фактические действия: Engine/UI/Node owner contracts закрепили framebuffer
+clip как material presentation фактической `matrixWorld` hierarchy, атомарный
+lifecycle retained hit/local-clip evidence и один inverse content-root path для
+culling и input anchor. `UiSurface` теперь staging-ит hit records вместе с
+точным retained subtree, разрешает protected surface↔retained point/rect
+conversion от inner `retainedLayer`, хранит fixed viewport clip у retained
+owner и refresh-ит Text/Image/Rounded/basic Mesh clip при transform и move.
+`MeshBasicMaterial` получил тот же optional framebuffer clip slot, а renderer и
+shader передают его обычному одноцветному UI mesh без Node-specific adapter.
+Hit traversal следует actual `Object3D.children` DFS order, не входит в
+невидимый ancestor и допускает screen minimum только отдельной невидимой
+record policy; staged failure, hide, remove и dispose не оставляют старые
+hover/press/tooltip targets.
 
-Результат и вывод: ещё не получены.
+`NodeCanvas` регистрирует Frame, Link corridor и Node selection в их retained
+component parents; selected Link остаётся последним среди Links. Fixed clip
+принадлежит content-root, а inverse viewport включает/выключает Frame passes,
+Links и Nodes без materialization. `set`, wheel, single-touch pan и pinch меняют
+тот же root. Wheel/pinch сохраняют local anchor через actual Surface↔root
+matrix conversion; runtime больше не вызывает оставшийся read-only pure pinch
+helper.
+
+Результат и вывод: representative two-Link tree после initial dirty имел
+`{localLayoutPlans: 2, materializations: 1, transformOnlyFrames: 0}`, а после
+`setCanvasTransform`, wheel и pinch — `{2,1,3}` с теми же geometry. Matrix
+anchors остались в exact surface points, Frame/Node/Link выбирались после
+transform, selected Link победил ordinary Link по фактическому child order, а
+отдельный невидимый `16×16` minimum выбрал тонкий Link на scale `0.16` без
+изменения stroke geometry. Полностью offscreen parents стали invisible и не
+приняли retained hit. Link/basic material сохранил fixed Node viewport clip
+`[0,38,640,360]` после transform; surface move и local clip обновили bounds без
+rematerialization. Staging exception сохранила прежние subtree, hitmap и clip,
+а hide/remove/dispose очистили interaction state.
+
+Проверки: focused retained projection — `17/17`; общий affected suite
+`@ui/components` + `@ui/elements` + `@nodes/ui` — `95/95`, `1382` assertions;
+Engine basic clip upload/shader — `2/2`; три package typecheck и Node
+playground typecheck — pass; package-boundary — `4/4`, `70` assertions; strict
+exact Engine source typecheck — pass; `git diff --check` — pass. Browser
+desktop/mobile correctness и visual/performance capture не выполнялись и
+остаются только NODES-018.5.
 
 Подготовительный commit: текущий project-коммит после этой регистрации.
 
-Result checkpoint: ещё не записан.
+Result checkpoint: текущий result commit; exact hash записывается следующим
+project-only commit.
 
 ### NODES-018.5 — Доказать correctness и performance
 
@@ -379,6 +418,7 @@ pan/zoom frames: layout/materialization counters не растут при чис
 
 ## Состояние
 
-`IN_PROGRESS`: NODES-018.1–.3 завершены result checkpoints. Текущий срез —
-NODES-018.4; browser correctness/performance proof выполняется только после него
-в NODES-018.5. Visual corrections NODES-017 не выполняются параллельно.
+`IN_PROGRESS`: NODES-018.1–.4 завершены result checkpoints. Следующий
+разрешённый срез — NODES-018.5 после отдельного project preparation; только он
+выполняет browser correctness/performance proof. Visual corrections NODES-017
+не выполняются параллельно.
