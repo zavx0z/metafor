@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {validatePositionedNodeSystem} from "nodes/validation"
-import type {PositionedNodeSystem} from "nodes/types"
+import type {PositionedNodeSystemCard} from "@nodes/ui/card-model"
 import {
   easeHamiltonianLayoutTransition,
   hamiltonianLayoutGeometryChanged,
@@ -13,7 +13,7 @@ const node = (id: string, x: number, y: number) => ({
   ports: [],
 })
 
-const layout = (nodes: PositionedNodeSystem["nodes"]): PositionedNodeSystem => ({
+const layout = (nodes: PositionedNodeSystemCard["nodes"]): PositionedNodeSystemCard => ({
   bounds: {x: 0, y: 0, w: 800, h: 600},
   nodes,
   edges: [],
@@ -118,22 +118,22 @@ describe("Hamiltonian topology layout transition", () => {
   })
 
   test("interpolates complete layout bounds and routes instead of grafting moving endpoints onto target bends", () => {
-    const previous: PositionedNodeSystem = {
+    const previous: PositionedNodeSystemCard = {
       bounds: {x: 0, y: 0, w: 600, h: 300},
       nodes: [
-        {...node("a", 10, 20), ports: [{port: {id: "out", parameterId: "out", direction: "out"}, center: {x: 110, y: 50}}]},
-        {...node("b", 300, 20), ports: [{port: {id: "in", parameterId: "in", direction: "in"}, center: {x: 300, y: 50}}]},
+        {...node("a", 10, 20), ports: [{port: {id: "out", direction: "out"}, side: "right", center: {x: 110, y: 50}}]},
+        {...node("b", 300, 20), ports: [{port: {id: "in", direction: "in"}, side: "left", center: {x: 300, y: 50}}]},
       ],
       edges: [{
         edge: {id: "edge", source: {nodeId: "a", portId: "out"}, target: {nodeId: "b", portId: "in"}},
         points: [{x: 114, y: 50}, {x: 220, y: 50}, {x: 296, y: 50}],
       }],
     }
-    const target: PositionedNodeSystem = {
+    const target: PositionedNodeSystemCard = {
       bounds: {x: 0, y: 0, w: 360, h: 700},
       nodes: [
-        {...node("a", 100, 100), ports: [{port: {id: "out", parameterId: "out", direction: "out"}, center: {x: 200, y: 130}}]},
-        {...node("b", 100, 400), ports: [{port: {id: "in", parameterId: "in", direction: "in"}, center: {x: 100, y: 430}}]},
+        {...node("a", 100, 100), ports: [{port: {id: "out", direction: "out"}, side: "right", center: {x: 200, y: 130}}]},
+        {...node("b", 100, 400), ports: [{port: {id: "in", direction: "in"}, side: "left", center: {x: 100, y: 430}}]},
       ],
       edges: [{
         edge: {id: "edge", source: {nodeId: "a", portId: "out"}, target: {nodeId: "b", portId: "in"}},
@@ -153,7 +153,7 @@ describe("Hamiltonian topology layout transition", () => {
 
   test("reveals a new edge only with its completed target route", () => {
     const previous = layout([node("a", 10, 20), node("b", 300, 20)])
-    const target: PositionedNodeSystem = {
+    const target: PositionedNodeSystemCard = {
       ...layout([node("a", 100, 100), node("b", 100, 400)]),
       edges: [{
         edge: {id: "new", source: {nodeId: "a", portId: "out"}, target: {nodeId: "b", portId: "in"}},

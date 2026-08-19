@@ -1,11 +1,20 @@
 import type {
   NodeSystemDocument,
   NodeSystemEdge,
-  NodeSystemFact,
   NodeSystemNode,
   NodeSystemPort,
-  PositionedNodeSystem,
 } from "nodes/types"
+import {
+  adaptNodeSystemCardPresentation,
+  type NodeSystemCardEdgePresentation,
+  type NodeSystemCardFact,
+  type NodeSystemCardNode,
+  type NodeSystemCardNodePresentation,
+  type NodeSystemCardPortAnchor,
+  type NodeSystemCardPresentation,
+  type NodeSystemCardPreset,
+  type PositionedNodeSystemCard,
+} from "@nodes/ui/card-model"
 import type {
   HamiltonianLifecycleEnvelope,
   HamiltonianLifecycleFrontierEntry,
@@ -69,6 +78,11 @@ export type HamiltonianLifecyclePresentation = Readonly<{
   direction: "forward" | "reverse"
   messageClass: string
   at: number
+}>
+
+export type HamiltonianNodeSystemCardProjection = Readonly<{
+  topology: NodeSystemDocument
+  presentation: NodeSystemCardPresentation
 }>
 
 export type HamiltonianLifecycleProjectionOptions = Readonly<{
@@ -403,10 +417,17 @@ export class HamiltonianLifecycleProjection {
     return this.#observeMessage(envelope)
   }
 
-  document(): NodeSystemDocument {
+  document(): NodeSystemCardPreset {
+    const {topology, presentation} = this.cardProjection()
+    return adaptNodeSystemCardPresentation(topology, presentation)
+  }
+
+  cardProjection(): HamiltonianNodeSystemCardProjection {
     const ports = new Map<string, NodeSystemPort[]>()
-    const transportParameters = new Map<string, NodeSystemFact[]>()
+    const portAnchors = new Map<string, NodeSystemCardPortAnchor[]>()
+    const transportParameters = new Map<string, NodeSystemCardFact[]>()
     const edges: NodeSystemEdge[] = []
+    const edgePresentations: NodeSystemCardEdgePresentation[] = []
     const visibleEntityIds = this.#visibleEntityIds()
     const visibleEntities = [...this.#entities.values()].filter((entity) => visibleEntityIds.has(entity.id))
     const activeTransports = [...this.#transports.values()]
@@ -426,40 +447,36 @@ export class HamiltonianLifecycleProjection {
       const sourceSlot = transportEndpointSlot(label, "out", sharedParameterRole)
       const targetSlot = transportEndpointSlot(label, "in", sharedParameterRole)
       const tone = transport.state === "opened" ? "live" : transport.state === "changed" ? "neutral" : "paused"
-      addPort(ports, transport.sourceEntityId, {
+      addPort(ports, portAnchors, transport.sourceEntityId, {
         id: sourceSlot.portId,
-        parameterId: sourceSlot.parameterId,
         direction: "out",
         connectionType,
-      })
-      addPort(ports, transport.targetEntityId, {
+      }, sourceSlot.rowId)
+      addPort(ports, portAnchors, transport.targetEntityId, {
         id: targetSlot.portId,
-        parameterId: targetSlot.parameterId,
         direction: "in",
         connectionType,
-      })
+      }, targetSlot.rowId)
       if (directedPair) {
-        addPort(ports, transport.sourceEntityId, {
+        addPort(ports, portAnchors, transport.sourceEntityId, {
           id: targetSlot.portId,
-          parameterId: targetSlot.parameterId,
           direction: "in",
           connectionType,
-        })
-        addPort(ports, transport.targetEntityId, {
+        }, targetSlot.rowId)
+        addPort(ports, portAnchors, transport.targetEntityId, {
           id: sourceSlot.portId,
-          parameterId: sourceSlot.parameterId,
           direction: "out",
           connectionType,
-        })
+        }, sourceSlot.rowId)
       }
       addParameter(transportParameters, transport.sourceEntityId, {
-        id: sourceSlot.parameterId,
+        id: sourceSlot.rowId,
         label,
         value: sharedParameterRole === null ? "выход" : "вход / выход",
         tone,
       })
       addParameter(transportParameters, transport.targetEntityId, {
-        id: targetSlot.parameterId,
+        id: targetSlot.rowId,
         label,
         value: sharedParameterRole === null ? "вход" : "вход / выход",
         tone,
@@ -468,21 +485,20 @@ export class HamiltonianLifecycleProjection {
         id: transport.id,
         source: {nodeId: transport.sourceEntityId, portId: sourceSlot.portId},
         target: {nodeId: transport.targetEntityId, portId: targetSlot.portId},
-        label,
         connectionType,
-        tone,
         order: 100 + index * 2,
       })
+      edgePresentations.push({edgeId: transport.id, label, tone})
       if (directedPair) {
+        const reverseEdgeId = serviceWorkerApiReverseEdgeId(transport.id)
         edges.push({
-          id: serviceWorkerApiReverseEdgeId(transport.id),
+          id: reverseEdgeId,
           source: {nodeId: transport.targetEntityId, portId: sourceSlot.portId},
           target: {nodeId: transport.sourceEntityId, portId: targetSlot.portId},
-          label,
           connectionType,
-          tone,
           order: 101 + index * 2,
         })
+        edgePresentations.push({edgeId: reverseEdgeId, label, tone})
       }
     }
 
@@ -493,6 +509,7 @@ export class HamiltonianLifecycleProjection {
       this.#pageId,
       this.#context.tabId,
     )
+    const nodePresentations: NodeSystemCardNodePresentation[] = []
     const entityNodes = visibleEntities
       .sort((left, right) =>
         entityOrder(left.kind) - entityOrder(right.kind) ||
@@ -507,10 +524,8 @@ export class HamiltonianLifecycleProjection {
             }
           : entity
         const parentId = visualParentId(presentedEntity, visibleEntityIds, this.#currentServerId)
-        return {
-          id: presentedEntity.id,
-          layoutId: requiredLayoutId(layoutIds, presentedEntity.id),
-          ...(parentId === null ? {} : {parentId}),
+        nodePresentations.push({
+          nodeId: presentedEntity.id,
           title: entityTitle(presentedEntity, this.#pageId),
           kind: presentedEntity.kind === "browser-runtime"
             ? browserProfileHeader(presentedEntity)
@@ -518,12 +533,11 @@ export class HamiltonianLifecycleProjection {
               ? serviceWorkerHeader(presentedEntity)
               : entityKindLabel(presentedEntity.kind),
           tone: nodeTone(presentedEntity.state, this.#hasGap(presentedEntity)),
-          order: index,
-          ports: ports.get(presentedEntity.id) ?? [],
           facts: [
             ...entityFacts(presentedEntity, this.#gapsFor(presentedEntity)),
             ...(transportParameters.get(presentedEntity.id) ?? []),
           ],
+          portAnchors: portAnchors.get(presentedEntity.id) ?? [],
           ...(presentedEntity.id === this.#pageId ? {
             summary: "Текущая page realm; существует с начала этой загрузки",
             actions: [
@@ -537,22 +551,36 @@ export class HamiltonianLifecycleProjection {
               {id: "enable-push", label: "Настроить Web Push", tone: "neutral" as const},
             ],
           } : {}),
+        })
+        return {
+          id: presentedEntity.id,
+          layoutId: requiredLayoutId(layoutIds, presentedEntity.id),
+          ...(parentId === null ? {} : {parentId}),
+          order: index,
+          ports: ports.get(presentedEntity.id) ?? [],
         }
       })
     const nodes: NodeSystemNode[] = [
       {
         id: SERVER_CONTOUR_NODE_ID,
-        title: "Сервер",
-        tone: "live",
         order: -1,
       },
       ...entityNodes,
     ]
 
     return {
-      revision: `lifecycle:${this.#revision}`,
-      nodes,
-      edges,
+      topology: {
+        revision: `lifecycle:${this.#revision}`,
+        nodes,
+        edges,
+      },
+      presentation: {
+        nodes: [
+          {nodeId: SERVER_CONTOUR_NODE_ID, title: "Сервер", tone: "live"},
+          ...nodePresentations,
+        ],
+        edges: edgePresentations,
+      },
     }
   }
 
@@ -1023,7 +1051,7 @@ export function nodeSystemStructureKey(document: NodeSystemDocument): string {
       order: node.order ?? 0,
       parentId: node.parentId ?? null,
       ports: (node.ports ?? []).map((port) =>
-        `${port.id}:${port.parameterId}:${port.direction}:${port.side ?? "auto"}`).sort(),
+        `${port.id}:${port.direction}:${port.side ?? "auto"}`).sort(),
     })).sort((a, b) => a.id.localeCompare(b.id)),
     edges: document.edges.map((item) => ({
       id: item.id,
@@ -1036,9 +1064,9 @@ export function nodeSystemStructureKey(document: NodeSystemDocument): string {
 
 /** Replaces observable labels/facts while preserving layout geometry and canvas transform. */
 export function refreshPositionedNodeSystem(
-  layout: PositionedNodeSystem,
-  document: NodeSystemDocument,
-): PositionedNodeSystem {
+  layout: PositionedNodeSystemCard,
+  document: NodeSystemCardPreset,
+): PositionedNodeSystemCard {
   const nodes = new Map(document.nodes.map((node) => [node.id, node]))
   const edges = new Map(document.edges.map((item) => [item.id, item]))
   return {
@@ -1066,9 +1094,9 @@ export function refreshPositionedNodeSystem(
 }
 
 function preservePresentationFactOrder(
-  previous: NodeSystemNode,
-  current: NodeSystemNode,
-): NodeSystemNode {
+  previous: NodeSystemCardNode,
+  current: NodeSystemCardNode,
+): NodeSystemCardNode {
   if (previous.facts === undefined || current.facts === undefined) return current
   const currentById = new Map(current.facts.map((fact) => [fact.id, fact]))
   const ordered = previous.facts.flatMap((fact) => {
@@ -1085,27 +1113,39 @@ function preservePresentationFactOrder(
     : {...current, facts: ordered}
 }
 
-function addPort(ports: Map<string, NodeSystemPort[]>, nodeId: string, port: NodeSystemPort): void {
+function addPort(
+  ports: Map<string, NodeSystemPort[]>,
+  anchors: Map<string, NodeSystemCardPortAnchor[]>,
+  nodeId: string,
+  port: NodeSystemPort,
+  rowId: string,
+): void {
   const current = ports.get(nodeId) ?? []
   const existing = current.find((candidate) => candidate.id === port.id)
   if (existing) {
     if (
-      existing.parameterId !== port.parameterId ||
       existing.direction !== port.direction ||
       existing.connectionType !== port.connectionType
     ) {
       throw new Error(`Conflicting lifecycle port slot: ${nodeId}/${port.id}`)
     }
+    const existingAnchor = anchors.get(nodeId)?.find((candidate) => candidate.portId === port.id)
+    if (existingAnchor?.rowId !== rowId) {
+      throw new Error(`Conflicting lifecycle port anchor: ${nodeId}/${port.id}`)
+    }
     return
   }
   current.push(port)
   ports.set(nodeId, current)
+  const currentAnchors = anchors.get(nodeId) ?? []
+  currentAnchors.push({portId: port.id, rowId})
+  anchors.set(nodeId, currentAnchors)
 }
 
 function addParameter(
-  parameters: Map<string, NodeSystemFact[]>,
+  parameters: Map<string, NodeSystemCardFact[]>,
   nodeId: string,
-  parameter: NodeSystemFact,
+  parameter: NodeSystemCardFact,
 ): void {
   const current = parameters.get(nodeId) ?? []
   const existingIndex = current.findIndex((candidate) => candidate.id === parameter.id)
@@ -1128,12 +1168,12 @@ function transportEndpointSlot(
   label: string,
   direction: "in" | "out",
   sharedParameterRole: "duplex" | "channel" | null,
-): {portId: string; parameterId: string} {
+): {portId: string; rowId: string} {
   const family = safeId(label)
   const role = sharedParameterRole ?? direction
   return {
     portId: `${direction}:${family}`,
-    parameterId: `transport:${family}:${role}`,
+    rowId: `transport:${family}:${role}`,
   }
 }
 
@@ -1142,15 +1182,15 @@ function serviceWorkerApiReverseEdgeId(transportId: string): string {
 }
 
 function strongerTransportTone(
-  left: NodeSystemFact["tone"],
-  right: NodeSystemFact["tone"],
-): NodeSystemFact["tone"] {
+  left: NodeSystemCardFact["tone"],
+  right: NodeSystemCardFact["tone"],
+): NodeSystemCardFact["tone"] {
   const rank = {neutral: 0, paused: 1, live: 2, warn: 3} as const
   return rank[right ?? "neutral"] > rank[left ?? "neutral"] ? right : left
 }
 
 function entityFacts(entity: LifecycleEntity, gaps: HamiltonianLifecycleGap[]) {
-  const facts: Array<NonNullable<NodeSystemNode["facts"]>[number]> = Object.entries(entity.attributes)
+  const facts: NodeSystemCardFact[] = Object.entries(entity.attributes)
     .filter(([key, value]) =>
       !(entity.kind === "service" && key === "identity") &&
       value !== null &&

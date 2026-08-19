@@ -9,11 +9,18 @@ import {
 } from "../core/lifecycle.js"
 import {hamiltonianPageBootstrap} from "../core/monitor.js"
 import {UiRuntime, type UiSurfaceRect} from "@ui/elements"
-import {LayoutWorkerClient} from "nodes/layout-worker"
+import {FixedLayoutWorkerClient} from "nodes/layout-worker/fixed/client"
 import type {LayoutWorkerEndpoint} from "nodes/types"
 import {
   FixedNodeSystemCardWorkerLayouter,
 } from "@nodes/ui/fixed-card-layout"
+import {
+  adaptNodeSystemCardPresentation,
+  type NodeSystemCardAction,
+  type NodeSystemCardNode,
+  type NodeSystemCardPreset,
+  type PositionedNodeSystemCard,
+} from "@nodes/ui/card-model"
 import {
   NODE_SYSTEM_PORT_PITCH,
   nodeSystemGeometryKey,
@@ -22,11 +29,7 @@ import {NodeInspectorSurface} from "@nodes/hud/inspector"
 import {NodeSystemSurface} from "@nodes/ui/surface"
 import {fitNodeSystemCanvasTransform} from "@nodes/ui/viewport"
 import type {
-  NodeSystemAction,
-  NodeSystemDocument,
   NodeSystemLayoutDirection,
-  NodeSystemNode,
-  PositionedNodeSystem,
 } from "nodes/types"
 import {
   HamiltonianLifecycleProjection,
@@ -131,7 +134,7 @@ async function start(): Promise<void> {
   })
   document.documentElement.dataset.hamiltonianGraphLayer = "space-display"
   document.documentElement.dataset.hamiltonianWindowLayer = "hud"
-  let layout: PositionedNodeSystem | null = null
+  let layout: PositionedNodeSystemCard | null = null
   let structureKey: string | null = null
   let updateGeneration = 0
   let inspectorFrame: UiSurfaceRect | null = null
@@ -270,7 +273,7 @@ async function start(): Promise<void> {
     type: "module",
     name: "metafor-layout",
   })
-  const layoutWorker = new LayoutWorkerClient(
+  const layoutWorker = new FixedLayoutWorkerClient(
     layoutWorkerEndpoint as unknown as LayoutWorkerEndpoint,
   )
   const nodeSystemLayouter = new FixedNodeSystemCardWorkerLayouter(layoutWorker, {
@@ -385,7 +388,11 @@ async function start(): Promise<void> {
     server: pageBootstrap.server,
   }
   const lifecycleProjection = new HamiltonianLifecycleProjection(context)
-  const bootstrapDocument = lifecycleProjection.document()
+  const currentCardDocument = (): NodeSystemCardPreset => {
+    const {topology, presentation} = lifecycleProjection.cardProjection()
+    return adaptNodeSystemCardPresentation(topology, presentation)
+  }
+  const bootstrapDocument = currentCardDocument()
   const bootstrapGeometryKey = nodeSystemGeometryKey(bootstrapDocument, graph.textMeasurer)
   // A resize may cross the orientation boundary while the first layout
   // calculation is pending. applyDocument rejects that stale direction; retry the
@@ -413,13 +420,13 @@ async function start(): Promise<void> {
   document.documentElement.dataset.hamiltonianBootstrapPage = `page:${pageBootstrap.pageIncarnation}`
   document.documentElement.dataset.hamiltonianBootstrapCommittedAt = String(performance.now())
 
-  let scheduledDocument: NodeSystemDocument | null = null
+  let scheduledDocument: NodeSystemCardPreset | null = null
   let scheduledStructureKey: string | null = null
   let scheduledViewport: Readonly<{width: number; height: number}> | null = null
   let inFlightStructureKey: string | null = null
   let documentDrain: Promise<void> | null = null
   const layoutStructureKey = (
-    nextDocument: NodeSystemDocument,
+    nextDocument: NodeSystemCardPreset,
     viewport: Readonly<{width: number; height: number}>,
   ): string => [
     nodeSystemStructureKey(nextDocument),
@@ -452,7 +459,7 @@ async function start(): Promise<void> {
     )
   }
   const scheduleCurrentDocument = () => {
-    const nextDocument = lifecycleProjection.document()
+    const nextDocument = currentCardDocument()
     const nextViewport = currentLayoutViewport()
     const nextStructureKey = layoutStructureKey(nextDocument, nextViewport)
     scheduledDocument = nextDocument
@@ -584,7 +591,7 @@ async function start(): Promise<void> {
   }
 
   async function applyDocument(
-    document: NodeSystemDocument,
+    document: NodeSystemCardPreset,
     nextStructureKey: string,
     generation: number,
     direction: NodeSystemLayoutDirection,
@@ -593,7 +600,7 @@ async function start(): Promise<void> {
     const previousLayout = layout
     const preserveCanvasTransform = previousLayout !== null && graph.hasMaterializedCanvasTransform
     const previousCanvasTransform = graph.canvasTransform
-    let nextLayout: PositionedNodeSystem
+    let nextLayout: PositionedNodeSystemCard
     if (previousLayout !== null && structureKey === nextStructureKey) {
       nextLayout = refreshPositionedNodeSystem(previousLayout, document)
     } else {
@@ -670,8 +677,8 @@ async function start(): Promise<void> {
   }
 
   async function animateTopologyLayout(
-    previous: PositionedNodeSystem,
-    target: PositionedNodeSystem,
+    previous: PositionedNodeSystemCard,
+    target: PositionedNodeSystemCard,
     generation: number,
   ): Promise<boolean> {
     const startedAt = performance.now()
@@ -703,7 +710,7 @@ async function start(): Promise<void> {
     }
   }
 
-  function fitGraphCanvas(target: PositionedNodeSystem, reason: string, force = false): void {
+  function fitGraphCanvas(target: PositionedNodeSystemCard, reason: string, force = false): void {
     if (!canvasAutoFitEnabled && !force) return
     const displayRect = planHamiltonianGraphDisplayRect(
       Math.max(1, canvas.clientWidth),
@@ -753,14 +760,14 @@ function nextPresentationFrame(): Promise<void> {
   })
 }
 
-function dispatchAction(node: NodeSystemNode, action: NodeSystemAction): void {
+function dispatchAction(node: NodeSystemCardNode, action: NodeSystemCardAction): void {
   window.dispatchEvent(new CustomEvent("hamiltonian-orchestration-action", {
     detail: {nodeId: node.id, actionId: action.id},
   }))
 }
 
 function documentElementEvidence(
-  layout: PositionedNodeSystem,
+  layout: PositionedNodeSystemCard,
   revision: string,
 ): void {
   document.documentElement.dataset.hamiltonianScene = "ready"
@@ -794,7 +801,7 @@ function documentElementEvidence(
   document.documentElement.dataset.hamiltonianWebsocketTone = websocket?.edge.tone ?? "absent"
 }
 
-function connectionLegend(layout: PositionedNodeSystem): Array<{connectionType: string; label: string}> {
+function connectionLegend(layout: PositionedNodeSystemCard): Array<{connectionType: string; label: string}> {
   const entries = new Map<string, string>()
   for (const {edge} of layout.edges) {
     if (edge.connectionType === undefined) continue
