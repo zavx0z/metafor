@@ -58,3 +58,14 @@
   exact endpoints сохранены. Link selection и mobile не входят в этот proof.
 * Контрольная сумма: SHA-256
   `fd2791cf9850dd18fcf8c0089b280094fc25d0628cd99a5eb9de2893dbecf31f`.
+
+## link-selection-checkpoint.png
+
+* Источник: exact WebGPU canvas NODES-017.5; DOM selection
+  `kind=link`, `id=matrix-shader`.
+* Ожидание: выбранный ортогональный Link рисуется последним и отличается от
+  ordinary Links, сохраняя exact route/endpoints.
+* Фактическое наблюдение: полный right-loop маршрут визуально утолщён и остаётся
+  под Node; Frame hit area не блокирует Link selection.
+* Контрольная сумма: SHA-256
+  `4c380f703b0f290680bfaf2a47a35834da76f1e246146c4e0412ff6ee972726e`.

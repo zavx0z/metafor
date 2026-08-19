@@ -367,7 +367,12 @@ export const blenderLinkRenderer: LinkRenderer<BlenderLink> = Object.freeze({
   render({host, entry, scale, selected}) {
     const socketPreset = blenderSocketPreset(entry.link.socketType ?? "custom")
     const stroke = sampleLinkBezierPath(entry.points, 10 * scale, 6)
-    host.drawPolyline(stroke, colorFrom(socketPreset.color), Math.max(selected ? 3 : 2, 2.2 * scale), Z.ELEMENT + 0.02)
+    host.drawPolyline(
+      stroke,
+      colorFrom(socketPreset.color),
+      Math.max(selected ? 4 : 2, (selected ? 3.4 : 2.2) * scale),
+      Z.ELEMENT + (selected ? 0.05 : 0.02),
+    )
   },
 })
 

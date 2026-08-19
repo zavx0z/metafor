@@ -101,6 +101,7 @@ export type PositionedNodeTree<
 
 export type NodeEditorSelection =
   | Readonly<{kind: "frame"; id: string}>
+  | Readonly<{kind: "link"; id: string}>
   | Readonly<{kind: "node"; id: string}>
   | null
 
@@ -369,12 +370,17 @@ export class NodeCanvas<
         }
         if (step.kind === "links") {
           this.withLayer("contentUnderlay", () => {
-            for (const entry of plan.links) this.#renderers.link.render({
-              host: this,
-              entry,
-              scale: plan.transform.scale,
-              selected: false,
-            })
+            const links = orderNodeEditorLinksForPaint(plan.links, this.#selection)
+            for (const entry of links) {
+              const selected = isSelected(this.#selection, "link", entry.link.id)
+              this.#renderers.link.render({host: this, entry, scale: plan.transform.scale, selected})
+              if (this.interactive()) planNodeEditorLinkHitRects(entry.points, Math.max(6, 8 * plan.transform.scale)).forEach((rect, index) => {
+                this.hit(rect.x, rect.y, rect.w, rect.h, () => this.select({kind: "link", id: entry.link.id}), {
+                  key: `node-editor:link:${entry.link.id}:${index}`,
+                  cursor: "pointer",
+                })
+              })
+            }
           })
           continue
         }
@@ -387,7 +393,7 @@ export class NodeCanvas<
             scale: plan.transform.scale,
             selected: isSelected(this.#selection, "frame", entry.frame.id),
           })
-          if (this.interactive()) this.hit(entry.rect.x, entry.rect.y, entry.rect.w, entry.rect.h, () => this.select({kind: "frame", id: entry.frame.id}), {
+          if (this.interactive()) this.hit(entry.rect.x, entry.rect.y, entry.rect.w, Math.min(entry.rect.h, Math.max(28, 36 * plan.transform.scale)), () => this.select({kind: "frame", id: entry.frame.id}), {
             key: `node-editor:frame:${entry.frame.id}`,
             cursor: "pointer",
           })
@@ -524,6 +530,34 @@ export function planNodeEditorGrid(frame: NodeRect, transform: NodeCanvasTransfo
     }
   }
   return points
+}
+
+export function planNodeEditorLinkHitRects(points: readonly NodePoint[], radius = 8): readonly NodeRect[] {
+  const padding = Math.max(1, Number.isFinite(radius) ? radius : 8)
+  const rects: NodeRect[] = []
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1]!
+    const to = points[index]!
+    if (from.x === to.x && from.y === to.y) continue
+    rects.push({
+      x: Math.min(from.x, to.x) - padding,
+      y: Math.min(from.y, to.y) - padding,
+      w: Math.abs(to.x - from.x) + padding * 2,
+      h: Math.abs(to.y - from.y) + padding * 2,
+    })
+  }
+  return rects
+}
+
+export function orderNodeEditorLinksForPaint<TLink extends Link>(
+  links: readonly PositionedLink<TLink>[],
+  selection: NodeEditorSelection,
+): readonly PositionedLink<TLink>[] {
+  if (selection?.kind !== "link") return links
+  return [
+    ...links.filter(({link}) => link.id !== selection.id),
+    ...links.filter(({link}) => link.id === selection.id),
+  ]
 }
 
 export function planNodeEditorPaintSteps<
@@ -768,6 +802,7 @@ function validateFrameAncestry(frameId: string, frames: ReadonlyMap<string, Posi
 
 function selectionExists(tree: PositionedNodeTree, selection: Exclude<NodeEditorSelection, null>): boolean {
   if (selection.kind === "frame") return tree.frames.some(({frame}) => frame.id === selection.id)
+  if (selection.kind === "link") return tree.links.some(({link}) => link.id === selection.id)
   return tree.nodes.some(({node}) => node.id === selection.id)
 }
 

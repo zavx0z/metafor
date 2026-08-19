@@ -100,6 +100,13 @@ Socket. Добавлены visible nested Frame и collapsed Node. Focused packa
 толщину, contrast, selected/highlight states, слой и точное присоединение к
 центрам Socket. Blender Bézier не копируется.
 
+`COMPLETE`: generic selection различает Frame/Node/Link, по готовым route
+segments строятся bounded hit corridors, selected Link сортируется последним и
+получает отдельные thickness/z. Frame выбирается только header-area и не
+перекрывает Link hits внутри. Focused tests/package-boundary 21/21,
+UI/playground typechecks, browser DOM/console зелёные; exact selected right-loop
+canvas сохранён в artifacts.
+
 ### NODES-017.6 — Сделать Node Editor пригодным для mobile
 
 Добавить responsive component layout, touch pan, two-pointer pinch zoom,
@@ -161,5 +168,5 @@ console, DOM и visual matrix, затем оставить contour владел�
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.5 — selected и
-interaction states ортогональных Links.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.6 — responsive mobile
+layout и touch pan/pinch.

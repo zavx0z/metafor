@@ -77,6 +77,9 @@ format и автоматическое размещение принадлежа
    state во входной модели.
 7. Collapsed Node сохраняет exact Socket endpoints вокруг compact header;
    Frame может быть вложен в другой Frame.
+8. Selection различает Frame, Node и Link. Link получает hit corridors по
+   готовым route segments; selected Link рисуется отдельным последним проходом
+   поверх ordinary Links, но под Node.
 
 ## Package boundary и удаление legacy
 

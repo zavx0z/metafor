@@ -4,7 +4,9 @@ import {
   NodeEditor,
   fitNodeEditorTransform,
   nodeEditorRegions,
+  orderNodeEditorLinksForPaint,
   planNodeEditorGrid,
+  planNodeEditorLinkHitRects,
   planNodeEditorPaintSteps,
   planNodeEditorViewport,
   validatePositionedNodeTree,
@@ -69,6 +71,8 @@ describe("generic Blender-like Node Editor contracts", () => {
     editor.setTree(tree)
     expect(editor.select({kind: "frame", id: "frame"})).toBeTrue()
     expect(editor.selection).toEqual({kind: "frame", id: "frame"})
+    expect(editor.select({kind: "link", id: "value-link"})).toBeTrue()
+    expect(editor.selection).toEqual({kind: "link", id: "value-link"})
   })
 
   test("validates exact sockets and links without Card vocabulary", () => {
@@ -148,6 +152,20 @@ describe("generic Blender-like Node Editor contracts", () => {
       {kind: "frame-foreground", frameId: "frame"},
       {kind: "node", nodeId: "source"},
       {kind: "node", nodeId: "target"},
+    ])
+  })
+
+  test("paints selected orthogonal Links last and plans bounded hit corridors", () => {
+    const second = {...tree.links[0]!, link: {...tree.links[0]!.link, id: "second-link"}}
+    const links = [tree.links[0]!, second]
+    expect(orderNodeEditorLinksForPaint(links, {kind: "link", id: "value-link"}).map(({link}) => link.id)).toEqual([
+      "second-link",
+      "value-link",
+    ])
+    expect(planNodeEditorLinkHitRects(tree.links[0]!.points, 6)).toEqual([
+      {x: 174, y: 114, w: 62, h: 12},
+      {x: 224, y: 114, w: 12, h: 22},
+      {x: 224, y: 124, w: 62, h: 12},
     ])
   })
 

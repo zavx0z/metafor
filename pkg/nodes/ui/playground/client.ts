@@ -38,6 +38,7 @@ try {
     },
   })
   editor.setTree(createCatalogNodeTree())
+  editor.select({kind: "link", id: "matrix-shader"})
 
   runtime.addSurface(fields, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).fields)
   runtime.addSurface(editor, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).editor)
