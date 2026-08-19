@@ -90,9 +90,11 @@ Editor, Socket и Blender comparison вместо одной перегруже�
 catalog не представляет input rows как Parameter.
 
 [`UI-001 — Создать playground универсальных UI Components`](tasks/UI-001.md)
-поднимает отдельный owner-local catalog text/number/slider/Switcher/enum/color/
-vector/rotation/matrix/reference/read-only Fields. Node playground больше не
-владеет standalone input examples и только импортирует components в Node.
+восстанавливает удалённый commit `0b3b0b2ca` готовый shadcn-style Components
+playground: catalog, section, preview, dock и parameters panels. Уже в этот
+interface добавляются current text/number/slider/Switcher/enum/color/vector/
+rotation/matrix/reference/read-only Fields. Node playground больше не владеет
+standalone input examples и только импортирует components в Node.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
