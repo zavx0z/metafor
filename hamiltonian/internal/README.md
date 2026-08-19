@@ -5,6 +5,9 @@
 [`@hamiltonian/release`](../release/README.md) включает согласованные packages
 в исполняемый состав.
 
+Общая карта владельцев находится в
+[корневом README Hamiltonian](../README.md#распределение-ответственности).
+
 ## Закон package
 
 Когда release требует internal-функцию:

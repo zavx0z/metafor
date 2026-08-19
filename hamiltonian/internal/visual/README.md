@@ -4,6 +4,9 @@
 namespace [`@internal/*`](../README.md). Одно функциональное имя
 объединяет все поддерживаемые env-воплощения package.
 
+Общая карта владельцев находится в
+[корневом README Hamiltonian](../../README.md#распределение-ответственности).
+
 ## Закон visual function
 
 Когда release запускает `@internal/visual` в выбранной среде:

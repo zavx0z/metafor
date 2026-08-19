@@ -5,6 +5,9 @@
 собирает `@hamiltonian/release`, [`@internal/*`](../internal/README.md) и будущие
 `@metafor/*` packages в один совместимый выпуск.
 
+Общая карта владельцев находится в
+[корневом README Hamiltonian](../README.md#распределение-ответственности).
+
 ## Закон release
 
 Когда Hamiltonian требует новый выпуск:

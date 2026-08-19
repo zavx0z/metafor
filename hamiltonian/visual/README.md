@@ -5,6 +5,9 @@
 Текущая prototype implementation и её cleanup принадлежат
 [`HAM-006`](../../project/tasks/HAM-006.md).
 
+Общая карта владельцев находится в
+[корневом README Hamiltonian](../README.md#распределение-ответственности).
+
 ## Закон visual-проекции
 
 Когда lifecycle owner публикует current declaration или message observation:
