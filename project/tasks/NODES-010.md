@@ -1,0 +1,212 @@
+# NODES-010 — Отделить карточку от ноды и поддержать две раскладки
+
+## Коротко
+
+Одна semantic topology должна отображаться разными presentation presets и
+раскладываться fixed либо adaptive policy без копирования алгоритмов. Для
+разработки и сравнения раскладок появляется лёгкий SVG playground, который не
+зависит от WebGPU, Engine или продуктового consumer.
+
+## Зачем
+
+Сейчас `NodeSystemDocument` одновременно описывает topology и конкретную Card
+Model: `title`, `summary`, `facts`, `actions`, а port обязан принадлежать
+`fact`. Одновременно public layout protocol, Worker, placement и router
+реализуют только fixed закон `source=out/EAST`, `target=in/WEST`, хотя общая
+model уже допускает `inout`, независимую visual side и обратное движение
+message marker по одному edge.
+
+Если adaptive добавить поверх этой структуры локальными условиями, Card,
+fixed/adaptive policies и routing переплетутся, оба algorithms попадут в один
+bundle, а новые presentation presets потребуют копий adapters. Требуется сначала
+исправить границы, затем реализовать второй policy через общее числовое ядро.
+
+## Связь с дорожной картой
+
+Задача продолжает универсальную node-system в разделе
+[`Наблюдаемость и управление Hamiltonian`](../ROADMAP.md#наблюдаемость-и-управление-hamiltonian).
+Она не изменяет Hamiltonian lifecycle, Bulk Node View или WebGPU Engine и не
+восстанавливает закрытую NODES-009. Продуктовая интеграция adaptive policy
+будет отдельной задачей consumer после доказательства универсального пакета.
+
+## Связанные задачи и история
+
+* Закрытая NODES-009 (`9ae82ba1d`, `9c569e9c9`, `c97afabb9`) физически
+  разделила `nodes`, `@nodes/layout`, HUD-free `@nodes/ui` и optional
+  `@nodes/hud`, но сознательно не реализовывала adaptive socket design.
+* NODES-009 сохранила один `NodeSystemDocument`, явно назвала
+  `@nodes/ui/fixed-card-layout` и доказала independent core, fixed-card и
+  custom-positioned bundles.
+* Текущая NODES-008 исправляет spacing/compaction уже существующего fixed
+  solver. NODES-010 не меняет её принятые hard laws и должна перенести их без
+  регрессии в fixed policy entrypoint.
+* Владелец 19 августа 2026 года подтвердил отделение Card Model от semantic
+  topology и потребовал лёгкий layout playground без WebGPU для fixed,
+  adaptive и экспериментальных вариантов по образцу назначения ELK Live.
+
+## Подтверждённые факты
+
+1. `NodeSystemNode` требует `title` и содержит `summary`, `tone`, `facts`,
+   `actions`; `NodeSystemPort.parameterId` обязан ссылаться на `fact`.
+2. `NodeSystemPort` уже различает capability `in | out | inout`, optional
+   `left | right`, connection type и tone; message direction существует
+   отдельно как `forward | reverse`.
+3. `LayoutGraph` не передаёт capability или side. `layout.ts` выводит их из
+   edge role, запрещает одному port быть source и target и создаёт только
+   `out/EAST` и `in/WEST` ports.
+4. `route-graph.ts` и его validator повторно закрепляют fixed endpoint law.
+5. `LayoutWorkerRequest` напрямую связан с единственным `LayoutGraph`, а
+   executor без policy boundary вызывает только `@nodes/layout.layout()`.
+6. `PositionedNodeSystemPort` содержит semantic port и center, но не содержит
+   выбранную layout policy side.
+7. `fixed-card-layout.ts` объединяет measurement, identity mapping,
+   canonicalization, row ordering, fixed endpoint enforcement, Worker вызов,
+   scoring и result materialization.
+8. Bundle baseline на Bun 1.3.14: core `3045/1044 gzip`, fixed-card
+   `96443/30476`, custom-positioned WebGPU `258292/75090` bytes.
+   Custom-positioned fixture доказывает только физическую границу Surface, а не
+   существование adaptive solver.
+9. После закрытия NODES-009 код `pkg/nodes` не менялся; задача начинает работу
+   от `625b9dfa5eb4ac8f676f569d6b61ae64a94aa961`.
+
+## Решения владельца
+
+1. `NodeSystemDocument` становится минимальной semantic/topological моделью.
+   Port принадлежит node, а не `fact` или другому Card element.
+2. Нынешние `title`, `summary`, `tone`, `facts`, `actions` сохраняются как Card
+   presentation preset/adapter в `@nodes/ui`, а не как обязательный kernel.
+3. Presentation adapter связывает semantic ports с measured anchors/rows и
+   передаёт layout только числовую geometry и side constraints.
+4. Fixed и adaptive являются независимыми policies над одним routing core.
+   Fixed закрепляет input/WEST и output/EAST; adaptive выбирает WEST/EAST для
+   `inout` по geometry.
+5. Edge source/target остаются стабильной topology identity и не подменяют
+   socket capability либо направление живого сообщения.
+6. Layout result явно возвращает resolved side каждого port; renderer её не
+   угадывает и semantic port не мутируется.
+7. Fixed consumer не загружает adaptive implementation, adaptive consumer не
+   загружает fixed policy. Общие geometry, validation, containment, routing и
+   objectives не копируются.
+8. До WebGPU/product integration создаётся отдельный dev-only SVG playground
+   над normalized measured input и public layout results. Он показывает fixed,
+   adaptive и зарегистрированные experimental variants без собственного
+   layout/routing кода.
+9. Playground не экспортируется из production package, не импортирует
+   `@nodes/ui`, `@nodes/hud`, `@metafor/engine`, Hamiltonian или Bulk и не
+   считается WebGPU/live acceptance.
+10. Card separation и playground baseline выполняются до adaptive, чтобы
+    второй policy не строился вокруг старой Card anatomy.
+
+## Целевая граница
+
+```text
+semantic NodeSystem
+        ↓
+presentation preset / content adapter
+        ↓
+measured nodes + semantic port anchors / constraints
+        ↓
+fixed | adaptive policy
+        ↓
+common placement / routing / validation
+        ↓
+PositionedNodeSystem with resolved port sides
+        ├── SVG playground
+        └── consumer Surface
+```
+
+Accepted workspace packages сохраняются. Новые algorithms подключаются
+independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а не новым
+монолитным runtime switch и не обязательными новыми workspace packages.
+
+## Подзадачи
+
+| ID | Срез | Состояние |
+| --- | --- | --- |
+| NODES-010.1 | Закрепить semantic, Card, measured и positioned contracts | IN_PROGRESS |
+| NODES-010.2 | Отделить fixed policy от общего placement/routing core | WAITING |
+| NODES-010.3 | Создать dev-only SVG playground и fixed baseline | WAITING |
+| NODES-010.4 | Реализовать bounded adaptive side-selection | WAITING |
+| NODES-010.5 | Разделить fixed/adaptive Worker и bundle entrypoints | WAITING |
+| NODES-010.6 | Доказать adapters, performance, playground и package boundary | WAITING |
+
+Каждый срез получает отдельный result checkpoint. `.2` и `.3` начинаются после
+`.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` зависит от `.4`;
+`.6` закрывает все предыдущие результаты.
+
+## Поведение процесса
+
+Задача выполняется в worktree
+`/Users/zavx0z/repozitarium/metafor-node-layot`, branch `codex/node-layot`.
+Перед каждым срезом проверяются current HEAD, эта карточка, project-файлы и
+owner documents. Новое требование, другой mechanism или product integration
+не расширяет текущий срез и получает отдельную подзадачу либо новую задачу.
+
+Первый срез меняет постоянные contracts и public types до code migration.
+Существующий fixed behavior сохраняется через compatibility adapter только
+внутри того же result; скрытый второй semantic model и временный монолитный
+barrel запрещены.
+
+## Границы
+
+* Не менять Hamiltonian, Bulk, `pkg/visual` или Engine product behavior.
+* Не переносить Card Model в kernel под новым именем.
+* Не добавлять универсальный ViewModel с необязательными UI-полями без
+  доказанной необходимости.
+* Не добавлять runtime `policy: fixed | adaptive` в entrypoint, который
+  импортирует обе implementations.
+* Не копировать router, validators, objective или containment laws между
+  policies.
+* Не выполнять неограниченный `2^N` adaptive side search. Candidates
+  группируются по exact port, детерминированно ограничиваются и проходят общий
+  hard validator.
+* Не считать playground SVG доказательством WebGPU либо consumer acceptance.
+* Не ослаблять NODES-008 spacing, exact endpoints, compound gateways,
+  determinism и routing validity.
+
+## Критерии готовности
+
+1. Semantic topology не требует Card fields, а Card preset сохраняет нынешнее
+   отображение и связывает ports с rows через adapter-owned anchors.
+2. Один semantic topology fixture совместим минимум с Card и Bare/Compact
+   presentation без фиктивных facts.
+3. Общий measured contract не содержит Card, DOM, text, WebGPU или product
+   vocabulary.
+4. Fixed public entrypoint сохраняет byte-identical geometry действующих
+   regression fixtures и не содержит adaptive implementation.
+5. Adaptive public entrypoint принимает `inout`, выбирает обе sides на разных
+   fixtures, возвращает resolved sides и не содержит fixed policy adapter.
+6. Один inout port получает одну side для всех своих edges; source/target edge
+   role не меняет capability и reverse marker движется по тому же edge.
+7. Common router/validator поддерживает resolved WEST/EAST endpoints без
+   policy-specific branches и отбрасывает hard-invalid candidates.
+8. Fixed и adaptive используют отдельные Worker executors поверх общего
+   transport lifecycle; stale generation/error/dispose contracts сохраняются.
+9. SVG playground запускает actual public policies, показывает nodes, ports,
+   resolved sides, edges, bends, gateways, bounds, diagnostics и metrics,
+   сравнивает RIGHT/DOWN и registered variants и экспортирует input/result/SVG.
+10. Playground source отсутствует в production bundles и не имеет запрещённых
+    imports.
+11. Regression builds фиксируют raw/gzip bytes core, fixed, adaptive,
+    custom-positioned и Worker consumers. Cold import/layout benchmark хранит
+    input/result hashes, samples и candidate counts.
+12. Package tests, TypeScript checks, TypeDoc, `git diff --check`, focused SVG
+    checks и полный `bun test pkg/nodes` проходят; runtime claims делаются
+    только после отдельной product проверки.
+
+## Проверка результата
+
+* public/package import graph и forbidden-symbol builds;
+* topology/Card/measured/positioned contract tests;
+* fixed frozen geometry parity;
+* adaptive microfixtures, mixed fixed/adaptive и no-legal-side witness;
+* repeat/permutation determinism;
+* Worker structured-clone and stale generation checks для обеих policies;
+* SVG structural snapshots и fixture matrix;
+* final layout benchmark по правилам `@nodes/layout`;
+* package/root typechecks и полный `bun test pkg/nodes`.
+
+## Артефакты
+
+Machine-readable benchmark, bundle measurements и принятые SVG fixtures будут
+храниться в `project/artifacts/NODES-010/` до closing cleanup.

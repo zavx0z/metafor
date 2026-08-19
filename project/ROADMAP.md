@@ -188,6 +188,15 @@ Hamiltonian-specific projection, composition, presentation и HUD собираю
 `hamiltonian/visual`; невизуальные lifecycle, control и startup остаются в
 orchestration.
 
+Semantic topology node-system не определяется конкретной Card Model. Port
+принадлежит node, а Card, Compact и другие presentation presets отдельно
+связывают semantic ports с измеренными anchors и содержимым. Layout получает
+только normalized numeric geometry и side constraints. Fixed и adaptive
+policies физически независимы, используют общий placement/routing/validation
+core и возвращают resolved side каждого port; edge source/target не подменяют
+capability либо направление живого сообщения. До product integration обе
+policies проверяются через dev-only SVG playground без WebGPU и Engine imports.
+
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
 signaling, secrets или authority и не заменяет существующие WSS, MessagePort,

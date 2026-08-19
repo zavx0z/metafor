@@ -26,6 +26,7 @@ flowchart LR
     MF421["MF-421 · деактивация невидимого monitor display"]
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
+    NODES010["NODES-010 · карточка отдельно, две раскладки"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
     UPD002["UPD-002 · клиентская сборка через Service Worker"]
@@ -70,6 +71,13 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 коммитом `b0fee1ee0`; owner review открыл NODES-008.5 для зеркального лишнего
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
 `e1b2aea50` и ожидает визуального подтверждения владельца.
+
+Параллельно в отдельном worktree выполняется
+[`NODES-010 — Отделить карточку от ноды и поддержать две раскладки`](tasks/NODES-010.md).
+Первый срез отделяет semantic topology от Card presentation и закрепляет
+normalized measured contract. Затем fixed и adaptive policies разделяются над
+общим routing core, а их geometry и варианты проверяются в dev-only SVG
+playground без WebGPU.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
@@ -269,6 +277,7 @@ production удаляет `console.debug` и не публикует карту.
 | UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
+| NODES-010 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-010.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |
