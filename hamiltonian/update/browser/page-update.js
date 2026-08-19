@@ -117,7 +117,8 @@ export class HamiltonianPageUpdateController {
   /** @param {string | null | undefined} revision */
   acceptSourceRevision(revision) {
     const currentRevision = this.#storage.getItem(SOURCE_REVISION_STORAGE_KEY)
-    if (!sourceRevisionRequiresReload(currentRevision, revision)) return false
+    if (typeof revision !== "string" ||
+      !sourceRevisionRequiresReload(currentRevision, revision)) return false
     this.#storage.setItem(SOURCE_REVISION_STORAGE_KEY, revision)
     this.#storage.setItem(MAIN_RELOAD_REASON_STORAGE_KEY, `source ${revision}`)
     this.#reloadPage()

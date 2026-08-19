@@ -43,7 +43,9 @@ describe("browser release cache controller", () => {
           expect(init).toEqual(authorizedNoStore())
           return response.clone()
         },
-        emit: (eventMessage, level) => events.push({message: eventMessage, level}),
+        emit: (eventMessage, level) => events.push(
+          level === undefined ? {message: eventMessage} : {message: eventMessage, level},
+        ),
         publish: () => {
           throw new Error("invalid manifest must not publish version-ready")
         },
@@ -69,7 +71,7 @@ describe("browser release cache controller", () => {
     const controller = createController({
       cacheStorage,
       fetchResponse: async (input, init) => {
-        fetches.push({url: String(input), init})
+        fetches.push(init === undefined ? {url: String(input)} : {url: String(input), init})
         if (String(input) === "/manifest.json") return jsonResponse(versionManifest("v1", hash))
         throw new Error("verified cache hit must not download the module")
       },
@@ -105,7 +107,9 @@ describe("browser release cache controller", () => {
             ? new Response("unavailable", {status: 502})
             : new Response("corrupted module")
         },
-        emit: (message, level) => events.push({message, level}),
+        emit: (message, level) => events.push(
+          level === undefined ? {message} : {message, level},
+        ),
         publish: () => {
           published = true
         },

@@ -22,7 +22,7 @@ export function isHamiltonianServiceWorkerRelease(value) {
     /^[0-9a-f]{64}$/.test(value.sha256)
 }
 
-/** @param {unknown} value */
+/** @param {unknown} value @returns {value is Record<string, unknown>} */
 function isRecord(value) {
   return typeof value === "object" && value !== null
 }
