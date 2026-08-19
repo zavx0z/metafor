@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {
   fitNodeEditorTransform,
+  nodeEditorRegions,
   planNodeEditorPaintSteps,
   planNodeEditorViewport,
   validatePositionedNodeTree,
@@ -83,5 +84,16 @@ describe("generic Blender-like Node Editor contracts", () => {
     expect(plan.nodes.find(({node}) => node.id === "source")?.node.title).toBe("Source")
     expect(plan.links[0]?.link.label).toBe("Value")
     expect(plan.nodes.find(({node}) => node.id === "source")?.sockets[0]?.socket.socketType).toBe("float")
+  })
+
+  test("plans toolbar and content through the shared Flexbox system", () => {
+    expect(nodeEditorRegions(800, 600, true)).toEqual({
+      toolbar: {x: 0, y: 0, w: 800, h: 38},
+      content: {x: 0, y: 38, w: 800, h: 562},
+    })
+    expect(nodeEditorRegions(800, 600, false)).toEqual({
+      toolbar: {x: 0, y: 0, w: 800, h: 0},
+      content: {x: 0, y: 0, w: 800, h: 600},
+    })
   })
 })

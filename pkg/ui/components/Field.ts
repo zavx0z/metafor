@@ -1,5 +1,5 @@
 import {Color} from "@metafor/engine"
-import {Z, palette, type UiSurface} from "@ui/elements"
+import {Z, flexColumn, flexRow, palette, type UiSurface} from "@ui/elements"
 import {Button} from "./Button.ts"
 import {Checkbox} from "./Checkbox.ts"
 import {SliderControl} from "./SliderControl.ts"
@@ -13,6 +13,8 @@ export type FieldReference = Readonly<{id: string; label: string; kind?: string}
 
 export type FieldBase = Readonly<{
   id: string
+  /** Optional render-instance identity when the same field id appears in several owners. */
+  key?: string
   label: string
   description?: string
   disabled?: boolean
@@ -131,28 +133,50 @@ export function Field(
   definition: FieldDefinition,
 ): number {
   const height = measureFieldHeight(definition)
+  if (definition.kind === "number" && definition.presentation === "slider" && definition.max !== undefined) {
+    drawNumberSlider(host, x, y, width, definition)
+    return height
+  }
   if (definition.kind === "boolean") {
     drawBooleanField(host, x, y, width, definition)
     return height
   }
-  drawFieldLabel(host, x, y, width, definition)
-  const controlY = y + LABEL_HEIGHT + FIELD_GAP
-  if (definition.kind === "text") drawTextField(host, x, controlY, width, definition)
-  else if (definition.kind === "number") drawNumberField(host, x, y, controlY, width, definition)
-  else if (definition.kind === "enum") drawEnumField(host, x, controlY, width, definition)
-  else if (definition.kind === "color") drawColorField(host, x, controlY, width, definition)
-  else if (definition.kind === "vector" || definition.kind === "rotation") {
-    drawVectorField(host, x, controlY, width, definition)
-  } else if (definition.kind === "matrix") drawMatrixField(host, x, controlY, width, definition)
-  else if (definition.kind === "reference") drawReferenceField(host, x, controlY, width, definition)
-  else drawReadonlyField(host, x, controlY, width, definition)
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: FIELD_GAP,
+    items: [
+      {height: LABEL_HEIGHT, draw: (slotX, slotY, slotW, slotH) => drawFieldLabel(host, slotX, slotY, slotW, slotH, definition)},
+      {height: "grow", draw: (slotX, slotY, slotW, slotH) => drawFieldControl(host, slotX, slotY, slotW, slotH, definition)},
+    ],
+  })
   return height
+}
+
+function drawFieldControl(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  definition: Exclude<FieldDefinition, BooleanFieldDefinition>,
+): void {
+  if (definition.kind === "text") drawTextField(host, x, y, width, height, definition)
+  else if (definition.kind === "number") drawNumberField(host, x, y, width, height, definition)
+  else if (definition.kind === "enum") drawEnumField(host, x, y, width, height, definition)
+  else if (definition.kind === "color") drawColorField(host, x, y, width, height, definition)
+  else if (definition.kind === "vector" || definition.kind === "rotation") drawVectorField(host, x, y, width, height, definition)
+  else if (definition.kind === "matrix") drawMatrixField(host, x, y, width, height, definition)
+  else if (definition.kind === "reference") drawReferenceField(host, x, y, width, height, definition)
+  else drawReadonlyField(host, x, y, width, height, definition)
 }
 
 export function measureFieldHeight(definition: FieldDefinition): number {
   if (definition.kind === "boolean") return CONTROL_HEIGHT
   if (definition.kind === "number" && definition.presentation === "slider") return 66
-  if (definition.kind === "matrix") return LABEL_HEIGHT + FIELD_GAP + matrixRows(definition.value).length * 18 + 8
+  if (definition.kind === "matrix") return LABEL_HEIGHT + FIELD_GAP + matrixRows(definition.value).length * 28
   return LABEL_HEIGHT + FIELD_GAP + CONTROL_HEIGHT
 }
 
@@ -229,52 +253,36 @@ export function normalizeMatrixFieldValue(
   }))
 }
 
-function drawFieldLabel(host: UiSurface, x: number, y: number, width: number, field: FieldBase): void {
-  Typography(host, x, y, width, LABEL_HEIGHT, {
+function drawFieldLabel(host: UiSurface, x: number, y: number, width: number, height: number, field: FieldBase): void {
+  Typography(host, x, y, width, height, {
     children: field.label,
     variant: "caption",
     color: field.disabled ? "muted" : "text",
   })
 }
 
-function drawTextField(host: UiSurface, x: number, y: number, width: number, field: TextFieldDefinition): void {
+function drawTextField(host: UiSurface, x: number, y: number, width: number, height: number, field: TextFieldDefinition): void {
   const props: Parameters<typeof TextField>[5] = {
-    key: `field:${field.id}`,
+    key: fieldKey(field),
     value: field.value,
     disabled: isFieldDisabled(field),
   }
   if (field.placeholder !== undefined) props.placeholder = field.placeholder
   if (!isFieldDisabled(field) && field.onChange !== undefined) props.onChange = (value) => field.onChange!(value)
-  TextField(host, x, y, width, CONTROL_HEIGHT, props)
+  TextField(host, x, y, width, height, props)
 }
 
 function drawNumberField(
   host: UiSurface,
   x: number,
-  fieldY: number,
-  controlY: number,
+  y: number,
   width: number,
+  height: number,
   field: NumberFieldDefinition,
 ): void {
   const value = normalizeNumberFieldValue(field.value, field)
-  if (field.presentation === "slider" && field.max !== undefined) {
-    const props: Parameters<typeof SliderControl>[4] = {
-      key: `field:${field.id}`,
-      label: field.label,
-      value,
-      max: field.max,
-      step: field.step ?? (field.numberKind === "integer" ? 1 : 0.01),
-      format: (entry) => `${entry}${field.unit ?? ""}`,
-      onChange: (entry) => {
-        if (!field.disabled && !field.readOnly) field.onChange?.(normalizeNumberFieldValue(entry, field))
-      },
-    }
-    if (field.min !== undefined) props.min = field.min
-    SliderControl(host, x, fieldY, width, props)
-    return
-  }
   const props: Parameters<typeof TextField>[5] = {
-    key: `field:${field.id}`,
+    key: fieldKey(field),
     value: `${value}${field.unit ?? ""}`,
     disabled: isFieldDisabled(field),
     submitOnEnter: true,
@@ -283,28 +291,54 @@ function drawNumberField(
       const parsed = Number(text.replace(field.unit ?? "", "").trim())
       if (Number.isFinite(parsed)) field.onChange?.(normalizeNumberFieldValue(parsed, field))
     }
-  TextField(host, x, controlY, width, CONTROL_HEIGHT, props)
+  TextField(host, x, y, width, height, props)
+}
+
+function drawNumberSlider(host: UiSurface, x: number, y: number, width: number, field: NumberFieldDefinition): void {
+  const props: Parameters<typeof SliderControl>[4] = {
+    key: fieldKey(field),
+    label: field.label,
+    value: normalizeNumberFieldValue(field.value, field),
+    max: field.max!,
+    step: field.step ?? (field.numberKind === "integer" ? 1 : 0.01),
+    format: (entry) => `${entry}${field.unit ?? ""}`,
+    onChange: (entry) => {
+      if (!isFieldDisabled(field)) field.onChange?.(normalizeNumberFieldValue(entry, field))
+    },
+  }
+  if (field.min !== undefined) props.min = field.min
+  SliderControl(host, x, y, width, props)
 }
 
 function drawBooleanField(host: UiSurface, x: number, y: number, width: number, field: BooleanFieldDefinition): void {
-  Typography(host, x, y, Math.max(1, width - 48), CONTROL_HEIGHT, {
-    children: field.label,
-    color: field.disabled ? "muted" : "text",
-  })
   const disabled = isFieldDisabled(field)
   const onChange = !disabled && field.onChange !== undefined ? (value: boolean) => field.onChange!(value) : undefined
-  if (field.presentation === "checkbox") {
-    const props: Parameters<typeof Checkbox>[5] = {checked: field.value, disabled}
-    if (onChange !== undefined) props.onChange = onChange
-    Checkbox(host, x + width - 30, y + 4, 22, 22, props)
-  } else {
-    const props: Parameters<typeof Switcher>[5] = {checked: field.value, disabled}
-    if (onChange !== undefined) props.onChange = onChange
-    Switcher(host, x + width - 44, y + 4, 38, 20, props)
-  }
+  const controlWidth = field.presentation === "checkbox" ? 24 : 40
+  flexRow({
+    x,
+    y,
+    w: width,
+    h: CONTROL_HEIGHT,
+    gap: 8,
+    alignItems: "center",
+    items: [
+      {width: "grow", height: CONTROL_HEIGHT, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, color: disabled ? "muted" : "text"})},
+      {width: controlWidth, height: 22, draw: (slotX, slotY, slotW, slotH) => {
+        if (field.presentation === "checkbox") {
+          const props: Parameters<typeof Checkbox>[5] = {checked: field.value, disabled}
+          if (onChange !== undefined) props.onChange = onChange
+          Checkbox(host, slotX, slotY, slotW, slotH, props)
+        } else {
+          const props: Parameters<typeof Switcher>[5] = {checked: field.value, disabled}
+          if (onChange !== undefined) props.onChange = onChange
+          Switcher(host, slotX, slotY, slotW, slotH, props)
+        }
+      }},
+    ],
+  })
 }
 
-function drawEnumField(host: UiSurface, x: number, y: number, width: number, field: EnumFieldDefinition): void {
+function drawEnumField(host: UiSurface, x: number, y: number, width: number, height: number, field: EnumFieldDefinition): void {
   const selected = field.options.find((option) => option.value === field.value)
   const props: Parameters<typeof Button>[5] = {
     children: selected?.label ?? field.value,
@@ -314,30 +348,41 @@ function drawEnumField(host: UiSurface, x: number, y: number, width: number, fie
   }
   const tooltip = selected?.description ?? field.description
   if (tooltip !== undefined) props.tooltip = tooltip
-  Button(host, x, y, width, CONTROL_HEIGHT, props)
+  Button(host, x, y, width, height, props)
 }
 
-function drawColorField(host: UiSurface, x: number, y: number, width: number, field: ColorFieldDefinition): void {
+function drawColorField(host: UiSurface, x: number, y: number, width: number, height: number, field: ColorFieldDefinition): void {
   const value = normalizeFieldColor(field.value)
-  const swatch = CONTROL_HEIGHT
-  host.drawRoundedRect(x, y, swatch, swatch, {
-    radius: 6,
-    fill: new Color(value.r, value.g, value.b, value.a),
-    border: palette.border,
-    borderWidth: 1,
-    z: Z.ELEMENT,
+  flexRow({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: 7,
+    alignItems: "stretch",
+    items: [
+      {width: height, height, draw: (slotX, slotY, slotW, slotH) => host.drawRoundedRect(slotX, slotY, slotW, slotH, {
+        radius: 6,
+        fill: new Color(value.r, value.g, value.b, value.a),
+        border: palette.border,
+        borderWidth: 1,
+        z: Z.ELEMENT,
+      })},
+      {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
+        const props: Parameters<typeof TextField>[5] = {
+          key: fieldKey(field),
+          value: fieldColorToHex(value),
+          disabled: isFieldDisabled(field),
+          submitOnEnter: true,
+        }
+        if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+          const parsed = parseFieldColor(text)
+          if (parsed !== null) field.onChange?.(parsed)
+        }
+        TextField(host, slotX, slotY, slotW, slotH, props)
+      }},
+    ],
   })
-  const props: Parameters<typeof TextField>[5] = {
-    key: `field:${field.id}`,
-    value: fieldColorToHex(value),
-    disabled: isFieldDisabled(field),
-    submitOnEnter: true,
-  }
-  if (!isFieldDisabled(field)) props.onSubmit = (text) => {
-      const parsed = parseFieldColor(text)
-      if (parsed !== null) field.onChange?.(parsed)
-    }
-  TextField(host, x + swatch + 7, y, Math.max(1, width - swatch - 7), CONTROL_HEIGHT, props)
 }
 
 function drawVectorField(
@@ -345,46 +390,97 @@ function drawVectorField(
   x: number,
   y: number,
   width: number,
+  height: number,
   field: VectorFieldDefinition | RotationFieldDefinition,
 ): void {
   const dimensions = field.dimensions ?? (field.value.length >= 2 && field.value.length <= 4 ? field.value.length as 2 | 3 | 4 : 3)
   const values = normalizeVectorFieldValue(field.value, dimensions, field)
   const axes = field.axes ?? (field.kind === "rotation" ? ["X°", "Y°", "Z°", "W°"] : ["X", "Y", "Z", "W"])
-  const gap = 5
-  const cellWidth = (width - gap * (dimensions - 1)) / dimensions
-  for (let index = 0; index < dimensions; index += 1) {
-    const cellX = x + index * (cellWidth + gap)
-    const axisWidth = 18
-    Typography(host, cellX, y, axisWidth, CONTROL_HEIGHT, {children: axes[index] ?? String(index), variant: "caption"})
-    const props: Parameters<typeof TextField>[5] = {
-      key: `field:${field.id}:${index}`,
-      value: String(values[index]),
-      disabled: isFieldDisabled(field),
-      submitOnEnter: true,
-    }
-    if (!isFieldDisabled(field)) props.onSubmit = (text) => {
-        const parsed = Number(text)
-        if (!Number.isFinite(parsed)) return
-        const next = [...values]
-        next[index] = normalizeNumberFieldValue(parsed, field)
-        field.onChange?.(next)
-      }
-    TextField(host, cellX + axisWidth, y, Math.max(1, cellWidth - axisWidth), CONTROL_HEIGHT, props)
-  }
+  flexRow({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: 5,
+    alignItems: "stretch",
+    items: Array.from({length: dimensions}, (_, index) => ({
+      width: "1fr" as const,
+      height,
+      draw: (cellX: number, cellY: number, cellW: number, cellH: number) => flexRow({
+        x: cellX,
+        y: cellY,
+        w: cellW,
+        h: cellH,
+        gap: 3,
+        alignItems: "stretch",
+        items: [
+          {width: 18, height: cellH, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: axes[index] ?? String(index), variant: "caption"})},
+          {width: "grow", height: cellH, draw: (slotX, slotY, slotW, slotH) => {
+            const props: Parameters<typeof TextField>[5] = {
+              key: `${fieldKey(field)}:${index}`,
+              value: String(values[index]),
+              disabled: isFieldDisabled(field),
+              submitOnEnter: true,
+            }
+            if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+              const parsed = Number(text)
+              if (!Number.isFinite(parsed)) return
+              const next = [...values]
+              next[index] = normalizeNumberFieldValue(parsed, field)
+              field.onChange?.(next)
+            }
+            TextField(host, slotX, slotY, slotW, slotH, props)
+          }},
+        ],
+      }),
+    })),
+  })
 }
 
-function drawMatrixField(host: UiSurface, x: number, y: number, width: number, field: MatrixFieldDefinition): void {
+function drawMatrixField(host: UiSurface, x: number, y: number, width: number, height: number, field: MatrixFieldDefinition): void {
   const matrix = normalizeMatrixFieldValue(field.value)
-  for (let row = 0; row < matrix.length; row += 1) {
-    Typography(host, x, y + row * 18, width, 18, {
-      children: matrix[row]!.map((value) => value.toFixed(2)).join("   "),
-      variant: "caption",
-      color: field.disabled ? "muted" : "text",
-    })
-  }
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: 4,
+    items: matrix.map((values, row) => ({
+      height: "1fr" as const,
+      draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
+        x: rowX,
+        y: rowY,
+        w: rowW,
+        h: rowH,
+        gap: 4,
+        alignItems: "stretch",
+        items: values.map((value, column) => ({
+          width: "1fr" as const,
+          height: rowH,
+          draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
+            const props: Parameters<typeof TextField>[5] = {
+              key: `${fieldKey(field)}:${row}:${column}`,
+              value: value.toFixed(2),
+              disabled: isFieldDisabled(field),
+              submitOnEnter: true,
+              fontPx: 9,
+            }
+            if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+              const parsed = Number(text)
+              if (!Number.isFinite(parsed)) return
+              const next = matrix.map((entries) => [...entries])
+              next[row]![column] = rounded(parsed)
+              field.onChange?.(next)
+            }
+            TextField(host, cellX, cellY, cellW, cellH, props)
+          },
+        })),
+      }),
+    })),
+  })
 }
 
-function drawReferenceField(host: UiSurface, x: number, y: number, width: number, field: ReferenceFieldDefinition): void {
+function drawReferenceField(host: UiSurface, x: number, y: number, width: number, height: number, field: ReferenceFieldDefinition): void {
   const props: Parameters<typeof Button>[5] = {
     children: field.value?.label ?? field.placeholder ?? "Не выбрано",
     variant: "outlined",
@@ -393,12 +489,12 @@ function drawReferenceField(host: UiSurface, x: number, y: number, width: number
   }
   const tooltip = field.value?.kind ?? field.description
   if (tooltip !== undefined) props.tooltip = tooltip
-  Button(host, x, y, width, CONTROL_HEIGHT, props)
+  Button(host, x, y, width, height, props)
 }
 
-function drawReadonlyField(host: UiSurface, x: number, y: number, width: number, field: ReadonlyFieldDefinition): void {
-  TextField(host, x, y, width, CONTROL_HEIGHT, {
-    key: `field:${field.id}`,
+function drawReadonlyField(host: UiSurface, x: number, y: number, width: number, height: number, field: ReadonlyFieldDefinition): void {
+  TextField(host, x, y, width, height, {
+    key: fieldKey(field),
     value: String(field.value),
     disabled: true,
   })
@@ -414,6 +510,10 @@ function finiteBound(value: number | undefined, fallback: number): number {
 
 function isFieldDisabled(field: FieldBase): boolean {
   return field.disabled === true || field.readOnly === true
+}
+
+function fieldKey(field: FieldBase): string {
+  return `field:${field.key ?? field.id}`
 }
 
 function clampUnit(value: number): number {

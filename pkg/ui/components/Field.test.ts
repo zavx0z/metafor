@@ -28,6 +28,12 @@ describe("universal UI fields", () => {
     ])
   })
 
+  test("allows owner-scoped render keys without changing semantic field ids", () => {
+    const field: FieldDefinition = {id: "value", key: "node-a:value", label: "Value", kind: "number", value: 1}
+    expect(field.id).toBe("value")
+    expect(field.key).toBe("node-a:value")
+  })
+
   test("normalizes finite integer, float, range and step contracts", () => {
     expect(normalizeNumberFieldValue(3.1415927)).toBe(3.141593)
     expect(normalizeNumberFieldValue(7.8, {numberKind: "integer"})).toBe(8)

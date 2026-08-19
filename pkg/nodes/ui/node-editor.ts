@@ -3,6 +3,8 @@ import {Typography} from "@ui/components"
 import {
   UiSurface,
   Z,
+  flexColumn,
+  flexRow,
   palette,
   type UiSurfaceOpts,
 } from "@ui/elements"
@@ -358,27 +360,56 @@ export class NodeEditorSurface<
   #drawToolbar(): void {
     this.drawRect(0, 0, this.rectW, TOOLBAR_HEIGHT, palette.bgToolbar, Z.ELEMENT)
     this.drawRect(0, TOOLBAR_HEIGHT - 1, this.rectW, 1, palette.borderDim, Z.SEPARATOR)
-    Typography(this, 14, 0, Math.max(1, this.rectW / 2 - 20), TOOLBAR_HEIGHT, {
-      children: this.#title,
-      variant: "caption",
-      color: "cyan",
-    })
-    Typography(this, this.rectW / 2, 0, Math.max(1, this.rectW / 2 - 14), TOOLBAR_HEIGHT, {
-      children: this.#interactionHint,
-      variant: "caption",
-      color: "muted",
-      sx: {textAlign: "right"},
+    flexRow({
+      x: 0,
+      y: 0,
+      w: this.rectW,
+      h: TOOLBAR_HEIGHT,
+      paddingX: 14,
+      gap: 12,
+      alignItems: "stretch",
+      items: [
+        {width: "1fr", height: TOOLBAR_HEIGHT, draw: (x, y, w, h) => Typography(this, x, y, w, h, {
+          children: this.#title,
+          variant: "caption",
+          color: "cyan",
+        })},
+        {width: "1fr", height: TOOLBAR_HEIGHT, draw: (x, y, w, h) => Typography(this, x, y, w, h, {
+          children: this.#interactionHint,
+          variant: "caption",
+          color: "muted",
+          sx: {textAlign: "right"},
+        })},
+      ],
     })
   }
 
   #contentRect(): NodeRect {
-    const y = this.#headerHeight()
-    return {x: 0, y, w: this.rectW, h: Math.max(1, this.rectH - y)}
+    return nodeEditorRegions(this.rectW, this.rectH, this.#toolbar).content
   }
 
   #headerHeight(): number {
-    return this.#toolbar ? TOOLBAR_HEIGHT : 0
+    return nodeEditorRegions(this.rectW, this.rectH, this.#toolbar).toolbar.h
   }
+}
+
+export function nodeEditorRegions(width: number, height: number, toolbar: boolean): Readonly<{
+  toolbar: NodeRect
+  content: NodeRect
+}> {
+  let toolbarRect: NodeRect = {x: 0, y: 0, w: width, h: 0}
+  let content: NodeRect = {x: 0, y: 0, w: width, h: height}
+  flexColumn({
+    x: 0,
+    y: 0,
+    w: width,
+    h: height,
+    items: [
+      toolbar && {height: TOOLBAR_HEIGHT, draw: (x, y, w, h) => { toolbarRect = {x, y, w, h} }},
+      {height: "grow", draw: (x, y, w, h) => { content = {x, y, w, h} }},
+    ],
+  })
+  return {toolbar: toolbarRect, content}
 }
 
 export function planNodeEditorPaintSteps<
