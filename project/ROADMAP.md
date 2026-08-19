@@ -181,8 +181,21 @@ Prototype source не переносится в новую реализацию 
 статическую документационную диаграмму.
 
 Универсальная модель и логика node-system принадлежат пакету `nodes`.
-`@nodes/ui` владеет intrinsic card measurement, viewport и renderer-компонентами,
-а `@nodes/layout` получает минимальный ELK-like `LayoutGraph` с уже измеренными
+Публичный словарь компонентной библиотеки следует Blender-подобной границе
+`NodeTree → Frame / Node → Parameter → Socket → Link`; интерактивный компонент называется
+`NodeEditor`, а read-only вариант — `NodeCanvas`. `@nodes/ui` владеет generic
+viewport/editor renderer contracts и подключаемыми Node/Socket/Link renderers.
+Прежние Card model, Card adapters и `NodeSystemSurface` не входят в новую
+границу и удаляются без compatibility aliases. Верхнеуровневые consumers не
+адаптируются к ним в этой работе: новая интеграция выполняется после отдельного
+пересмотра layout format.
+
+Универсальные поля принадлежат `@ui/components`, а не node-system: text,
+number/slider, boolean, enum, color, vector/rotation, matrix и resource reference
+используются одинаково внутри Node properties/socket defaults и в обычных
+панелях. `@nodes/ui` владеет только их размещением внутри Node preset.
+
+Действующий `@nodes/layout` пока получает минимальный ELK-like `LayoutGraph` с уже измеренными
 node sizes и port offsets, единолично вычисляет node/compound/gateway/edge
 coordinates и возвращает exact parameter-socket routes. В Hamiltonian renderer
 измеряет загруженный шрифт на main thread, а полный placement/routing выполняет
@@ -195,6 +208,45 @@ lifecycle actions остаётся у Hamiltonian.
 Hamiltonian-specific projection, composition, presentation и HUD собираются в
 `hamiltonian/visual`; невизуальные lifecycle, control и startup остаются в
 orchestration.
+
+Действующий semantic/layout contract сохраняется только как отдельная
+алгоритмическая граница до следующего этапа его переписывания. Новая component
+library не наследует его `NodeSystemDocument`, Port/Edge naming, Card rows или
+measurement format и не вводит adapter между старым и новым API. До нового
+layout integration существующие policies продолжают независимо проверяться
+через dev-only SVG playground без WebGPU и Engine imports.
+Отдельный component playground `@nodes/ui` показывает Blender-подобный catalog:
+универсальные fields standalone и внутри Node, socket type/shape presets,
+Links, containment и generic renderer boundary. Этот catalog не заменяет
+layout playground и не является product acceptance Hamiltonian.
+
+Визуальный эталон component library — настоящий локальный Blender 4.5.5 LTS,
+а не свободная стилизация по его терминологии. Canvas, Node/Frame, Socket rows,
+controls, Links и interaction states проверяются side-by-side при сопоставимом
+масштабе. Automated screenshot не является visual acceptance: завершение
+этого направления требует явного принятия владельца.
+
+Эталон не отменяет project identity: сохраняются проектный шрифт и
+ортогональные Link routes со скруглёнными углами. Blender Frame становится
+отдельным first-class component и единственным visual owner вложенности Node;
+обычная Node не подменяет Frame. Тот же Node Editor обязан работать на mobile:
+responsive Flex composition, touch pan/pinch и достаточные hit targets
+проверяются отдельно от desktop.
+
+Техническая component model расширяет Blender: одна Parameter row может иметь
+два разных exact Socket — слева и справа — при одном `parameterId` и одном
+universal Field. Visual side ограничен `left/right`, но не определяет
+`input/output/bidirectional` capability. Fixed-вариант layout может закрепить
+input слева и output справа; adaptive-вариант выбирает разрешённую сторону, не
+дублируя Parameter и не меняя endpoint identity.
+
+UI component tree материализуется как retained parent/child hierarchy
+Three.js-like engine `Object3D`. FlexBox один раз вычисляет local child slots при
+изменении content/size/style; CSS-style `%`/`fr`/`grow` является только формой
+описания того же FlexBox. Pan/zoom и другие transform-only изменения обновляют
+parent transform, а children наследуют `matrixWorld` без повторного layout и
+materialization. Visual text, icon, Socket, stroke и chrome масштабируются с
+parent; отдельный screen-space minimum допустим только невидимой hit area.
 
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,

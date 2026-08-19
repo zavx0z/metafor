@@ -1,8 +1,8 @@
 import {Color} from "@metafor/engine"
-import {Z, palette, uiIcons, type UiSurface} from "@ui/elements"
+import {Z, flexColumn, flexRow, palette, uiIcons, type UiSurface} from "@ui/elements"
 import {IconButton, type IconButtonProps} from "./Button.ts"
 
-export type SliderControlLayout = "header" | "track"
+export type SliderControlLayout = "header" | "track" | "inline"
 
 export type SliderControlTone = "text" | "muted" | "cyan"
 export type SliderControlTrackTone = "cyan" | "warm"
@@ -35,8 +35,62 @@ export type SliderControlProps = {
 
 export function SliderControl(host: UiSurface, x: number, y: number, w: number, props: SliderControlProps): number {
   const layout = props.layout ?? "header"
+  if (layout === "inline") return drawInlineLayout(host, x, y, w, props)
   if (layout === "track") return drawTrackLayout(host, x, y, w, props)
   return drawHeaderLayout(host, x, y, w, props)
+}
+
+function drawInlineLayout(host: UiSurface, x: number, y: number, w: number, props: SliderControlProps): number {
+  const bounds = sliderBounds(props)
+  const value = normalizedSliderValue(props.value, bounds.min, bounds.max)
+  const ratio = sliderRatio(value, bounds.min, bounds.max)
+  const height = props.buttonHeight ?? 22
+  const zBase = props.zBase ?? Z.ELEMENT
+  const textZ = props.textZ ?? Z.TEXT
+  host.drawRoundedRect(x, y, w, height, {
+    radius: Math.max(2, height * 0.16),
+    fill: new Color(0.235, 0.235, 0.235, 1),
+    border: new Color(0.11, 0.11, 0.11, 1),
+    borderWidth: 1,
+    z: zBase,
+  })
+  host.drawRoundedRect(x + 1, y + 1, Math.max(0, (w - 2) * ratio), Math.max(1, height - 2), {
+    radius: Math.max(1, height * 0.12),
+    fill: new Color(0.25, 0.47, 0.76, 0.92),
+    border: null,
+    z: zBase + 0.01,
+  })
+  flexRow({
+    x,
+    y,
+    w,
+    h: height,
+    paddingX: Math.max(5, height * 0.28),
+    gap: 6,
+    alignItems: "center",
+    items: [
+      {width: "grow", height, draw: (slotX, slotY, slotW) => host.drawText(props.label, slotX, slotY + (height - (props.labelFontPx ?? 11)) / 2, {
+        fontPx: props.labelFontPx ?? 11,
+        material: materialForTone(host, props.labelTone ?? "text"),
+        maxWidthPx: slotW,
+        z: textZ,
+      })},
+      {width: Math.max(40, height * 2.4), height, draw: (slotX, slotY, slotW) => host.drawText(formatSliderValue(props, value), slotX, slotY + (height - (props.valueFontPx ?? 11)) / 2, {
+        fontPx: props.valueFontPx ?? 11,
+        material: materialForTone(host, props.valueTone ?? "text"),
+        maxWidthPx: slotW,
+        z: textZ,
+      })},
+    ],
+  })
+  const setFromPointer = (localX: number): void => setSliderValue(host, props, bounds.min + ((localX - x) / Math.max(1, w)) * bounds.range, bounds.min, bounds.max)
+  host.hit(x, y, w, height, () => undefined, {
+    key: `${props.key}:inline`,
+    cursor: "pointer",
+    onPointerDown: (localX) => setFromPointer(localX),
+    onPointerMove: (localX) => setFromPointer(localX),
+  })
+  return y + height
 }
 
 function drawHeaderLayout(host: UiSurface, x: number, y: number, w: number, props: SliderControlProps): number {
@@ -45,32 +99,41 @@ function drawHeaderLayout(host: UiSurface, x: number, y: number, w: number, prop
   const ratio = sliderRatio(value, bounds.min, bounds.max)
   const zBase = props.zBase ?? Z.ELEMENT
   const textZ = props.textZ ?? Z.TEXT
-  host.drawText(props.label, x, y + 3, {
-    fontPx: props.labelFontPx ?? 10,
-    material: materialForTone(host, props.labelTone ?? "text"),
-    maxWidthPx: Math.max(1, w - 120),
-    z: textZ,
-  })
-  host.drawText(formatSliderValue(props, value), x + w - 106, y + 3, {
-    fontPx: props.valueFontPx ?? 10,
-    material: materialForTone(host, props.valueTone ?? "muted"),
-    maxWidthPx: 52,
-    z: textZ,
-  })
-
   const buttonW = props.buttonWidth ?? 24
   const buttonH = props.buttonHeight ?? 22
-  drawSliderIconButton(host, x + w - 50, y, buttonW, buttonH, props, props.downLabel ?? `${props.label}: меньше`, uiIcons.minus, value - props.step, bounds.min, bounds.max, zBase + 0.04)
-  drawSliderIconButton(host, x + w - 24, y, buttonW, buttonH, props, props.upLabel ?? `${props.label}: больше`, uiIcons.plus, value + props.step, bounds.min, bounds.max, zBase + 0.04)
-
-  const trackY = y + 28
-  drawTrack(host, x, trackY, w, ratio, zBase, props.trackTone ?? "cyan")
-  const setFromPointer = (localX: number): void => setSliderValue(host, props, bounds.min + ((localX - x) / Math.max(1, w)) * bounds.range, bounds.min, bounds.max)
-  host.hit(x - 4, y + 22, w + 8, 18, () => undefined, {
-    key: `${props.key}:track`,
-    cursor: "pointer",
-    onPointerDown: (localX) => setFromPointer(localX),
-    onPointerMove: (localX) => setFromPointer(localX),
+  flexColumn({
+    x,
+    y,
+    w,
+    h: 46,
+    gap: 6,
+    items: [
+      {height: 22, draw: (rowX, rowY, rowW, rowH) => flexRow({
+        x: rowX,
+        y: rowY,
+        w: rowW,
+        h: rowH,
+        gap: 4,
+        alignItems: "center",
+        items: [
+          {width: "grow", height: rowH, draw: (slotX, slotY, slotW) => host.drawText(props.label, slotX, slotY + 3, {
+            fontPx: props.labelFontPx ?? 10,
+            material: materialForTone(host, props.labelTone ?? "text"),
+            maxWidthPx: Math.max(1, slotW),
+            z: textZ,
+          })},
+          {width: 52, height: rowH, draw: (slotX, slotY, slotW) => host.drawText(formatSliderValue(props, value), slotX, slotY + 3, {
+            fontPx: props.valueFontPx ?? 10,
+            material: materialForTone(host, props.valueTone ?? "muted"),
+            maxWidthPx: slotW,
+            z: textZ,
+          })},
+          {width: buttonW, height: buttonH, draw: (slotX, slotY, slotW, slotH) => drawSliderIconButton(host, slotX, slotY, slotW, slotH, props, props.downLabel ?? `${props.label}: меньше`, uiIcons.minus, value - props.step, bounds.min, bounds.max, zBase + 0.04)},
+          {width: buttonW, height: buttonH, draw: (slotX, slotY, slotW, slotH) => drawSliderIconButton(host, slotX, slotY, slotW, slotH, props, props.upLabel ?? `${props.label}: больше`, uiIcons.plus, value + props.step, bounds.min, bounds.max, zBase + 0.04)},
+        ],
+      })},
+      {height: 18, draw: (trackX, trackY, trackW, trackH) => drawInteractiveTrack(host, trackX, trackY, trackW, trackH, ratio, props, bounds, zBase)},
+    ],
   })
   return y + 46
 }
@@ -81,69 +144,99 @@ function drawTrackLayout(host: UiSurface, x: number, y: number, w: number, props
   const ratio = sliderRatio(value, bounds.min, bounds.max)
   const zBase = props.zBase ?? 0.16
   const textZ = props.textZ ?? 0.46
-  host.drawText(props.label, x, y, {
-    fontPx: props.labelFontPx ?? 9,
-    material: materialForTone(host, props.labelTone ?? "muted"),
-    maxWidthPx: Math.max(1, w - 52),
-    z: textZ,
-  })
-  host.drawText(formatSliderValue(props, value), x + w - 45, y, {
-    fontPx: props.valueFontPx ?? 9,
-    material: materialForTone(host, props.valueTone ?? "text"),
-    maxWidthPx: 45,
-    z: textZ,
-  })
-
-  const rowY = y + (props.hintLabel === undefined ? 16 : 30)
-  if (props.hintLabel !== undefined) {
-    host.drawText(props.hintLabel, x, y + 14, {
-      fontPx: 8,
-      material: host.materials.muted,
-      maxWidthPx: Math.max(1, w),
-      z: textZ,
-    })
-  }
-
   const buttonW = props.buttonWidth ?? 28
   const buttonH = props.buttonHeight ?? 22
-  drawSliderIconButton(host, x, rowY, buttonW, buttonH, props, props.downLabel ?? `${props.label}: меньше`, uiIcons.minus, value - props.step, bounds.min, bounds.max, zBase + 0.04)
-  drawSliderIconButton(host, x + w - buttonW, rowY, buttonW, buttonH, props, props.upLabel ?? `${props.label}: больше`, uiIcons.plus, value + props.step, bounds.min, bounds.max, zBase + 0.04)
+  const hasHint = props.hintLabel !== undefined
+  const hasRange = props.rangeStartLabel !== undefined || props.rangeEndLabel !== undefined
+  const totalHeight = 14 + (hasHint ? 14 : 0) + 4 + 22 + (hasRange ? 17 : 0)
+  flexColumn({
+    x,
+    y,
+    w,
+    h: totalHeight,
+    gap: 0,
+    items: [
+      {height: 14, draw: (rowX, rowY, rowW, rowH) => flexRow({
+        x: rowX,
+        y: rowY,
+        w: rowW,
+        h: rowH,
+        gap: 6,
+        items: [
+          {width: "grow", height: rowH, draw: (slotX, slotY, slotW) => host.drawText(props.label, slotX, slotY, {
+            fontPx: props.labelFontPx ?? 9,
+            material: materialForTone(host, props.labelTone ?? "muted"),
+            maxWidthPx: Math.max(1, slotW),
+            z: textZ,
+          })},
+          {width: 45, height: rowH, draw: (slotX, slotY, slotW) => host.drawText(formatSliderValue(props, value), slotX, slotY, {
+            fontPx: props.valueFontPx ?? 9,
+            material: materialForTone(host, props.valueTone ?? "text"),
+            maxWidthPx: slotW,
+            z: textZ,
+          })},
+        ],
+      })},
+      hasHint && {height: 14, draw: (slotX, slotY, slotW) => host.drawText(props.hintLabel!, slotX, slotY, {
+        fontPx: 8,
+        material: host.materials.muted,
+        maxWidthPx: slotW,
+        z: textZ,
+      })},
+      {height: 4, draw: () => {}},
+      {height: 22, draw: (rowX, rowY, rowW, rowH) => flexRow({
+        x: rowX,
+        y: rowY,
+        w: rowW,
+        h: rowH,
+        gap: 10,
+        alignItems: "center",
+        items: [
+          {width: buttonW, height: buttonH, draw: (slotX, slotY, slotW, slotH) => drawSliderIconButton(host, slotX, slotY, slotW, slotH, props, props.downLabel ?? `${props.label}: меньше`, uiIcons.minus, value - props.step, bounds.min, bounds.max, zBase + 0.04)},
+          {width: "grow", height: rowH, draw: (trackX, trackY, trackW, trackH) => drawInteractiveTrack(host, trackX, trackY, trackW, trackH, ratio, props, bounds, zBase, true)},
+          {width: buttonW, height: buttonH, draw: (slotX, slotY, slotW, slotH) => drawSliderIconButton(host, slotX, slotY, slotW, slotH, props, props.upLabel ?? `${props.label}: больше`, uiIcons.plus, value + props.step, bounds.min, bounds.max, zBase + 0.04)},
+        ],
+      })},
+      hasRange && {height: 17, draw: (rowX, rowY, rowW, rowH) => flexRow({
+        x: rowX,
+        y: rowY,
+        w: rowW,
+        h: rowH,
+        gap: 8,
+        items: [
+          {width: "grow", height: rowH, draw: (slotX, slotY, slotW) => props.rangeStartLabel === undefined ? undefined : host.drawText(props.rangeStartLabel, slotX, slotY, {fontPx: 8, material: host.materials.muted, maxWidthPx: slotW, z: textZ})},
+          {width: "grow", height: rowH, draw: (slotX, slotY, slotW) => props.rangeEndLabel === undefined ? undefined : host.drawText(props.rangeEndLabel, slotX, slotY, {fontPx: 8, material: host.materials.muted, maxWidthPx: slotW, z: textZ})},
+        ],
+      })},
+    ],
+  })
+  return y + totalHeight
+}
 
-  const trackX = x + buttonW + 10
-  const trackW = Math.max(1, w - buttonW * 2 - 20)
-  const trackY = rowY + 8
-  drawTrack(host, trackX, trackY, trackW, ratio, zBase, props.trackTone ?? "cyan")
-  for (const tick of [0, 0.25, 0.5, 0.75, 1]) {
-    host.drawRect(trackX + trackW * tick, trackY + 10, 1, 3, fade(palette.borderDim, 0.68), zBase + 0.02)
+function drawInteractiveTrack(
+  host: UiSurface,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  ratio: number,
+  props: SliderControlProps,
+  bounds: {min: number; max: number; range: number},
+  zBase: number,
+  ticks = false,
+): void {
+  const trackY = y + (h - 5) / 2
+  drawTrack(host, x, trackY, w, ratio, zBase, props.trackTone ?? "cyan")
+  if (ticks) for (const tick of [0, 0.25, 0.5, 0.75, 1]) {
+    host.drawRect(x + w * tick, trackY + 8, 1, 3, fade(palette.borderDim, 0.68), zBase + 0.02)
   }
-  if (props.rangeStartLabel !== undefined || props.rangeEndLabel !== undefined) {
-    const labelY = rowY + 27
-    if (props.rangeStartLabel !== undefined) {
-      host.drawText(props.rangeStartLabel, trackX, labelY, {
-        fontPx: 8,
-        material: host.materials.muted,
-        maxWidthPx: Math.max(1, trackW / 2 - 4),
-        z: textZ,
-      })
-    }
-    if (props.rangeEndLabel !== undefined) {
-      const endW = Math.max(1, trackW / 2 - 4)
-      host.drawText(props.rangeEndLabel, trackX + trackW - endW, labelY, {
-        fontPx: 8,
-        material: host.materials.muted,
-        maxWidthPx: endW,
-        z: textZ,
-      })
-    }
-  }
-  const setFromPointer = (localX: number): void => setSliderValue(host, props, bounds.min + ((localX - trackX) / trackW) * bounds.range, bounds.min, bounds.max)
-  host.hit(trackX - 4, rowY, trackW + 8, 22, () => undefined, {
+  const setFromPointer = (localX: number): void => setSliderValue(host, props, bounds.min + ((localX - x) / Math.max(1, w)) * bounds.range, bounds.min, bounds.max)
+  host.hit(x - 4, y, w + 8, h, () => undefined, {
     key: `${props.key}:track`,
     cursor: "pointer",
     onPointerDown: (localX) => setFromPointer(localX),
     onPointerMove: (localX) => setFromPointer(localX),
   })
-  return rowY + (props.rangeStartLabel === undefined && props.rangeEndLabel === undefined ? 22 : 39)
 }
 
 function drawSliderIconButton(

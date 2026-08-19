@@ -8,6 +8,7 @@ placement, размеры compound-контейнеров, gateways и орто�
 Алгоритмические требования разделены по режимам:
 
 * [общие законы](requirements/COMMON.md);
+* [adaptive side-selection](requirements/ADAPTIVE.md);
 * [горизонтальная раскладка `RIGHT`](requirements/RIGHT.md);
 * [вертикальная раскладка `DOWN`](requirements/DOWN.md).
 
@@ -16,6 +17,25 @@ Worker, UI, управление видом и traffic presentation не при�
 
 Layout ничего не знает о тексте карточки, Flex, `NodeSystemDocument`, DOM,
 WebGPU, конкретном consumer или способе отображения результата.
+
+## Policies и общий solver
+
+`@nodes/layout/fixed` является узким public entrypoint действующей fixed policy:
+он разрешает каждый source-port в `EAST`, target-port в `WEST`, отклоняет один
+port в обеих ролях и только затем передаёт graph общему solver. Корневой
+`layout` остаётся compatibility alias `layoutFixed`.
+
+`@nodes/layout/adaptive` является независимым public entrypoint. Его measured
+port явно содержит capability и непустые `allowedSides`. Одна сторона является
+fixed constraint, две — bounded adaptive choice; один exact port получает одну
+side для всех своих edges. Policy рассматривает не более `16` устойчивых
+assignments, а каждый candidate передаёт тому же общему solver и сравнивает по
+его routing-first objective. Полного `2^N` search и fixed fallback нет.
+
+Общий placement/routing/validation core получает `ResolvedLayoutGraph`, где у
+каждого measured port уже есть одна сторона `WEST | EAST`. Он не читает и не
+выводит socket capability. Обе policies переиспользуют geometry laws без
+копирования router и validators.
 
 ## Протокол
 
@@ -54,16 +74,16 @@ type LayoutGraph = {
 ```
 
 Все числа во внешнем протоколе — логические пиксели. Внутреннее целочисленное
-представление является деталью алгоритма и не входит в public API. Сторона и
-направление порта тоже не передаются: роль edge однозначно задаёт source=EAST и
-target=WEST.
+представление является деталью алгоритма и не входит в public API. Fixed input
+не передаёт сторону: её явно разрешает fixed policy. Общий resolved contract
+содержит только выбранную `WEST`/`EAST` сторону, но не capability `in/out/inout`.
 
 `LayoutResult` содержит только:
 
 * `direction` — `RIGHT` для landscape/square и `DOWN` для portrait;
 * `bounds`;
 * окончательные `x/y/width/height` каждой ноды и compound;
-* абсолютные `x/y` исходных портов;
+* абсолютные `x/y` и resolved side исходных портов;
 * один ортогональный `section` каждого semantic edge.
 
 Исходный graph, текст, UI-состояние и внутренние поисковые метрики в ответ не
@@ -72,9 +92,9 @@ target=WEST.
 ## Синхронный вызов
 
 ```ts
-import {layout, type LayoutGraph} from "@nodes/layout"
+import {layoutFixed, type FixedLayoutGraph} from "@nodes/layout/fixed"
 
-const graph: LayoutGraph = {
+const graph: FixedLayoutGraph = {
   viewport: {width: 900, height: 600},
   nodes: [
     {id: "source", width: 180, height: 100},
@@ -91,11 +111,35 @@ const graph: LayoutGraph = {
   }],
 }
 
-const result = layout(graph)
+const result = layoutFixed(graph)
 ```
 
 Синхронная pure function нужна для offline tests и других небраузерных
 потребителей. Она не использует Worker и не имеет side effects.
+
+Adaptive consumer импортирует отдельный entrypoint:
+
+```ts
+import {layoutAdaptiveWithDiagnostics} from "@nodes/layout/adaptive"
+
+const {result, diagnostics} = layoutAdaptiveWithDiagnostics({
+  viewport: {width: 900, height: 600},
+  nodes: [
+    {id: "source", width: 180, height: 100},
+    {id: "target", width: 180, height: 100},
+  ],
+  ports: [
+    {id: "source/io", nodeId: "source", y: 72, capability: "inout", allowedSides: ["WEST", "EAST"]},
+    {id: "target/in", nodeId: "target", y: 72, capability: "in", allowedSides: ["WEST"]},
+  ],
+  edges: [{id: "message", sourcePortId: "source/io", targetPortId: "target/in"}],
+})
+```
+
+Diagnostics не входят в `LayoutResult`: production consumer может вызвать
+`layoutAdaptive`, а playground и benchmark получают candidate counts через
+явный диагностический вызов. Невозможный выбор возвращает
+`AdaptiveLayoutError` с machine-readable witness.
 
 ## Минимизация пересечений
 
@@ -168,7 +212,8 @@ compound corridor и каждого фактического межслойно�
 
 Общие hard laws и порядок оптимизации принадлежат
 [`requirements/COMMON.md`](requirements/COMMON.md). Responsive-правила находятся
-отдельно в [`RIGHT.md`](requirements/RIGHT.md) и
+отдельно в [`ADAPTIVE.md`](requirements/ADAPTIVE.md),
+[`RIGHT.md`](requirements/RIGHT.md) и
 [`DOWN.md`](requirements/DOWN.md). Интеграция и Worker принадлежат
 [`nodes`](../REQUIREMENTS.md), а renderer/view —
 [`@nodes/ui`](../ui/REQUIREMENTS.md).
@@ -186,7 +231,19 @@ bun run docs:layout
 ```bash
 bun test pkg/nodes/layout/src
 bun run --cwd pkg/nodes/layout typecheck
+bun run --cwd pkg/nodes/layout typecheck:playground
 ```
+
+Лёгкий dev-only SVG playground запускается из корня репозитория:
+
+```bash
+bun run nodes:playground
+```
+
+Он вызывает public fixed/adaptive entrypoints через private registry,
+сравнивает `RIGHT`/`DOWN` fixtures и показывает готовую geometry без Card,
+WebGPU, HUD и product renderer. Playground не экспортируется из package и не
+заменяет runtime-проверку consumer.
 
 ## Обязательный benchmark перед REVIEW
 
@@ -200,7 +257,7 @@ objectives или поисковый бюджет, готова к перево�
 1. Запускает один final benchmark на принятых frozen `RIGHT` и `DOWN` inputs.
 2. Сохраняет machine-readable result в
    `project/artifacts/<ID>/benchmark-current.json`. Результат содержит все
-   samples, min/median/max, hashes inputs и geometry, runtime environment и
+   samples, min/median/p95/max, hashes inputs и geometry, runtime environment и
    точную Git revision или hash изменённого layout source.
 3. Записывает итоговые числа и ссылку на artifact в карточке задачи.
 4. Включает код, final benchmark и обязательную документацию в result-коммит,

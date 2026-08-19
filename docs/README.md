@@ -41,6 +41,13 @@
   один полный Bulk scene snapshot.
 * [Engine](../pkg/engine/CONTRACT.md) — координаты и единицы сцены, правила
   обычных и скелетных mesh и материалы renderer.
+* [UI elements](../pkg/ui/elements/REQUIREMENTS.md) — обязательный Flex-закон
+  всей UI-композиции и граница низкоуровневого drawing.
+* [UI components](../pkg/ui/components/REQUIREMENTS.md) — универсальные
+  WebGPU-поля и составные controls, пригодные внутри node editor и вне него.
+* [UI playground](../pkg/ui/playground/REQUIREMENTS.md) — общий typed router,
+  historical five-panel FlexBox shell и no-HMR dev lifecycle для package-owned
+  playground без consumer semantics.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
@@ -50,12 +57,15 @@
   Владельцы пакетов: [`@hamiltonian/startup`](../hamiltonian/startup/README.md),
   [`@hamiltonian/release`](../hamiltonian/release/README.md),
   [`@internal/visual`](../hamiltonian/internal/visual/README.md).
-* [Node system](../pkg/nodes/README.md) — универсальная model/geometry граница,
-  минимальная раскладка `@nodes/layout`, HUD-free renderer `@nodes/ui` и
-  необязательная HUD-интеграция `@nodes/hud`. Model и Worker transport
-  принадлежат [`nodes`](../pkg/nodes/REQUIREMENTS.md), fixed card adapter,
-  отображение и view — [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), а алгоритмические законы
+* [Node system](../pkg/nodes/README.md) — Blender-подобная компонентная
+  библиотека `NodeTree → Frame / Node → Parameter → Socket → Link`, universal
+  fields и отдельно сохранённое layout-ядро `@nodes/layout`. Node Editor и его
+  FlexBox/view законы
+  принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), временная
+  semantic/measured/Worker граница — [`nodes`](../pkg/nodes/REQUIREMENTS.md),
+  а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
+  [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),
   [`RIGHT`](../pkg/nodes/layout/requirements/RIGHT.md) и
   [`DOWN`](../pkg/nodes/layout/requirements/DOWN.md).
 * [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте

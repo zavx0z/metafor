@@ -11,13 +11,23 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./fixed": {
+      "types": "./src/fixed.ts",
+      "default": "./src/fixed.ts"
+    },
+    "./adaptive": {
+      "types": "./src/adaptive.ts",
+      "default": "./src/adaptive.ts"
+    },
     "./types": {
       "types": "./types/index.ts",
       "default": "./types/index.ts"
     }
   },
   "scripts": {
+    "playground": "bun playground/server.ts",
     "typecheck": "tsc --noEmit --pretty false",
+    "typecheck:playground": "tsc --noEmit --pretty false --project playground/tsconfig.json",
     "build:docs": "typedoc --options typedoc.json"
   }
 }

@@ -17,7 +17,6 @@
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
-    "@nodes/hud": "workspace:*",
     "@nodes/ui": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",

@@ -1,6 +1,6 @@
 import type {
-  LayoutGraph,
   LayoutResult,
+  ResolvedLayoutGraph,
 } from "../types/protocol.ts"
 import type {EngineResult} from "../types/engine.ts"
 import type {PlacementInput, PlacementResult} from "../types/placement.ts"
@@ -13,34 +13,59 @@ const DEFAULT_SPACING = 28
 const MAX_ROUTED_PLACEMENTS = 8
 const MAX_FALLBACK_ROUTED_PLACEMENTS = 24
 
+/** Internal policy-facing evaluation used to compare resolved side candidates. */
+export type ResolvedLayoutEvaluation = Readonly<{
+  result: LayoutResult
+  engine: EngineResult
+}>
+
 /**
- * Вычисляет всю геометрию graph: placement, compound compaction и routing.
+ * Вычисляет всю геометрию graph с уже выбранными сторонами портов: placement,
+ * compound compaction и routing.
  * Функция синхронна, детерминирована и не обращается к DOM, Worker или времени.
  *
- * @param graph - Уже измеренный ELK-like graph. Все размеры и offsets задаются
- * в логических пикселях и должны быть конечными положительными числами.
+ * @param graph - Уже измеренный policy result. Все размеры и offsets задаются
+ * в логических пикселях, а каждый port содержит resolved `WEST`/`EAST` side.
  * @returns Геометрию в логических пикселях с одним route section на edge.
  * @throws Если graph противоречив или для него не существует законной геометрии.
  *
  * @example
  * ```ts
- * const result = layout({
+ * const result = layoutResolved({
  *   viewport: {width: 900, height: 600},
  *   nodes: [
  *     {id: "source", width: 180, height: 100},
  *     {id: "target", width: 180, height: 100},
  *   ],
  *   ports: [
- *     {id: "source/out", nodeId: "source", y: 72},
- *     {id: "target/in", nodeId: "target", y: 72},
+ *     {id: "source/out", nodeId: "source", y: 72, side: "EAST"},
+ *     {id: "target/in", nodeId: "target", y: 72, side: "WEST"},
  *   ],
  *   edges: [{id: "message", sourcePortId: "source/out", targetPortId: "target/in"}],
  * })
  * ```
  */
-export function layout(graph: LayoutGraph): LayoutResult {
+export function layoutResolved(graph: ResolvedLayoutGraph): LayoutResult {
   const input = toPlacementInput(graph)
   return toLayoutResult(layoutEngine(input))
+}
+
+/** Runs the common solver while retaining its existing objective metrics. */
+export function evaluateResolvedLayout(graph: ResolvedLayoutGraph): ResolvedLayoutEvaluation {
+  const input = toPlacementInput(graph)
+  const engine = layoutEngine(input)
+  return {result: toLayoutResult(engine), engine}
+}
+
+/**
+ * Compares two already legal common-solver outcomes by the routing-first
+ * objective. Policies use this instead of recreating scoring from geometry.
+ */
+export function compareResolvedLayoutEvaluations(
+  left: ResolvedLayoutEvaluation,
+  right: ResolvedLayoutEvaluation,
+): number {
+  return compareEngineQuality(left.engine, right.engine, compareFinalPlacementQuality)
 }
 
 function layoutEngine(input: PlacementInput): EngineResult {
@@ -205,6 +230,55 @@ function layoutEngine(input: PlacementInput): EngineResult {
     `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
     (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
   )
+}
+
+function compareEngineQuality(
+  left: EngineResult,
+  right: EngineResult,
+  comparePlacement: (left: PlacementResult, right: PlacementResult) => number,
+): number {
+  const leftMetrics = left.routing.metrics
+  const rightMetrics = right.routing.metrics
+  const primary = leftMetrics.crossings - rightMetrics.crossings ||
+    leftMetrics.maxCrossings - rightMetrics.maxCrossings ||
+    leftMetrics.totalTurns - rightMetrics.totalTurns ||
+    leftMetrics.maxTurns - rightMetrics.maxTurns ||
+    left.placement.metrics.sourceCorridorDeficit - right.placement.metrics.sourceCorridorDeficit ||
+    leftMetrics.totalManhattan - rightMetrics.totalManhattan ||
+    leftMetrics.maxManhattan - rightMetrics.maxManhattan ||
+    leftMetrics.maxDetour - rightMetrics.maxDetour
+  if (primary !== 0) return primary
+  const leftDetours = [...leftMetrics.perEdge]
+    .sort((a, b) => compareIds(a.edgeId, b.edgeId)).map(({detour}) => detour)
+  const rightDetours = [...rightMetrics.perEdge]
+    .sort((a, b) => compareIds(a.edgeId, b.edgeId)).map(({detour}) => detour)
+  for (let index = 0; index < Math.max(leftDetours.length, rightDetours.length); index += 1) {
+    const difference = (leftDetours[index] ?? 0) - (rightDetours[index] ?? 0)
+    if (difference !== 0) return difference
+  }
+  return comparePlacement(left.placement, right.placement) ||
+    leftMetrics.clearanceVariance - rightMetrics.clearanceVariance ||
+    compareIds(stablePlacementKey(left.placement), stablePlacementKey(right.placement))
+}
+
+function compareFinalPlacementQuality(left: PlacementResult, right: PlacementResult): number {
+  if (left.direction === "RIGHT" && right.direction === "RIGHT") return 0
+  if (left.metrics.displayEmptyRatio !== right.metrics.displayEmptyRatio) {
+    return left.metrics.displayEmptyRatio - right.metrics.displayEmptyRatio
+  }
+  if (left.metrics.compoundEmptyRatio !== right.metrics.compoundEmptyRatio) {
+    return left.metrics.compoundEmptyRatio - right.metrics.compoundEmptyRatio
+  }
+  if (left.metrics.fitScale !== right.metrics.fitScale) {
+    return right.metrics.fitScale - left.metrics.fitScale
+  }
+  const leftArea = left.bounds.w * left.bounds.h
+  const rightArea = right.bounds.w * right.bounds.h
+  return leftArea - rightArea
+}
+
+function stablePlacementKey(placement: PlacementResult): string {
+  return JSON.stringify({nodes: placement.nodes, ports: placement.ports, bounds: placement.bounds})
 }
 
 function compactSourceTerminalTracks(
@@ -1199,7 +1273,12 @@ function measureCompactedPlacement(
     return total + entries.reduce((sum, {sourceId, targetId}) => {
       const source = portById.get(sourceId)!
       const target = portById.get(targetId)!
-      return sum + Math.max(0, source.center.x + requiredRunway - target.center.x)
+      return sum + sourceRunwayDeficit(
+        source.center.x,
+        target.center.x,
+        source.side,
+        requiredRunway,
+      )
     }, 0)
   }, 0)
   return {
@@ -1210,6 +1289,17 @@ function measureCompactedPlacement(
     maxCompoundEmptyRatio: Math.max(0, ...compoundEmptyRatios),
     sourceCorridorDeficit,
   }
+}
+
+function sourceRunwayDeficit(
+  sourceX: number,
+  targetX: number,
+  side: "WEST" | "EAST",
+  requiredRunway: number,
+): number {
+  return side === "EAST"
+    ? Math.max(0, sourceX + requiredRunway - targetX)
+    : Math.max(0, targetX + requiredRunway - sourceX)
 }
 
 function findUnusedCompoundBottomReserves(
@@ -1327,17 +1417,14 @@ function boundedPlacements(
   return [...selected].sort((left, right) => left - right).map((index) => ordered[index]!)
 }
 
-function toPlacementInput(graph: LayoutGraph): PlacementInput {
+function toPlacementInput(graph: ResolvedLayoutGraph): PlacementInput {
   const spacing = positive(graph.layoutOptions?.spacing, DEFAULT_SPACING, "spacing")
   const clearance = positive(graph.layoutOptions?.clearance, spacing, "clearance")
   const padding = positive(graph.layoutOptions?.padding, spacing, "padding")
   const layerSpacing = Math.max(positive(graph.layoutOptions?.layerSpacing, spacing, "layerSpacing"), clearance)
   const portById = new Map(graph.ports.map((port) => [port.id, port]))
   if (portById.size !== graph.ports.length) throw new Error("Layout port ids must be globally unique")
-  const roles = new Map<string, "in" | "out">()
   for (const edge of graph.edges) {
-    setPortRole(roles, edge.sourcePortId, "out", edge.id)
-    setPortRole(roles, edge.targetPortId, "in", edge.id)
     if (!portById.has(edge.sourcePortId)) throw new Error(`Unknown source port: ${edge.id}/${edge.sourcePortId}`)
     if (!portById.has(edge.targetPortId)) throw new Error(`Unknown target port: ${edge.id}/${edge.targetPortId}`)
   }
@@ -1363,17 +1450,12 @@ function toPlacementInput(graph: LayoutGraph): PlacementInput {
         contentHeight,
       }
     }),
-    ports: graph.ports.flatMap((port) => {
-      const direction = roles.get(port.id)
-      if (direction === undefined) return []
-      return [{
-        id: port.id,
-        nodeId: port.nodeId,
-        offsetY: scaled(port.y),
-        side: direction === "out" ? "EAST" as const : "WEST" as const,
-        direction,
-      }]
-    }),
+    ports: graph.ports.map((port) => ({
+      id: port.id,
+      nodeId: port.nodeId,
+      offsetY: scaled(port.y),
+      side: port.side,
+    })),
     edges: graph.edges.map((edge) => ({
       id: edge.id,
       sourcePortId: edge.sourcePortId,
@@ -1391,6 +1473,7 @@ function toLayoutResult(result: EngineResult): LayoutResult {
       id: port.id,
       x: pixels(port.center.x),
       y: pixels(port.center.y),
+      side: port.side,
     })),
     edges: result.routing.sections.map((section) => ({
       id: section.edgeId,
@@ -1401,12 +1484,6 @@ function toLayoutResult(result: EngineResult): LayoutResult {
       }],
     })),
   }
-}
-
-function setPortRole(roles: Map<string, "in" | "out">, portId: string, role: "in" | "out", edgeId: string): void {
-  const previous = roles.get(portId)
-  if (previous !== undefined && previous !== role) throw new Error(`Port has conflicting edge roles: ${edgeId}/${portId}`)
-  roles.set(portId, role)
 }
 
 function positive(value: number | undefined, fallback: number | undefined, label: string): number {

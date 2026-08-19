@@ -1,22 +1,22 @@
 import {
-  runLayoutWorkerRequest,
-} from "nodes/layout-worker"
+  runFixedLayoutWorkerRequest,
+} from "nodes/layout-worker/fixed/executor"
 import type {
-  LayoutWorkerRequest,
-  LayoutWorkerResponse,
+  FixedLayoutWorkerRequest,
+  FixedLayoutWorkerResponse,
 } from "nodes/types"
 
 type LayoutWorkerScope = Readonly<{
   addEventListener(
     type: "message",
-    listener: (event: MessageEvent<LayoutWorkerRequest>) => void,
+    listener: (event: MessageEvent<FixedLayoutWorkerRequest>) => void,
   ): void
-  postMessage(message: LayoutWorkerResponse): void
+  postMessage(message: FixedLayoutWorkerResponse): void
 }>
 
 const scope = globalThis as unknown as LayoutWorkerScope
 
 scope.addEventListener("message", (event) => {
   if (event.data?.type !== "layout") return
-  scope.postMessage(runLayoutWorkerRequest(event.data))
+  scope.postMessage(runFixedLayoutWorkerRequest(event.data))
 })

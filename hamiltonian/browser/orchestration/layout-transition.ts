@@ -1,10 +1,12 @@
 import type {
   NodeSystemPoint,
   NodeSystemRect,
-  PositionedNodeSystem,
-  PositionedNodeSystemEdge,
-  PositionedNodeSystemNode,
 } from "nodes/types"
+import type {
+  PositionedNodeSystemCard,
+  PositionedNodeSystemCardEdge,
+  PositionedNodeSystemCardNode,
+} from "@nodes/ui/card-model"
 
 export const HAMILTONIAN_LAYOUT_TRANSITION_MS = 320
 
@@ -14,8 +16,8 @@ export const HAMILTONIAN_LAYOUT_TRANSITION_MS = 320
  * still replaced in the document, but it is not a reason to move the canvas.
  */
 export function hamiltonianLayoutGeometryChanged(
-  previous: PositionedNodeSystem,
-  target: PositionedNodeSystem,
+  previous: PositionedNodeSystemCard,
+  target: PositionedNodeSystemCard,
 ): boolean {
   if (!sameRect(previous.bounds, target.bounds) || previous.nodes.length !== target.nodes.length) return true
   return previous.nodes.some((entry, index) => !sameRect(entry.rect, target.nodes[index]!.rect))
@@ -27,17 +29,17 @@ export function hamiltonianLayoutGeometryChanged(
  * layout; removed nodes are absent because the owner event has ended them.
  */
 export function interpolateHamiltonianNodePositions(
-  previous: PositionedNodeSystem,
-  target: PositionedNodeSystem,
+  previous: PositionedNodeSystemCard,
+  target: PositionedNodeSystemCard,
   progress: number,
-): PositionedNodeSystem {
+): PositionedNodeSystemCard {
   const t = Math.min(1, Math.max(0, progress))
   if (t >= 1) return target
   const previousById = new Map(previous.nodes.map((entry) => [entry.node.id, entry.rect]))
   const previousNodeById = new Map(previous.nodes.map((entry) => [entry.node.id, entry]))
   const targetNodeById = new Map(target.nodes.map((entry) => [entry.node.id, entry]))
   const startRects = new Map<string, NodeSystemRect>()
-  const startRect = (entry: PositionedNodeSystemNode): NodeSystemRect => {
+  const startRect = (entry: PositionedNodeSystemCardNode): NodeSystemRect => {
     const retained = startRects.get(entry.node.id)
     if (retained !== undefined) return retained
     const previousEntry = previousNodeById.get(entry.node.id)
@@ -60,22 +62,22 @@ export function interpolateHamiltonianNodePositions(
     return mapped
   }
 
-  const nodes = target.nodes.map((entry): PositionedNodeSystemNode => {
+  const nodes = target.nodes.map((entry): PositionedNodeSystemCardNode => {
     const before = startRect(entry)
     const rect = interpolateRect(before, entry.rect, t)
     const previousEntry = previousNodeById.get(entry.node.id)
     return {
       node: entry.node,
       rect,
-      ports: entry.ports.map(({port, center}) => {
+      ports: entry.ports.map(({port, side, center}) => {
         const previousCenter = previousEntry?.ports.find(({port: previousPort}) => previousPort.id === port.id)?.center
         const beforeCenter = previousCenter ?? mapPoint(center, entry.rect, before)
-        return {port, center: interpolatePoint(beforeCenter, center, t)}
+        return {port, side, center: interpolatePoint(beforeCenter, center, t)}
       }),
     }
   })
   const previousEdges = new Map(previous.edges.map((entry) => [entry.edge.id, entry]))
-  const edges = target.edges.flatMap((entry): readonly PositionedNodeSystemEdge[] => {
+  const edges = target.edges.flatMap((entry): readonly PositionedNodeSystemCardEdge[] => {
     const before = previousEdges.get(entry.edge.id)
     // A newly observed transport is revealed with its complete engine route at
     // the end. Drawing the target route while its endpoints still move would
@@ -148,7 +150,7 @@ function mapPoint(
   }
 }
 
-function sameEdgeEndpoints(left: PositionedNodeSystemEdge, right: PositionedNodeSystemEdge): boolean {
+function sameEdgeEndpoints(left: PositionedNodeSystemCardEdge, right: PositionedNodeSystemCardEdge): boolean {
   return left.edge.source.nodeId === right.edge.source.nodeId &&
     left.edge.source.portId === right.edge.source.portId &&
     left.edge.target.nodeId === right.edge.target.nodeId &&

@@ -5,8 +5,8 @@ import {validateNodeSystemDocument} from "./validation.ts"
 const valid: NodeSystemDocument = {
   revision: 4,
   nodes: [
-    {id: "host", title: "Host", facts: [{id: "channel", label: "Channel", value: "out"}], ports: [{id: "out", parameterId: "channel", direction: "out"}]},
-    {id: "window", title: "Window", facts: [{id: "channel", label: "Channel", value: "in"}], ports: [{id: "in", parameterId: "channel", direction: "in"}]},
+    {id: "host", ports: [{id: "out", direction: "out"}]},
+    {id: "window", ports: [{id: "in", direction: "in"}]},
   ],
   edges: [{id: "host-window", source: {nodeId: "host", portId: "out"}, target: {nodeId: "window", portId: "in"}}],
 }
@@ -21,8 +21,8 @@ describe("node-system validation", () => {
   test("keeps connection semantics identical across an edge and both sockets", () => {
     const typed: NodeSystemDocument = {
       nodes: [
-        {id: "host", title: "Host", facts: [{id: "channel", label: "Channel", value: "out"}], ports: [{id: "out", parameterId: "channel", direction: "out", connectionType: "ipc"}]},
-        {id: "window", title: "Window", facts: [{id: "channel", label: "Channel", value: "in"}], ports: [{id: "in", parameterId: "channel", direction: "in", connectionType: "ipc"}]},
+        {id: "host", ports: [{id: "out", direction: "out", connectionType: "ipc"}]},
+        {id: "window", ports: [{id: "in", direction: "in", connectionType: "ipc"}]},
       ],
       edges: [{id: "host-window", source: {nodeId: "host", portId: "out"}, target: {nodeId: "window", portId: "in"}, connectionType: "ipc"}],
     }
@@ -41,13 +41,13 @@ describe("node-system validation", () => {
     expect(() => validateNodeSystemDocument({...valid, nodes: [...valid.nodes, valid.nodes[0]!]}))
       .toThrow("Duplicate node id: host")
     expect(() => validateNodeSystemDocument({
-      nodes: [{id: "host", title: "Host", facts: [{id: "p", label: "P", value: ""}], ports: [{id: "p", parameterId: "p", direction: "in"}, {id: "p", parameterId: "p", direction: "out"}]}],
+      nodes: [{id: "host", ports: [{id: "p", direction: "in"}, {id: "p", direction: "out"}]}],
       edges: [],
     })).toThrow("Duplicate port id: host/p")
     expect(() => validateNodeSystemDocument({
       nodes: [
-        {id: "old-incarnation", layoutId: "stable-slot", title: "Old"},
-        {id: "new-incarnation", layoutId: "stable-slot", title: "New"},
+        {id: "old-incarnation", layoutId: "stable-slot"},
+        {id: "new-incarnation", layoutId: "stable-slot"},
       ],
       edges: [],
     })).toThrow("Duplicate node layoutId: stable-slot")
@@ -63,15 +63,6 @@ describe("node-system validation", () => {
       edges: [{id: "missing-port", source: {nodeId: "host", portId: "missing"}, target: {nodeId: "window", portId: "in"}}],
     })).toThrow("Unknown source port")
     expect(() => validateNodeSystemDocument({
-      nodes: [{
-        id: "host",
-        title: "Host",
-        facts: [{id: "known", label: "Known", value: ""}],
-        ports: [{id: "socket", parameterId: "missing", direction: "out"}],
-      }],
-      edges: [],
-    })).toThrow("Unknown port parameter")
-    expect(() => validateNodeSystemDocument({
       ...valid,
       edges: [{
         id: "node-level",
@@ -83,25 +74,25 @@ describe("node-system validation", () => {
 
   test("accepts nested containment and rejects invented or cyclic parents", () => {
     expect(() => validateNodeSystemDocument({
-      nodes: [{id: "owner", title: "Owner"}, {id: "child", parentId: "owner", title: "Child"}],
+      nodes: [{id: "owner"}, {id: "child", parentId: "owner"}],
       edges: [],
     })).not.toThrow()
     expect(() => validateNodeSystemDocument({
-      nodes: [{id: "child", parentId: "missing", title: "Child"}],
+      nodes: [{id: "child", parentId: "missing"}],
       edges: [],
     })).toThrow("Unknown parent node")
     expect(() => validateNodeSystemDocument({
       nodes: [
-        {id: "root", title: "Root"},
-        {id: "middle", parentId: "root", title: "Middle"},
-        {id: "leaf", parentId: "middle", title: "Leaf"},
+        {id: "root"},
+        {id: "middle", parentId: "root"},
+        {id: "leaf", parentId: "middle"},
       ],
       edges: [],
     })).not.toThrow()
     expect(() => validateNodeSystemDocument({
       nodes: [
-        {id: "left", parentId: "right", title: "Left"},
-        {id: "right", parentId: "left", title: "Right"},
+        {id: "left", parentId: "right"},
+        {id: "right", parentId: "left"},
       ],
       edges: [],
     })).toThrow("Containment cycle")

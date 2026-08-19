@@ -17,7 +17,11 @@ import {
   nodeSystemStructureKey,
   refreshPositionedNodeSystem,
 } from "./lifecycle-projection.ts"
-import type {NodeSystemDocument, PositionedNodeSystem} from "nodes/types"
+import {
+  adaptNodeSystemCardPresentation,
+  type NodeSystemCardPreset,
+  type PositionedNodeSystemCard,
+} from "@nodes/ui/card-model"
 import {FixedNodeSystemCardLayouter} from "@nodes/ui/fixed-card-layout"
 
 const context = {
@@ -55,11 +59,30 @@ describe("Hamiltonian lifecycle projection", () => {
     expect(hamiltonianServerNodeId("host/a")).toBe("server:host%2Fa")
   })
 
+  test("keeps semantic topology Card-free and materializes the same Card document explicitly", () => {
+    const projection = new HamiltonianLifecycleProjection(context)
+    const {topology, presentation} = projection.cardProjection()
+
+    for (const node of topology.nodes) {
+      expect(Object.keys(node)).not.toContain("title")
+      expect(Object.keys(node)).not.toContain("summary")
+      expect(Object.keys(node)).not.toContain("tone")
+      expect(Object.keys(node)).not.toContain("facts")
+      expect(Object.keys(node)).not.toContain("actions")
+    }
+    expect(presentation.nodes.map(({nodeId, title}) => [nodeId, title])).toEqual([
+      ["server-contour", "Сервер"],
+      ["server:host-a", "Hamiltonian"],
+      ["page:page-a", "Эта страница"],
+    ])
+    expect(adaptNodeSystemCardPresentation(topology, presentation)).toEqual(projection.document())
+  })
+
   test("invalidates layout geometry when model order changes", () => {
     const base = {
       nodes: [
-        {id: "a", title: "A", order: 1, facts: [{id: "out", label: "Out", value: ""}], ports: [{id: "out", parameterId: "out", direction: "out" as const}]},
-        {id: "b", title: "B", order: 2, facts: [{id: "in", label: "In", value: ""}], ports: [{id: "in", parameterId: "in", direction: "in" as const}]},
+        {id: "a", title: "A", order: 1, facts: [{id: "out", label: "Out", value: ""}], ports: [{id: "out", rowId: "out", direction: "out" as const}]},
+        {id: "b", title: "B", order: 2, facts: [{id: "in", label: "In", value: ""}], ports: [{id: "in", rowId: "in", direction: "in" as const}]},
       ],
       edges: [{id: "edge", source: {nodeId: "a", portId: "out"}, target: {nodeId: "b", portId: "in"}, order: 1}],
     }
@@ -87,11 +110,11 @@ describe("Hamiltonian lifecycle projection", () => {
         {id: "right", label: "Right", value: "old-right"},
       ],
       ports: [
-        {id: "left-port", parameterId: "left", direction: "out" as const},
-        {id: "right-port", parameterId: "right", direction: "out" as const},
+        {id: "left-port", rowId: "left", direction: "out" as const},
+        {id: "right-port", rowId: "right", direction: "out" as const},
       ],
     }
-    const layout: PositionedNodeSystem = {
+    const layout: PositionedNodeSystemCard = {
       bounds: {x: 0, y: 0, w: 100, h: 100},
       nodes: [{node: previousNode, rect: {x: 0, y: 0, w: 100, h: 100}, ports: []}],
       edges: [],
@@ -898,15 +921,15 @@ describe("Hamiltonian lifecycle projection", () => {
       .toEqual([{id: "transport:Service%20Worker%20API:channel", label: "Service Worker API", value: "вход / выход", tone: "live"}])
     expect(workerNode.facts?.filter(({label}) => label === "Service Worker API"))
       .toEqual([{id: "transport:Service%20Worker%20API:channel", label: "Service Worker API", value: "вход / выход", tone: "live"}])
-    expect(pageNode.ports?.filter(({parameterId}) => parameterId === "transport:Service%20Worker%20API:channel"))
+    expect(pageNode.ports?.filter(({rowId}) => rowId === "transport:Service%20Worker%20API:channel"))
       .toEqual([
-        {id: "out:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "out", connectionType: "service-api"},
-        {id: "in:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "in", connectionType: "service-api"},
+        {id: "out:Service%20Worker%20API", rowId: "transport:Service%20Worker%20API:channel", direction: "out", connectionType: "service-api"},
+        {id: "in:Service%20Worker%20API", rowId: "transport:Service%20Worker%20API:channel", direction: "in", connectionType: "service-api"},
       ])
-    expect(workerNode.ports?.filter(({parameterId}) => parameterId === "transport:Service%20Worker%20API:channel"))
+    expect(workerNode.ports?.filter(({rowId}) => rowId === "transport:Service%20Worker%20API:channel"))
       .toEqual([
-        {id: "in:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "in", connectionType: "service-api"},
-        {id: "out:Service%20Worker%20API", parameterId: "transport:Service%20Worker%20API:channel", direction: "out", connectionType: "service-api"},
+        {id: "in:Service%20Worker%20API", rowId: "transport:Service%20Worker%20API:channel", direction: "in", connectionType: "service-api"},
+        {id: "out:Service%20Worker%20API", rowId: "transport:Service%20Worker%20API:channel", direction: "out", connectionType: "service-api"},
       ])
     expect(document.edges.filter(({label}) => label === "Service Worker API")).toEqual([
       expect.objectContaining({
@@ -1516,7 +1539,7 @@ describe("Hamiltonian lifecycle projection", () => {
         boundaryTransports: boundaries,
       })
       const projection = new HamiltonianLifecycleProjection(context)
-      const published: NodeSystemDocument[] = []
+      const published: NodeSystemCardPreset[] = []
       for (const declaration of declarationOrder) {
         expect(projection.replaceDeclaration(declaration)).toBeTrue()
         published.push(projection.document())
@@ -1651,7 +1674,7 @@ describe("Hamiltonian lifecycle projection", () => {
 
     for (const serverReplacementFirst of [true, false]) {
       const projection = new HamiltonianLifecycleProjection(context)
-      const published: NodeSystemDocument[] = []
+      const published: NodeSystemCardPreset[] = []
       const publish = () => published.push(projection.document())
       expect(projection.replaceDeclaration(browserDeclarationA)).toBeTrue()
       publish()
@@ -1898,7 +1921,7 @@ describe("Hamiltonian lifecycle projection", () => {
       const serverA = makeServer("host-a", 10)
       const serverB = makeServer("host-b", 20)
       let browserDeclaration = initialBrowserDeclaration
-      const published: NodeSystemDocument[] = []
+      const published: NodeSystemCardPreset[] = []
       expect(projection.replaceDeclaration(browserDeclaration)).toBeTrue()
       published.push(projection.document())
       expect(projection.replaceDeclaration(serverA.declaration)).toBeTrue()
@@ -2149,7 +2172,17 @@ describe("Hamiltonian lifecycle projection", () => {
       })), null)
     }
 
-    const document = projection.document()
+    const {topology, presentation} = projection.cardProjection()
+    const document = adaptNodeSystemCardPresentation(topology, presentation)
+    for (const node of topology.nodes) {
+      for (const port of node.ports ?? []) expect(Object.keys(port)).not.toContain("rowId")
+    }
+    for (const edge of topology.edges) {
+      expect(Object.keys(edge)).not.toContain("label")
+      expect(Object.keys(edge)).not.toContain("tone")
+    }
+    expect(presentation.edges?.filter(({label}) => label?.endsWith("RTCDataChannel"))).toHaveLength(2)
+    expect(document).toEqual(projection.document())
     expect(document.nodes.map((node) => node.title)).toEqual(expect.arrayContaining([
       "RTCPeerConnection сервера",
       "RTCPeerConnection страницы",
@@ -2182,15 +2215,15 @@ describe("Hamiltonian lifecycle projection", () => {
         target: {nodeId: "rtc-peer:session-a%3Abrowser", portId: `in:${encodedLabel}`},
         connectionType: `${lane}-rtc-data-channel`,
       }))
-      for (const [nodeId, portId, parameterId] of [
+      for (const [nodeId, portId, rowId] of [
         [edge.source.nodeId, edge.source.portId, `transport:${encodedLabel}:out`],
         [edge.target.nodeId, edge.target.portId, `transport:${encodedLabel}:in`],
       ] as const) {
         const node = document.nodes.find(({id}) => id === nodeId)!
         const port = node.ports?.find(({id}) => id === portId)
-        expect(port?.parameterId).toBe(parameterId)
+        expect(port?.rowId).toBe(rowId)
         expect(port?.connectionType).toBe(`${lane}-rtc-data-channel`)
-        expect(node.facts?.some(({id}) => id === parameterId)).toBeTrue()
+        expect(node.facts?.some(({id}) => id === rowId)).toBeTrue()
       }
     }
     expect(document.edges.map((edge) => edge.label)).toEqual(expect.arrayContaining([

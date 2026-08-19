@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "selectors": {
+    "node-ui": {
+      "supported": true,
+      "package": "@nodes/ui",
+      "cwd": "pkg/nodes/ui",
+      "command": ["bun", "playground/server.ts"],
+      "host": "127.0.0.1",
+      "hostEnv": "NODES_COMPONENT_PLAYGROUND_HOST",
+      "port": 4016,
+      "portEnv": "NODES_COMPONENT_PLAYGROUND_PORT",
+      "origin": "http://127.0.0.1:4016",
+      "httpMarker": "<title>Node Component Library</title>",
+      "ready": {"kind": "dataset", "name": "nodeComponentPlayground", "value": "ready"},
+      "canvas": {"selector": "#node-component-canvas", "capability": "webgpu", "touch": true},
+      "routes": {"mode": "none", "default": "/"},
+      "stateKey": "node-ui",
+      "logName": "node-ui.log"
+    },
+    "components": {
+      "supported": true,
+      "package": "@ui/components",
+      "cwd": "pkg/ui/components",
+      "command": ["bun", "playground/server.ts"],
+      "host": "127.0.0.1",
+      "port": 4017,
+      "portEnv": "COMPONENTS_PLAYGROUND_PORT",
+      "origin": "http://127.0.0.1:4017",
+      "httpMarker": "<title>@ui/components playground</title>",
+      "ready": {"kind": "canvas", "selector": "#stage-canvas", "minBackingWidth": 301},
+      "canvas": {"selector": "#stage-canvas", "capability": "webgpu", "touch": false},
+      "routes": {"mode": "path", "default": "/button/basic"},
+      "stateKey": "components",
+      "logName": "components.log"
+    },
+    "ui-fixture": {
+      "supported": true,
+      "package": "@ui/playground fixture",
+      "cwd": "pkg/ui/playground",
+      "command": ["bun", "fixture/server.ts"],
+      "host": "127.0.0.1",
+      "port": 4192,
+      "portEnv": "UI_PLAYGROUND_FIXTURE_PORT",
+      "origin": "http://127.0.0.1:4192",
+      "httpMarker": "<title>UI Playground Fixture</title>",
+      "ready": {"kind": "dataset", "name": "playgroundReady", "value": "ready"},
+      "canvas": {"selector": "#playground-canvas", "capability": "webgpu-diagnostic", "touch": false},
+      "routes": {"mode": "path", "default": "/overview"},
+      "stateKey": "ui-fixture",
+      "logName": "ui-fixture.log"
+    },
+    "elements": {
+      "supported": false,
+      "package": "@ui/elements",
+      "reason": "@ui/elements has no maintained runnable playground command or port"
+    }
+  }
+}

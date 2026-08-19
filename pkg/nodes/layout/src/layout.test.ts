@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {layout} from "./layout.ts"
+import {layoutFixed as layout} from "./fixed.ts"
 import {placementCandidates} from "./place-graph.ts"
 import {routeGraph} from "./route-graph.ts"
 import type {PlacementInput} from "../types/placement.ts"
@@ -79,12 +79,12 @@ describe("compound spacing rhythm", () => {
         {id: "zz-next-row", parentId: "owner", size: {w: 374, h: 464}, contentHeight: 464},
       ],
       ports: [
-        {id: "source/a", nodeId: "source", offsetY: 196, side: "EAST", direction: "out"},
-        {id: "source/b", nodeId: "source", offsetY: 168, side: "EAST", direction: "out"},
-        {id: "source/next", nodeId: "source", offsetY: 224, side: "EAST", direction: "out"},
-        {id: "target-a/in", nodeId: "target-a", offsetY: 196, side: "WEST", direction: "in"},
-        {id: "target-b/in", nodeId: "target-b", offsetY: 196, side: "WEST", direction: "in"},
-        {id: "zz-next-row/in", nodeId: "zz-next-row", offsetY: 168, side: "WEST", direction: "in"},
+        {id: "source/a", nodeId: "source", offsetY: 196, side: "EAST"},
+        {id: "source/b", nodeId: "source", offsetY: 168, side: "EAST"},
+        {id: "source/next", nodeId: "source", offsetY: 224, side: "EAST"},
+        {id: "target-a/in", nodeId: "target-a", offsetY: 196, side: "WEST"},
+        {id: "target-b/in", nodeId: "target-b", offsetY: 196, side: "WEST"},
+        {id: "zz-next-row/in", nodeId: "zz-next-row", offsetY: 168, side: "WEST"},
       ],
       edges: [
         {id: "a", sourcePortId: "source/a", targetPortId: "target-a/in"},

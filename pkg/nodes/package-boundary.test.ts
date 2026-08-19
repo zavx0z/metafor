@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import {readdir} from "node:fs/promises"
+import {mkdtemp, readdir, rm} from "node:fs/promises"
+import {tmpdir} from "node:os"
 import {join, relative} from "node:path"
 import {fileURLToPath} from "node:url"
 
@@ -26,7 +27,7 @@ describe("universal node-system package boundaries", () => {
     expect(source).not.toContain("Hamiltonian")
   })
 
-  test("keeps the renderer HUD-free and free of Hamiltonian vocabulary", async () => {
+  test("keeps the Node Editor free of legacy Card, HUD and product vocabulary", async () => {
     const uiRoot = join(packageRoot, "ui")
     const packageJson = await Bun.file(join(uiRoot, "package.json")).json() as {
       dependencies?: Record<string, string>
@@ -34,6 +35,8 @@ describe("universal node-system package boundaries", () => {
     expect(packageJson.dependencies?.["@ui/hud"]).toBeUndefined()
     const source = await readAll((await sourceFiles(uiRoot)).filter((path) => !path.endsWith(".test.ts")))
     expect(source).not.toMatch(/from ["']@ui\/hud/)
+    expect(source).not.toMatch(/from ["'](?:nodes|@nodes\/layout)/)
+    expect(source).not.toMatch(/\b(?:NodeSystemSurface|NodeSystemCard|NodeSystemFact)\b/)
     for (const productTerm of [
       "service-worker-api",
       "oracle-rtc-data-channel",
@@ -43,7 +46,7 @@ describe("universal node-system package boundaries", () => {
   })
 
   test("publishes only existing independent entrypoints", async () => {
-    for (const packagePath of ["pkg/nodes", "pkg/nodes/ui", "pkg/nodes/hud", "pkg/nodes/layout"]) {
+    for (const packagePath of ["pkg/nodes", "pkg/nodes/ui", "pkg/nodes/layout"]) {
       const root = join(repositoryRoot, packagePath)
       const packageJson = await Bun.file(join(root, "package.json")).json() as {
         exports?: Record<string, string | Readonly<{default?: string; types?: string}>>
@@ -57,42 +60,83 @@ describe("universal node-system package boundaries", () => {
     }
   })
 
-  test("builds independent core, fixed-card and custom-positioned consumers", async () => {
+  test("builds independent core, layout policies and Blender Node Editor consumer", async () => {
     const core = await buildFixture("core-consumer.ts")
-    const fixed = await buildFixture("fixed-card-consumer.ts")
-    const custom = await buildFixture("custom-positioned-consumer.ts")
+    const fixedLayout = await buildFixture("fixed-layout-consumer.ts")
+    const adaptiveLayout = await buildFixture("adaptive-layout-consumer.ts")
+    const adaptiveMeasured = await buildFixture("adaptive-measured-consumer.ts")
+    const nodeEditor = await buildFixture("blender-node-editor-consumer.ts")
 
     expect(core.source).not.toContain("struct GlobalUniforms")
     expect(core.source).not.toContain("NO_LEGAL_LAYOUT")
     expect(core.source).not.toContain("NodeSystemSurface")
-    expect(fixed.source).toContain("NO_LEGAL_LAYOUT")
-    expect(fixed.source).not.toContain("NodeInspectorSurface")
-    expect(fixed.source).not.toContain("struct GlobalUniforms")
-    expect(custom.source).toContain("NodeSystemSurface")
-    expect(custom.source).not.toContain("NO_LEGAL_LAYOUT")
-    expect(custom.source).not.toContain("NodeInspectorSurface")
+    expect(fixedLayout.source).toContain("Port has conflicting edge roles")
+    expect(fixedLayout.source).toContain("NO_LEGAL_LAYOUT")
+    expect(fixedLayout.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(fixedLayout.source).not.toContain("NodeSystemSurface")
+    expect(adaptiveLayout.source).toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(adaptiveLayout.source).toContain("NO_LEGAL_LAYOUT")
+    expect(adaptiveLayout.source).not.toContain("Port has conflicting edge roles")
+    expect(adaptiveLayout.source).not.toContain("NodeSystemSurface")
+    expect(adaptiveLayout.source).not.toContain("NodeInspectorSurface")
+    expect(adaptiveLayout.source).not.toContain("struct GlobalUniforms")
+    expect(adaptiveMeasured.source).toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(adaptiveMeasured.source).not.toContain("Card title must be non-empty")
+    expect(adaptiveMeasured.source).not.toContain("defaultWidth:260")
+    expect(adaptiveMeasured.source).not.toContain("NodeSystemSurface")
+    expect(adaptiveMeasured.source).not.toContain("struct GlobalUniforms")
+    expect(nodeEditor.source).toContain("NodeEditor")
+    expect(nodeEditor.source).toContain("NodeCanvas")
+    expect(nodeEditor.source).toContain("Socket is detached")
+    expect(nodeEditor.source).not.toContain("NO_LEGAL_LAYOUT")
+    expect(nodeEditor.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    for (const legacy of [
+      "NodeSystemSurface",
+      "NodeSystemCard",
+      "NodeSystemFact",
+      "NodeInspectorSurface",
+    ]) expect(nodeEditor.source).not.toContain(legacy)
 
     expect(core.bytes).toBeLessThan(8_000)
-    expect(fixed.bytes).toBeLessThan(115_000)
-    expect(custom.bytes).toBeLessThan(300_000)
+    expect(fixedLayout.bytes).toBeLessThan(100_000)
+    expect(fixedLayout.gzipBytes).toBeLessThan(32_000)
+    expect(adaptiveLayout.bytes).toBeLessThan(120_000)
+    expect(adaptiveLayout.gzipBytes).toBeLessThan(36_000)
+    expect(adaptiveMeasured.bytes).toBeLessThan(120_000)
+    expect(adaptiveMeasured.gzipBytes).toBeLessThan(38_000)
+    expect(nodeEditor.bytes).toBeLessThan(350_000)
+    expect(nodeEditor.gzipBytes).toBeLessThan(100_000)
   })
 })
 
-async function buildFixture(name: string): Promise<{source: string; bytes: number}> {
-  const result = await Bun.build({
-    entrypoints: [join(packageRoot, "fixtures", name)],
-    target: "browser",
-    format: "esm",
-    minify: true,
-    sourcemap: "none",
-  })
-  if (!result.success) {
-    throw new Error(result.logs.map((entry) => entry.message).join("\n"))
+async function buildFixture(name: string): Promise<{source: string; bytes: number; gzipBytes: number}> {
+  const directory = await mkdtemp(join(tmpdir(), "nodes-package-bundle-"))
+  const output = join(directory, "bundle.js")
+  try {
+    const childProcess = Bun.spawn([
+      process.execPath,
+      "build",
+      join(packageRoot, "fixtures", name),
+      "--target=browser",
+      "--format=esm",
+      "--minify",
+      `--outfile=${output}`,
+    ], {cwd: repositoryRoot, stdout: "pipe", stderr: "pipe"})
+    const [exitCode, stdout, stderr] = await Promise.all([
+      childProcess.exited,
+      new Response(childProcess.stdout).text(),
+      new Response(childProcess.stderr).text(),
+    ])
+    if (exitCode !== 0) throw new Error(`${stdout}\n${stderr}`.trim())
+    const bytes = new Uint8Array(await Bun.file(output).arrayBuffer())
+    return {
+      source: new TextDecoder().decode(bytes),
+      bytes: bytes.byteLength,
+      gzipBytes: Bun.gzipSync(bytes).byteLength,
+    }
+  } finally {
+    await rm(directory, {recursive: true, force: true})
   }
-  const output = result.outputs[0]
-  if (output === undefined) throw new Error(`Missing bundle output: ${name}`)
-  const bytes = await output.arrayBuffer()
-  return {source: new TextDecoder().decode(bytes), bytes: bytes.byteLength}
 }
 
 async function sourceFiles(root: string): Promise<string[]> {

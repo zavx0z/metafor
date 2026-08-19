@@ -1,7 +1,8 @@
 # Общие алгоритмические требования
 
-Этот документ владеет законами алгоритма `@nodes/layout`, общими для режимов
-[`RIGHT`](RIGHT.md) и [`DOWN`](DOWN.md).
+Этот документ владеет законами алгоритма `@nodes/layout`, общими для fixed и
+[`adaptive`](ADAPTIVE.md) policies в режимах [`RIGHT`](RIGHT.md) и
+[`DOWN`](DOWN.md).
 
 Позднее уточнение владельца заменяет противоречащую раннюю формулировку. Public
 types задают точную форму протокола, код реализует перечисленные законы, а tests
@@ -24,10 +25,10 @@ types задают точную форму протокола, код реали
 
 ## Минимальный протокол
 
-1. Layout получает только фактический viewport, intrinsic размеры нод, полный
-   containment tree, нижнюю границу собственного занятого content, offsets
-   центров видимых parameter ports, semantic edges и числовые параметры
-   spacing/clearance.
+1. Общий solver получает только фактический viewport, intrinsic размеры нод,
+   полный containment tree, нижнюю границу собственного занятого content,
+   offsets центров видимых parameter ports, уже разрешённую `WEST`/`EAST`
+   сторону каждого port, semantic edges и числовые параметры spacing/clearance.
 2. Любые данные сверх перечисленной числовой graph-модели не входят в layout
    protocol.
 3. Внешние координаты выражены в логических пикселях. Внутри solver использует
@@ -36,8 +37,8 @@ types задают точную форму протокола, код реали
    Hyperedges, node-level endpoints и fallback к произвольной границе карточки
    не входят в договор.
 5. На выходе возвращаются только выбранное направление, bounds, окончательные
-   node/compound rectangles, абсолютные центры исходных портов и одна
-   ортогональная section каждого semantic edge.
+   node/compound rectangles, абсолютные центры и resolved sides исходных
+   портов и одна ортогональная section каждого semantic edge.
 6. Все входные коллекции нормализуются устойчивой сортировкой по semantic ID.
    Порядок элементов во входных массивах не является сигналом алгоритму.
 7. Невалидная ссылка на ноду, parent, порт или endpoint отклоняется. Ошибка
@@ -50,10 +51,15 @@ types задают точную форму протокола, код реали
 
 1. Каждый semantic edge остаётся одним domain edge от начала до конца и
    соединяет центры двух точных видимых parameter sockets.
-2. Source-параметр всегда имеет направление `out` и сторону `EAST`, target —
-   `in` и `WEST`. Закон одинаков для `RIGHT` и `DOWN`.
+2. Capability порта не входит в общий placement/routing contract. До вызова
+   общего solver конкретная policy разрешает для каждого endpoint одну сторону
+   `WEST` или `EAST`; source/target edge role не выводит и не проверяет
+   capability. Fixed policy отдельно закрепляет source=`EAST`, target=`WEST`,
+   а adaptive policy применяет уже заданные adapter-ом capability и допустимые
+   стороны по законам [`ADAPTIVE.md`](ADAPTIVE.md).
 3. Section физически начинается и заканчивается в exact port centers; endpoint
-   нельзя заменить точкой на node boundary.
+   нельзя заменить точкой на node boundary. Первый segment выходит наружу через
+   resolved source side, последний входит через resolved target side.
 4. Section упрощается только удалением повторяющихся и строго коллинеарных
    точек. Упрощение не меняет endpoint, gateway или сторону пересечения.
 

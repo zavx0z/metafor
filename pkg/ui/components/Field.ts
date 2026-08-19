@@ -1,0 +1,878 @@
+import {Color} from "@metafor/engine"
+import {Z, flexColumn, flexRow, palette, type UiSurface} from "@ui/elements"
+import {Button} from "./Button.ts"
+import {Checkbox} from "./Checkbox.ts"
+import {SliderControl} from "./SliderControl.ts"
+import {Switcher} from "./Switcher.ts"
+import {TextField} from "./TextField.ts"
+import {Typography} from "./Typography.ts"
+
+export type FieldColor = Readonly<{r: number; g: number; b: number; a: number}>
+export type FieldOption = Readonly<{value: string; label: string; description?: string}>
+export type FieldReference = Readonly<{id: string; label: string; kind?: string}>
+
+export type FieldBase = Readonly<{
+  id: string
+  /** Optional render-instance identity when the same field id appears in several owners. */
+  key?: string
+  label: string
+  /** Keeps the semantic label while allowing a compact control-only row. */
+  compactLabel?: "inline" | "hidden"
+  description?: string
+  disabled?: boolean
+  readOnly?: boolean
+}>
+
+export type TextFieldDefinition = FieldBase & Readonly<{
+  kind: "text"
+  value: string
+  placeholder?: string
+  onChange?(value: string): void
+}>
+
+export type NumberFieldDefinition = FieldBase & Readonly<{
+  kind: "number"
+  value: number
+  numberKind?: "float" | "integer"
+  presentation?: "input" | "slider"
+  min?: number
+  max?: number
+  step?: number
+  unit?: string
+  onChange?(value: number): void
+}>
+
+export type BooleanFieldDefinition = FieldBase & Readonly<{
+  kind: "boolean"
+  value: boolean
+  presentation?: "checkbox" | "switch"
+  onChange?(value: boolean): void
+}>
+
+export type EnumFieldDefinition = FieldBase & Readonly<{
+  kind: "enum"
+  value: string
+  options: readonly FieldOption[]
+  onChange?(value: string): void
+}>
+
+export type ColorFieldDefinition = FieldBase & Readonly<{
+  kind: "color"
+  value: FieldColor
+  onChange?(value: FieldColor): void
+}>
+
+export type VectorFieldDefinition = FieldBase & Readonly<{
+  kind: "vector"
+  value: readonly number[]
+  dimensions?: 2 | 3 | 4
+  axes?: readonly string[]
+  min?: number
+  max?: number
+  step?: number
+  unit?: string
+  onChange?(value: readonly number[]): void
+}>
+
+export type RotationFieldDefinition = Omit<VectorFieldDefinition, "kind"> & Readonly<{
+  kind: "rotation"
+}>
+
+export type MatrixFieldDefinition = FieldBase & Readonly<{
+  kind: "matrix"
+  value: readonly (readonly number[])[]
+  onChange?(value: readonly (readonly number[])[]): void
+}>
+
+export type ReferenceFieldDefinition = FieldBase & Readonly<{
+  kind: "reference"
+  value: FieldReference | null
+  placeholder?: string
+  onActivate?(): void
+  onClear?(): void
+}>
+
+export type ReadonlyFieldDefinition = FieldBase & Readonly<{
+  kind: "readonly"
+  value: string | number
+}>
+
+export type FieldDefinition =
+  | TextFieldDefinition
+  | NumberFieldDefinition
+  | BooleanFieldDefinition
+  | EnumFieldDefinition
+  | ColorFieldDefinition
+  | VectorFieldDefinition
+  | RotationFieldDefinition
+  | MatrixFieldDefinition
+  | ReferenceFieldDefinition
+  | ReadonlyFieldDefinition
+
+export type FieldRenderOptions = Readonly<{
+  density?: "regular" | "compact"
+  scale?: number
+}>
+
+export const FIELD_KINDS = Object.freeze([
+  "text",
+  "number",
+  "boolean",
+  "enum",
+  "color",
+  "vector",
+  "rotation",
+  "matrix",
+  "reference",
+  "readonly",
+] as const)
+
+const LABEL_HEIGHT = 16
+const CONTROL_HEIGHT = 28
+const FIELD_GAP = 5
+
+/** Draws one controlled universal field and returns its occupied height. */
+export function Field(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  definition: FieldDefinition,
+  options: FieldRenderOptions = {},
+): number {
+  if (options.density === "compact") return drawCompactField(host, x, y, width, definition, options)
+  const height = measureFieldHeight(definition, options)
+  if (definition.kind === "number" && definition.presentation === "slider" && definition.max !== undefined) {
+    drawNumberSlider(host, x, y, width, definition)
+    return height
+  }
+  if (definition.kind === "boolean") {
+    drawBooleanField(host, x, y, width, definition)
+    return height
+  }
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: FIELD_GAP,
+    items: [
+      {height: LABEL_HEIGHT, draw: (slotX, slotY, slotW, slotH) => drawFieldLabel(host, slotX, slotY, slotW, slotH, definition)},
+      {height: "grow", draw: (slotX, slotY, slotW, slotH) => drawFieldControl(host, slotX, slotY, slotW, slotH, definition)},
+    ],
+  })
+  return height
+}
+
+function drawFieldControl(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  definition: Exclude<FieldDefinition, BooleanFieldDefinition>,
+): void {
+  if (definition.kind === "text") drawTextField(host, x, y, width, height, definition)
+  else if (definition.kind === "number") drawNumberField(host, x, y, width, height, definition)
+  else if (definition.kind === "enum") drawEnumField(host, x, y, width, height, definition)
+  else if (definition.kind === "color") drawColorField(host, x, y, width, height, definition)
+  else if (definition.kind === "vector" || definition.kind === "rotation") drawVectorField(host, x, y, width, height, definition)
+  else if (definition.kind === "matrix") drawMatrixField(host, x, y, width, height, definition)
+  else if (definition.kind === "reference") drawReferenceField(host, x, y, width, height, definition)
+  else drawReadonlyField(host, x, y, width, height, definition)
+}
+
+export function measureFieldHeight(definition: FieldDefinition, options: FieldRenderOptions = {}): number {
+  if (options.density === "compact") return compactFieldHeight(definition, options)
+  if (definition.kind === "boolean") return CONTROL_HEIGHT
+  if (definition.kind === "number" && definition.presentation === "slider") return 66
+  if (definition.kind === "matrix") return LABEL_HEIGHT + FIELD_GAP + matrixRows(definition.value).length * 28
+  return LABEL_HEIGHT + FIELD_GAP + CONTROL_HEIGHT
+}
+
+function compactFieldHeight(definition: FieldDefinition, options: FieldRenderOptions): number {
+  const metrics = compactMetrics(options)
+  if (definition.kind === "vector" || definition.kind === "rotation") {
+    const dimensions = definition.dimensions ?? Math.min(4, Math.max(2, definition.value.length))
+    return metrics.control * (dimensions + 1) + metrics.gap * dimensions
+  }
+  if (definition.kind === "matrix") {
+    const rows = matrixRows(definition.value).length
+    return metrics.control * (rows + 1) + metrics.gap * rows
+  }
+  return metrics.control
+}
+
+function drawCompactField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  field: FieldDefinition,
+  options: FieldRenderOptions,
+): number {
+  const metrics = compactMetrics(options)
+  const height = compactFieldHeight(field, options)
+  if (field.kind === "vector" || field.kind === "rotation") {
+    drawCompactVectorField(host, x, y, width, height, field, metrics)
+    return height
+  }
+  if (field.kind === "matrix") {
+    drawCompactMatrixField(host, x, y, width, height, field, metrics)
+    return height
+  }
+  if (field.kind === "number" && field.presentation === "slider" && field.max !== undefined) {
+    const props: Parameters<typeof SliderControl>[4] = {
+      key: fieldKey(field),
+      label: field.label,
+      layout: "inline",
+      value: normalizeNumberFieldValue(field.value, field),
+      max: field.max,
+      step: field.step ?? (field.numberKind === "integer" ? 1 : 0.01),
+      buttonHeight: metrics.control,
+      labelFontPx: metrics.font,
+      valueFontPx: metrics.font,
+      format: (value) => `${value}${field.unit ?? ""}`,
+      onChange: (value) => {
+        if (!isFieldDisabled(field)) field.onChange?.(normalizeNumberFieldValue(value, field))
+      },
+    }
+    if (field.min !== undefined) props.min = field.min
+    SliderControl(host, x, y, width, props)
+    return height
+  }
+  if (field.kind === "boolean") {
+    const disabled = isFieldDisabled(field)
+    flexRow({
+      x,
+      y,
+      w: width,
+      h: height,
+      gap: metrics.gap * 2,
+      alignItems: "center",
+      items: [
+        {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+          children: field.label,
+          fontPx: metrics.font,
+          color: disabled ? "muted" : "text",
+        })},
+        {width: metrics.control * 1.6, height: metrics.control * 0.82, draw: (slotX, slotY, slotW, slotH) => {
+          const onChange = !disabled && field.onChange !== undefined ? (value: boolean) => field.onChange!(value) : undefined
+          if (field.presentation === "checkbox") {
+            const props: Parameters<typeof Checkbox>[5] = {checked: field.value, disabled}
+            if (onChange !== undefined) props.onChange = onChange
+            Checkbox(host, slotX, slotY, slotW, slotH, props)
+          } else {
+            const props: Parameters<typeof Switcher>[5] = {checked: field.value, disabled}
+            if (onChange !== undefined) props.onChange = onChange
+            Switcher(host, slotX, slotY, slotW, slotH, props)
+          }
+        }},
+      ],
+    })
+    return height
+  }
+  drawCompactSingleRow(host, x, y, width, height, field, metrics)
+  return height
+}
+
+type CompactMetrics = Readonly<{control: number; gap: number; font: number; radius: number}>
+
+function compactMetrics(options: FieldRenderOptions): CompactMetrics {
+  const scale = Math.min(2.5, Math.max(0.25, options.scale ?? 1))
+  return {
+    control: 22 * scale,
+    gap: 3 * scale,
+    font: Math.max(7, 11 * scale),
+    radius: Math.max(2, 3 * scale),
+  }
+}
+
+function compactTextStyle(metrics: CompactMetrics) {
+  return {
+    background: new Color(0.235, 0.235, 0.235, 1),
+    borderColor: new Color(0.11, 0.11, 0.11, 1),
+    borderWidth: 1,
+    borderRadius: metrics.radius,
+    color: "#E6E6E6" as const,
+    fontSize: metrics.font,
+  }
+}
+
+function drawCompactSingleRow(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition>,
+  metrics: CompactMetrics,
+): void {
+  if (field.compactLabel === "hidden") {
+    drawCompactControl(host, x, y, width, height, field, metrics)
+    return
+  }
+  flexRow({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: metrics.gap * 2,
+    alignItems: "stretch",
+    items: [
+      {width: "2fr", height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+        children: field.label,
+        fontPx: metrics.font,
+        color: isFieldDisabled(field) ? "muted" : "text",
+      })},
+      {width: "3fr", height, draw: (slotX, slotY, slotW, slotH) => drawCompactControl(host, slotX, slotY, slotW, slotH, field, metrics)},
+    ],
+  })
+}
+
+function drawCompactControl(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition>,
+  metrics: CompactMetrics,
+): void {
+  const disabled = isFieldDisabled(field)
+  if (field.kind === "enum") {
+    const selected = field.options.find((option) => option.value === field.value)
+    Button(host, x, y, width, height, {
+      children: selected?.label ?? field.value,
+      variant: "contained",
+      fill: new Color(0.235, 0.235, 0.235, 1),
+      border: new Color(0.11, 0.11, 0.11, 1),
+      radius: metrics.radius,
+      fontPx: metrics.font,
+      disabled: disabled || field.options.length === 0,
+      action: () => field.onChange?.(nextEnumFieldValue(field.value, field.options)),
+    })
+    return
+  }
+  if (field.kind === "color") {
+    const value = normalizeFieldColor(field.value)
+    flexRow({
+      x,
+      y,
+      w: width,
+      h: height,
+      gap: metrics.gap,
+      alignItems: "stretch",
+      items: [
+        {width: height, height, draw: (slotX, slotY, slotW, slotH) => host.drawRoundedRect(slotX, slotY, slotW, slotH, {
+          radius: metrics.radius,
+          fill: new Color(value.r, value.g, value.b, value.a),
+          border: new Color(0.11, 0.11, 0.11, 1),
+          borderWidth: 1,
+          z: Z.ELEMENT,
+        })},
+        {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
+          const props: Parameters<typeof TextField>[5] = {
+            key: fieldKey(field),
+            value: fieldColorToHex(value),
+            disabled,
+            submitOnEnter: true,
+            fontPx: metrics.font,
+            sx: compactTextStyle(metrics),
+          }
+          if (!disabled) props.onSubmit = (text) => {
+            const parsed = parseFieldColor(text)
+            if (parsed !== null) field.onChange?.(parsed)
+          }
+          TextField(host, slotX, slotY, slotW, slotH, props)
+        }},
+      ],
+    })
+    return
+  }
+  if (field.kind === "reference") {
+    Button(host, x, y, width, height, {
+      children: field.value?.label ?? field.placeholder ?? "Не выбрано",
+      variant: "contained",
+      fill: new Color(0.235, 0.235, 0.235, 1),
+      border: new Color(0.11, 0.11, 0.11, 1),
+      radius: metrics.radius,
+      fontPx: metrics.font,
+      disabled,
+      action: () => field.onActivate?.(),
+    })
+    return
+  }
+  const value = field.kind === "readonly"
+    ? String(field.value)
+    : field.kind === "number"
+      ? `${normalizeNumberFieldValue(field.value, field)}${field.unit ?? ""}`
+      : field.value
+  const props: Parameters<typeof TextField>[5] = {
+    key: fieldKey(field),
+    value,
+    disabled: disabled || field.kind === "readonly",
+    submitOnEnter: true,
+    fontPx: metrics.font,
+    sx: compactTextStyle(metrics),
+  }
+  if (!disabled && field.kind === "text") props.onChange = (text) => field.onChange?.(text)
+  if (!disabled && field.kind === "number") props.onSubmit = (text) => {
+    const parsed = Number(text.replace(field.unit ?? "", "").trim())
+    if (Number.isFinite(parsed)) field.onChange?.(normalizeNumberFieldValue(parsed, field))
+  }
+  TextField(host, x, y, width, height, props)
+}
+
+function drawCompactVectorField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: VectorFieldDefinition | RotationFieldDefinition,
+  metrics: CompactMetrics,
+): void {
+  const dimensions = field.dimensions ?? Math.min(4, Math.max(2, field.value.length)) as 2 | 3 | 4
+  const values = normalizeVectorFieldValue(field.value, dimensions, field)
+  const axes = field.axes ?? (field.kind === "rotation" ? ["X°", "Y°", "Z°", "W°"] : ["X", "Y", "Z", "W"])
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: metrics.gap,
+    items: [
+      {height: metrics.control, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, fontPx: metrics.font})},
+      ...Array.from({length: dimensions}, (_, index) => ({
+        height: metrics.control,
+        draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
+          x: rowX,
+          y: rowY,
+          w: rowW,
+          h: rowH,
+          gap: metrics.gap,
+          items: [
+            {width: metrics.control, height: rowH, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: axes[index] ?? String(index), fontPx: metrics.font, color: "muted"})},
+            {width: "grow" as const, height: rowH, draw: (slotX: number, slotY: number, slotW: number, slotH: number) => {
+              const props: Parameters<typeof TextField>[5] = {
+                key: `${fieldKey(field)}:${index}`,
+                value: `${values[index]}${field.unit ?? ""}`,
+                disabled: isFieldDisabled(field),
+                submitOnEnter: true,
+                fontPx: metrics.font,
+                sx: compactTextStyle(metrics),
+              }
+              if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+                const parsed = Number(text.replace(field.unit ?? "", "").trim())
+                if (!Number.isFinite(parsed)) return
+                const next = [...values]
+                next[index] = normalizeNumberFieldValue(parsed, field)
+                field.onChange?.(next)
+              }
+              TextField(host, slotX, slotY, slotW, slotH, props)
+            }},
+          ],
+        }),
+      })),
+    ],
+  })
+}
+
+function drawCompactMatrixField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: MatrixFieldDefinition,
+  metrics: CompactMetrics,
+): void {
+  const matrix = normalizeMatrixFieldValue(field.value)
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: metrics.gap,
+    items: [
+      {height: metrics.control, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, fontPx: metrics.font})},
+      ...matrix.map((values, row) => ({
+        height: metrics.control,
+        draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
+          x: rowX,
+          y: rowY,
+          w: rowW,
+          h: rowH,
+          gap: metrics.gap,
+          items: values.map((value, column) => ({
+            width: "1fr" as const,
+            height: rowH,
+            draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
+              const props: Parameters<typeof TextField>[5] = {
+                key: `${fieldKey(field)}:${row}:${column}`,
+                value: value.toFixed(2),
+                disabled: isFieldDisabled(field),
+                submitOnEnter: true,
+                fontPx: metrics.font,
+                sx: compactTextStyle(metrics),
+              }
+              if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+                const parsed = Number(text)
+                if (!Number.isFinite(parsed)) return
+                const next = matrix.map((entries) => [...entries])
+                next[row]![column] = rounded(parsed)
+                field.onChange?.(next)
+              }
+              TextField(host, cellX, cellY, cellW, cellH, props)
+            },
+          })),
+        }),
+      })),
+    ],
+  })
+}
+
+export function normalizeNumberFieldValue(
+  value: number,
+  options: Pick<NumberFieldDefinition, "numberKind" | "min" | "max" | "step"> = {},
+): number {
+  const finite = Number.isFinite(value) ? value : finiteBound(options.min, 0)
+  const minimum = finiteBound(options.min, Number.NEGATIVE_INFINITY)
+  const maximum = Math.max(minimum, finiteBound(options.max, Number.POSITIVE_INFINITY))
+  const clamped = Math.min(maximum, Math.max(minimum, finite))
+  const step = Number.isFinite(options.step) && (options.step ?? 0) > 0 ? options.step! : undefined
+  const stepped = step === undefined || !Number.isFinite(minimum)
+    ? clamped
+    : minimum + Math.round((clamped - minimum) / step) * step
+  const normalized = Math.min(maximum, Math.max(minimum, stepped))
+  return options.numberKind === "integer" ? Math.round(normalized) : rounded(normalized)
+}
+
+export function nextEnumFieldValue(
+  value: string,
+  options: readonly FieldOption[],
+  step = 1,
+): string {
+  if (options.length === 0) return value
+  const current = options.findIndex((option) => option.value === value)
+  const start = current < 0 ? 0 : current
+  const index = ((start + step) % options.length + options.length) % options.length
+  return options[index]!.value
+}
+
+export function normalizeFieldColor(value: Partial<FieldColor>): FieldColor {
+  return {
+    r: clampUnit(value.r ?? 0),
+    g: clampUnit(value.g ?? 0),
+    b: clampUnit(value.b ?? 0),
+    a: clampUnit(value.a ?? 1),
+  }
+}
+
+export function fieldColorToHex(value: Partial<FieldColor>, includeAlpha = true): string {
+  const color = normalizeFieldColor(value)
+  const channel = (entry: number): string => Math.round(entry * 255).toString(16).padStart(2, "0").toUpperCase()
+  return `#${channel(color.r)}${channel(color.g)}${channel(color.b)}${includeAlpha ? channel(color.a) : ""}`
+}
+
+export function parseFieldColor(value: string): FieldColor | null {
+  const hex = value.trim().replace(/^#/, "")
+  if (!/^[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.test(hex)) return null
+  const channel = (offset: number): number => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255
+  return normalizeFieldColor({
+    r: channel(0),
+    g: channel(2),
+    b: channel(4),
+    a: hex.length === 8 ? channel(6) : 1,
+  })
+}
+
+export function normalizeVectorFieldValue(
+  value: readonly number[],
+  dimensions: 2 | 3 | 4 = 3,
+  options: Pick<VectorFieldDefinition, "min" | "max" | "step"> = {},
+): readonly number[] {
+  return Array.from({length: dimensions}, (_, index) => normalizeNumberFieldValue(value[index] ?? 0, options))
+}
+
+export function normalizeMatrixFieldValue(
+  value: readonly (readonly number[])[],
+): readonly (readonly number[])[] {
+  const size = Math.min(4, Math.max(2, value.length || 2))
+  return Array.from({length: size}, (_, row) => Array.from({length: size}, (_, column) => {
+    const entry = value[row]?.[column]
+    return Number.isFinite(entry) ? rounded(entry!) : row === column ? 1 : 0
+  }))
+}
+
+function drawFieldLabel(host: UiSurface, x: number, y: number, width: number, height: number, field: FieldBase): void {
+  Typography(host, x, y, width, height, {
+    children: field.label,
+    variant: "caption",
+    color: field.disabled ? "muted" : "text",
+  })
+}
+
+function drawTextField(host: UiSurface, x: number, y: number, width: number, height: number, field: TextFieldDefinition): void {
+  const props: Parameters<typeof TextField>[5] = {
+    key: fieldKey(field),
+    value: field.value,
+    disabled: isFieldDisabled(field),
+  }
+  if (field.placeholder !== undefined) props.placeholder = field.placeholder
+  if (!isFieldDisabled(field) && field.onChange !== undefined) props.onChange = (value) => field.onChange!(value)
+  TextField(host, x, y, width, height, props)
+}
+
+function drawNumberField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: NumberFieldDefinition,
+): void {
+  const value = normalizeNumberFieldValue(field.value, field)
+  const props: Parameters<typeof TextField>[5] = {
+    key: fieldKey(field),
+    value: `${value}${field.unit ?? ""}`,
+    disabled: isFieldDisabled(field),
+    submitOnEnter: true,
+  }
+  if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+      const parsed = Number(text.replace(field.unit ?? "", "").trim())
+      if (Number.isFinite(parsed)) field.onChange?.(normalizeNumberFieldValue(parsed, field))
+    }
+  TextField(host, x, y, width, height, props)
+}
+
+function drawNumberSlider(host: UiSurface, x: number, y: number, width: number, field: NumberFieldDefinition): void {
+  const props: Parameters<typeof SliderControl>[4] = {
+    key: fieldKey(field),
+    label: field.label,
+    value: normalizeNumberFieldValue(field.value, field),
+    max: field.max!,
+    step: field.step ?? (field.numberKind === "integer" ? 1 : 0.01),
+    format: (entry) => `${entry}${field.unit ?? ""}`,
+    onChange: (entry) => {
+      if (!isFieldDisabled(field)) field.onChange?.(normalizeNumberFieldValue(entry, field))
+    },
+  }
+  if (field.min !== undefined) props.min = field.min
+  SliderControl(host, x, y, width, props)
+}
+
+function drawBooleanField(host: UiSurface, x: number, y: number, width: number, field: BooleanFieldDefinition): void {
+  const disabled = isFieldDisabled(field)
+  const onChange = !disabled && field.onChange !== undefined ? (value: boolean) => field.onChange!(value) : undefined
+  const controlWidth = field.presentation === "checkbox" ? 24 : 40
+  flexRow({
+    x,
+    y,
+    w: width,
+    h: CONTROL_HEIGHT,
+    gap: 8,
+    alignItems: "center",
+    items: [
+      {width: "grow", height: CONTROL_HEIGHT, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, color: disabled ? "muted" : "text"})},
+      {width: controlWidth, height: 22, draw: (slotX, slotY, slotW, slotH) => {
+        if (field.presentation === "checkbox") {
+          const props: Parameters<typeof Checkbox>[5] = {checked: field.value, disabled}
+          if (onChange !== undefined) props.onChange = onChange
+          Checkbox(host, slotX, slotY, slotW, slotH, props)
+        } else {
+          const props: Parameters<typeof Switcher>[5] = {checked: field.value, disabled}
+          if (onChange !== undefined) props.onChange = onChange
+          Switcher(host, slotX, slotY, slotW, slotH, props)
+        }
+      }},
+    ],
+  })
+}
+
+function drawEnumField(host: UiSurface, x: number, y: number, width: number, height: number, field: EnumFieldDefinition): void {
+  const selected = field.options.find((option) => option.value === field.value)
+  const props: Parameters<typeof Button>[5] = {
+    children: selected?.label ?? field.value,
+    variant: "outlined",
+    disabled: isFieldDisabled(field) || field.options.length === 0,
+    action: () => field.onChange?.(nextEnumFieldValue(field.value, field.options)),
+  }
+  const tooltip = selected?.description ?? field.description
+  if (tooltip !== undefined) props.tooltip = tooltip
+  Button(host, x, y, width, height, props)
+}
+
+function drawColorField(host: UiSurface, x: number, y: number, width: number, height: number, field: ColorFieldDefinition): void {
+  const value = normalizeFieldColor(field.value)
+  flexRow({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: 7,
+    alignItems: "stretch",
+    items: [
+      {width: height, height, draw: (slotX, slotY, slotW, slotH) => host.drawRoundedRect(slotX, slotY, slotW, slotH, {
+        radius: 6,
+        fill: new Color(value.r, value.g, value.b, value.a),
+        border: palette.border,
+        borderWidth: 1,
+        z: Z.ELEMENT,
+      })},
+      {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
+        const props: Parameters<typeof TextField>[5] = {
+          key: fieldKey(field),
+          value: fieldColorToHex(value),
+          disabled: isFieldDisabled(field),
+          submitOnEnter: true,
+        }
+        if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+          const parsed = parseFieldColor(text)
+          if (parsed !== null) field.onChange?.(parsed)
+        }
+        TextField(host, slotX, slotY, slotW, slotH, props)
+      }},
+    ],
+  })
+}
+
+function drawVectorField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: VectorFieldDefinition | RotationFieldDefinition,
+): void {
+  const dimensions = field.dimensions ?? (field.value.length >= 2 && field.value.length <= 4 ? field.value.length as 2 | 3 | 4 : 3)
+  const values = normalizeVectorFieldValue(field.value, dimensions, field)
+  const axes = field.axes ?? (field.kind === "rotation" ? ["X°", "Y°", "Z°", "W°"] : ["X", "Y", "Z", "W"])
+  flexRow({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: 5,
+    alignItems: "stretch",
+    items: Array.from({length: dimensions}, (_, index) => ({
+      width: "1fr" as const,
+      height,
+      draw: (cellX: number, cellY: number, cellW: number, cellH: number) => flexRow({
+        x: cellX,
+        y: cellY,
+        w: cellW,
+        h: cellH,
+        gap: 3,
+        alignItems: "stretch",
+        items: [
+          {width: 18, height: cellH, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: axes[index] ?? String(index), variant: "caption"})},
+          {width: "grow", height: cellH, draw: (slotX, slotY, slotW, slotH) => {
+            const props: Parameters<typeof TextField>[5] = {
+              key: `${fieldKey(field)}:${index}`,
+              value: String(values[index]),
+              disabled: isFieldDisabled(field),
+              submitOnEnter: true,
+            }
+            if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+              const parsed = Number(text)
+              if (!Number.isFinite(parsed)) return
+              const next = [...values]
+              next[index] = normalizeNumberFieldValue(parsed, field)
+              field.onChange?.(next)
+            }
+            TextField(host, slotX, slotY, slotW, slotH, props)
+          }},
+        ],
+      }),
+    })),
+  })
+}
+
+function drawMatrixField(host: UiSurface, x: number, y: number, width: number, height: number, field: MatrixFieldDefinition): void {
+  const matrix = normalizeMatrixFieldValue(field.value)
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: 4,
+    items: matrix.map((values, row) => ({
+      height: "1fr" as const,
+      draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
+        x: rowX,
+        y: rowY,
+        w: rowW,
+        h: rowH,
+        gap: 4,
+        alignItems: "stretch",
+        items: values.map((value, column) => ({
+          width: "1fr" as const,
+          height: rowH,
+          draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
+            const props: Parameters<typeof TextField>[5] = {
+              key: `${fieldKey(field)}:${row}:${column}`,
+              value: value.toFixed(2),
+              disabled: isFieldDisabled(field),
+              submitOnEnter: true,
+              fontPx: 9,
+            }
+            if (!isFieldDisabled(field)) props.onSubmit = (text) => {
+              const parsed = Number(text)
+              if (!Number.isFinite(parsed)) return
+              const next = matrix.map((entries) => [...entries])
+              next[row]![column] = rounded(parsed)
+              field.onChange?.(next)
+            }
+            TextField(host, cellX, cellY, cellW, cellH, props)
+          },
+        })),
+      }),
+    })),
+  })
+}
+
+function drawReferenceField(host: UiSurface, x: number, y: number, width: number, height: number, field: ReferenceFieldDefinition): void {
+  const props: Parameters<typeof Button>[5] = {
+    children: field.value?.label ?? field.placeholder ?? "Не выбрано",
+    variant: "outlined",
+    disabled: isFieldDisabled(field),
+    action: () => field.onActivate?.(),
+  }
+  const tooltip = field.value?.kind ?? field.description
+  if (tooltip !== undefined) props.tooltip = tooltip
+  Button(host, x, y, width, height, props)
+}
+
+function drawReadonlyField(host: UiSurface, x: number, y: number, width: number, height: number, field: ReadonlyFieldDefinition): void {
+  TextField(host, x, y, width, height, {
+    key: fieldKey(field),
+    value: String(field.value),
+    disabled: true,
+  })
+}
+
+function matrixRows(value: readonly (readonly number[])[]): readonly (readonly number[])[] {
+  return normalizeMatrixFieldValue(value)
+}
+
+function finiteBound(value: number | undefined, fallback: number): number {
+  return Number.isFinite(value) ? value! : fallback
+}
+
+function isFieldDisabled(field: FieldBase): boolean {
+  return field.disabled === true || field.readOnly === true
+}
+
+function fieldKey(field: FieldBase): string {
+  return `field:${field.key ?? field.id}`
+}
+
+function clampUnit(value: number): number {
+  return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
+}
+
+function rounded(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000
+}

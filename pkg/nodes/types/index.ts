@@ -1,5 +1,6 @@
 /** Public model contracts for `nodes`. */
 export * from "./model.ts"
+export * from "./measured.ts"
 export * from "./containment.ts"
 export * from "./incremental.ts"
 export * from "./validation.ts"

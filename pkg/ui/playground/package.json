@@ -1,0 +1,25 @@
+{
+  "name": "@ui/playground",
+  "version": "0.0.1",
+  "description": "Reusable WebGPU playground routing and shell for UI packages.",
+  "type": "module",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./router": "./router.ts",
+    "./layout": "./layout.ts",
+    "./surfaces": "./surfaces.ts",
+    "./server": "./server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --pretty false",
+    "test": "bun test ."
+  },
+  "dependencies": {
+    "@metafor/engine": "workspace:*",
+    "@ui/components": "workspace:*",
+    "@ui/elements": "workspace:*"
+  }
+}

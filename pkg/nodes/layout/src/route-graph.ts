@@ -458,6 +458,7 @@ function validateInput(input: RouteGraphInput): RouteIndex {
     const node = nodes.get(port.nodeId)
     if (node === undefined) throw new Error(`unknown port node: ${port.id}/${port.nodeId}`)
     requirePoint(port.center, `port ${port.id}`)
+    if (port.side !== "WEST" && port.side !== "EAST") throw new Error(`invalid port side: ${port.id}`)
     const sideOffset = port.side === "WEST" ? node.rect.x - port.center.x : port.center.x - rectRight(node.rect)
     if (Math.abs(sideOffset) > input.unitsPerPixel) throw new Error(`${port.side} port is detached from node boundary: ${port.id}`)
     if (port.center.y < node.rect.y || port.center.y > rectBottom(node.rect)) throw new Error(`port y escapes node: ${port.id}`)
@@ -473,8 +474,6 @@ function validateInput(input: RouteGraphInput): RouteIndex {
     const target = ports.get(edge.targetPortId)
     if (source === undefined) throw new Error(`unknown source port: ${edge.id}/${edge.sourcePortId}`)
     if (target === undefined) throw new Error(`unknown target port: ${edge.id}/${edge.targetPortId}`)
-    if (source.direction !== "out" || source.side !== "EAST") throw new Error(`source must be out/EAST: ${edge.id}`)
-    if (target.direction !== "in" || target.side !== "WEST") throw new Error(`target must be in/WEST: ${edge.id}`)
   }
   const childrenByParent = new Map<string, readonly RouteNode[]>(
     [...mutableChildren.entries()].map(([id, children]) => [id, children.sort((a, b) => compareIds(a.id, b.id))]),
@@ -568,15 +567,15 @@ function routeEdge(
   // A dominant candidate that still crosses a prior edge cannot short-circuit:
   // crossing-first search may legally spend more turns to remove it.
   const dominantCandidates: FixedPoint[][] = []
-  if (
-    context.source.center.y === context.target.center.y &&
-    context.source.center.x < context.target.center.x
-  ) {
+  const facing = endpointsFaceEachOther(context.source, context.target)
+  if (context.source.center.y === context.target.center.y && facing) {
     dominantCandidates.push([context.source.center, context.target.center])
   }
-  if (context.source.center.x < context.target.center.x) {
+  if (facing) {
+    const minimumX = Math.min(context.source.center.x, context.target.center.x)
+    const maximumX = Math.max(context.source.center.x, context.target.center.x)
     for (const x of xs) {
-      if (x <= context.source.center.x || x >= context.target.center.x) continue
+      if (x <= minimumX || x >= maximumX) continue
       dominantCandidates.push(simplifyPoints([
         context.source.center,
         {x, y: context.source.center.y},
@@ -605,12 +604,14 @@ function routeEdge(
   const remainingTurns = (state: SearchState, point: FixedPoint): number => {
     if (samePoint(point, context.target.center)) return 0
     const lastAxis = axisOfStepDirection(state.lastDirection)
-    const targetIsEast = point.x < context.target.center.x
+    const targetIsOnRequiredSide = context.target.side === "WEST"
+      ? point.x < context.target.center.x
+      : point.x > context.target.center.x
     if (point.y !== context.target.center.y) {
-      if (targetIsEast) return lastAxis === "V" ? 1 : 2
+      if (targetIsOnRequiredSide) return lastAxis === "V" ? 1 : 2
       return lastAxis === "V" ? 3 : 2
     }
-    if (targetIsEast) return lastAxis === "V" ? 1 : 0
+    if (targetIsOnRequiredSide) return lastAxis === "V" ? 1 : 0
     return lastAxis === "V" ? 3 : 4
   }
   heap.push({state: start, score: startScore, estimatedTurns: remainingTurns(start, startPoint), estimatedLength: manhattanBetween(startPoint, context.target.center)})
@@ -668,8 +669,8 @@ function routeEdge(
         segmentLegality.set(segmentKey, isSegmentLegal)
       }
       if (!isSegmentLegal) { reject("segmentIllegal"); continue }
-      if (current.state.lastDirection === null && !(nextPoint.y === currentPoint.y && nextPoint.x > currentPoint.x)) { reject("sourceDirection"); continue }
-      if (nextXi === targetXi && nextYi === targetYi && !(currentPoint.y === nextPoint.y && currentPoint.x < nextPoint.x)) { reject("targetDirection"); continue }
+      if (current.state.lastDirection === null && !leavesResolvedSide(currentPoint, nextPoint, context.source.side)) { reject("sourceDirection"); continue }
+      if (nextXi === targetXi && nextYi === targetYi && !entersResolvedSide(currentPoint, nextPoint, context.target.side)) { reject("targetDirection"); continue }
       const axis: Axis = currentPoint.y === nextPoint.y ? "H" : "V"
       const transitioned = transitionHierarchy(current.state, nextXi, nextYi, currentPoint, nextPoint, context, direction)
       if (transitioned === null) { reject("hierarchyTransition"); continue }
@@ -1016,7 +1017,10 @@ function terminalPortals(
 ): Readonly<{source: FixedPoint; target: FixedPoint}> {
   let sourceX = portPortalX(source, sourceNode, clearance)
   let targetX = portPortalX(target, targetNode, clearance)
-  if (source.center.x < target.center.x && sourceX > targetX) {
+  const overlap = source.side === "EAST"
+    ? sourceX > targetX
+    : sourceX < targetX
+  if (endpointsFaceEachOther(source, target) && overlap) {
     const meetingX = source.center.x + Math.floor((target.center.x - source.center.x) / 2)
     sourceX = meetingX
     targetX = meetingX
@@ -1029,7 +1033,8 @@ function terminalPortals(
 
 function insideFacingTerminalZone(point: FixedPoint, context: EdgeContext): boolean {
   if (context.sourcePortal.x !== context.targetPortal.x) return false
-  return point.x >= context.source.center.x && point.x <= context.target.center.x &&
+  return point.x >= Math.min(context.source.center.x, context.target.center.x) &&
+    point.x <= Math.max(context.source.center.x, context.target.center.x) &&
     point.y >= Math.min(context.source.center.y, context.target.center.y) &&
     point.y <= Math.max(context.source.center.y, context.target.center.y)
 }
@@ -1041,10 +1046,12 @@ function obstacleIntersectionInsideFacingTerminalZone(
   context: EdgeContext,
 ): boolean {
   if (context.sourcePortal.x !== context.targetPortal.x) return false
+  const left = Math.min(context.source.center.x, context.target.center.x)
+  const right = Math.max(context.source.center.x, context.target.center.x)
   const zone: FixedRect = {
-    x: context.source.center.x,
+    x: left,
     y: Math.min(context.source.center.y, context.target.center.y),
-    w: context.target.center.x - context.source.center.x,
+    w: right - left,
     h: Math.abs(context.target.center.y - context.source.center.y),
   }
   if (from.y === to.y) {
@@ -1063,6 +1070,20 @@ function portPortalX(port: RoutePort, node: RouteNode, clearance: number): numbe
   return port.side === "EAST"
     ? Math.max(port.center.x, rectRight(node.rect)) + clearance
     : Math.min(port.center.x, node.rect.x) - clearance
+}
+
+function endpointsFaceEachOther(source: RoutePort, target: RoutePort): boolean {
+  return source.side === "EAST" && target.side === "WEST"
+    ? source.center.x < target.center.x
+    : source.side === "WEST" && target.side === "EAST" && source.center.x > target.center.x
+}
+
+function leavesResolvedSide(from: FixedPoint, to: FixedPoint, side: RoutePort["side"]): boolean {
+  return from.y === to.y && (side === "EAST" ? to.x > from.x : to.x < from.x)
+}
+
+function entersResolvedSide(from: FixedPoint, to: FixedPoint, side: RoutePort["side"]): boolean {
+  return leavesResolvedSide(to, from, side)
 }
 
 function transitionHierarchy(
@@ -1151,8 +1172,12 @@ function validatePath(
       }
     }
   }
-  if (!(points[1]!.y === points[0]!.y && points[1]!.x > points[0]!.x)) violations.push("source does not leave EAST")
-  if (!(points.at(-2)!.y === points.at(-1)!.y && points.at(-2)!.x < points.at(-1)!.x)) violations.push("target does not enter from WEST")
+  if (!leavesResolvedSide(points[0]!, points[1]!, context.source.side)) {
+    violations.push(`source does not leave ${context.source.side}`)
+  }
+  if (!entersResolvedSide(points.at(-2)!, points.at(-1)!, context.target.side)) {
+    violations.push(`target does not enter from ${context.target.side}`)
+  }
   if (state.sourceExited !== context.sourceChain.length) violations.push("source ancestor chain not fully exited")
   if (state.targetEntered !== context.targetChain.length) violations.push("target ancestor chain not fully entered")
   return violations

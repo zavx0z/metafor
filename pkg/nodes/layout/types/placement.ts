@@ -1,4 +1,4 @@
-import type {FixedRect, RouteDirection, RouteEdge, RouteGraphInput, RouteNode, RoutePort, RoutePortDirection, RoutePortSide} from "./routing.ts"
+import type {FixedRect, RouteDirection, RouteEdge, RouteGraphInput, RouteNode, RoutePort, RoutePortSide} from "./routing.ts"
 
 /** Internal integer solver contract; never crosses the package boundary. */
 
@@ -8,7 +8,8 @@ export type IntrinsicNode = Readonly<{
   size: Readonly<{w: number; h: number}>
   contentHeight: number
 }>
-export type IntrinsicPort = Readonly<{id: string; nodeId: string; offsetY: number; side: RoutePortSide; direction: RoutePortDirection}>
+/** Measured endpoint with a side already resolved by a policy. */
+export type IntrinsicPort = Readonly<{id: string; nodeId: string; offsetY: number; side: RoutePortSide}>
 export type PlacementInput = Readonly<{
   unitsPerPixel: number
   clearance: number

@@ -20,6 +20,17 @@ import type {
 
 const compareIds = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0
 
+function sourceRunwayDeficit(
+  sourceX: number,
+  targetX: number,
+  side: IntrinsicPort["side"],
+  requiredRunway: number,
+): number {
+  return side === "EAST"
+    ? Math.max(0, sourceX + requiredRunway - targetX)
+    : Math.max(0, targetX + requiredRunway - sourceX)
+}
+
 function requiredSideTracks(
   relations: readonly ChildRelation[],
   separateSideTracks: boolean,
@@ -209,12 +220,12 @@ function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainer
     if (sourceTop === targetTop) return false
     const sourceX = rootArrangement.childOffsets.get(sourceTop)!.x + relativePortX(sourceTop, source)
     const targetX = rootArrangement.childOffsets.get(targetTop)!.x + relativePortX(targetTop, target)
-    return sourceX + input.clearance * 2 > targetX
+    return sourceRunwayDeficit(sourceX, targetX, source.side, input.clearance * 2) > 0
   }).length
   // The declared outer padding is the minimum obstacle clearance. Keep one
   // additional clearance band for the first outside track, then one track for
-  // every reverse-flow semantic edge that must leave a right-hand top-level
-  // subtree before reaching a WEST target. This is occupied routing capacity,
+  // every semantic edge whose resolved source side points away from its target
+  // subtree. This is occupied routing capacity,
   // not global empty compound padding.
   const rootCorridor = input.outerPadding + Math.max(input.clearance, backwardRootEdges * input.clearance)
   const bounds: FixedRect = {x: 0, y: 0, w: rootArrangement.size.w + rootCorridor * 2, h: rootArrangement.size.h + rootCorridor * 2}
@@ -237,7 +248,7 @@ function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainer
   })
   const routePorts: RoutePort[] = [...portById.values()].map((port) => {
     const rect = rects.get(port.nodeId)!
-    return {id: port.id, nodeId: port.nodeId, center: {x: port.side === "WEST" ? rect.x : rect.x + rect.w, y: rect.y + port.offsetY}, side: port.side, direction: port.direction}
+    return {id: port.id, nodeId: port.nodeId, center: {x: port.side === "WEST" ? rect.x : rect.x + rect.w, y: rect.y + port.offsetY}, side: port.side}
   })
   const routeInput: RouteGraphInput = {direction, unitsPerPixel: input.unitsPerPixel, clearance: input.clearance, bounds, viewport: input.viewport, nodes: routeNodes, ports: routePorts, edges: [...input.edges].sort((a, b) => compareIds(a.id, b.id))}
   const hardViolations = validatePlacement(input, {direction, nodes: routeNodes, ports: routePorts, bounds})
@@ -278,7 +289,12 @@ function placeGraphWithAlignedContainers(input: PlacementInput, alignedContainer
   const sourceCorridorDeficit = [...forwardBySource.values()].reduce((total, entries) => {
     const requiredRunway = (entries.length + 1) * input.clearance
     return total + entries.reduce(
-      (sum, {source, target}) => sum + Math.max(0, source.center.x + requiredRunway - target.center.x),
+      (sum, {source, target}) => sum + sourceRunwayDeficit(
+        source.center.x,
+        target.center.x,
+        source.side,
+        requiredRunway,
+      ),
       0,
     )
   }, 0)
@@ -342,15 +358,19 @@ function arrangeChildren(
   }
   if (direction === "DOWN" && packing.kind === "PORTRAIT_FLOW") {
     const baseHorizontalGap = input.nodeSpacing
-    const eastFanout = new Map(childIds.map((id) => [id, 0]))
-    const westFanin = new Map(childIds.map((id) => [id, 0]))
+    const eastTracks = new Map(childIds.map((id) => [id, 0]))
+    const westTracks = new Map(childIds.map((id) => [id, 0]))
+    const addTrack = (childId: string, side: IntrinsicPort["side"]): void => {
+      const tracks = side === "EAST" ? eastTracks : westTracks
+      tracks.set(childId, tracks.get(childId)! + 1)
+    }
     for (const relation of ranked.relations) {
-      eastFanout.set(relation.sourceChild, eastFanout.get(relation.sourceChild)! + 1)
-      westFanin.set(relation.targetChild, westFanin.get(relation.targetChild)! + 1)
+      addTrack(relation.sourceChild, relation.sourcePort.side)
+      addTrack(relation.targetChild, relation.targetPort.side)
     }
     const gapBetween = (leftId: string, rightId: string): number => Math.max(
       baseHorizontalGap,
-      (Math.max(eastFanout.get(leftId)!, westFanin.get(rightId)!) + 1) * input.clearance,
+      (Math.max(eastTracks.get(leftId)!, westTracks.get(rightId)!) + 1) * input.clearance,
     )
     const edgeReserve = (edgeCount: number): number => Math.max(
       0,
@@ -358,14 +378,14 @@ function arrangeChildren(
     )
     const rowWidth = (ids: readonly string[]): number => {
       if (ids.length === 0) return 0
-      let width = edgeReserve(westFanin.get(ids[0]!)!)
+      let width = edgeReserve(westTracks.get(ids[0]!)!)
       for (let index = 0; index < ids.length; index += 1) {
         const id = ids[index]!
         width += measured.get(id)!.size.w
         const nextId = ids[index + 1]
         if (nextId !== undefined) width += gapBetween(id, nextId)
       }
-      return width + edgeReserve(eastFanout.get(ids.at(-1)!)!)
+      return width + edgeReserve(eastTracks.get(ids.at(-1)!)!)
     }
     const footprintArea = childIds.reduce((sum, id) => {
       const size = measured.get(id)!.size
@@ -468,7 +488,7 @@ function arrangeChildren(
     let y = 0
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
       const entry = rows[rowIndex]!
-      const leadingReserve = edgeReserve(westFanin.get(entry.ids[0]!)!)
+      const leadingReserve = edgeReserve(westTracks.get(entry.ids[0]!)!)
       const minimumX = leadingReserve
       const relativeXs = new Map<string, number>()
       let relativeX = 0
@@ -485,8 +505,9 @@ function arrangeChildren(
         const sourcePort = relativePortPoint(relation.sourceChild, relation.sourcePort)
         const targetPort = relativePortPoint(relation.targetChild, relation.targetPort)
         return {
-          sourceEast: sourceOffset.x + sourcePort.x,
-          targetWestOffset: relativeXs.get(relation.targetChild)! + targetPort.x,
+          sourceX: sourceOffset.x + sourcePort.x,
+          targetXOffset: relativeXs.get(relation.targetChild)! + targetPort.x,
+          sourceSide: relation.sourcePort.side,
         }
       })
       const maximumX = width - entry.width + leadingReserve
@@ -535,23 +556,28 @@ function arrangeChildren(
           }))
           const previousId = entry.ids[index - 1]
           const leftLimit = previousId === undefined
-            ? edgeReserve(westFanin.get(id)!)
+            ? edgeReserve(westTracks.get(id)!)
             : offsets.get(previousId)!.x + measured.get(previousId)!.size.w + gapBetween(previousId, id)
           const shift = Math.min(requiredShift, Math.max(0, sourceOffset.x - leftLimit))
           if (shift > 0) offsets.set(id, {x: sourceOffset.x - shift, y: sourceOffset.y})
         }
       }
     }
-    const rightSideRelations = containerId === null ? [] : ranked.relations.filter((relation) => {
+    const outsideRelations = containerId === null ? [] : ranked.relations.filter((relation) => {
       const sourceOffset = offsets.get(relation.sourceChild)!
       const targetOffset = offsets.get(relation.targetChild)!
       const source = relativePortPoint(relation.sourceChild, relation.sourcePort)
       const target = relativePortPoint(relation.targetChild, relation.targetPort)
-      return sourceOffset.x + source.x + input.clearance * 2 > targetOffset.x + target.x
+      return sourceRunwayDeficit(
+        sourceOffset.x + source.x,
+        targetOffset.x + target.x,
+        relation.sourcePort.side,
+        input.clearance * 2,
+      ) > 0
     })
-    const rightSideTracks = requiredSideTracks(rightSideRelations, packing.separateSideTracks)
-    const sideReserve = rightSideTracks * input.clearance
-    const routeReserve = rightSideRelations.length * input.clearance
+    const outsideTracks = requiredSideTracks(outsideRelations, packing.separateSideTracks)
+    const sideReserve = outsideTracks * input.clearance
+    const routeReserve = outsideRelations.length * input.clearance
     let reservedWidth = width
     if (sideReserve > 0) {
       const rowBounds = rows.map((entry) => {
@@ -740,15 +766,17 @@ function arrangeChildren(
       offsets.set(id, direction === "RIGHT" ? {x: point.x, y: point.y - crossStart} : {x: point.x - crossStart, y: point.y})
     }
   }
-  const rightSideRelations = containerId === null ? [] : ranked.relations.filter((relation) => {
+  const outsideRelations = containerId === null ? [] : ranked.relations.filter((relation) => {
     const sourceOffset = offsets.get(relation.sourceChild)!
     const targetOffset = offsets.get(relation.targetChild)!
     const source = relativePortPoint(relation.sourceChild, relation.sourcePort)
     const target = relativePortPoint(relation.targetChild, relation.targetPort)
-    return sourceOffset.x + source.x >= targetOffset.x + target.x
+    const sourceX = sourceOffset.x + source.x
+    const targetX = targetOffset.x + target.x
+    return relation.sourcePort.side === "EAST" ? sourceX >= targetX : sourceX <= targetX
   })
-  const rightSideTracks = requiredSideTracks(rightSideRelations, packing.separateSideTracks)
-  const sideReserve = rightSideTracks * input.clearance
+  const outsideTracks = requiredSideTracks(outsideRelations, packing.separateSideTracks)
+  const sideReserve = outsideTracks * input.clearance
   const reservedOffsets = sideReserve === 0
     ? offsets
     : new Map([...offsets].map(([id, point]) => [id, {x: point.x + sideReserve, y: point.y}]))
@@ -765,11 +793,17 @@ export function choosePortraitRowX(input: Readonly<{
   centeredX: number
   maximumX: number
   clearance: number
-  relations: readonly Readonly<{sourceEast: number; targetWestOffset: number}>[]
+  relations: readonly Readonly<{
+    sourceX: number
+    targetXOffset: number
+    sourceSide: IntrinsicPort["side"]
+  }>[]
 }>): number {
   const candidates = new Set([input.minimumX, input.centeredX, input.maximumX])
   for (const relation of input.relations) {
-    const desired = relation.sourceEast + input.clearance * 2 - relation.targetWestOffset
+    const desired = relation.sourceSide === "EAST"
+      ? relation.sourceX + input.clearance * 2 - relation.targetXOffset
+      : relation.sourceX - input.clearance * 2 - relation.targetXOffset
     candidates.add(Math.max(input.minimumX, Math.min(input.maximumX, desired)))
   }
   const score = (candidateX: number): readonly number[] => {
@@ -777,10 +811,15 @@ export function choosePortraitRowX(input: Readonly<{
     let clearanceDeficit = 0
     let horizontal = 0
     for (const relation of input.relations) {
-      const targetWest = candidateX + relation.targetWestOffset
-      if (targetWest < relation.sourceEast) backward += 1
-      clearanceDeficit += Math.max(0, relation.sourceEast + input.clearance * 2 - targetWest)
-      horizontal += Math.abs(targetWest - relation.sourceEast)
+      const targetX = candidateX + relation.targetXOffset
+      if (sourceRunwayDeficit(relation.sourceX, targetX, relation.sourceSide, 0) > 0) backward += 1
+      clearanceDeficit += sourceRunwayDeficit(
+        relation.sourceX,
+        targetX,
+        relation.sourceSide,
+        input.clearance * 2,
+      )
+      horizontal += Math.abs(targetX - relation.sourceX)
     }
     return [
       backward,
@@ -883,7 +922,12 @@ function validatePlacementInput(input: PlacementInput): void {
     ids.add(node.id)
   }
   for (const node of input.nodes) if (node.parentId !== undefined && !ids.has(node.parentId)) throw new Error(`unknown parent: ${node.id}/${node.parentId}`)
-  for (const port of input.ports) if (!ids.has(port.nodeId) || !Number.isSafeInteger(port.offsetY)) throw new Error(`invalid port: ${port.id}`)
+  for (const port of input.ports) {
+    if (!ids.has(port.nodeId) || !Number.isSafeInteger(port.offsetY) ||
+        (port.side !== "WEST" && port.side !== "EAST")) {
+      throw new Error(`invalid port: ${port.id}`)
+    }
+  }
 }
 
 export function validatePlacement(
