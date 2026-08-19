@@ -133,8 +133,20 @@
 
 ## Локальная разработка и WebGPU Inspector
 
-- Перед локальной разработкой MetaFor, runtime- и browser-проверкой, а также
-  профилированием `Bulk` или `Visual` использовать skill `$metafor-dev`: он
+- Для standalone-разработки, lifecycle, browser-проверки и профилирования
+  playground-пакетов `@ui/elements`, `@ui/components`, общего `@ui/playground`
+  и Blender-based `@nodes/ui` использовать skill `$ui-dev` из
+  `pkg/ui/.agents/skills/ui-dev`. Он владеет package-contour и exact target
+  только в границах своих selectors; команды и договор dispatcher здесь не
+  дублировать.
+- Browser evidence в этих standalone-contours получать только через встроенный
+  в `$ui-dev` background exact-target CDP path. Агент не воспроизводит его CDP
+  вручную и не вызывает focus, activate, `Page.bringToFront`, window APIs или
+  AI macOS. Этот узкий package-owned path не меняет глобальные macOS-правила
+  управления Chrome за его пределами.
+- Перед локальной разработкой Hamiltonian или product contour, его runtime- и
+  browser-проверкой, а также профилированием `Bulk` или `Visual` использовать
+  skill `$metafor-dev`: он
   сохраняет один видимый владельцу Hamiltonian в помеченной iTerm-сессии, один
   CDP Chrome и стабильный browser target. Существующий пользовательский процесс
   не присваивать и не дублировать; lifecycle выполнять только через scripts
