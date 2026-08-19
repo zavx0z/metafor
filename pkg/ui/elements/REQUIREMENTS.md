@@ -22,6 +22,17 @@ FlexBox единолично вычисляет local child slots, а child то
 4. Любой visual child, включая text, icon, Socket, stroke, border, radius,
    padding и gap, непрерывно наследует transform parent. Screen-space minimum
    разрешён только отдельному невидимому hit target и не меняет visual child.
+5. `UiSurface` владеет retained component parent как точным engine `Object3D`:
+   parent может быть вложен только в другой принадлежащий Surface retained
+   parent, а drawing primitives материализуются в выбранном parent в локальных
+   координатах. Dirty-rematerialization сначала целиком строит новый subtree и
+   только затем атомарно заменяет прежних children; ошибка построения оставляет
+   действующий subtree без изменений.
+6. Transform-only presentation сохраняет identity parent, children и geometry.
+   Remove, повторная materialization и `dispose()` рекурсивно отсоединяют весь
+   принадлежащий subtree и освобождают каждую некэшированную geometry ровно один
+   раз. Разделяемая geometry `CachedText` остаётся в renderer cache до
+   действующего LRU-вытеснения.
 
 ## Обязательный Flex-закон
 

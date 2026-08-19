@@ -135,7 +135,7 @@ Result checkpoint: `d15d66671810a5a483e64ae1782c89dae29be025`.
 
 ### NODES-018.2 — Добавить retained component parent в UiSurface
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+Статус и исполнитель: `REVIEW`, внутренний исполнитель
 `NODES-018.2 — Добавить retained component parent в UiSurface`.
 
 Классификация: следующий implementation-срез того же UI owner contract; он
@@ -175,13 +175,37 @@ typecheck, применимые Node UI tests и typecheck, exact Engine source 
 `git diff --check`. Browser и NodeCanvas performance относятся к
 NODES-018.3–.5.
 
-Фактические действия: ещё не выполнены.
+Фактические действия: UI owner contract закрепил один lifecycle точного engine
+`Object3D`: root/nested create, атомарную materialization локальных primitives,
+transform-only presentation и recursive remove/dispose с сохранением
+`CachedText` cache law. `UiSurface` заменил неиспользуемые параллельные
+`addRetainedObject`/`requestPresentationFrame` на protected
+`createRetainedParent`, `materializeRetainedParent`,
+`updateRetainedTransform`, `removeRetainedParent`. Materialization строит
+staging subtree, переключает drawing context только на него и меняет прежних
+children лишь после успешного draw; exception освобождает staging и оставляет
+действующий subtree нетронутым. Общий cleanup теперь рекурсивно отсоединяет
+каждый `Object3D`, удаляет orphan parent references и одним identity-set
+инвалидирует вложенные Mesh/Line/обычные Text geometry.
 
-Результат и вывод: ещё не получены.
+Результат и вывод: fake renderer/runtime regression доказал stable identity
+root, nested parent, children и geometry на двух transform-only presentations
+без invalidation. Dirty rematerialization один раз освободила общий
+`BufferGeometry` двух nested Mesh/Line и обе собственные geometry обычного
+Text, но не invalidated shared geometry `CachedText`. Staging exception
+сохранил прежний child/geometry; повторные remove/dispose не дали double
+cleanup, а dispose ещё прикреплённого subtree полностью обнулил parent/children.
+`NodeCanvas`, semantic NodeTree/layout solver, Blender renderer и visual policy
+не изменялись.
 
-Подготовительный commit: текущий project-коммит после этой регистрации.
+Проверки: focused retained lifecycle — `3/3`, `61` assertions; весь
+`bun test pkg/ui/elements` — `53/53`; `bun test pkg/nodes/ui` — `27/27`;
+`@ui/elements` и `@nodes/ui` package typechecks — pass; exact Engine source
+typecheck — pass; `git diff --check` — pass.
 
-Result checkpoint: ещё не записан.
+Подготовительный commit: `da884b2daf7ad467d6c7b85e6dbb7af5c5e45044`.
+
+Result checkpoint: будет записан следующим project-only commit.
 
 ### NODES-018.3 — Перевести NodeCanvas на retained content hierarchy
 

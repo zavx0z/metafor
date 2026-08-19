@@ -78,6 +78,12 @@ import {createUiPolylineStrokeGeometry, type UiPolylinePoint} from "./polyline.t
 
 type UiFrameHandle = {kind: "raf"; id: number} | {kind: "timeout"; id: ReturnType<typeof setTimeout>}
 
+type RetainedMaterialization = {
+  target: Object3D
+  staging: Object3D
+  provisionalParents: Set<Object3D>
+}
+
 const scheduleUiFrame = (callback: FrameRequestCallback): UiFrameHandle => {
   if (typeof globalThis.requestAnimationFrame === "function") {
     return {kind: "raf", id: globalThis.requestAnimationFrame(callback)}
@@ -349,6 +355,8 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #layer: Object3D
   readonly #overlayLayer: Object3D
   readonly #retainedLayer: Object3D
+  readonly #retainedParents = new Set<Object3D>()
+  #retainedMaterialization: RetainedMaterialization | null = null
   #drawLayer: UiSurfaceDrawLayer = "main"
   #framebufferDisplayId: UiDisplayId = "default"
   /** Padding в logical px (top, right, bottom, left). */
@@ -649,13 +657,84 @@ export abstract class UiSurface implements UiSurfaceNode {
     return true
   }
 
-  /** Adds a retained object owned and updated by the subclass. */
-  protected addRetainedObject(object: Object3D): void {
-    this.#retainedLayer.add(object)
+  /** Creates one Surface-owned engine parent, optionally nested under another. */
+  protected createRetainedParent(parent?: Object3D): Object3D {
+    const requestedParent = parent ?? this.#retainedLayer
+    const transaction = this.#retainedMaterialization
+    let attachmentParent = requestedParent
+
+    if (transaction !== null) {
+      if (requestedParent === transaction.target) attachmentParent = transaction.staging
+      else if (!transaction.provisionalParents.has(requestedParent)) {
+        throw new Error("A retained parent created during materialization must stay inside the staged subtree")
+      }
+    } else if (requestedParent !== this.#retainedLayer && !this.#retainedParents.has(requestedParent)) {
+      throw new Error("Retained parents can only be nested inside a parent owned by this UiSurface")
+    }
+
+    const retainedParent = new Object3D()
+    attachmentParent.add(retainedParent)
+    if (transaction === null) this.#retainedParents.add(retainedParent)
+    else transaction.provisionalParents.add(retainedParent)
+    return retainedParent
   }
 
-  /** Presents current retained-object transforms without rebuilding the surface. */
-  protected requestPresentationFrame(): void {
+  /** Atomically replaces one retained parent's local drawing subtree. */
+  protected materializeRetainedParent(parent: Object3D, draw: () => void): void {
+    this.#requireRetainedParent(parent)
+    if (this.#retainedMaterialization !== null) {
+      throw new Error("Nested retained materialization is not supported")
+    }
+
+    const staging = new Object3D()
+    const transaction: RetainedMaterialization = {
+      target: parent,
+      staging,
+      provisionalParents: new Set<Object3D>(),
+    }
+    const previousClipStack = this.#clipStack
+    this.#retainedMaterialization = transaction
+    this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
+
+    try {
+      draw()
+    } catch (error) {
+      this.#retainedMaterialization = null
+      this.#clipStack = previousClipStack
+      this.#disposeChildren(staging)
+      throw error
+    }
+
+    this.#retainedMaterialization = null
+    this.#clipStack = previousClipStack
+
+    const previousChildren = [...parent.children]
+    const nextChildren = [...staging.children]
+    for (const child of previousChildren) parent.remove(child)
+    for (const child of nextChildren) {
+      staging.remove(child)
+      parent.add(child)
+    }
+    for (const retainedParent of transaction.provisionalParents) this.#retainedParents.add(retainedParent)
+    this.#disposeSubtrees(previousChildren)
+    this.canvas?.requestRender()
+  }
+
+  /** Updates only one retained parent's local transform and presents the frame. */
+  protected updateRetainedTransform(parent: Object3D, update: (parent: Object3D) => void): void {
+    this.#requireRetainedParent(parent)
+    update(parent)
+    parent.updateMatrix()
+    this.canvas?.requestRender()
+  }
+
+  /** Removes a retained parent and its complete owned subtree. Repeated removal is a no-op. */
+  protected removeRetainedParent(parent: Object3D): void {
+    if (!this.#retainedParents.has(parent)) return
+    if (this.#retainedMaterialization !== null) {
+      throw new Error("A retained parent cannot be removed during materialization")
+    }
+    this.#disposeSubtrees([parent])
     this.canvas?.requestRender()
   }
 
@@ -1297,6 +1376,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   #currentLayer(): Object3D {
+    if (this.#retainedMaterialization !== null) return this.#retainedMaterialization.staging
     return this.#layerObject(this.#drawLayer)
   }
 
@@ -1540,28 +1620,54 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.requestRender()
   }
 
-  #clearLayer(layer: Object3D = this.#layer): void {
-    const renderer = this.canvas?.renderer
-    if (renderer !== undefined) {
-      for (const geometry of Text.consumeEvictedLayoutGeometries()) renderer.invalidateGeometry(geometry)
+  #requireRetainedParent(parent: Object3D): void {
+    if (!this.#retainedParents.has(parent)) {
+      throw new Error("Retained parent is not owned by this UiSurface")
     }
-    for (const obj of layer.children) {
+  }
+
+  #clearLayer(layer: Object3D = this.#layer): void {
+    this.#disposeChildren(layer)
+  }
+
+  #disposeChildren(parent: Object3D): void {
+    this.#disposeSubtrees([...parent.children])
+  }
+
+  #disposeSubtrees(roots: readonly Object3D[]): void {
+    const renderer = this.canvas?.renderer
+    const geometries = new Set<BufferGeometry>()
+    if (renderer !== undefined) {
+      for (const geometry of Text.consumeEvictedLayoutGeometries()) geometries.add(geometry)
+    }
+
+    const disposeObject = (obj: Object3D): void => {
+      for (const child of [...obj.children]) disposeObject(child)
+
       const text = obj as Text
       if (text.isText === true) {
         if (renderer !== undefined) {
           if (text.stencilGeometry !== undefined && !Text.isCachedLayoutGeometry(text.stencilGeometry)) {
-            renderer.invalidateGeometry(text.stencilGeometry)
+            geometries.add(text.stencilGeometry)
           }
           if (text.coverGeometry !== undefined && !Text.isCachedLayoutGeometry(text.coverGeometry)) {
-            renderer.invalidateGeometry(text.coverGeometry)
+            geometries.add(text.coverGeometry)
           }
         }
-        continue
+      } else if (renderer !== undefined) {
+        const geometry = (obj as {geometry?: BufferGeometry}).geometry
+        if (geometry !== undefined) geometries.add(geometry)
       }
-      const mesh = obj as Mesh
-      if (mesh.geometry !== undefined && renderer !== undefined) renderer.invalidateGeometry(mesh.geometry)
+
+      obj.children = []
+      obj.parent?.remove(obj)
+      this.#retainedParents.delete(obj)
     }
-    layer.children = []
+
+    for (const root of roots) disposeObject(root)
+    if (renderer !== undefined) {
+      for (const geometry of geometries) renderer.invalidateGeometry(geometry)
+    }
   }
 
   #fitText(value: string, maxPx: number, fontPx: number, letterSpacingPx?: number, spaceAdvancePx?: number): string {
