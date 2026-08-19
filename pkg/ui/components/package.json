@@ -10,7 +10,9 @@
     ".": "./index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit --pretty false"
+    "playground": "bun playground/server.ts",
+    "typecheck": "tsc --noEmit --pretty false",
+    "typecheck:playground": "tsc --noEmit --pretty false --project playground/tsconfig.json"
   },
   "dependencies": {
     "@ui/elements": "workspace:*",

@@ -2,4 +2,4 @@
 ".wgsl" = "text"
 
 [serve.static]
-plugins = ["../../scripts/wgsl-text-plugin.ts"]
+plugins = ["../../../scripts/wgsl-text-plugin.ts"]
