@@ -73,9 +73,16 @@ describe("ui-dev registry", () => {
     })
     expect(registry.selectors["node-layout"]).toBeUndefined()
 
-    const result = await run("status", "elements", undefined, await stateRoot())
+    const port = await freePort()
+    const result = await run("status", "elements", port, await stateRoot())
     expect(result.exitCode).toBe(0)
-    expect(parseStatus(result)).toMatchObject({selector: "elements", supported: true, status: "stopped"})
+    expect(parseStatus(result)).toMatchObject({
+      selector: "elements",
+      supported: true,
+      status: "stopped",
+      port,
+      testOverride: true,
+    })
   })
 
   test("builds exact Node hash targets while UI packages remain pathname targets", async () => {
