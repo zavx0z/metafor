@@ -94,7 +94,9 @@ catalog не представляет input rows как Parameter.
 playground: catalog, section, preview, dock и parameters panels. Уже в этот
 interface добавляются current text/number/slider/Switcher/enum/color/vector/
 rotation/matrix/reference/read-only Fields. Node playground больше не владеет
-standalone input examples и только импортирует components в Node.
+standalone input examples и только импортирует components в Node. Checkpoint
+`d0f6f702d` восстановил historical shell и Field route на exact target 4017;
+localization/mobile proof остаются текущим UI-001.3.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
