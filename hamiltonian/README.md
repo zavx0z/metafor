@@ -998,16 +998,18 @@ production identity/auth design: он хранится в browser storage и п�
 
 ## Проверки
 
+`bun run typecheck` последовательно выполняет package-owned конфигурации
+`@hamiltonian/startup`, `@hamiltonian/release` и `@internal/visual`, затем
+отдельную конфигурацию Hamiltonian tests с condition `hamiltonian:service` и
+Service Worker types, после чего проверяет оставшийся root source с conditions
+`hamiltonian:server` и `internal:server`. Package source и Hamiltonian tests не
+включаются в root composition повторно.
+
 ```bash
 cd /Users/zavx0z/repozitarium/metafor
 bun test hamiltonian
 bun test pkg/nodes hamiltonian/browser/orchestration
 bun run typecheck
-cd /Users/zavx0z/repozitarium/metafor/hamiltonian
-bunx tsc --ignoreConfig --noEmit --strict --module preserve \
-  --moduleResolution bundler --target es2022 --types bun,@webgpu/types \
-  --allowImportingTsExtensions --allowJs --skipLibCheck \
-  ../types/module.d.ts types.d.ts *.ts peer/*.ts soak/*.ts
 bun build public/app.js public/embodiment-worker.js \
   --outdir /tmp/hamiltonian-build-check --target browser \
   --external /core/monitor.js \
@@ -1023,10 +1025,6 @@ bun build public/window-entry.js public/embodiment-worker-entry.js \
 bun build browser/service.ts --target browser --format esm \
   --sourcemap=inline \
   --outfile /tmp/hamiltonian-entry-build-check/sw-entry.js
-bunx tsc --ignoreConfig --noEmit --strict --module preserve \
-  --moduleResolution bundler --target es2022 --lib es2022,webworker \
-  --allowImportingTsExtensions --allowJs --skipLibCheck \
-  browser/service.ts types.d.ts
 
 HAMILTONIAN_TOKEN=local-test \
   bun run soak/run.ts http://127.0.0.1:4400

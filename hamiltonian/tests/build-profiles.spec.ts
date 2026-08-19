@@ -131,7 +131,7 @@ test("one bare visual import resolves source types by selected env without a bui
   const directory = await mkdtemp(join(tmpdir(), "metafor-upd-003-env-"))
 
   try {
-    const main = await typecheckVisualEnvironment(directory, "internal:main", `
+    const main = await typecheckPackageEnvironment(directory, "internal:main", `
       import * as visual from "@internal/visual"
       const environment: "main" = visual.environment
       void environment
@@ -139,7 +139,7 @@ test("one bare visual import resolves source types by selected env without a bui
     `)
     expect(main.exitCode).toBe(0)
 
-    const server = await typecheckVisualEnvironment(directory, "internal:server", `
+    const server = await typecheckPackageEnvironment(directory, "internal:server", `
       import * as visual from "@internal/visual"
       const environment: "server" = visual.environment
       void environment
@@ -148,12 +148,87 @@ test("one bare visual import resolves source types by selected env without a bui
     `)
     expect(server.exitCode).toBe(0)
 
-    const unsupported = await typecheckVisualEnvironment(directory, "internal:worker", `
+    const unsupported = await typecheckPackageEnvironment(directory, "internal:worker", `
       import * as visual from "@internal/visual"
       void visual
     `)
     expect(unsupported.exitCode).not.toBe(0)
     expect(unsupported.stderr + unsupported.stdout).toContain("Cannot find module '@internal/visual'")
+  } finally {
+    await rm(directory, {recursive: true, force: true})
+  }
+})
+
+test("canonical TypeScript verification keeps release runtime contracts in service env", async () => {
+  const [rootPackage, rootConfig, testConfig, releaseServer, releaseService] = await Promise.all([
+    Bun.file(join(repository, "package.json")).json() as Promise<{
+      scripts?: Record<string, string>
+    }>,
+    Bun.file(join(repository, "tsconfig.json")).text(),
+    Bun.file(join(hamiltonian, "tests/tsconfig.json")).text(),
+    Bun.file(join(hamiltonian, "release/server/index.ts")).text(),
+    Bun.file(join(hamiltonian, "release/service/index.ts")).text(),
+  ])
+
+  expect(rootPackage.scripts?.typecheck).toBe(
+    "bun run --filter @hamiltonian/startup typecheck && bun run --filter @hamiltonian/release typecheck && bun run --filter @internal/visual typecheck && tsc --project hamiltonian/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
+  )
+  expect(rootConfig).toContain('"hamiltonian/release/**/*"')
+  expect(rootConfig).toContain('"hamiltonian/startup/**/*"')
+  expect(rootConfig).toContain('"hamiltonian/internal/visual/**/*"')
+  expect(rootConfig).toContain('"hamiltonian/tests/**/*"')
+  expect(testConfig).toContain('"hamiltonian:service"')
+  expect(testConfig).toContain('"serviceworker"')
+
+  for (const contract of [
+    "ReleaseDependencies",
+    "ReleaseFactory",
+    "ReleaseLoader",
+    "ReleaseRuntime",
+  ]) {
+    expect(releaseServer).not.toContain(contract)
+    expect(releaseService).toContain(contract)
+  }
+
+  const directory = await mkdtemp(join(tmpdir(), "metafor-upd-003-release-env-"))
+  try {
+    const service = await typecheckPackageEnvironment(
+      directory,
+      "hamiltonian:service",
+      `
+        import type {
+          ReleaseDependencies,
+          ReleaseFactory,
+          ReleaseLoader,
+          ReleaseRuntime,
+        } from "@hamiltonian/release"
+        export type RuntimeContracts = [
+          ReleaseDependencies,
+          ReleaseFactory,
+          ReleaseLoader,
+          ReleaseRuntime,
+        ]
+      `,
+      ["serviceworker"],
+    )
+    expect(service.exitCode).toBe(0)
+
+    const server = await typecheckPackageEnvironment(
+      directory,
+      "hamiltonian:server",
+      `
+        // @ts-expect-error service-only contract is not public in env server
+        import type {ReleaseDependencies} from "@hamiltonian/release"
+        // @ts-expect-error service-only contract is not public in env server
+        import type {ReleaseFactory} from "@hamiltonian/release"
+        // @ts-expect-error service-only contract is not public in env server
+        import type {ReleaseLoader} from "@hamiltonian/release"
+        // @ts-expect-error service-only contract is not public in env server
+        import type {ReleaseRuntime} from "@hamiltonian/release"
+      `,
+      ["bun"],
+    )
+    expect(server.exitCode).toBe(0)
   } finally {
     await rm(directory, {recursive: true, force: true})
   }
@@ -325,10 +400,11 @@ function occurrences(source: string, value: string) {
   return source.split(value).length - 1
 }
 
-async function typecheckVisualEnvironment(
+async function typecheckPackageEnvironment(
   directory: string,
   condition: string,
   source: string,
+  types = ["@webgpu/types", "bun"],
 ) {
   const suffix = condition.slice(condition.indexOf(":") + 1)
   const sourcePath = join(directory, `${suffix}.ts`)
@@ -342,7 +418,7 @@ async function typecheckVisualEnvironment(
       compilerOptions: {
         customConditions: [condition],
         lib: ["ESNext", "DOM", "DOM.Iterable"],
-        types: ["@webgpu/types", "bun"],
+        types,
       },
       files: [
         sourcePath,

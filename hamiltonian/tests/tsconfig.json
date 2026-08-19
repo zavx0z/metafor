@@ -3,6 +3,9 @@
   "compilerOptions": {
     "allowJs": false,
     "checkJs": false,
+    "customConditions": [
+      "hamiltonian:service"
+    ],
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "types": [

@@ -51,6 +51,8 @@
     "*/node_modules/**/*",
     "hamiltonian/release/**/*",
     "hamiltonian/startup/**/*",
+    "hamiltonian/internal/visual/**/*",
+    "hamiltonian/tests/**/*",
     "tests/tmp/**/*",
     "project/artifacts/**/*",
     "cluster/**/*",
