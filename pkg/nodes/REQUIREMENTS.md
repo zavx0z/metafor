@@ -86,9 +86,12 @@
    соединяется одним прямым leader с exact port center. Label boxes не
    пересекаются между собой или semantic routes; leader не является layout
    route и не меняет policy input/result geometry.
-5. SVG playground рисует semantic routes и debug leaders под нодами, каждый
-   compound — до всех его descendants, а exact ports и внешние label boxes —
-   поверх нод. Этот presentation order не меняет layout input/result geometry.
+5. SVG playground соблюдает тот же containment painting law, что Surface:
+   background каждого compound находится под semantic routes, а его foreground
+   chrome и descendant leaf cards — над routes. Debug leaders также находятся
+   под chrome/leaf cards; gateways, exact ports и внешние label boxes остаются
+   верхними слоями. Edge marker имеет цвет semantic edge. Этот presentation
+   order не меняет layout input/result geometry.
 6. Adaptive playground matrix отдельно доказывает shared exact port на root
    leaf topology и на topology с source/target compounds в `RIGHT`/`DOWN`.
    Оба вида вызывают один public adaptive entrypoint и не создают playground
