@@ -128,7 +128,8 @@ horizontal UI overflow.
 
 `IMPLEMENTED`: общий UiRuntime получил opt-in touch capture и typed multi-touch
 sequence; NodeEditor — single-touch pan и pure anchor-preserving pinch.
-Responsive FlexCss показывает только editor при width ≤720 либо height ≤500,
+Responsive FlexBox с CSS-style описанием показывает только editor при width
+≤720 либо height ≤500,
 mobile fit/LOD сохраняют полный scene overview. Portrait `390×844` и landscape
 `844×390` имеют exact `scrollWidth=innerWidth`, console 0; synthetic browser
 sequence доказала pan (`x≈42,y≈340`) и pinch (`scale 0.3125→0.5529`). Chrome
@@ -309,10 +310,19 @@ geometry, текста, gap, radius, stroke и Socket. Screen-space minimum ра
 планирование одной Node в background/foreground passes: intrinsic FlexBox plan
 вычисляется один раз на render cycle и переиспользуется обоими passes.
 
-`IN_PROGRESS`: простые умножения scale сами по себе дёшевы; performance-риск
+По прямому решению владельца это не локальное правило Node system, а глобальный
+закон всего UI. Владельцем становится `@ui/elements`: любой visual scale parent
+непрерывно наследуется текстом, icon, padding, gap, radius, border и другими
+visual children. CSS-style description является только синтаксисом FlexBox и
+не создаёт второго scale path. Node system служит первым полным regression.
+
+`COMPLETE_RESEARCH`: простые умножения scale сами по себе дёшевы; performance-риск
 создают повторный viewport projection, двойной `planBlenderNode` и повторная
 materialization draw operations при pan/zoom. Срез не вводит DOM/CSS transform
-и не переносит scene geometry в layout.
+и не переносит scene geometry в layout. Structural regression охватывает весь
+UI и запрещает новые скрытые visual floors; screen-min остаётся только у явно
+названных hit-target helpers. Владелец вынес engine-level реализацию в отдельную
+[`NODES-018 — Перевести UI на engine parent/child transforms`](NODES-018.md).
 
 #### NODES-017.8.9 — Закрепить имя FlexBox и CSS-style description
 
@@ -322,8 +332,8 @@ materialization draw operations при pan/zoom. Срез не вводит DOM/
 имена `flexRowCss`/`flexColumnCss` могут оставаться именами adapter-функций, но
 не образуют отдельный public concept.
 
-`READY`: выполнить после scaling contract NODES-017.8.8 и проверить owner docs,
-TypeDoc и component playground terminology.
+`MOVED`: глобальная FlexBox/CSS-style терминология входит в NODES-018 вместе с
+engine/UI contract, а не исправляется локально в Node renderer.
 
 ## Визуальный контракт
 
@@ -336,7 +346,8 @@ TypeDoc и component playground terminology.
    selected Link поднимается над обычными Links.
 6. Input default control показывается только в законном состоянии; output
    label выравнивается к правому Socket внутри Node.
-7. Внутренняя UI-композиция строится только `flexRow`/`flexColumn`/FlexCss.
+7. Внутренняя UI-композиция строится только FlexBox; CSS-style размеры являются
+   формой его описания, а не отдельной системой.
    Scene geometry Socket center и Link curve не является child layout.
 8. Визуальная плотность, шрифт, контраст, radii и controls образуют один theme,
    а не набор независимых демонстрационных styles.
@@ -375,9 +386,9 @@ TypeDoc и component playground terminology.
 
 ## Состояние
 
-`IN_PROGRESS`: row order, texture header и полноширинные enums исправлены.
-Текущий NODES-017.8.8 устраняет системное расхождение parent/child scaling и
-двойное Node planning; после него NODES-017.8.3 согласует Socket с reference.
+`WAITING`: row order, texture header и полноширинные enums исправлены. Владелец
+отделил engine parent/child hierarchy в NODES-018; до её результата NODES-017
+не продолжает Socket/header/shadow/LOD/alignment corrections на старом flat path.
 NODES-017.8.4 сохраняет rounded header, но исправляет collapse chevron и title
 alignment. NODES-017.8.5 переносит selection с border на четырёхстороннюю тень
 в оттенке header. NODES-017.8.6 устраняет пустые Node при zoom-out без отказа от

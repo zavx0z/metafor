@@ -1,0 +1,127 @@
+# NODES-018 — Перевести UI на engine parent/child transforms
+
+## Коротко
+
+UI component tree должен один раз построить локальную геометрию, после чего
+движение и масштаб parent автоматически применяются ко всем children через
+scene graph движка. Pan/zoom больше не пересчитывает каждую Node, Socket, Link,
+иконку и строку текста на CPU и не пересоздаёт их meshes.
+
+## Зачем
+
+Node Editor выявил повторяющийся системный дефект: parent уменьшается, а текст
+и другие children после локальных screen-min floors перестают масштабироваться.
+Тот же путь заново планирует и материализует component subtree при pan/zoom.
+Локальное исправление Node renderer закрепило бы ошибочную границу ещё раз.
+
+## Связанные задачи и история
+
+* NODES-016 result `7aab6269a` создал FlexBox-oriented component library, но
+  отрисовал Node Editor внутри одной immediate-mode `UiSurface`.
+* NODES-017 visual review доказал detached scale, пустые bodies при LOD и
+  повторный `planBlenderNode`; research checkpoint `5ca434ae4` локализовал
+  расхождение между scene transform и child metrics.
+* Текущий source audit подтвердил: engine `Object3D` уже владеет
+  `parent/children`, local `modelMatrix` и inherited `matrixWorld`; renderer
+  обходит hierarchy рекурсивно и передаёт world matrix каждому render item.
+* Разрыв находится выше engine: `UiSurface` складывает primitives плоскими
+  siblings в общие layer `Object3D`, а `NodeCanvas` заранее преобразует каждую
+  geometry через `planNodeEditorViewport` и при rerender очищает/materializes
+  слои заново.
+* Владелец прямо решил вынести исправление в отдельную задачу и выполнять её в
+  отдельном пользовательском чате. NODES-017 становится зависимой от NODES-018.
+
+## Решения владельца
+
+1. Закон действует глобально для UI, а не только для node library.
+2. Реализация принадлежит engine parent/child hierarchy; дополнительный набор
+   ручных UI scale calculations не принимается.
+3. Система layout называется `FlexBox`. CSS является только привычной
+   декларативной формой описания `%`/`fr`/`grow`, а не отдельной `FlexCss`
+   системой.
+4. Visual child непрерывно наследует transform parent. Screen-space minimum
+   разрешён только явно отделённой невидимой hit area, но не visual text,
+   icon, padding, gap, radius, border, stroke или Socket.
+5. Нужен очевидный и производительный retained path: local layout строится при
+   изменении component content/size/style, а transform parent не перестраивает
+   subtree.
+
+## Целевой закон
+
+```text
+semantic component state
+          ↓ dirty only
+local FlexBox plan
+          ↓ materialize only changed subtree
+retained Object3D parent/children
+          ↓ transform only
+engine matrixWorld → renderer
+```
+
+Pan/zoom меняет local transform одного content-root. Node, Parameter, Socket,
+Link, Text и control сохраняют локальную geometry и получают world transform от
+engine. Culling, clipping и pointer conversion читают тот же transform и не
+создают второй visual layout.
+
+## Подзадачи
+
+### NODES-018.1 — Закрепить engine/UI retained contract и baseline
+
+Расширить документы-владельцы engine и UI, зафиксировать точный существующий
+flat/materialize path и добавить instrumentation: число layout plans,
+materializations и transform-only frames для representative NodeTree.
+
+### NODES-018.2 — Добавить retained component parent в UiSurface
+
+Дать `UiSurface` один lifecycle-safe способ materialize локальный subtree под
+точным `Object3D` parent. Parent transform обновляется без очистки children;
+dirty subtree освобождает geometry/text resources ровно один раз. Не создавать
+параллельный scene graph вне engine `Object3D`.
+
+### NODES-018.3 — Перевести NodeCanvas на retained content hierarchy
+
+Создать retained content-root NodeCanvas и component parents для Frame, Link и
+Node. FlexBox plans работают в локальных coordinates; pan/zoom обновляет только
+content-root position/scale. Объединить Node background/foreground materialize,
+чтобы одна Node планировалась один раз на dirty cycle.
+
+### NODES-018.4 — Согласовать clipping, culling и input transforms
+
+Viewport clip, culling, selection hit corridors, pointer/touch pan и pinch
+используют world/inverse matrices той же hierarchy. Visual children не получают
+screen minima; отдельные hit targets могут иметь документированный screen-size.
+
+### NODES-018.5 — Доказать correctness и performance
+
+На desktop и mobile доказать одинаковое parent/child scale ratio, отсутствие
+пустых Node из-за detached text scale и неизменные exact Socket/Link centers.
+Performance proof сравнивает dirty materialization и серию transform-only
+pan/zoom frames: layout/materialization counters не растут при чистом transform.
+
+## Границы
+
+* Не менять semantic NodeTree и layout solver format.
+* Не мигрировать Hamiltonian либо старые Card consumers.
+* Не создавать DOM/CSS renderer или второй transform tree.
+* Не скрывать visual scale floors новым helper-именем.
+* Не выдавать emulated mobile за physical device acceptance NODES-017.
+
+## Критерии готовности
+
+1. Engine contract явно закрепляет inherited parent/child transform для UI.
+2. FlexBox строит local child slots; CSS-style sizes остаются формой описания.
+3. Pan/zoom representative NodeTree меняет один retained parent transform и не
+   вызывает повторный FlexBox plan/materialization unchanged subtree.
+4. Text, icon, Socket, stroke, radius, padding и gap сохраняют одинаковое
+   отношение scale к parent на нескольких zoom levels.
+5. Clip/culling/hit/touch используют ту же hierarchy и проходят desktop/mobile
+   regressions без overflow и detached endpoints.
+6. Resource disposal не оставляет orphan geometry/text либо stale hit targets.
+7. Node package tests, UI/engine typechecks, browser DOM/console и visual
+   captures проходят; NODES-017 может вернуться из `WAITING` в `IN_PROGRESS`.
+
+## Состояние
+
+`IN_PROGRESS`: подготовительный project baseline создаётся до запуска отдельного
+пользовательского чата. Первый срез — NODES-018.1; visual corrections NODES-017
+не выполняются параллельно на старом flat path.

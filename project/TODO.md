@@ -26,6 +26,7 @@ flowchart LR
     MF421["MF-421 · деактивация невидимого monitor display"]
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
+    NODES018["NODES-018 · retained parent/child UI transforms"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
@@ -48,6 +49,7 @@ flowchart LR
     MF109 --> MF110
     MF405 --> MF406
     MF411 --> MF414
+    NODES018 --> NODES017
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -72,23 +74,17 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
+[`NODES-018 — Перевести UI на engine parent/child transforms`](tasks/NODES-018.md)
+исправляет найденный в NODES-017 системный разрыв: Three.js-like engine уже
+поддерживает inherited `matrixWorld`, но immediate-mode `UiSurface` и NodeCanvas
+запекают transform каждого child на CPU и пересоздают плоские layers. Текущий
+срез закрепляет retained engine/UI contract и baseline перед переносом NodeCanvas.
+
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
-исправляет отклонённый владельцем visual result NODES-016. NODES-017.8.1 уже
-поставила одну live Noise-подобную Node рядом с Blender reference в равном
-Flex slot и сохранила полную Frame-сцену отдельно. Текущий срез NODES-017.8.2
-исправил выявленные в честном сравнении texture header, Blender-порядок loose
-Socket и полноширинные enum controls. Boolean остаётся общим `Switcher` по
-решению владельца. Текущий NODES-017.8.8 исправляет системный scale law:
-visual children должны непрерывно наследовать scale Node, а intrinsic FlexBox
-plan не должен вычисляться дважды за кадр. После него NODES-017.8.3 согласует
-общий размер Socket и exact center на border той же FlexBox row. NODES-017.8.4
-сохраняет выбранный владельцем rounded header, но заменяет текстовый collapse
-glyph и выравнивает chevron/title по reference. NODES-017.8.5 делает shadow
-симметричной со всех сторон и переносит selection с border на оттенок header
-в этой тени. NODES-017.8.6 заменяет бинарное скрытие body при zoom-out на
-progressive LOD в тех же Flex rows. NODES-017.8.7 выравнивает connected
-Parameter label слева внутри той же строки. Physical mobile и owner acceptance
-остаются gate после correction.
+уже получила equal-scale comparison, correct row order, texture header и
+полноширинные enums. Остальные Socket/header/shadow/LOD/alignment corrections
+ждут NODES-018, чтобы не закреплять ручной scale path. Physical mobile и owner
+acceptance остаются gate после возврата задачи в работу.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
@@ -288,7 +284,8 @@ production удаляет `console.debug` и не публикует карту.
 | UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| NODES-017 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-017.md) |
+| NODES-018 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-018.md) |
+| NODES-017 | WAITING     | NODES-018 | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |

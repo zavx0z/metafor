@@ -232,6 +232,14 @@ universal Field. Visual side ограничен `left/right`, но не опре
 input слева и output справа; adaptive-вариант выбирает разрешённую сторону, не
 дублируя Parameter и не меняя endpoint identity.
 
+UI component tree материализуется как retained parent/child hierarchy
+Three.js-like engine `Object3D`. FlexBox один раз вычисляет local child slots при
+изменении content/size/style; CSS-style `%`/`fr`/`grow` является только формой
+описания того же FlexBox. Pan/zoom и другие transform-only изменения обновляют
+parent transform, а children наследуют `matrixWorld` без повторного layout и
+materialization. Visual text, icon, Socket, stroke и chrome масштабируются с
+parent; отдельный screen-space minimum допустим только невидимой hit area.
+
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
 signaling, secrets или authority и не заменяет существующие WSS, MessagePort,
