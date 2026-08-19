@@ -124,9 +124,9 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 | ID | Срез | Состояние |
 | --- | --- | --- |
 | NODES-010.1 | Закрепить semantic, Card, measured и positioned contracts | CLOSED |
-| NODES-010.2 | Отделить fixed policy от общего placement/routing core · `/root/nodes_010_2` | IN_PROGRESS |
-| NODES-010.3 | Создать dev-only SVG playground и fixed baseline · `/root/nodes_010_3` | IN_PROGRESS |
-| NODES-010.4 | Реализовать bounded adaptive side-selection | WAITING |
+| NODES-010.2 | Отделить fixed policy от общего placement/routing core | CLOSED |
+| NODES-010.3 | Создать dev-only SVG playground и fixed baseline | CLOSED |
+| NODES-010.4 | Реализовать bounded adaptive side-selection · `/root/nodes_010_4` | IN_PROGRESS |
 | NODES-010.5 | Разделить fixed/adaptive Worker и bundle entrypoints | WAITING |
 | NODES-010.6 | Доказать adapters, performance, playground и package boundary | WAITING |
 
@@ -172,6 +172,37 @@ Card/model/validation/incremental/fixed/package-boundary tests: `35 pass`,
 `0 fail`, `1361 expect()`. Typecheck `nodes`, `@nodes/layout`, `@nodes/ui` и
 `@nodes/hud`, а также `git diff --check` успешны. Срез принят и закрыт;
 consumer-adoption gate Hamiltonian остаётся вне NODES-010.1.
+
+## Результат NODES-010.2
+
+* Public `@nodes/layout/fixed` владеет fixed endpoint policy и предоставляет
+  `layoutFixed`; root `layout` остаётся compatibility alias того же закона.
+* Common `layoutResolved` получает `ResolvedLayoutGraph` с явными WEST/EAST
+  sides. Placement, router и validator больше не содержат socket capability и
+  выводят departure/arrival только из resolved side.
+* Router доказан для WEST→EAST, EAST→WEST и одинаковых endpoint sides без
+  копирования algorithm. `LayoutResult.ports[]` возвращает resolved side.
+* Frozen geometry сохранилась: RIGHT
+  `a44c90fd466ed57bf97ffd5d6018307b57f2f2f6118b37afbeb1dda26e3b6f41`,
+  DOWN `fe8c74a324c5f3c51607aee320ba6c262168d54675221e39e20f9cbb697d5f78`.
+  Fixed browser bundle — `75565/23429 gzip` bytes.
+
+## Результат NODES-010.3
+
+* `pkg/nodes/layout/playground` содержит private Bun/SVG tool поверх единственного
+  registry import `layoutFixed` из `@nodes/layout/fixed`.
+* Playground редактирует normalized JSON, показывает nodes/compound/ports,
+  resolved sides, edges, bends, gateways, bounds, IDs, diagnostics и metrics,
+  сравнивает frozen RIGHT/DOWN fixtures и экспортирует input/result/SVG.
+* SVG/result hashes детерминированы. Boundary test доказывает отсутствие
+  production export, WebGPU, Engine, UI/HUD и product imports.
+
+### Closing review NODES-010.2–NODES-010.3
+
+Root независимо перечитал fixed policy/core diff и playground registry/SVG,
+повторил весь `pkg/nodes`: `106 pass`, `0 fail`, `1785 expect()`. Typecheck
+четырёх packages и playground, TypeDoc и `git diff --check` успешны. Оба среза
+приняты и закрыты; gate adaptive открыт.
 
 ## Поведение процесса
 
