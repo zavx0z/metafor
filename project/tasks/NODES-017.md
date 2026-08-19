@@ -337,8 +337,8 @@ materialization draw operations при pan/zoom. Срез не вводит DOM/
 и не переносит scene geometry в layout. Structural regression охватывает весь
 UI и запрещает новые скрытые visual floors; screen-min остаётся только у явно
 названных hit-target helpers. Владелец вынес engine-level реализацию в закрытую
-NODES-018; её принятый retained результат интегрирует
-[`UI-004 — Интегрировать retained UI и общий UI skill в main`](UI-004.md).
+NODES-018; её принятый retained результат интегрирован в `main` закрытой UI-004
+и является текущим основанием NODES-017.
 
 #### NODES-017.8.9 — Закрепить имя FlexBox и CSS-style description
 
