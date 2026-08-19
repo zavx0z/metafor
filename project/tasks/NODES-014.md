@@ -60,4 +60,31 @@ generated compound gateway до exact socket дочерней ноды. Compound
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`.
+`REVIEW`.
+
+## Результат
+
+* Compound rectangle материализуется один раз в layout result, но SVG рисует
+  его fill в `compound-backgrounds`, а border/title/size — в
+  `compound-chrome`. Leaf cards принадлежат отдельному `leaf-nodes`.
+* Итоговый order: `compound-backgrounds → edges → port-label-leaders →
+  compound-chrome → leaf-nodes → gateways → ports → port-labels`.
+* Arrow marker имеет `fill=#7dd3fc`, совпадающий с edge stroke.
+* `nodes` toggle управляет всеми тремя node layers, `ports` toggle — leaders,
+  exact ports и external labels; после browser proof controls восстановлены.
+* Все шесть result hashes fixed/adaptive flat/compound RIGHT/DOWN неизменны;
+  обновились только SVG presentation hashes.
+* [Owner-before и after evidence](../artifacts/NODES-014/README.md) сохранены в
+  карточке result.
+
+## Проверки
+
+* `bun test pkg/nodes` — 129 pass, 0 fail, 2434 expect.
+* Playground TypeScript typecheck — pass.
+* `git diff --check` — pass.
+* Live fixed RIGHT: `reply.endPoint={84,178}` равен
+  `observer/in-reply center={84,178}`, gateway=`{56,178}`, distance=`0`.
+* Computed styles: compound background fill `rgb(22,37,54)`/stroke `none`;
+  compound chrome fill `none`; edge stroke и marker fill `rgb(125,211,252)`.
+* Browser console — 0 entries; visual inspection показывает непрерывный cyan
+  terminal segment и сохраняет foreground leaf cards/chrome.

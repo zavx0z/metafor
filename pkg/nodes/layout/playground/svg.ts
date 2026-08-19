@@ -76,17 +76,44 @@ export function renderLayoutSvg(
     ].join("")
   }).join("")
 
-  const nodeMarkup = nodeGeometry.map((node) => {
+  const nodeEntries = nodeGeometry.map((node) => {
     const compound = (childCount.get(node.id) ?? 0) > 0
     const parentId = nodeInput.get(node.id)?.parentId
-    return [
-      `<g class="node ${compound ? "compound" : "leaf"}" data-node-id="${escapeXml(node.id)}"${parentId === undefined ? "" : ` data-parent-id="${escapeXml(parentId)}"`}>`,
-      `<rect x="${formatNumber(node.x)}" y="${formatNumber(node.y)}" width="${formatNumber(node.width)}" height="${formatNumber(node.height)}" rx="${compound ? 12 : 8}"/>`,
+    return {node, compound, parentId}
+  })
+
+  const compoundBackgroundMarkup = nodeEntries
+    .filter(({compound}) => compound)
+    .map(({node, parentId}) => [
+      `<g class="compound-background" data-node-id="${escapeXml(node.id)}"${parentId === undefined ? "" : ` data-parent-id="${escapeXml(parentId)}"`}>`,
+      `<rect x="${formatNumber(node.x)}" y="${formatNumber(node.y)}" width="${formatNumber(node.width)}" height="${formatNumber(node.height)}" rx="12"/>`,
+      "</g>",
+    ].join(""))
+    .join("")
+
+  const compoundChromeMarkup = nodeEntries
+    .filter(({compound}) => compound)
+    .map(({node, parentId}) => [
+      `<g class="node compound" data-node-id="${escapeXml(node.id)}"${parentId === undefined ? "" : ` data-parent-id="${escapeXml(parentId)}"`}>`,
+      `<rect x="${formatNumber(node.x)}" y="${formatNumber(node.y)}" width="${formatNumber(node.width)}" height="${formatNumber(node.height)}" rx="12"/>`,
       `<text class="node-id" x="${formatNumber(node.x + 10)}" y="${formatNumber(node.y + 20)}">${escapeXml(node.id)}</text>`,
       `<text class="node-size" x="${formatNumber(node.x + 10)}" y="${formatNumber(node.y + 37)}">${formatNumber(node.width)} × ${formatNumber(node.height)}</text>`,
       "</g>",
-    ].join("")
-  }).join("")
+    ].join(""))
+    .join("")
+
+  const leafNodeMarkup = nodeEntries
+    .filter(({compound}) => !compound)
+    .map(({node, parentId}) => {
+      return [
+        `<g class="node leaf" data-node-id="${escapeXml(node.id)}"${parentId === undefined ? "" : ` data-parent-id="${escapeXml(parentId)}"`}>`,
+        `<rect x="${formatNumber(node.x)}" y="${formatNumber(node.y)}" width="${formatNumber(node.width)}" height="${formatNumber(node.height)}" rx="8"/>`,
+        `<text class="node-id" x="${formatNumber(node.x + 10)}" y="${formatNumber(node.y + 20)}">${escapeXml(node.id)}</text>`,
+        `<text class="node-size" x="${formatNumber(node.x + 10)}" y="${formatNumber(node.y + 37)}">${formatNumber(node.width)} × ${formatNumber(node.height)}</text>`,
+        "</g>",
+      ].join("")
+    })
+    .join("")
 
   const gatewayMarkup = gateways.map((gateway) =>
     `<rect class="gateway" data-edge-id="${escapeXml(gateway.edgeId)}" data-node-id="${escapeXml(gateway.nodeId)}" x="${formatNumber(gateway.point.x - 5)}" y="${formatNumber(gateway.point.y - 5)}" width="10" height="10"/>`).join("")
@@ -112,15 +139,17 @@ export function renderLayoutSvg(
     `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeXml(title)}" data-direction="${result.direction}" viewBox="${viewBox}">`,
     `<title>${escapeXml(title)}</title>`,
     "<defs>",
-    "<marker id=\"arrow\" markerWidth=\"8\" markerHeight=\"8\" refX=\"7\" refY=\"4\" orient=\"auto\" markerUnits=\"strokeWidth\"><path d=\"M0,0 L8,4 L0,8 Z\"/></marker>",
+    "<marker id=\"arrow\" markerWidth=\"8\" markerHeight=\"8\" refX=\"7\" refY=\"4\" orient=\"auto\" markerUnits=\"strokeWidth\"><path class=\"edge-arrow\" d=\"M0,0 L8,4 L0,8 Z\"/></marker>",
     "<style>",
-    ".bounds{fill:#08111d;stroke:#3f566f;stroke-dasharray:8 6;stroke-width:1}.edge polyline{fill:none;stroke:#7dd3fc;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}.edge text{fill:#bae6fd;font:12px ui-monospace,monospace;paint-order:stroke;stroke:#08111d;stroke-width:4}.bend{fill:#08111d;stroke:#fbbf24;stroke-width:2}.gateway{fill:#fb7185;stroke:#fff1f2;stroke-width:1}.node rect{stroke-width:2}.node.compound rect{fill:#162536;fill-opacity:.72;stroke:#64748b;stroke-dasharray:7 4}.node.leaf rect{fill:#172f46;stroke:#60a5fa}.node-id{fill:#f8fafc;font:600 13px ui-monospace,monospace}.node-size{fill:#94a3b8;font:11px ui-monospace,monospace}.port circle{fill:#f8fafc;stroke:#0ea5e9;stroke-width:3}.port-label-leader{stroke:#64748b;stroke-width:1.5;stroke-dasharray:4 3}.port-label-box{fill:#0b1725;stroke:#64748b;stroke-width:1}.port-label-text{fill:#e0f2fe;font:10px ui-monospace,monospace}",
+    ".bounds{fill:#08111d;stroke:#3f566f;stroke-dasharray:8 6;stroke-width:1}.compound-background rect{fill:#162536;fill-opacity:.72}.edge polyline{fill:none;stroke:#7dd3fc;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}.edge-arrow{fill:#7dd3fc}.edge text{fill:#bae6fd;font:12px ui-monospace,monospace;paint-order:stroke;stroke:#08111d;stroke-width:4}.bend{fill:#08111d;stroke:#fbbf24;stroke-width:2}.gateway{fill:#fb7185;stroke:#fff1f2;stroke-width:1}.node rect{stroke-width:2}.node.compound rect{fill:none;stroke:#64748b;stroke-dasharray:7 4}.node.leaf rect{fill:#172f46;stroke:#60a5fa}.node-id{fill:#f8fafc;font:600 13px ui-monospace,monospace}.node-size{fill:#94a3b8;font:11px ui-monospace,monospace}.port circle{fill:#f8fafc;stroke:#0ea5e9;stroke-width:3}.port-label-leader{stroke:#64748b;stroke-width:1.5;stroke-dasharray:4 3}.port-label-box{fill:#0b1725;stroke:#64748b;stroke-width:1}.port-label-text{fill:#e0f2fe;font:10px ui-monospace,monospace}",
     "</style>",
     "</defs>",
     `<rect class="bounds" data-kind="layout-bounds" x="${formatNumber(result.bounds.x)}" y="${formatNumber(result.bounds.y)}" width="${formatNumber(result.bounds.width)}" height="${formatNumber(result.bounds.height)}"/>`,
+    `<g data-layer="compound-backgrounds" data-layer-owner="nodes">${compoundBackgroundMarkup}</g>`,
     `<g data-layer="edges">${edgeMarkup}</g>`,
     `<g data-layer="port-label-leaders" data-layer-owner="ports">${portLabelLeaderMarkup}</g>`,
-    `<g data-layer="nodes">${nodeMarkup}</g>`,
+    `<g data-layer="compound-chrome" data-layer-owner="nodes">${compoundChromeMarkup}</g>`,
+    `<g data-layer="leaf-nodes" data-layer-owner="nodes">${leafNodeMarkup}</g>`,
     `<g data-layer="gateways">${gatewayMarkup}</g>`,
     `<g data-layer="ports">${portMarkup}</g>`,
     `<g data-layer="port-labels" data-layer-owner="ports">${portLabelMarkup}</g>`,

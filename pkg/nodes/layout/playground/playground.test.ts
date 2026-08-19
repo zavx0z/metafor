@@ -5,7 +5,7 @@ import {fileURLToPath} from "node:url"
 import {getFixtureFamily, PLAYGROUND_FIXTURES} from "./fixtures.ts"
 import {PLAYGROUND_POLICIES} from "./policy-registry.ts"
 import {runPlaygroundLayout} from "./runner.ts"
-import {layoutPortLabels, orderNodeGeometryForPainting} from "./svg.ts"
+import {findGatewayPoints, layoutPortLabels, orderNodeGeometryForPainting} from "./svg.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 const layoutRoot = fileURLToPath(new URL("..", import.meta.url))
@@ -15,13 +15,13 @@ const BASELINES = {
     direction: "RIGHT",
     bounds: {x: 0, y: 0, width: 632, height: 446},
     resultHash: "78d036df9a386533218936d0f2366e32f233f28a4f28d892d17bf1bb0fb4c844",
-    svgHash: "a0223d8f86f291e774f33c226f9e553deddc19af181b8ca6ad6192938108eca2",
+    svgHash: "06b613ed5423c5bab9d6a6463defa79c80e19946a171b34e8775e0baec4151da",
   },
   "fixed-baseline-down": {
     direction: "DOWN",
     bounds: {x: 0, y: 0, width: 396, height: 830},
     resultHash: "bb8fd47580182a40198e6aff388dcf7d26b28651ed9d592fa825efc02b4929c1",
-    svgHash: "6d033f2432bcad512c29ea0599382b833e6715ae18243d6abc3ff9ac7440f62c",
+    svgHash: "3a1dff856c72c057e2e3ac04bd201a79f2fae1d4ffeefe6532fc74c2a5b702e9",
   },
 } as const
 
@@ -31,14 +31,14 @@ const ADAPTIVE_BASELINES = {
     side: "EAST",
     bounds: {x: 0, y: 0, width: 540, height: 330},
     resultHash: "908e21c560fc58850a831e4b865123d650e4d1b6c72917476d23ed033aee115a",
-    svgHash: "c04b91b7fc1f10ed2e22df6b80dac78261d9ce2ba85e539195ed3028d3acc2cd",
+    svgHash: "c4af6391484d48b68ba95bee35c9559717d8f7a70cd53303b85a956cc7011c04",
   },
   "adaptive-shared-down": {
     direction: "DOWN",
     side: "WEST",
     bounds: {x: 0, y: 0, width: 280, height: 400},
     resultHash: "5c50a710cb8f79b6c42cc79b9eb7ea219798e1700f2606952bc97f8a4899af3d",
-    svgHash: "fe9f73910bfdf9f00357392b7c4fe4f35fddc3d96e25764710b237b57e45c169",
+    svgHash: "6c0bd1792ce1e9c27d8eb0ae784e6df45760e9dbba6b2cde232f137fc068027e",
   },
 } as const
 
@@ -48,14 +48,14 @@ const ADAPTIVE_COMPOUND_BASELINES = {
     side: "EAST",
     bounds: {x: 0, y: 0, width: 604, height: 424},
     resultHash: "9732f683af8925702f04db46a49a674acc87b6a5cf0a828011c2c5720d4448a0",
-    svgHash: "932bd71690288438330faff6669268e9d8dacdc036395b5e8be00750c6a5ac11",
+    svgHash: "96bcb1808d5a2ef805fb77a7e733940c8e3ea25fece16bca205bb2266ccb46e8",
   },
   "adaptive-compound-down": {
     direction: "DOWN",
     side: "WEST",
     bounds: {x: 0, y: 0, width: 316, height: 588},
     resultHash: "8cd59ef4c9c367c7ad5c1cca22f8a8dc629d59b6de8a4d31b9c564a045331264",
-    svgHash: "36d37794a948f8b8c0df903b9cbbedf447823ba3b8f53696d21a73c215655a54",
+    svgHash: "519dc81fe9187c49d0f369637a51839666c746dd81d696261f065b08453f1075",
   },
 } as const
 
@@ -168,7 +168,9 @@ describe("dev-only nodes layout playground", () => {
       const paintedNodeIds = orderNodeGeometryForPainting(fixture.graph, run.result.nodes).map(({id}) => id)
       expect(run.svg).toContain(`data-direction="${fixture.expectedDirection}"`)
       expect(run.svg).toContain("data-kind=\"layout-bounds\"")
-      expect(run.svg).toContain("data-layer=\"nodes\"")
+      expect(run.svg).toContain("data-layer=\"compound-backgrounds\"")
+      expect(run.svg).toContain("data-layer=\"compound-chrome\"")
+      expect(run.svg).toContain("data-layer=\"leaf-nodes\"")
       expect(run.svg).toContain("class=\"node compound\"")
       expect(run.svg).toContain("data-layer=\"ports\"")
       expect(run.svg).toContain("data-port-id=\"producer/out-primary\"")
@@ -198,6 +200,59 @@ describe("dev-only nodes layout playground", () => {
     }
   })
 
+  test("paints exact semantic endpoints above containing owners and below leaf nodes", () => {
+    for (const fixture of PLAYGROUND_FIXTURES) {
+      const policy = fixture.family === "fixed-baseline" ? "fixed" : "adaptive"
+      const run = runPlaygroundLayout(policy, fixture.graph)
+      const inputEdgeById = new Map(fixture.graph.edges.map((edge) => [edge.id, edge]))
+      const portById = new Map(run.result.ports.map((port) => [port.id, port]))
+
+      for (const edge of run.result.edges) {
+        const inputEdge = inputEdgeById.get(edge.id)
+        const section = edge.sections[0]
+        expect(inputEdge).toBeDefined()
+        expect(section).toBeDefined()
+        const source = portById.get(inputEdge!.sourcePortId)
+        const target = portById.get(inputEdge!.targetPortId)
+        expect(source).toBeDefined()
+        expect(target).toBeDefined()
+        expect(section!.startPoint).toEqual({x: source!.x, y: source!.y})
+        expect(section!.endPoint).toEqual({x: target!.x, y: target!.y})
+      }
+
+      const layerOrder = [
+        "compound-backgrounds",
+        "edges",
+        "port-label-leaders",
+        "compound-chrome",
+        "leaf-nodes",
+        "gateways",
+        "ports",
+        "port-labels",
+      ].map((layer) => run.svg.indexOf(`data-layer="${layer}"`))
+      expect(layerOrder.every((index) => index >= 0)).toBeTrue()
+      expect([...layerOrder].sort((left, right) => left - right)).toEqual(layerOrder)
+      expect(layerContents(run.svg, "compound-backgrounds")).not.toContain("class=\"node-id\"")
+      if (run.metrics.compoundCount > 0) {
+        expect(layerContents(run.svg, "compound-chrome")).toContain("class=\"node-id\"")
+      } else {
+        expect(layerContents(run.svg, "compound-chrome")).toBe("")
+      }
+      expect(run.svg).toContain("class=\"edge-arrow\"")
+      expect(run.svg).toContain(".edge-arrow{fill:#7dd3fc}")
+    }
+
+    const fixture = getFixtureFamily("fixed-baseline")[0]!
+    const run = runPlaygroundLayout("fixed", fixture.graph)
+    const reply = run.result.edges.find(({id}) => id === "reply")!
+    const observerPort = run.result.ports.find(({id}) => id === "observer/in-reply")!
+    const gateway = findGatewayPoints(fixture.graph, run.result).find(({edgeId, nodeId}) =>
+      edgeId === "reply" && nodeId === "source-zone")
+    expect(reply.sections[0]!.endPoint).toEqual({x: observerPort.x, y: observerPort.y})
+    expect(gateway?.point).toEqual({x: 56, y: 178})
+    expect(observerPort).toMatchObject({x: 84, y: 178})
+  })
+
   test("places deterministic port labels outside route bounds with exact non-overlapping leaders", () => {
     for (const fixture of PLAYGROUND_FIXTURES) {
       const policy = fixture.family === "fixed-baseline" ? "fixed" : "adaptive"
@@ -212,9 +267,11 @@ describe("dev-only nodes layout playground", () => {
       expect(run.svg).toContain("class=\"port-label-leader\"")
 
       const layerOrder = [
+        "compound-backgrounds",
         "edges",
         "port-label-leaders",
-        "nodes",
+        "compound-chrome",
+        "leaf-nodes",
         "gateways",
         "ports",
         "port-labels",
