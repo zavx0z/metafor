@@ -1,21 +1,36 @@
 # `@metafor/*` в Hamiltonian
 
-`@metafor/*` зарезервирован в release-модели Hamiltonian для загружаемой
-функциональности самой MetaFor. Это граница между оркестратором и тем, что он
-доставляет и запускает для Вселенной.
+`@metafor/*` — будущий namespace загружаемых функций самой MetaFor. Hamiltonian
+доставляет и запускает эти функции для Вселенной, сохраняя их предметные
+contracts у соответствующих доменных владельцев.
 
-* `@hamiltonian/*` реализует устойчивый startup и механизм release.
-* [`@internal/*`](INTERNAL.md) реализует сменяемые внутренние функции
-  Hamiltonian.
-* `@metafor/*` должен содержать функциональность MetaFor, не становясь частью
-  внутреннего устройства оркестратора.
+## Целевой lifecycle
 
-Сейчас в clean-room release нет принятого функционального `@metafor/*`
-участника. Наличие workspace library или package name с этим scope само по себе
-не включает его в Hamiltonian release и не выдаёт ему runtime authority.
+Когда функции MetaFor потребуется управляемое воплощение:
 
-До появления первого такого package должны быть отдельно приняты его предметный
-владелец, поддерживаемые среды, lifecycle, public contract и включение в
-release. Принятые свойства затем закрепляются в его собственном `README.md`.
-До этого нельзя считать реализованными состав namespace, placement, transport,
-обновление или связь с production-доменами.
+1. её предметный владелец определяет функцию, public contract и допустимые
+   среды;
+1. Hamiltonian выбирает placement и требуемый выпуск;
+1. release composition включает принятый package и совместимые dependencies;
+1. release delivery проверяет выбранный artifact, а active release запускает
+   env incarnation;
+1. package публикует identity, version и предметный результат, по которому
+   владелец принимает готовность.
+
+## Распределение ответственности
+
+| Владелец | Ответственность |
+| --- | --- |
+| `@hamiltonian/*` | Startup, release composition, delivery и update mechanics |
+| [`@internal/*`](INTERNAL.md) | Сменяемые служебные функции Hamiltonian |
+| `@metafor/*` | Загружаемые функции самой MetaFor |
+| Domain owner | Предметный смысл, public contract и критерий готовности функции |
+
+## Текущее состояние
+
+Clean-room release сейчас содержит ноль функциональных `@metafor/*`
+участников. Первый принимаемый результат должен определить предметного
+владельца, env, lifecycle, public contract и release membership конкретного
+package. После принятия package закрепит эти свойства в собственном `README.md`.
+Явная versioned composition создаёт membership; существующие workspace
+libraries сохраняют свои текущие роли до такого решения.

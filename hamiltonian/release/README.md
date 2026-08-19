@@ -1,117 +1,117 @@
 # `@hamiltonian/release`
 
-`@hamiltonian/release` владеет сменяемой частью Hamiltonian после устойчивого
-[`@hamiltonian/startup`](../startup/README.md). Один release определяет
-согласованный состав `@hamiltonian/release`,
-[`@internal/*`](../docs/INTERNAL.md) и будущих
-[`@metafor/*`](../docs/METAFOR.md) packages, но не включает startup в сменяемую
-группу.
+`@hamiltonian/release` владеет composition и update-механикой сменяемой среды
+после устойчивого [`@hamiltonian/startup`](../startup/README.md). Release
+собирает `@hamiltonian/release`, [`@internal/*`](../docs/INTERNAL.md) и будущие
+[`@metafor/*`](../docs/METAFOR.md) packages в один совместимый выпуск.
 
-## Ответственность
+## Закон release
 
-Release:
+Когда Hamiltonian требует новый выпуск:
 
-* выбирает полный совместимый состав сменяемых packages;
-* получает и проверяет code artifacts;
-* готовит кандидата целиком до удаления действующего состава;
-* переводит среду вперёд как один согласованный выпуск и запускает новое
-  воплощение;
-* владеет browser cache/update policy и внутренним control RPC;
-* на host публикует immutable artifacts и сообщает участникам, что доступен
-  новый состав.
+1. release composition выбирает package versions и проверяет dependency
+   closure;
+1. delivery получает immutable artifacts и проверяет их identity и bytes;
+1. update runtime готовит полный candidate рядом с current составом;
+1. startup создаёт inert candidate runtime до cleanup predecessor;
+1. release завершает forward cleanup, а startup активирует candidate;
+1. новое воплощение подтверждает composition, env versions и готовность
+   обязательных связей.
 
-Release не является startup, предметным `internal`/`metafor` module или
-production Oracle/Force transport. Code bytes передаются через `fetch`.
-Control RPC/WSS может сообщить о новом выпуске и согласовать его, но не заменяет
-доставку bytes и не переносит обычный Oracle/Force realtime.
+## Распределение ответственности
+
+| Владелец | Ответственность |
+| --- | --- |
+| Hamiltonian | Решение о placement и требуемом выпуске |
+| Startup | Проверка release artifact, запуск runtime и handover |
+| Release | Composition, package version update, delivery и control update protocol |
+| `@internal/*` package | Служебная функция Hamiltonian и её env воплощения |
+| `@metafor/*` package | Функция MetaFor и её domain-owned результат |
+| Dark | Обычный Oracle/Force realtime после знакомства |
+
+Code bytes проходят через `fetch`. Control RPC/WSS переносит состояние
+обновления и signaling. После готовности participants рабочий Oracle/Force
+traffic проходит через transport Dark contract.
 
 ## Среды package
 
-| Среда | Реализованная роль |
+| Env | Реализованная роль |
 | --- | --- |
-| `main` | Запускает сменяемый Window composition и импортирует его функциональные packages |
+| `main` | Запускает сменяемый Window composition и импортирует функциональные packages |
 | `service` | Владеет Service Worker runtime, browser fetch/cache/update lifecycle и control RPC |
 | `server` | Владеет host-side package graph, сборкой, immutable publication, HTTP delivery и server-side control RPC |
 
-Один package сохраняет одно каноническое имя и одну SemVer во всех объявленных
-средах. Source импортирует bare package name; среду выбирает conditional export,
-а не другой package или transport-specific subpath. Изменение любого env
-создаёт новую версию package и полный набор его поддерживаемых artifacts.
+Все env разделяют одно package name и одну SemVer. Каждый объявленный env имеет
+собственный artifact этой версии. Изменение одного env создаёт новый полный
+набор объявленных artifacts package. Source сохраняет bare package name, а
+conditional export выбирает env.
 
 ## Состав browser release
 
-Корневые versioned dependencies определяют полный состав browser release.
-Runtime dependency участника обязана входить в тот же состав, а выбранная
-версия — удовлетворять объявленному workspace range. Поэтому новый package
-нельзя применить без closure его зависимостей, требуемый package нельзя удалить,
-а несовместимая группа останавливается до исполнения.
+Версионные dependencies корневого Hamiltonian задают полный browser release
+membership. Composition проверяет, что runtime dependency каждого участника
+присутствует в membership и удовлетворяет выбранному workspace range.
 
-Каждый artifact имеет identity package, env, version, SHA-256 и byte size.
-Stable URL выбирает slot, exact URL — immutable version. Package namespace
-определяет владельца постоянного browser code storage; имена отдельных modules
-не превращаются в новые policy branches.
+Каждый browser artifact публикует package name, env, version, SHA-256 и byte
+size. Stable URL выбирает package/env slot, exact URL — immutable version.
+Namespace package определяет owner его canonical browser code storage.
 
 ## Обновление browser release
 
-Service Worker сначала сообщает host фактически проверенный текущий состав.
-Host отвечает только необходимыми добавлениями и удалениями относительно этого
-снимка. Сигнал о новом выпуске не несёт готовый состав: пропущенный сигнал или
-новое соединение приводит к новой сверке из фактического локального состояния.
+Когда Service Worker соединяется или получает сигнал об изменении, он заново
+читает фактический canonical состав, проверяет bytes и отправляет current
+snapshot. Host сравнивает snapshot с desired composition и возвращает только
+необходимые additions/removals. Поэтому повторный signal и reconnect запускают
+одну и ту же сверку из текущего состояния.
 
-Кандидат обновления проходит последовательность:
+Candidate проходит последовательность:
 
 1. получить и проверить все новые artifacts;
-1. добавить полный кандидат, не удаляя действующий состав;
-1. повторно проверить целостность и closure кандидата;
-1. подготовить новый inert release runtime до первого удаления старого кода;
-1. только после этого удалить вытеснённые artifacts, оставляя прежний
-   `release/service` до готовности остальных slots;
-1. проверить единственный итоговый состав и последним завершить техническую
-   transaction;
-1. запустить и активировать новый runtime через startup boundary, дождаться
-   уже начатых операций прежнего runtime и завершить его.
+1. добавить полный candidate рядом с current составом;
+1. проверить integrity и dependency closure candidate;
+1. подготовить inert release runtime;
+1. удалить вытеснённые artifacts, сохраняя current `release/service` до
+   готовности остальных slots;
+1. проверить единственный итоговый состав и последней durable операцией
+   завершить transaction;
+1. активировать candidate, дождаться операций predecessor и завершить его
+   runtime.
 
-После прерывания продолжение строится из фактических canonical entries и новой
-server delta, а не из сохранённого обещания предыдущей попытки. Повреждённый
-первый release artifact приводит к явной ошибке; loader не выбирает молча
-другой код. Старое `release/service` удаляется только после готовности всего
-преемника, чтобы startup сохранял путь к восстановлению.
+После interruption Worker читает фактические canonical entries и получает
+fresh delta. При повреждённом current release artifact startup завершает boot
+явной ошибкой. При готовом полном candidate cleanup продолжает движение вперёд
+к выбранному composition.
 
 ## Host publication и delivery
 
-Host intent задаётся корневым versioned composition. Publication сначала
-фиксирует этот intent, затем проверяет package-owned contracts, собирает и
-записывает immutable artifacts и доводит child manifests до выбранных версий.
-Обычная ошибка возвращает прежнее состояние; host recovery после аварийного
-прерывания завершает уже зафиксированное движение вперёд до открытия listener.
+Root versioned composition хранит durable host intent. При publication host:
 
-Host отдаёт browser artifact по package identity и env, а exact version — по
-той же identity с версией. Endpoint текущего code state является диагностикой
-host, а не источником истины для локального Service Worker: Worker всегда
-перечитывает и проверяет собственные bytes.
+1. фиксирует target composition;
+1. проверяет package-owned contracts и выполняет package-wide typecheck;
+1. собирает env artifacts и записывает immutable versions;
+1. обновляет child manifests до target versions;
+1. публикует payload-free release signal после готовности состава.
 
-Точные HTTP/RPC методы, wire objects, cache names, transaction marker и
-порядок operational публикации принадлежат public types, коду и
-[руководству разработки](../../.agents/skills/metafor-dev/references/development.md).
+Обычная ошибка восстанавливает предыдущий root intent. После process
+interruption host recovery завершает уже зафиксированное движение вперёд до
+открытия listener. HTTP delivery отдаёт stable либо exact browser artifact, а
+Service Worker подтверждает собственный current по локально прочитанным bytes.
+
+Точные HTTP/RPC методы, wire objects, storage names и publication operations
+задают public types, код и
+[руководство разработки](../../.agents/skills/metafor-dev/references/development.md).
 
 ## Целевая server release
 
-Текущий env `server` управляет browser packages со стороны host, но сам ещё не
-является сменяемым server runtime за `startup/server`. Целевой путь определён
-[общим законом](../README.md#общий-закон): тонкий `server.ts` запускает
-`startup/server`, тот проверяет и запускает `release/server`, а release
-определяет весь последующий [`@internal/*`](../docs/INTERNAL.md) и
-[`@metafor/*`](../docs/METAFOR.md) состав серверной среды.
-
-Значит, наличие собранного `release/server` сегодня не доказывает полное
-server self-update. Такое доказательство потребует отдельной реализации
-server startup, рождения нового process incarnation, перехода authority и
-наблюдаемого восстановления обязательных связей.
+Текущий `release/server` управляет browser packages со стороны host. Следующий
+server result помещает его за `startup/server` и расширяет composition всей
+рабочей server-средой: release выбирает [`@internal/*`](../docs/INTERNAL.md) и
+[`@metafor/*`](../docs/METAFOR.md) packages, startup создаёт новое process
+воплощение, а readiness подтверждает version и восстановленные обязательные
+связи.
 
 ## Public-граница
 
-Env `service` владеет loader dependency и runtime contracts, необходимыми
-startup для безопасной замены. Env `server` публикует package graph,
-build/publication/delivery и control RPC contracts. Точные exports находятся в
-[`package.json`](package.json) и public source; этот README задаёт их предметный
-смысл, но не повторяет сигнатуры.
+Env `service` публикует loader dependency и runtime contracts для startup. Env
+`server` публикует package graph, build/publication/delivery и control RPC
+contracts. Точные exports задают [`package.json`](package.json) и public source.

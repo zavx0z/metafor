@@ -1,70 +1,64 @@
 # `@hamiltonian/startup`
 
-`@hamiltonian/startup` — минимальная устойчивая оболочка между платформенной
-точкой входа и сменяемым [`@hamiltonian/release`](../release/README.md). Она
-должна оставаться достаточно малой, чтобы получить, проверить и запустить
-release даже тогда, когда всё после неё нужно заменить.
+`@hamiltonian/startup` — устойчивая bootstrap-оболочка между platform entrypoint
+и сменяемым [`@hamiltonian/release`](../release/README.md). Она обеспечивает
+путь к проверенному release при первом запуске, восстановлении и замене всей
+последующей среды.
 
-Общий закон сред и граница Hamiltonian определены в
-[корневом контракте](../README.md#общий-закон). Этот документ владеет только
-ролью startup package.
+## Закон startup
 
-## Ответственность
+Когда platform entrypoint начинает новую incarnation:
 
-Startup:
+1. startup устанавливает минимальные platform lifecycle hooks;
+1. startup читает локальный release artifact либо получает его через delivery;
+1. startup проверяет artifact и создаёт отдельный release runtime;
+1. startup запускает candidate и направляет ему новые platform events;
+1. startup дожидается операций predecessor, вызывает его lifecycle cleanup и
+   публикует candidate как current runtime.
 
-* первым входит в поддерживаемую среду исполнения;
-* устанавливает минимальные platform lifecycle hooks;
-* получает и проверяет release до исполнения;
-* удерживает один текущий release runtime;
-* при замене направляет новые события преемнику, завершает уже начатые события
-  прежнего runtime и затем уничтожает прежнее воплощение.
+Наблюдаемый результат — один current release runtime с подтверждёнными package
+identity, env и version, которому platform передаёт последующие события.
 
-Startup не выбирает состав [`@internal/*`](../docs/INTERNAL.md) и будущих
-[`@metafor/*`](../docs/METAFOR.md) packages, не владеет cache и update policy,
-не реализует RPC, signaling или прикладную работу. Эти решения принадлежат
-release и загруженным им packages.
+## Распределение ответственности
+
+| Владелец | Ответственность |
+| --- | --- |
+| Startup | Bootstrap, проверка release artifact, current runtime и handover |
+| [`@hamiltonian/release`](../release/README.md) | Composition, cache/update policy, control RPC и lifecycle сменяемого состава |
+| [`@internal/*`](../docs/INTERNAL.md) | Служебные функции Hamiltonian после release startup |
+| [`@metafor/*`](../docs/METAFOR.md) | Загружаемые функции самой MetaFor |
 
 ## Реализованные browser-среды
 
-| Среда | Роль |
+| Env | Событие и результат |
 | --- | --- |
-| `main` | Регистрирует startup Service Worker, ждёт фактического controller и передаёт Window управлению release |
-| `service` | Синхронно принимает Service Worker lifecycle events, поднимает release runtime и передаёт ему `fetch` и `message` |
+| `main` | Window регистрирует startup Service Worker, получает controller и передаёт выполнение release main |
+| `service` | Service Worker синхронно принимает platform events, поднимает release runtime и направляет ему `fetch`/`message` |
 
-Service Worker startup загружает один проверенный release artifact из
-канонического локального code storage либо через сеть. Низкоуровневые операции
-проверки, чтения и исполнения передаются release только вниз как замороженная
-dependency-граница. Сам startup не знает, какие packages входят в выпуск и как
-они обновляются.
-
-Release сначала создаётся как отдельный runtime. Startup разрешает ему начать
-работу, переключает последующие события на него, дожидается незавершённых
-операций прежнего runtime и вызывает его единый lifecycle cleanup. Регистрация
-Service Worker при этом остаётся устойчивой оболочкой.
+Service startup получает один release artifact из canonical local storage либо
+через сеть. Он передаёт release замороженные primitives проверки, чтения и
+исполнения. Release возвращает runtime lifecycle, который startup готовит,
+активирует, обслуживает и завершает.
 
 ## Целевая server-среда
 
-Среда `server` ещё не реализована и не объявлена package export. По принятому
-закону корневой `server.ts` должен только запустить `startup/server` и передать
-ему управление. Server startup должен получить, проверить и запустить текущий
-`release/server`; вся рабочая серверная среда после него должна заменяться
-целиком через новое воплощение.
+Текущее server entrypoint напрямую запускает `@hamiltonian/release:server` и
+владеет HTTP/WSS surface. Следующий принимаемый результат добавляет env
+`startup/server`: `server.ts` создаёт startup, startup проверяет и запускает
+`release/server`, а handover рождает новую incarnation всей рабочей среды после
+startup.
 
-Сейчас `server.ts` напрямую импортирует `@hamiltonian/release` и сам содержит
-HTTP/WSS surface. Это подтверждённое расхождение текущей реализации с целью, а
-не скрытая возможность startup package. Буквальные Service Worker API, Cache
-Storage и browser event lifecycle на server не переносятся: общий смысл
-сохраняется через отдельный платформенный механизм.
+Server startup реализует ту же последовательность bootstrap/handover через
+Bun process primitives. Browser startup реализует её через Service Worker
+registration, events и local browser code storage.
 
 ## Public-граница
 
-Package экспортирует только фактически существующие `main` и `service`
-entrypoints. Точная форма loader dependencies и release runtime задаётся
-public types package `@hamiltonian/release`; startup предоставляет их
-реализацию, но не переобъявляет чужой контракт.
+Package сейчас экспортирует `main` и `service` entrypoints. Public loader
+dependencies и release runtime contract принадлежат
+`@hamiltonian/release:service`; startup предоставляет platform implementation
+этого contract.
 
-Имена export conditions, build artifacts и точные команды принадлежат
-[`package.json`](package.json), коду и
-[руководству разработки](../../.agents/skills/metafor-dev/references/development.md),
-а не предметному закону этого README.
+Точные export conditions, artifacts и operations задают
+[`package.json`](package.json), public source и
+[руководство разработки](../../.agents/skills/metafor-dev/references/development.md).
