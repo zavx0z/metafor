@@ -41,6 +41,7 @@
     "pkg/template",
     "pkg/ui/elements",
     "pkg/ui/components",
+    "pkg/ui/playground",
     "pkg/ui/hud",
     "pkg/visual",
     "fixture",

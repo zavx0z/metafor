@@ -140,7 +140,7 @@
     },
     "hamiltonian/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.8",
+      "version": "0.1.10",
       "dependencies": {
         "@metafor/engine": "workspace:*",
         "@ui/elements": "workspace:*",
@@ -149,7 +149,7 @@
     },
     "hamiltonian/release": {
       "name": "@hamiltonian/release",
-      "version": "0.1.0",
+      "version": "0.1.9",
       "dependencies": {
         "@internal/visual": "workspace:^0.1.8",
       },
@@ -159,7 +159,7 @@
     },
     "hamiltonian/startup": {
       "name": "@hamiltonian/startup",
-      "version": "0.1.0",
+      "version": "0.1.2",
       "dependencies": {
         "@hamiltonian/release": "workspace:^0.1.0",
       },
@@ -231,10 +231,8 @@
       "version": "0.0.1",
       "dependencies": {
         "@metafor/engine": "workspace:*",
-        "@nodes/layout": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
-        "nodes": "workspace:*",
       },
     },
     "pkg/template": {
@@ -261,6 +259,15 @@
     },
     "pkg/ui/hud": {
       "name": "@ui/hud",
+      "version": "0.0.1",
+      "dependencies": {
+        "@metafor/engine": "workspace:*",
+        "@ui/components": "workspace:*",
+        "@ui/elements": "workspace:*",
+      },
+    },
+    "pkg/ui/playground": {
+      "name": "@ui/playground",
       "version": "0.0.1",
       "dependencies": {
         "@metafor/engine": "workspace:*",
@@ -415,6 +422,8 @@
     "@ui/elements": ["@ui/elements@workspace:pkg/ui/elements"],
 
     "@ui/hud": ["@ui/hud@workspace:pkg/ui/hud"],
+
+    "@ui/playground": ["@ui/playground@workspace:pkg/ui/playground"],
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 
