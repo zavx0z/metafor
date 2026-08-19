@@ -82,4 +82,28 @@ describe("Blender-like Node component playground", () => {
     expect(source).toContain("FieldCatalogSurface")
     expect(source).toContain("SocketCatalogSurface")
   })
+
+  test("keeps retained browser evidence dev-only and exact-target repeatable", async () => {
+    const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
+    const observer = await Bun.file(join(playgroundRoot, "retained-observer.ts")).text()
+    const production = await Bun.file(join(playgroundRoot, "../node-editor.ts")).text()
+    const helper = await Bun.file(join(
+      playgroundRoot,
+      "../../.agents/skills/node-system-dev/scripts/browser.py",
+    )).text()
+
+    expect(client).toContain("createPlaygroundRetainedObserver(editor)")
+    expect(observer).toContain("NodeCanvas.contentRoot")
+    expect(observer).toContain("readRibbonEndpointCenters")
+    expect(observer).toContain("worldScaleRatioToContentRoot")
+    expect(production).not.toContain("__nodeComponentRetainedObserver")
+    expect(helper).toContain('subparsers.add_parser("retained")')
+    expect(helper).toContain('subparsers.add_parser("evidence")')
+    expect(helper).toContain("stableComponentAndGeometryIdentity")
+    expect(helper).toContain("postRestoreCounters")
+    expect(await Bun.file(join(
+      playgroundRoot,
+      "../../.agents/skills/node-system-dev/scripts/browser_test.py",
+    )).text()).toContain("test_restores_original_transform_and_selection_after_phase_failure")
+  })
 })

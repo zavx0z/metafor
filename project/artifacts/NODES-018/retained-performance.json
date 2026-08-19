@@ -1,0 +1,6885 @@
+{
+  "dirtySelection": {
+    "command": {
+      "after": {
+        "id": "scalar",
+        "kind": "node"
+      },
+      "before": {
+        "id": "matrix-shader",
+        "kind": "link"
+      },
+      "nodeId": "scalar",
+      "surfacePoint": {
+        "x": 370.6867016336707,
+        "y": 104.6388353723319
+      }
+    },
+    "settled": {
+      "components": [
+        {
+          "bounded": true,
+          "descendantCount": 1316,
+          "geometryCount": 1316,
+          "name": "NodeCanvas.grid",
+          "objectId": "object-1",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:catalog-frame",
+          "objectId": "object-66",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:data-frame",
+          "objectId": "object-69",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:scalar-transform",
+          "objectId": "object-72",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:transform-shader",
+          "objectId": "object-74",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:asset-matrix",
+          "objectId": "object-76",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:matrix-shader",
+          "objectId": "object-78",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:catalog-frame",
+          "objectId": "object-80",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:data-frame",
+          "objectId": "object-82",
+          "textCount": 1,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 28,
+          "name": "NodeCanvas.node:scalar",
+          "objectId": "object-84",
+          "textCount": 8,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 31,
+          "name": "NodeCanvas.node:transform",
+          "objectId": "object-105",
+          "textCount": 11,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 14,
+          "geometryCount": 21,
+          "name": "NodeCanvas.node:shader",
+          "objectId": "object-126",
+          "textCount": 7,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 17,
+          "geometryCount": 26,
+          "name": "NodeCanvas.node:asset",
+          "objectId": "object-141",
+          "textCount": 9,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 8,
+          "geometryCount": 10,
+          "name": "NodeCanvas.node:collapsed",
+          "objectId": "object-159",
+          "textCount": 2,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 19,
+          "geometryCount": 27,
+          "name": "NodeCanvas.node:matrix",
+          "objectId": "object-168",
+          "textCount": 8,
+          "visible": false
+        }
+      ],
+      "contentRoot": {
+        "childNames": [
+          "NodeCanvas.grid",
+          "NodeCanvas.frame-background:catalog-frame",
+          "NodeCanvas.frame-background:data-frame",
+          "NodeCanvas.link:scalar-transform",
+          "NodeCanvas.link:transform-shader",
+          "NodeCanvas.link:asset-matrix",
+          "NodeCanvas.link:matrix-shader",
+          "NodeCanvas.frame-foreground:catalog-frame",
+          "NodeCanvas.frame-foreground:data-frame",
+          "NodeCanvas.node:scalar",
+          "NodeCanvas.node:transform",
+          "NodeCanvas.node:shader",
+          "NodeCanvas.node:asset",
+          "NodeCanvas.node:collapsed",
+          "NodeCanvas.node:matrix"
+        ],
+        "childObjectIds": [
+          "object-1",
+          "object-66",
+          "object-69",
+          "object-72",
+          "object-74",
+          "object-76",
+          "object-78",
+          "object-80",
+          "object-82",
+          "object-84",
+          "object-105",
+          "object-126",
+          "object-141",
+          "object-159",
+          "object-168"
+        ],
+        "count": 1,
+        "objectId": "object-188",
+        "parentObjectId": "object-189",
+        "worldScale": [
+          2.4000000953674316,
+          2.4000000953674316
+        ]
+      },
+      "diagnostics": {
+        "localLayoutPlans": 7,
+        "materializations": 2,
+        "transformOnlyFrames": 5
+      },
+      "links": [
+        {
+          "actualGeometryFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "actualGeometryLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-69",
+          "geometryObjectId": "object-73",
+          "id": "scalar-transform",
+          "parentObjectId": "object-72",
+          "rawFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "rawLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "sourceSocketCenter": {
+            "x": 300,
+            "y": 113
+          },
+          "targetSocketCenter": {
+            "x": 340,
+            "y": 165.5
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-70",
+          "geometryObjectId": "object-75",
+          "id": "transform-shader",
+          "parentObjectId": "object-74",
+          "rawFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "sourceSocketCenter": {
+            "x": 650,
+            "y": 103
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 158
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "actualGeometryLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-71",
+          "geometryObjectId": "object-77",
+          "id": "asset-matrix",
+          "parentObjectId": "object-76",
+          "rawFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "rawLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "sourceSocketCenter": {
+            "x": 430,
+            "y": 403
+          },
+          "targetSocketCenter": {
+            "x": 590,
+            "y": 493
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-204",
+          "geometryObjectId": "object-190",
+          "id": "matrix-shader",
+          "parentObjectId": "object-78",
+          "rawFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "sourceSocketCenter": {
+            "x": 980,
+            "y": 418
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 183
+          }
+        }
+      ],
+      "representativeNode": {
+        "bounded": false,
+        "childObjectIds": [
+          "object-191",
+          "object-192",
+          "object-193",
+          "object-194",
+          "object-195",
+          "object-196",
+          "object-197",
+          "object-198",
+          "object-199",
+          "object-200",
+          "object-201",
+          "object-202",
+          "object-203",
+          "object-204",
+          "object-205",
+          "object-206",
+          "object-207",
+          "object-208",
+          "object-209",
+          "object-210"
+        ],
+        "descendantCount": 20,
+        "geometryCount": 28,
+        "geometryIds": [
+          "geometry-205",
+          "geometry-206",
+          "geometry-207",
+          "geometry-80",
+          "geometry-81",
+          "geometry-82",
+          "geometry-83",
+          "geometry-84",
+          "geometry-85",
+          "geometry-208",
+          "geometry-87",
+          "geometry-88",
+          "geometry-209",
+          "geometry-210",
+          "geometry-91",
+          "geometry-92",
+          "geometry-93",
+          "geometry-94",
+          "geometry-95",
+          "geometry-96",
+          "geometry-211",
+          "geometry-212",
+          "geometry-213",
+          "geometry-100",
+          "geometry-101",
+          "geometry-214",
+          "geometry-215",
+          "geometry-216"
+        ],
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "textCount": 8,
+        "visible": true,
+        "visualSamples": [
+          {
+            "geometryIds": [
+              "geometry-205"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-191",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-206"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-192",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-207"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-193",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-80",
+              "geometry-81"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-194",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-82",
+              "geometry-83"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-195",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-84",
+              "geometry-85"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-196",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-208"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-197",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-87",
+              "geometry-88"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-198",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-209"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-199",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-210"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-200",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-91",
+              "geometry-92"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-201",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-93",
+              "geometry-94"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-202",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-95",
+              "geometry-96"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-203",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-211"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-204",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-212"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-205",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-213"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-206",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-100",
+              "geometry-101"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-207",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-214"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-208",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-215"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-209",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-216"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-210",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "selection": {
+        "id": "scalar",
+        "kind": "node"
+      },
+      "transform": {
+        "scale": 2.4,
+        "x": 217.08669942071128,
+        "y": -92.16116834949082
+      }
+    }
+  },
+  "focus": {
+    "command": {
+      "method": "Page.bringToFront",
+      "ok": true,
+      "result": {},
+      "targetId": "8A6231C66CBD889C40FA2B6677BAC369"
+    },
+    "dom": {
+      "canvas": [
+        3840,
+        2176,
+        1920,
+        1088
+      ],
+      "comparison": "blender-reference-live-editor",
+      "focused": true,
+      "inner": [
+        1920,
+        1088,
+        2
+      ],
+      "ready": "ready",
+      "readyState": "complete",
+      "retained": {
+        "contentRootCount": "1",
+        "diagnostics": {
+          "localLayoutPlans": 6,
+          "materializations": 1,
+          "transformOnlyFrames": 0
+        }
+      },
+      "scroll": [
+        1920,
+        1088
+      ],
+      "selection": {
+        "id": "matrix-shader",
+        "kind": "link"
+      },
+      "status": {
+        "state": null,
+        "value": "10 fields · 19 sockets · 8 shapes"
+      },
+      "title": "Node Component Library",
+      "transform": {
+        "scale": "0.4461538461538462",
+        "x": "152.15384615384613",
+        "y": "72"
+      },
+      "url": "http://127.0.0.1:4018/",
+      "visibility": "visible"
+    }
+  },
+  "initial": {
+    "components": [
+      {
+        "bounded": true,
+        "descendantCount": 1316,
+        "geometryCount": 1316,
+        "name": "NodeCanvas.grid",
+        "objectId": "object-1",
+        "textCount": 0,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 2,
+        "geometryCount": 2,
+        "name": "NodeCanvas.frame-background:catalog-frame",
+        "objectId": "object-66",
+        "textCount": 0,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 2,
+        "geometryCount": 2,
+        "name": "NodeCanvas.frame-background:data-frame",
+        "objectId": "object-69",
+        "textCount": 0,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 1,
+        "geometryCount": 1,
+        "name": "NodeCanvas.link:scalar-transform",
+        "objectId": "object-72",
+        "textCount": 0,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 1,
+        "geometryCount": 1,
+        "name": "NodeCanvas.link:transform-shader",
+        "objectId": "object-74",
+        "textCount": 0,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 1,
+        "geometryCount": 1,
+        "name": "NodeCanvas.link:asset-matrix",
+        "objectId": "object-76",
+        "textCount": 0,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 1,
+        "geometryCount": 1,
+        "name": "NodeCanvas.link:matrix-shader",
+        "objectId": "object-78",
+        "textCount": 0,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 1,
+        "geometryCount": 2,
+        "name": "NodeCanvas.frame-foreground:catalog-frame",
+        "objectId": "object-80",
+        "textCount": 1,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 1,
+        "geometryCount": 2,
+        "name": "NodeCanvas.frame-foreground:data-frame",
+        "objectId": "object-82",
+        "textCount": 1,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 20,
+        "geometryCount": 28,
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "textCount": 8,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 20,
+        "geometryCount": 31,
+        "name": "NodeCanvas.node:transform",
+        "objectId": "object-105",
+        "textCount": 11,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 14,
+        "geometryCount": 21,
+        "name": "NodeCanvas.node:shader",
+        "objectId": "object-126",
+        "textCount": 7,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 17,
+        "geometryCount": 26,
+        "name": "NodeCanvas.node:asset",
+        "objectId": "object-141",
+        "textCount": 9,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 8,
+        "geometryCount": 10,
+        "name": "NodeCanvas.node:collapsed",
+        "objectId": "object-159",
+        "textCount": 2,
+        "visible": true
+      },
+      {
+        "bounded": false,
+        "descendantCount": 19,
+        "geometryCount": 27,
+        "name": "NodeCanvas.node:matrix",
+        "objectId": "object-168",
+        "textCount": 8,
+        "visible": true
+      }
+    ],
+    "contentRoot": {
+      "childNames": [
+        "NodeCanvas.grid",
+        "NodeCanvas.frame-background:catalog-frame",
+        "NodeCanvas.frame-background:data-frame",
+        "NodeCanvas.link:scalar-transform",
+        "NodeCanvas.link:transform-shader",
+        "NodeCanvas.link:asset-matrix",
+        "NodeCanvas.link:matrix-shader",
+        "NodeCanvas.frame-foreground:catalog-frame",
+        "NodeCanvas.frame-foreground:data-frame",
+        "NodeCanvas.node:scalar",
+        "NodeCanvas.node:transform",
+        "NodeCanvas.node:shader",
+        "NodeCanvas.node:asset",
+        "NodeCanvas.node:collapsed",
+        "NodeCanvas.node:matrix"
+      ],
+      "childObjectIds": [
+        "object-1",
+        "object-66",
+        "object-69",
+        "object-72",
+        "object-74",
+        "object-76",
+        "object-78",
+        "object-80",
+        "object-82",
+        "object-84",
+        "object-105",
+        "object-126",
+        "object-141",
+        "object-159",
+        "object-168"
+      ],
+      "count": 1,
+      "objectId": "object-188",
+      "parentObjectId": "object-189",
+      "worldScale": [
+        0.446153849363327,
+        0.446153849363327
+      ]
+    },
+    "diagnostics": {
+      "localLayoutPlans": 6,
+      "materializations": 1,
+      "transformOnlyFrames": 0
+    },
+    "links": [
+      {
+        "actualGeometryFirstPoint": {
+          "x": 300,
+          "y": 113
+        },
+        "actualGeometryLastPoint": {
+          "x": 340,
+          "y": 165.5
+        },
+        "framebufferClip": [
+          1103.9999773687139,
+          1427.9999130788442,
+          2712.00002196566,
+          2143.999941255446
+        ],
+        "geometryId": "geometry-69",
+        "geometryObjectId": "object-73",
+        "id": "scalar-transform",
+        "parentObjectId": "object-72",
+        "rawFirstPoint": {
+          "x": 300,
+          "y": 113
+        },
+        "rawLastPoint": {
+          "x": 340,
+          "y": 165.5
+        },
+        "sourceSocketCenter": {
+          "x": 300,
+          "y": 113
+        },
+        "targetSocketCenter": {
+          "x": 340,
+          "y": 165.5
+        }
+      },
+      {
+        "actualGeometryFirstPoint": {
+          "x": 650,
+          "y": 103
+        },
+        "actualGeometryLastPoint": {
+          "x": 720,
+          "y": 158
+        },
+        "framebufferClip": [
+          1103.9999773687139,
+          1427.9999130788442,
+          2712.00002196566,
+          2143.999941255446
+        ],
+        "geometryId": "geometry-70",
+        "geometryObjectId": "object-75",
+        "id": "transform-shader",
+        "parentObjectId": "object-74",
+        "rawFirstPoint": {
+          "x": 650,
+          "y": 103
+        },
+        "rawLastPoint": {
+          "x": 720,
+          "y": 158
+        },
+        "sourceSocketCenter": {
+          "x": 650,
+          "y": 103
+        },
+        "targetSocketCenter": {
+          "x": 720,
+          "y": 158
+        }
+      },
+      {
+        "actualGeometryFirstPoint": {
+          "x": 430,
+          "y": 403
+        },
+        "actualGeometryLastPoint": {
+          "x": 590,
+          "y": 493
+        },
+        "framebufferClip": [
+          1103.9999773687139,
+          1427.9999130788442,
+          2712.00002196566,
+          2143.999941255446
+        ],
+        "geometryId": "geometry-71",
+        "geometryObjectId": "object-77",
+        "id": "asset-matrix",
+        "parentObjectId": "object-76",
+        "rawFirstPoint": {
+          "x": 430,
+          "y": 403
+        },
+        "rawLastPoint": {
+          "x": 590,
+          "y": 493
+        },
+        "sourceSocketCenter": {
+          "x": 430,
+          "y": 403
+        },
+        "targetSocketCenter": {
+          "x": 590,
+          "y": 493
+        }
+      },
+      {
+        "actualGeometryFirstPoint": {
+          "x": 980,
+          "y": 418
+        },
+        "actualGeometryLastPoint": {
+          "x": 720,
+          "y": 183
+        },
+        "framebufferClip": [
+          1103.9999773687139,
+          1427.9999130788442,
+          2712.00002196566,
+          2143.999941255446
+        ],
+        "geometryId": "geometry-72",
+        "geometryObjectId": "object-79",
+        "id": "matrix-shader",
+        "parentObjectId": "object-78",
+        "rawFirstPoint": {
+          "x": 980,
+          "y": 418
+        },
+        "rawLastPoint": {
+          "x": 720,
+          "y": 183
+        },
+        "sourceSocketCenter": {
+          "x": 980,
+          "y": 418
+        },
+        "targetSocketCenter": {
+          "x": 720,
+          "y": 183
+        }
+      }
+    ],
+    "representativeNode": {
+      "bounded": false,
+      "childObjectIds": [
+        "object-85",
+        "object-86",
+        "object-87",
+        "object-88",
+        "object-89",
+        "object-90",
+        "object-91",
+        "object-92",
+        "object-93",
+        "object-94",
+        "object-95",
+        "object-96",
+        "object-97",
+        "object-98",
+        "object-99",
+        "object-100",
+        "object-101",
+        "object-102",
+        "object-103",
+        "object-104"
+      ],
+      "descendantCount": 20,
+      "geometryCount": 28,
+      "geometryIds": [
+        "geometry-77",
+        "geometry-78",
+        "geometry-79",
+        "geometry-80",
+        "geometry-81",
+        "geometry-82",
+        "geometry-83",
+        "geometry-84",
+        "geometry-85",
+        "geometry-86",
+        "geometry-87",
+        "geometry-88",
+        "geometry-89",
+        "geometry-90",
+        "geometry-91",
+        "geometry-92",
+        "geometry-93",
+        "geometry-94",
+        "geometry-95",
+        "geometry-96",
+        "geometry-97",
+        "geometry-98",
+        "geometry-99",
+        "geometry-100",
+        "geometry-101",
+        "geometry-102",
+        "geometry-103",
+        "geometry-104"
+      ],
+      "name": "NodeCanvas.node:scalar",
+      "objectId": "object-84",
+      "textCount": 8,
+      "visible": true,
+      "visualSamples": [
+        {
+          "geometryIds": [
+            "geometry-77"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-85",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-78"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-86",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-79"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-87",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-80",
+            "geometry-81"
+          ],
+          "kind": "text",
+          "name": "",
+          "objectId": "object-88",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-82",
+            "geometry-83"
+          ],
+          "kind": "text",
+          "name": "",
+          "objectId": "object-89",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-84",
+            "geometry-85"
+          ],
+          "kind": "text",
+          "name": "",
+          "objectId": "object-90",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-86"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-91",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-87",
+            "geometry-88"
+          ],
+          "kind": "text",
+          "name": "",
+          "objectId": "object-92",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-89"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-93",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-90"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-94",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-91",
+            "geometry-92"
+          ],
+          "kind": "text",
+          "name": "",
+          "objectId": "object-95",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-93",
+            "geometry-94"
+          ],
+          "kind": "text",
+          "name": "",
+          "objectId": "object-96",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-95",
+            "geometry-96"
+          ],
+          "kind": "text",
+          "name": "",
+          "objectId": "object-97",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-97"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-98",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-98"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-99",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-99"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-100",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-100",
+            "geometry-101"
+          ],
+          "kind": "text",
+          "name": "",
+          "objectId": "object-101",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-102"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-102",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-103"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-103",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        },
+        {
+          "geometryIds": [
+            "geometry-104"
+          ],
+          "kind": "mesh",
+          "name": "",
+          "objectId": "object-104",
+          "parentObjectId": "object-84",
+          "worldScale": [
+            0.446153849363327,
+            0.446153849363327
+          ],
+          "worldScaleRatioToContentRoot": [
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    "selection": {
+      "id": "matrix-shader",
+      "kind": "link"
+    },
+    "transform": {
+      "scale": 0.4461538461538462,
+      "x": 152.15384615384613,
+      "y": 72
+    }
+  },
+  "ownerAcceptance": false,
+  "physicalDeviceProof": false,
+  "pinch": {
+    "after": {
+      "scale": 2.4,
+      "x": 217.08669942071128,
+      "y": -92.16116834949082
+    },
+    "before": {
+      "scale": 1.888,
+      "x": 184.00154646451892,
+      "y": 6.8599570879959515
+    },
+    "snapshot": {
+      "components": [
+        {
+          "bounded": true,
+          "descendantCount": 1316,
+          "geometryCount": 1316,
+          "name": "NodeCanvas.grid",
+          "objectId": "object-1",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:catalog-frame",
+          "objectId": "object-66",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:data-frame",
+          "objectId": "object-69",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:scalar-transform",
+          "objectId": "object-72",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:transform-shader",
+          "objectId": "object-74",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:asset-matrix",
+          "objectId": "object-76",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:matrix-shader",
+          "objectId": "object-78",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:catalog-frame",
+          "objectId": "object-80",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:data-frame",
+          "objectId": "object-82",
+          "textCount": 1,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 28,
+          "name": "NodeCanvas.node:scalar",
+          "objectId": "object-84",
+          "textCount": 8,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 31,
+          "name": "NodeCanvas.node:transform",
+          "objectId": "object-105",
+          "textCount": 11,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 14,
+          "geometryCount": 21,
+          "name": "NodeCanvas.node:shader",
+          "objectId": "object-126",
+          "textCount": 7,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 17,
+          "geometryCount": 26,
+          "name": "NodeCanvas.node:asset",
+          "objectId": "object-141",
+          "textCount": 9,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 8,
+          "geometryCount": 10,
+          "name": "NodeCanvas.node:collapsed",
+          "objectId": "object-159",
+          "textCount": 2,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 19,
+          "geometryCount": 27,
+          "name": "NodeCanvas.node:matrix",
+          "objectId": "object-168",
+          "textCount": 8,
+          "visible": false
+        }
+      ],
+      "contentRoot": {
+        "childNames": [
+          "NodeCanvas.grid",
+          "NodeCanvas.frame-background:catalog-frame",
+          "NodeCanvas.frame-background:data-frame",
+          "NodeCanvas.link:scalar-transform",
+          "NodeCanvas.link:transform-shader",
+          "NodeCanvas.link:asset-matrix",
+          "NodeCanvas.link:matrix-shader",
+          "NodeCanvas.frame-foreground:catalog-frame",
+          "NodeCanvas.frame-foreground:data-frame",
+          "NodeCanvas.node:scalar",
+          "NodeCanvas.node:transform",
+          "NodeCanvas.node:shader",
+          "NodeCanvas.node:asset",
+          "NodeCanvas.node:collapsed",
+          "NodeCanvas.node:matrix"
+        ],
+        "childObjectIds": [
+          "object-1",
+          "object-66",
+          "object-69",
+          "object-72",
+          "object-74",
+          "object-76",
+          "object-78",
+          "object-80",
+          "object-82",
+          "object-84",
+          "object-105",
+          "object-126",
+          "object-141",
+          "object-159",
+          "object-168"
+        ],
+        "count": 1,
+        "objectId": "object-188",
+        "parentObjectId": "object-189",
+        "worldScale": [
+          2.4000000953674316,
+          2.4000000953674316
+        ]
+      },
+      "diagnostics": {
+        "localLayoutPlans": 6,
+        "materializations": 1,
+        "transformOnlyFrames": 5
+      },
+      "links": [
+        {
+          "actualGeometryFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "actualGeometryLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-69",
+          "geometryObjectId": "object-73",
+          "id": "scalar-transform",
+          "parentObjectId": "object-72",
+          "rawFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "rawLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "sourceSocketCenter": {
+            "x": 300,
+            "y": 113
+          },
+          "targetSocketCenter": {
+            "x": 340,
+            "y": 165.5
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-70",
+          "geometryObjectId": "object-75",
+          "id": "transform-shader",
+          "parentObjectId": "object-74",
+          "rawFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "sourceSocketCenter": {
+            "x": 650,
+            "y": 103
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 158
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "actualGeometryLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-71",
+          "geometryObjectId": "object-77",
+          "id": "asset-matrix",
+          "parentObjectId": "object-76",
+          "rawFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "rawLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "sourceSocketCenter": {
+            "x": 430,
+            "y": 403
+          },
+          "targetSocketCenter": {
+            "x": 590,
+            "y": 493
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-72",
+          "geometryObjectId": "object-79",
+          "id": "matrix-shader",
+          "parentObjectId": "object-78",
+          "rawFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "sourceSocketCenter": {
+            "x": 980,
+            "y": 418
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 183
+          }
+        }
+      ],
+      "representativeNode": {
+        "bounded": false,
+        "childObjectIds": [
+          "object-85",
+          "object-86",
+          "object-87",
+          "object-88",
+          "object-89",
+          "object-90",
+          "object-91",
+          "object-92",
+          "object-93",
+          "object-94",
+          "object-95",
+          "object-96",
+          "object-97",
+          "object-98",
+          "object-99",
+          "object-100",
+          "object-101",
+          "object-102",
+          "object-103",
+          "object-104"
+        ],
+        "descendantCount": 20,
+        "geometryCount": 28,
+        "geometryIds": [
+          "geometry-77",
+          "geometry-78",
+          "geometry-79",
+          "geometry-80",
+          "geometry-81",
+          "geometry-82",
+          "geometry-83",
+          "geometry-84",
+          "geometry-85",
+          "geometry-86",
+          "geometry-87",
+          "geometry-88",
+          "geometry-89",
+          "geometry-90",
+          "geometry-91",
+          "geometry-92",
+          "geometry-93",
+          "geometry-94",
+          "geometry-95",
+          "geometry-96",
+          "geometry-97",
+          "geometry-98",
+          "geometry-99",
+          "geometry-100",
+          "geometry-101",
+          "geometry-102",
+          "geometry-103",
+          "geometry-104"
+        ],
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "textCount": 8,
+        "visible": true,
+        "visualSamples": [
+          {
+            "geometryIds": [
+              "geometry-77"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-85",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-78"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-86",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-79"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-87",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-80",
+              "geometry-81"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-88",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-82",
+              "geometry-83"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-89",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-84",
+              "geometry-85"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-90",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-86"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-91",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-87",
+              "geometry-88"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-92",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-89"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-93",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-90"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-94",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-91",
+              "geometry-92"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-95",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-93",
+              "geometry-94"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-96",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-95",
+              "geometry-96"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-97",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-97"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-98",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-98"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-99",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-99"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-100",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-100",
+              "geometry-101"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-101",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-102"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-102",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-103"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-103",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-104"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-104",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              2.4000000953674316,
+              2.4000000953674316
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "selection": {
+        "id": "matrix-shader",
+        "kind": "link"
+      },
+      "transform": {
+        "scale": 2.4,
+        "x": 217.08669942071128,
+        "y": -92.16116834949082
+      }
+    }
+  },
+  "restore": {
+    "before": {
+      "diagnostics": {
+        "localLayoutPlans": 7,
+        "materializations": 2,
+        "transformOnlyFrames": 5
+      },
+      "selection": {
+        "id": "scalar",
+        "kind": "node"
+      },
+      "transform": {
+        "scale": 2.4,
+        "x": 217.08669942071128,
+        "y": -92.16116834949082
+      }
+    },
+    "postRestore": {
+      "components": [
+        {
+          "bounded": true,
+          "descendantCount": 1316,
+          "geometryCount": 1316,
+          "name": "NodeCanvas.grid",
+          "objectId": "object-1",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:catalog-frame",
+          "objectId": "object-66",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:data-frame",
+          "objectId": "object-69",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:scalar-transform",
+          "objectId": "object-72",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:transform-shader",
+          "objectId": "object-74",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:asset-matrix",
+          "objectId": "object-76",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:matrix-shader",
+          "objectId": "object-78",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:catalog-frame",
+          "objectId": "object-80",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:data-frame",
+          "objectId": "object-82",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 28,
+          "name": "NodeCanvas.node:scalar",
+          "objectId": "object-84",
+          "textCount": 8,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 31,
+          "name": "NodeCanvas.node:transform",
+          "objectId": "object-105",
+          "textCount": 11,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 14,
+          "geometryCount": 21,
+          "name": "NodeCanvas.node:shader",
+          "objectId": "object-126",
+          "textCount": 7,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 17,
+          "geometryCount": 26,
+          "name": "NodeCanvas.node:asset",
+          "objectId": "object-141",
+          "textCount": 9,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 8,
+          "geometryCount": 10,
+          "name": "NodeCanvas.node:collapsed",
+          "objectId": "object-159",
+          "textCount": 2,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 19,
+          "geometryCount": 27,
+          "name": "NodeCanvas.node:matrix",
+          "objectId": "object-168",
+          "textCount": 8,
+          "visible": true
+        }
+      ],
+      "contentRoot": {
+        "childNames": [
+          "NodeCanvas.grid",
+          "NodeCanvas.frame-background:catalog-frame",
+          "NodeCanvas.frame-background:data-frame",
+          "NodeCanvas.link:scalar-transform",
+          "NodeCanvas.link:transform-shader",
+          "NodeCanvas.link:asset-matrix",
+          "NodeCanvas.link:matrix-shader",
+          "NodeCanvas.frame-foreground:catalog-frame",
+          "NodeCanvas.frame-foreground:data-frame",
+          "NodeCanvas.node:scalar",
+          "NodeCanvas.node:transform",
+          "NodeCanvas.node:shader",
+          "NodeCanvas.node:asset",
+          "NodeCanvas.node:collapsed",
+          "NodeCanvas.node:matrix"
+        ],
+        "childObjectIds": [
+          "object-1",
+          "object-66",
+          "object-69",
+          "object-72",
+          "object-74",
+          "object-76",
+          "object-78",
+          "object-80",
+          "object-82",
+          "object-84",
+          "object-105",
+          "object-126",
+          "object-141",
+          "object-159",
+          "object-168"
+        ],
+        "count": 1,
+        "objectId": "object-188",
+        "parentObjectId": "object-189",
+        "worldScale": [
+          0.446153849363327,
+          0.446153849363327
+        ]
+      },
+      "diagnostics": {
+        "localLayoutPlans": 8,
+        "materializations": 3,
+        "transformOnlyFrames": 6
+      },
+      "links": [
+        {
+          "actualGeometryFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "actualGeometryLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-69",
+          "geometryObjectId": "object-73",
+          "id": "scalar-transform",
+          "parentObjectId": "object-72",
+          "rawFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "rawLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "sourceSocketCenter": {
+            "x": 300,
+            "y": 113
+          },
+          "targetSocketCenter": {
+            "x": 340,
+            "y": 165.5
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-70",
+          "geometryObjectId": "object-75",
+          "id": "transform-shader",
+          "parentObjectId": "object-74",
+          "rawFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "sourceSocketCenter": {
+            "x": 650,
+            "y": 103
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 158
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "actualGeometryLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-71",
+          "geometryObjectId": "object-77",
+          "id": "asset-matrix",
+          "parentObjectId": "object-76",
+          "rawFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "rawLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "sourceSocketCenter": {
+            "x": 430,
+            "y": 403
+          },
+          "targetSocketCenter": {
+            "x": 590,
+            "y": 493
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-217",
+          "geometryObjectId": "object-211",
+          "id": "matrix-shader",
+          "parentObjectId": "object-78",
+          "rawFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "sourceSocketCenter": {
+            "x": 980,
+            "y": 418
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 183
+          }
+        }
+      ],
+      "representativeNode": {
+        "bounded": false,
+        "childObjectIds": [
+          "object-212",
+          "object-213",
+          "object-214",
+          "object-215",
+          "object-216",
+          "object-217",
+          "object-218",
+          "object-219",
+          "object-220",
+          "object-221",
+          "object-222",
+          "object-223",
+          "object-224",
+          "object-225",
+          "object-226",
+          "object-227",
+          "object-228",
+          "object-229",
+          "object-230",
+          "object-231"
+        ],
+        "descendantCount": 20,
+        "geometryCount": 28,
+        "geometryIds": [
+          "geometry-218",
+          "geometry-219",
+          "geometry-220",
+          "geometry-80",
+          "geometry-81",
+          "geometry-82",
+          "geometry-83",
+          "geometry-84",
+          "geometry-85",
+          "geometry-221",
+          "geometry-87",
+          "geometry-88",
+          "geometry-222",
+          "geometry-223",
+          "geometry-91",
+          "geometry-92",
+          "geometry-93",
+          "geometry-94",
+          "geometry-95",
+          "geometry-96",
+          "geometry-224",
+          "geometry-225",
+          "geometry-226",
+          "geometry-100",
+          "geometry-101",
+          "geometry-227",
+          "geometry-228",
+          "geometry-229"
+        ],
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "textCount": 8,
+        "visible": true,
+        "visualSamples": [
+          {
+            "geometryIds": [
+              "geometry-218"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-212",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-219"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-213",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-220"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-214",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-80",
+              "geometry-81"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-215",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-82",
+              "geometry-83"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-216",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-84",
+              "geometry-85"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-217",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-221"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-218",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-87",
+              "geometry-88"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-219",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-222"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-220",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-223"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-221",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-91",
+              "geometry-92"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-222",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-93",
+              "geometry-94"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-223",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-95",
+              "geometry-96"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-224",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-224"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-225",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-225"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-226",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-226"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-227",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-100",
+              "geometry-101"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-228",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-227"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-229",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-228"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-230",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-229"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-231",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.446153849363327,
+              0.446153849363327
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "selection": {
+        "id": "matrix-shader",
+        "kind": "link"
+      },
+      "transform": {
+        "scale": 0.4461538461538462,
+        "x": 152.15384615384613,
+        "y": 72
+      }
+    },
+    "postRestoreCounters": {
+      "localLayoutPlans": 8,
+      "materializations": 3,
+      "transformOnlyFrames": 6
+    },
+    "selectionCommandAccepted": true,
+    "selectionRestored": true,
+    "transformCommandAccepted": true,
+    "transformRestored": true
+  },
+  "retainedIdentity": {
+    "components": [
+      {
+        "childObjectIds": [
+          "object-2",
+          "object-3",
+          "object-4",
+          "object-5",
+          "object-6",
+          "object-7",
+          "object-8",
+          "object-9",
+          "object-10",
+          "object-11",
+          "object-12",
+          "object-13",
+          "object-14",
+          "object-15",
+          "object-16",
+          "object-17",
+          "object-18",
+          "object-19",
+          "object-20",
+          "object-21",
+          "object-22",
+          "object-23",
+          "object-24",
+          "object-25",
+          "object-26",
+          "object-27",
+          "object-28",
+          "object-29",
+          "object-30",
+          "object-31",
+          "object-32",
+          "object-33",
+          "object-34",
+          "object-35",
+          "object-36",
+          "object-37",
+          "object-38",
+          "object-39",
+          "object-40",
+          "object-41",
+          "object-42",
+          "object-43",
+          "object-44",
+          "object-45",
+          "object-46",
+          "object-47",
+          "object-48",
+          "object-49",
+          "object-50",
+          "object-51",
+          "object-52",
+          "object-53",
+          "object-54",
+          "object-55",
+          "object-56",
+          "object-57",
+          "object-58",
+          "object-59",
+          "object-60",
+          "object-61",
+          "object-62",
+          "object-63",
+          "object-64",
+          "object-65"
+        ],
+        "geometryIds": [
+          "geometry-1",
+          "geometry-2",
+          "geometry-3",
+          "geometry-4",
+          "geometry-5",
+          "geometry-6",
+          "geometry-7",
+          "geometry-8",
+          "geometry-9",
+          "geometry-10",
+          "geometry-11",
+          "geometry-12",
+          "geometry-13",
+          "geometry-14",
+          "geometry-15",
+          "geometry-16",
+          "geometry-17",
+          "geometry-18",
+          "geometry-19",
+          "geometry-20",
+          "geometry-21",
+          "geometry-22",
+          "geometry-23",
+          "geometry-24",
+          "geometry-25",
+          "geometry-26",
+          "geometry-27",
+          "geometry-28",
+          "geometry-29",
+          "geometry-30",
+          "geometry-31",
+          "geometry-32",
+          "geometry-33",
+          "geometry-34",
+          "geometry-35",
+          "geometry-36",
+          "geometry-37",
+          "geometry-38",
+          "geometry-39",
+          "geometry-40",
+          "geometry-41",
+          "geometry-42",
+          "geometry-43",
+          "geometry-44",
+          "geometry-45",
+          "geometry-46",
+          "geometry-47",
+          "geometry-48",
+          "geometry-49",
+          "geometry-50",
+          "geometry-51",
+          "geometry-52",
+          "geometry-53",
+          "geometry-54",
+          "geometry-55",
+          "geometry-56",
+          "geometry-57",
+          "geometry-58",
+          "geometry-59",
+          "geometry-60",
+          "geometry-61",
+          "geometry-62",
+          "geometry-63",
+          "geometry-64"
+        ],
+        "name": "NodeCanvas.grid",
+        "objectId": "object-1",
+        "visualObjectIds": [
+          "object-2",
+          "object-3",
+          "object-4",
+          "object-5",
+          "object-6",
+          "object-7",
+          "object-8",
+          "object-9",
+          "object-10",
+          "object-11",
+          "object-12",
+          "object-13",
+          "object-14",
+          "object-15",
+          "object-16",
+          "object-17",
+          "object-18",
+          "object-19",
+          "object-20",
+          "object-21",
+          "object-22",
+          "object-23",
+          "object-24",
+          "object-25"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-67",
+          "object-68"
+        ],
+        "geometryIds": [
+          "geometry-65",
+          "geometry-66"
+        ],
+        "name": "NodeCanvas.frame-background:catalog-frame",
+        "objectId": "object-66",
+        "visualObjectIds": [
+          "object-67",
+          "object-68"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-70",
+          "object-71"
+        ],
+        "geometryIds": [
+          "geometry-67",
+          "geometry-68"
+        ],
+        "name": "NodeCanvas.frame-background:data-frame",
+        "objectId": "object-69",
+        "visualObjectIds": [
+          "object-70",
+          "object-71"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-73"
+        ],
+        "geometryIds": [
+          "geometry-69"
+        ],
+        "name": "NodeCanvas.link:scalar-transform",
+        "objectId": "object-72",
+        "visualObjectIds": [
+          "object-73"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-75"
+        ],
+        "geometryIds": [
+          "geometry-70"
+        ],
+        "name": "NodeCanvas.link:transform-shader",
+        "objectId": "object-74",
+        "visualObjectIds": [
+          "object-75"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-77"
+        ],
+        "geometryIds": [
+          "geometry-71"
+        ],
+        "name": "NodeCanvas.link:asset-matrix",
+        "objectId": "object-76",
+        "visualObjectIds": [
+          "object-77"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-79"
+        ],
+        "geometryIds": [
+          "geometry-72"
+        ],
+        "name": "NodeCanvas.link:matrix-shader",
+        "objectId": "object-78",
+        "visualObjectIds": [
+          "object-79"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-81"
+        ],
+        "geometryIds": [
+          "geometry-73",
+          "geometry-74"
+        ],
+        "name": "NodeCanvas.frame-foreground:catalog-frame",
+        "objectId": "object-80",
+        "visualObjectIds": [
+          "object-81"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-83"
+        ],
+        "geometryIds": [
+          "geometry-75",
+          "geometry-76"
+        ],
+        "name": "NodeCanvas.frame-foreground:data-frame",
+        "objectId": "object-82",
+        "visualObjectIds": [
+          "object-83"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-85",
+          "object-86",
+          "object-87",
+          "object-88",
+          "object-89",
+          "object-90",
+          "object-91",
+          "object-92",
+          "object-93",
+          "object-94",
+          "object-95",
+          "object-96",
+          "object-97",
+          "object-98",
+          "object-99",
+          "object-100",
+          "object-101",
+          "object-102",
+          "object-103",
+          "object-104"
+        ],
+        "geometryIds": [
+          "geometry-77",
+          "geometry-78",
+          "geometry-79",
+          "geometry-80",
+          "geometry-81",
+          "geometry-82",
+          "geometry-83",
+          "geometry-84",
+          "geometry-85",
+          "geometry-86",
+          "geometry-87",
+          "geometry-88",
+          "geometry-89",
+          "geometry-90",
+          "geometry-91",
+          "geometry-92",
+          "geometry-93",
+          "geometry-94",
+          "geometry-95",
+          "geometry-96",
+          "geometry-97",
+          "geometry-98",
+          "geometry-99",
+          "geometry-100",
+          "geometry-101",
+          "geometry-102",
+          "geometry-103",
+          "geometry-104"
+        ],
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "visualObjectIds": [
+          "object-85",
+          "object-86",
+          "object-87",
+          "object-88",
+          "object-89",
+          "object-90",
+          "object-91",
+          "object-92",
+          "object-93",
+          "object-94",
+          "object-95",
+          "object-96",
+          "object-97",
+          "object-98",
+          "object-99",
+          "object-100",
+          "object-101",
+          "object-102",
+          "object-103",
+          "object-104"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-106",
+          "object-107",
+          "object-108",
+          "object-109",
+          "object-110",
+          "object-111",
+          "object-112",
+          "object-113",
+          "object-114",
+          "object-115",
+          "object-116",
+          "object-117",
+          "object-118",
+          "object-119",
+          "object-120",
+          "object-121",
+          "object-122",
+          "object-123",
+          "object-124",
+          "object-125"
+        ],
+        "geometryIds": [
+          "geometry-105",
+          "geometry-106",
+          "geometry-107",
+          "geometry-80",
+          "geometry-81",
+          "geometry-108",
+          "geometry-109",
+          "geometry-110",
+          "geometry-111",
+          "geometry-112",
+          "geometry-113",
+          "geometry-114",
+          "geometry-115",
+          "geometry-116",
+          "geometry-117",
+          "geometry-118",
+          "geometry-119",
+          "geometry-120",
+          "geometry-121",
+          "geometry-122",
+          "geometry-123",
+          "geometry-124",
+          "geometry-125",
+          "geometry-126",
+          "geometry-127",
+          "geometry-128",
+          "geometry-129",
+          "geometry-130",
+          "geometry-131",
+          "geometry-132",
+          "geometry-133"
+        ],
+        "name": "NodeCanvas.node:transform",
+        "objectId": "object-105",
+        "visualObjectIds": [
+          "object-106",
+          "object-107",
+          "object-108",
+          "object-109",
+          "object-110",
+          "object-111",
+          "object-112",
+          "object-113",
+          "object-114",
+          "object-115",
+          "object-116",
+          "object-117",
+          "object-118",
+          "object-119",
+          "object-120",
+          "object-121",
+          "object-122",
+          "object-123",
+          "object-124",
+          "object-125"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-127",
+          "object-128",
+          "object-129",
+          "object-130",
+          "object-131",
+          "object-132",
+          "object-133",
+          "object-134",
+          "object-135",
+          "object-136",
+          "object-137",
+          "object-138",
+          "object-139",
+          "object-140"
+        ],
+        "geometryIds": [
+          "geometry-134",
+          "geometry-135",
+          "geometry-136",
+          "geometry-80",
+          "geometry-81",
+          "geometry-137",
+          "geometry-138",
+          "geometry-139",
+          "geometry-140",
+          "geometry-141",
+          "geometry-142",
+          "geometry-143",
+          "geometry-144",
+          "geometry-145",
+          "geometry-146",
+          "geometry-147",
+          "geometry-148",
+          "geometry-149",
+          "geometry-150",
+          "geometry-151",
+          "geometry-152"
+        ],
+        "name": "NodeCanvas.node:shader",
+        "objectId": "object-126",
+        "visualObjectIds": [
+          "object-127",
+          "object-128",
+          "object-129",
+          "object-130",
+          "object-131",
+          "object-132",
+          "object-133",
+          "object-134",
+          "object-135",
+          "object-136",
+          "object-137",
+          "object-138",
+          "object-139",
+          "object-140"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-142",
+          "object-143",
+          "object-144",
+          "object-145",
+          "object-146",
+          "object-147",
+          "object-148",
+          "object-149",
+          "object-150",
+          "object-151",
+          "object-152",
+          "object-153",
+          "object-154",
+          "object-155",
+          "object-156",
+          "object-157",
+          "object-158"
+        ],
+        "geometryIds": [
+          "geometry-153",
+          "geometry-154",
+          "geometry-155",
+          "geometry-80",
+          "geometry-81",
+          "geometry-156",
+          "geometry-157",
+          "geometry-158",
+          "geometry-159",
+          "geometry-160",
+          "geometry-161",
+          "geometry-162",
+          "geometry-163",
+          "geometry-164",
+          "geometry-165",
+          "geometry-161",
+          "geometry-162",
+          "geometry-163",
+          "geometry-164",
+          "geometry-166",
+          "geometry-167",
+          "geometry-158",
+          "geometry-159",
+          "geometry-168",
+          "geometry-169",
+          "geometry-170"
+        ],
+        "name": "NodeCanvas.node:asset",
+        "objectId": "object-141",
+        "visualObjectIds": [
+          "object-142",
+          "object-143",
+          "object-144",
+          "object-145",
+          "object-146",
+          "object-147",
+          "object-148",
+          "object-149",
+          "object-150",
+          "object-151",
+          "object-152",
+          "object-153",
+          "object-154",
+          "object-155",
+          "object-156",
+          "object-157",
+          "object-158"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-160",
+          "object-161",
+          "object-162",
+          "object-163",
+          "object-164",
+          "object-165",
+          "object-166",
+          "object-167"
+        ],
+        "geometryIds": [
+          "geometry-171",
+          "geometry-172",
+          "geometry-173",
+          "geometry-174",
+          "geometry-175",
+          "geometry-176",
+          "geometry-177",
+          "geometry-178",
+          "geometry-179",
+          "geometry-180"
+        ],
+        "name": "NodeCanvas.node:collapsed",
+        "objectId": "object-159",
+        "visualObjectIds": [
+          "object-160",
+          "object-161",
+          "object-162",
+          "object-163",
+          "object-164",
+          "object-165",
+          "object-166",
+          "object-167"
+        ]
+      },
+      {
+        "childObjectIds": [
+          "object-169",
+          "object-170",
+          "object-171",
+          "object-172",
+          "object-173",
+          "object-174",
+          "object-175",
+          "object-176",
+          "object-177",
+          "object-178",
+          "object-179",
+          "object-180",
+          "object-181",
+          "object-182",
+          "object-183",
+          "object-184",
+          "object-185",
+          "object-186",
+          "object-187"
+        ],
+        "geometryIds": [
+          "geometry-181",
+          "geometry-182",
+          "geometry-183",
+          "geometry-80",
+          "geometry-81",
+          "geometry-184",
+          "geometry-185",
+          "geometry-186",
+          "geometry-187",
+          "geometry-188",
+          "geometry-189",
+          "geometry-190",
+          "geometry-129",
+          "geometry-130",
+          "geometry-191",
+          "geometry-192",
+          "geometry-193",
+          "geometry-194",
+          "geometry-195",
+          "geometry-196",
+          "geometry-197",
+          "geometry-198",
+          "geometry-199",
+          "geometry-200",
+          "geometry-201",
+          "geometry-202",
+          "geometry-203"
+        ],
+        "name": "NodeCanvas.node:matrix",
+        "objectId": "object-168",
+        "visualObjectIds": [
+          "object-169",
+          "object-170",
+          "object-171",
+          "object-172",
+          "object-173",
+          "object-174",
+          "object-175",
+          "object-176",
+          "object-177",
+          "object-178",
+          "object-179",
+          "object-180",
+          "object-181",
+          "object-182",
+          "object-183",
+          "object-184",
+          "object-185",
+          "object-186",
+          "object-187"
+        ]
+      }
+    ],
+    "contentChildren": [
+      "object-1",
+      "object-66",
+      "object-69",
+      "object-72",
+      "object-74",
+      "object-76",
+      "object-78",
+      "object-80",
+      "object-82",
+      "object-84",
+      "object-105",
+      "object-126",
+      "object-141",
+      "object-159",
+      "object-168"
+    ],
+    "contentRoot": "object-188",
+    "links": [
+      {
+        "geometryId": "geometry-69",
+        "geometryObjectId": "object-73",
+        "id": "scalar-transform",
+        "parentObjectId": "object-72"
+      },
+      {
+        "geometryId": "geometry-70",
+        "geometryObjectId": "object-75",
+        "id": "transform-shader",
+        "parentObjectId": "object-74"
+      },
+      {
+        "geometryId": "geometry-71",
+        "geometryObjectId": "object-77",
+        "id": "asset-matrix",
+        "parentObjectId": "object-76"
+      },
+      {
+        "geometryId": "geometry-72",
+        "geometryObjectId": "object-79",
+        "id": "matrix-shader",
+        "parentObjectId": "object-78"
+      }
+    ]
+  },
+  "targetId": "8A6231C66CBD889C40FA2B6677BAC369",
+  "targetUrl": "http://127.0.0.1:4018/",
+  "transformPhases": [
+    {
+      "components": [
+        {
+          "bounded": true,
+          "descendantCount": 1316,
+          "geometryCount": 1316,
+          "name": "NodeCanvas.grid",
+          "objectId": "object-1",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:catalog-frame",
+          "objectId": "object-66",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:data-frame",
+          "objectId": "object-69",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:scalar-transform",
+          "objectId": "object-72",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:transform-shader",
+          "objectId": "object-74",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:asset-matrix",
+          "objectId": "object-76",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:matrix-shader",
+          "objectId": "object-78",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:catalog-frame",
+          "objectId": "object-80",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:data-frame",
+          "objectId": "object-82",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 28,
+          "name": "NodeCanvas.node:scalar",
+          "objectId": "object-84",
+          "textCount": 8,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 31,
+          "name": "NodeCanvas.node:transform",
+          "objectId": "object-105",
+          "textCount": 11,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 14,
+          "geometryCount": 21,
+          "name": "NodeCanvas.node:shader",
+          "objectId": "object-126",
+          "textCount": 7,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 17,
+          "geometryCount": 26,
+          "name": "NodeCanvas.node:asset",
+          "objectId": "object-141",
+          "textCount": 9,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 8,
+          "geometryCount": 10,
+          "name": "NodeCanvas.node:collapsed",
+          "objectId": "object-159",
+          "textCount": 2,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 19,
+          "geometryCount": 27,
+          "name": "NodeCanvas.node:matrix",
+          "objectId": "object-168",
+          "textCount": 8,
+          "visible": true
+        }
+      ],
+      "contentRoot": {
+        "childNames": [
+          "NodeCanvas.grid",
+          "NodeCanvas.frame-background:catalog-frame",
+          "NodeCanvas.frame-background:data-frame",
+          "NodeCanvas.link:scalar-transform",
+          "NodeCanvas.link:transform-shader",
+          "NodeCanvas.link:asset-matrix",
+          "NodeCanvas.link:matrix-shader",
+          "NodeCanvas.frame-foreground:catalog-frame",
+          "NodeCanvas.frame-foreground:data-frame",
+          "NodeCanvas.node:scalar",
+          "NodeCanvas.node:transform",
+          "NodeCanvas.node:shader",
+          "NodeCanvas.node:asset",
+          "NodeCanvas.node:collapsed",
+          "NodeCanvas.node:matrix"
+        ],
+        "childObjectIds": [
+          "object-1",
+          "object-66",
+          "object-69",
+          "object-72",
+          "object-74",
+          "object-76",
+          "object-78",
+          "object-80",
+          "object-82",
+          "object-84",
+          "object-105",
+          "object-126",
+          "object-141",
+          "object-159",
+          "object-168"
+        ],
+        "count": 1,
+        "objectId": "object-188",
+        "parentObjectId": "object-189",
+        "worldScale": [
+          0.25999999046325684,
+          0.25999999046325684
+        ]
+      },
+      "diagnostics": {
+        "localLayoutPlans": 6,
+        "materializations": 1,
+        "transformOnlyFrames": 1
+      },
+      "links": [
+        {
+          "actualGeometryFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "actualGeometryLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-69",
+          "geometryObjectId": "object-73",
+          "id": "scalar-transform",
+          "parentObjectId": "object-72",
+          "rawFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "rawLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "sourceSocketCenter": {
+            "x": 300,
+            "y": 113
+          },
+          "targetSocketCenter": {
+            "x": 340,
+            "y": 165.5
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-70",
+          "geometryObjectId": "object-75",
+          "id": "transform-shader",
+          "parentObjectId": "object-74",
+          "rawFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "sourceSocketCenter": {
+            "x": 650,
+            "y": 103
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 158
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "actualGeometryLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-71",
+          "geometryObjectId": "object-77",
+          "id": "asset-matrix",
+          "parentObjectId": "object-76",
+          "rawFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "rawLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "sourceSocketCenter": {
+            "x": 430,
+            "y": 403
+          },
+          "targetSocketCenter": {
+            "x": 590,
+            "y": 493
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-72",
+          "geometryObjectId": "object-79",
+          "id": "matrix-shader",
+          "parentObjectId": "object-78",
+          "rawFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "sourceSocketCenter": {
+            "x": 980,
+            "y": 418
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 183
+          }
+        }
+      ],
+      "representativeNode": {
+        "bounded": false,
+        "childObjectIds": [
+          "object-85",
+          "object-86",
+          "object-87",
+          "object-88",
+          "object-89",
+          "object-90",
+          "object-91",
+          "object-92",
+          "object-93",
+          "object-94",
+          "object-95",
+          "object-96",
+          "object-97",
+          "object-98",
+          "object-99",
+          "object-100",
+          "object-101",
+          "object-102",
+          "object-103",
+          "object-104"
+        ],
+        "descendantCount": 20,
+        "geometryCount": 28,
+        "geometryIds": [
+          "geometry-77",
+          "geometry-78",
+          "geometry-79",
+          "geometry-80",
+          "geometry-81",
+          "geometry-82",
+          "geometry-83",
+          "geometry-84",
+          "geometry-85",
+          "geometry-86",
+          "geometry-87",
+          "geometry-88",
+          "geometry-89",
+          "geometry-90",
+          "geometry-91",
+          "geometry-92",
+          "geometry-93",
+          "geometry-94",
+          "geometry-95",
+          "geometry-96",
+          "geometry-97",
+          "geometry-98",
+          "geometry-99",
+          "geometry-100",
+          "geometry-101",
+          "geometry-102",
+          "geometry-103",
+          "geometry-104"
+        ],
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "textCount": 8,
+        "visible": true,
+        "visualSamples": [
+          {
+            "geometryIds": [
+              "geometry-77"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-85",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-78"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-86",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-79"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-87",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-80",
+              "geometry-81"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-88",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-82",
+              "geometry-83"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-89",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-84",
+              "geometry-85"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-90",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-86"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-91",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-87",
+              "geometry-88"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-92",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-89"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-93",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-90"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-94",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-91",
+              "geometry-92"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-95",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-93",
+              "geometry-94"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-96",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-95",
+              "geometry-96"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-97",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-97"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-98",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-98"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-99",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-99"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-100",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-100",
+              "geometry-101"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-101",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-102"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-102",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-103"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-103",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-104"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-104",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.25999999046325684,
+              0.25999999046325684
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "selection": {
+        "id": "matrix-shader",
+        "kind": "link"
+      },
+      "transform": {
+        "scale": 0.26,
+        "x": 169.15384615384613,
+        "y": 83
+      }
+    },
+    {
+      "components": [
+        {
+          "bounded": true,
+          "descendantCount": 1316,
+          "geometryCount": 1316,
+          "name": "NodeCanvas.grid",
+          "objectId": "object-1",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:catalog-frame",
+          "objectId": "object-66",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:data-frame",
+          "objectId": "object-69",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:scalar-transform",
+          "objectId": "object-72",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:transform-shader",
+          "objectId": "object-74",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:asset-matrix",
+          "objectId": "object-76",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:matrix-shader",
+          "objectId": "object-78",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:catalog-frame",
+          "objectId": "object-80",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:data-frame",
+          "objectId": "object-82",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 28,
+          "name": "NodeCanvas.node:scalar",
+          "objectId": "object-84",
+          "textCount": 8,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 31,
+          "name": "NodeCanvas.node:transform",
+          "objectId": "object-105",
+          "textCount": 11,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 14,
+          "geometryCount": 21,
+          "name": "NodeCanvas.node:shader",
+          "objectId": "object-126",
+          "textCount": 7,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 17,
+          "geometryCount": 26,
+          "name": "NodeCanvas.node:asset",
+          "objectId": "object-141",
+          "textCount": 9,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 8,
+          "geometryCount": 10,
+          "name": "NodeCanvas.node:collapsed",
+          "objectId": "object-159",
+          "textCount": 2,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 19,
+          "geometryCount": 27,
+          "name": "NodeCanvas.node:matrix",
+          "objectId": "object-168",
+          "textCount": 8,
+          "visible": true
+        }
+      ],
+      "contentRoot": {
+        "childNames": [
+          "NodeCanvas.grid",
+          "NodeCanvas.frame-background:catalog-frame",
+          "NodeCanvas.frame-background:data-frame",
+          "NodeCanvas.link:scalar-transform",
+          "NodeCanvas.link:transform-shader",
+          "NodeCanvas.link:asset-matrix",
+          "NodeCanvas.link:matrix-shader",
+          "NodeCanvas.frame-foreground:catalog-frame",
+          "NodeCanvas.frame-foreground:data-frame",
+          "NodeCanvas.node:scalar",
+          "NodeCanvas.node:transform",
+          "NodeCanvas.node:shader",
+          "NodeCanvas.node:asset",
+          "NodeCanvas.node:collapsed",
+          "NodeCanvas.node:matrix"
+        ],
+        "childObjectIds": [
+          "object-1",
+          "object-66",
+          "object-69",
+          "object-72",
+          "object-74",
+          "object-76",
+          "object-78",
+          "object-80",
+          "object-82",
+          "object-84",
+          "object-105",
+          "object-126",
+          "object-141",
+          "object-159",
+          "object-168"
+        ],
+        "count": 1,
+        "objectId": "object-188",
+        "parentObjectId": "object-189",
+        "worldScale": [
+          0.75,
+          0.75
+        ]
+      },
+      "diagnostics": {
+        "localLayoutPlans": 6,
+        "materializations": 1,
+        "transformOnlyFrames": 2
+      },
+      "links": [
+        {
+          "actualGeometryFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "actualGeometryLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-69",
+          "geometryObjectId": "object-73",
+          "id": "scalar-transform",
+          "parentObjectId": "object-72",
+          "rawFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "rawLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "sourceSocketCenter": {
+            "x": 300,
+            "y": 113
+          },
+          "targetSocketCenter": {
+            "x": 340,
+            "y": 165.5
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-70",
+          "geometryObjectId": "object-75",
+          "id": "transform-shader",
+          "parentObjectId": "object-74",
+          "rawFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "sourceSocketCenter": {
+            "x": 650,
+            "y": 103
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 158
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "actualGeometryLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-71",
+          "geometryObjectId": "object-77",
+          "id": "asset-matrix",
+          "parentObjectId": "object-76",
+          "rawFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "rawLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "sourceSocketCenter": {
+            "x": 430,
+            "y": 403
+          },
+          "targetSocketCenter": {
+            "x": 590,
+            "y": 493
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-72",
+          "geometryObjectId": "object-79",
+          "id": "matrix-shader",
+          "parentObjectId": "object-78",
+          "rawFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "sourceSocketCenter": {
+            "x": 980,
+            "y": 418
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 183
+          }
+        }
+      ],
+      "representativeNode": {
+        "bounded": false,
+        "childObjectIds": [
+          "object-85",
+          "object-86",
+          "object-87",
+          "object-88",
+          "object-89",
+          "object-90",
+          "object-91",
+          "object-92",
+          "object-93",
+          "object-94",
+          "object-95",
+          "object-96",
+          "object-97",
+          "object-98",
+          "object-99",
+          "object-100",
+          "object-101",
+          "object-102",
+          "object-103",
+          "object-104"
+        ],
+        "descendantCount": 20,
+        "geometryCount": 28,
+        "geometryIds": [
+          "geometry-77",
+          "geometry-78",
+          "geometry-79",
+          "geometry-80",
+          "geometry-81",
+          "geometry-82",
+          "geometry-83",
+          "geometry-84",
+          "geometry-85",
+          "geometry-86",
+          "geometry-87",
+          "geometry-88",
+          "geometry-89",
+          "geometry-90",
+          "geometry-91",
+          "geometry-92",
+          "geometry-93",
+          "geometry-94",
+          "geometry-95",
+          "geometry-96",
+          "geometry-97",
+          "geometry-98",
+          "geometry-99",
+          "geometry-100",
+          "geometry-101",
+          "geometry-102",
+          "geometry-103",
+          "geometry-104"
+        ],
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "textCount": 8,
+        "visible": true,
+        "visualSamples": [
+          {
+            "geometryIds": [
+              "geometry-77"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-85",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-78"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-86",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-79"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-87",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-80",
+              "geometry-81"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-88",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-82",
+              "geometry-83"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-89",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-84",
+              "geometry-85"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-90",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-86"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-91",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-87",
+              "geometry-88"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-92",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-89"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-93",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-90"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-94",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-91",
+              "geometry-92"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-95",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-93",
+              "geometry-94"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-96",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-95",
+              "geometry-96"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-97",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-97"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-98",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-98"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-99",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-99"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-100",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-100",
+              "geometry-101"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-101",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-102"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-102",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-103"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-103",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-104"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-104",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              0.75,
+              0.75
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "selection": {
+        "id": "matrix-shader",
+        "kind": "link"
+      },
+      "transform": {
+        "scale": 0.75,
+        "x": 139.15384615384613,
+        "y": 91
+      }
+    },
+    {
+      "components": [
+        {
+          "bounded": true,
+          "descendantCount": 1316,
+          "geometryCount": 1316,
+          "name": "NodeCanvas.grid",
+          "objectId": "object-1",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:catalog-frame",
+          "objectId": "object-66",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:data-frame",
+          "objectId": "object-69",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:scalar-transform",
+          "objectId": "object-72",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:transform-shader",
+          "objectId": "object-74",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:asset-matrix",
+          "objectId": "object-76",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:matrix-shader",
+          "objectId": "object-78",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:catalog-frame",
+          "objectId": "object-80",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:data-frame",
+          "objectId": "object-82",
+          "textCount": 1,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 28,
+          "name": "NodeCanvas.node:scalar",
+          "objectId": "object-84",
+          "textCount": 8,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 31,
+          "name": "NodeCanvas.node:transform",
+          "objectId": "object-105",
+          "textCount": 11,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 14,
+          "geometryCount": 21,
+          "name": "NodeCanvas.node:shader",
+          "objectId": "object-126",
+          "textCount": 7,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 17,
+          "geometryCount": 26,
+          "name": "NodeCanvas.node:asset",
+          "objectId": "object-141",
+          "textCount": 9,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 8,
+          "geometryCount": 10,
+          "name": "NodeCanvas.node:collapsed",
+          "objectId": "object-159",
+          "textCount": 2,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 19,
+          "geometryCount": 27,
+          "name": "NodeCanvas.node:matrix",
+          "objectId": "object-168",
+          "textCount": 8,
+          "visible": false
+        }
+      ],
+      "contentRoot": {
+        "childNames": [
+          "NodeCanvas.grid",
+          "NodeCanvas.frame-background:catalog-frame",
+          "NodeCanvas.frame-background:data-frame",
+          "NodeCanvas.link:scalar-transform",
+          "NodeCanvas.link:transform-shader",
+          "NodeCanvas.link:asset-matrix",
+          "NodeCanvas.link:matrix-shader",
+          "NodeCanvas.frame-foreground:catalog-frame",
+          "NodeCanvas.frame-foreground:data-frame",
+          "NodeCanvas.node:scalar",
+          "NodeCanvas.node:transform",
+          "NodeCanvas.node:shader",
+          "NodeCanvas.node:asset",
+          "NodeCanvas.node:collapsed",
+          "NodeCanvas.node:matrix"
+        ],
+        "childObjectIds": [
+          "object-1",
+          "object-66",
+          "object-69",
+          "object-72",
+          "object-74",
+          "object-76",
+          "object-78",
+          "object-80",
+          "object-82",
+          "object-84",
+          "object-105",
+          "object-126",
+          "object-141",
+          "object-159",
+          "object-168"
+        ],
+        "count": 1,
+        "objectId": "object-188",
+        "parentObjectId": "object-189",
+        "worldScale": [
+          1.600000023841858,
+          1.600000023841858
+        ]
+      },
+      "diagnostics": {
+        "localLayoutPlans": 6,
+        "materializations": 1,
+        "transformOnlyFrames": 3
+      },
+      "links": [
+        {
+          "actualGeometryFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "actualGeometryLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-69",
+          "geometryObjectId": "object-73",
+          "id": "scalar-transform",
+          "parentObjectId": "object-72",
+          "rawFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "rawLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "sourceSocketCenter": {
+            "x": 300,
+            "y": 113
+          },
+          "targetSocketCenter": {
+            "x": 340,
+            "y": 165.5
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-70",
+          "geometryObjectId": "object-75",
+          "id": "transform-shader",
+          "parentObjectId": "object-74",
+          "rawFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "sourceSocketCenter": {
+            "x": 650,
+            "y": 103
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 158
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "actualGeometryLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-71",
+          "geometryObjectId": "object-77",
+          "id": "asset-matrix",
+          "parentObjectId": "object-76",
+          "rawFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "rawLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "sourceSocketCenter": {
+            "x": 430,
+            "y": 403
+          },
+          "targetSocketCenter": {
+            "x": 590,
+            "y": 493
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-72",
+          "geometryObjectId": "object-79",
+          "id": "matrix-shader",
+          "parentObjectId": "object-78",
+          "rawFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "sourceSocketCenter": {
+            "x": 980,
+            "y": 418
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 183
+          }
+        }
+      ],
+      "representativeNode": {
+        "bounded": false,
+        "childObjectIds": [
+          "object-85",
+          "object-86",
+          "object-87",
+          "object-88",
+          "object-89",
+          "object-90",
+          "object-91",
+          "object-92",
+          "object-93",
+          "object-94",
+          "object-95",
+          "object-96",
+          "object-97",
+          "object-98",
+          "object-99",
+          "object-100",
+          "object-101",
+          "object-102",
+          "object-103",
+          "object-104"
+        ],
+        "descendantCount": 20,
+        "geometryCount": 28,
+        "geometryIds": [
+          "geometry-77",
+          "geometry-78",
+          "geometry-79",
+          "geometry-80",
+          "geometry-81",
+          "geometry-82",
+          "geometry-83",
+          "geometry-84",
+          "geometry-85",
+          "geometry-86",
+          "geometry-87",
+          "geometry-88",
+          "geometry-89",
+          "geometry-90",
+          "geometry-91",
+          "geometry-92",
+          "geometry-93",
+          "geometry-94",
+          "geometry-95",
+          "geometry-96",
+          "geometry-97",
+          "geometry-98",
+          "geometry-99",
+          "geometry-100",
+          "geometry-101",
+          "geometry-102",
+          "geometry-103",
+          "geometry-104"
+        ],
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "textCount": 8,
+        "visible": true,
+        "visualSamples": [
+          {
+            "geometryIds": [
+              "geometry-77"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-85",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-78"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-86",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-79"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-87",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-80",
+              "geometry-81"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-88",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-82",
+              "geometry-83"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-89",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-84",
+              "geometry-85"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-90",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-86"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-91",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-87",
+              "geometry-88"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-92",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-89"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-93",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-90"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-94",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-91",
+              "geometry-92"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-95",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-93",
+              "geometry-94"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-96",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-95",
+              "geometry-96"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-97",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-97"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-98",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-98"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-99",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-99"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-100",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-100",
+              "geometry-101"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-101",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-102"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-102",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-103"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-103",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-104"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-104",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.600000023841858,
+              1.600000023841858
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "selection": {
+        "id": "matrix-shader",
+        "kind": "link"
+      },
+      "transform": {
+        "scale": 1.6,
+        "x": 157.15384615384613,
+        "y": 65
+      }
+    }
+  ],
+  "validations": {
+    "dirtySelectionPlannedAndMaterializedOnce": true,
+    "fixedViewportClipStable": true,
+    "linkEndpointsEqualSocketCenters": true,
+    "matrixWorldScaleRatiosStable": true,
+    "oneExactContentRoot": true,
+    "overviewBodyAndTextMaterialized": true,
+    "stableComponentAndGeometryIdentity": true,
+    "transformOnlyCounters": true,
+    "transformedSelection": true
+  },
+  "wheel": {
+    "after": {
+      "scale": 1.888,
+      "x": 184.00154646451892,
+      "y": 6.8599570879959515
+    },
+    "before": {
+      "scale": 1.6,
+      "x": 157.15384615384613,
+      "y": 65
+    },
+    "snapshot": {
+      "components": [
+        {
+          "bounded": true,
+          "descendantCount": 1316,
+          "geometryCount": 1316,
+          "name": "NodeCanvas.grid",
+          "objectId": "object-1",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:catalog-frame",
+          "objectId": "object-66",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 2,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-background:data-frame",
+          "objectId": "object-69",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:scalar-transform",
+          "objectId": "object-72",
+          "textCount": 0,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:transform-shader",
+          "objectId": "object-74",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:asset-matrix",
+          "objectId": "object-76",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 1,
+          "name": "NodeCanvas.link:matrix-shader",
+          "objectId": "object-78",
+          "textCount": 0,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:catalog-frame",
+          "objectId": "object-80",
+          "textCount": 1,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 1,
+          "geometryCount": 2,
+          "name": "NodeCanvas.frame-foreground:data-frame",
+          "objectId": "object-82",
+          "textCount": 1,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 28,
+          "name": "NodeCanvas.node:scalar",
+          "objectId": "object-84",
+          "textCount": 8,
+          "visible": true
+        },
+        {
+          "bounded": false,
+          "descendantCount": 20,
+          "geometryCount": 31,
+          "name": "NodeCanvas.node:transform",
+          "objectId": "object-105",
+          "textCount": 11,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 14,
+          "geometryCount": 21,
+          "name": "NodeCanvas.node:shader",
+          "objectId": "object-126",
+          "textCount": 7,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 17,
+          "geometryCount": 26,
+          "name": "NodeCanvas.node:asset",
+          "objectId": "object-141",
+          "textCount": 9,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 8,
+          "geometryCount": 10,
+          "name": "NodeCanvas.node:collapsed",
+          "objectId": "object-159",
+          "textCount": 2,
+          "visible": false
+        },
+        {
+          "bounded": false,
+          "descendantCount": 19,
+          "geometryCount": 27,
+          "name": "NodeCanvas.node:matrix",
+          "objectId": "object-168",
+          "textCount": 8,
+          "visible": false
+        }
+      ],
+      "contentRoot": {
+        "childNames": [
+          "NodeCanvas.grid",
+          "NodeCanvas.frame-background:catalog-frame",
+          "NodeCanvas.frame-background:data-frame",
+          "NodeCanvas.link:scalar-transform",
+          "NodeCanvas.link:transform-shader",
+          "NodeCanvas.link:asset-matrix",
+          "NodeCanvas.link:matrix-shader",
+          "NodeCanvas.frame-foreground:catalog-frame",
+          "NodeCanvas.frame-foreground:data-frame",
+          "NodeCanvas.node:scalar",
+          "NodeCanvas.node:transform",
+          "NodeCanvas.node:shader",
+          "NodeCanvas.node:asset",
+          "NodeCanvas.node:collapsed",
+          "NodeCanvas.node:matrix"
+        ],
+        "childObjectIds": [
+          "object-1",
+          "object-66",
+          "object-69",
+          "object-72",
+          "object-74",
+          "object-76",
+          "object-78",
+          "object-80",
+          "object-82",
+          "object-84",
+          "object-105",
+          "object-126",
+          "object-141",
+          "object-159",
+          "object-168"
+        ],
+        "count": 1,
+        "objectId": "object-188",
+        "parentObjectId": "object-189",
+        "worldScale": [
+          1.8880000114440918,
+          1.8880000114440918
+        ]
+      },
+      "diagnostics": {
+        "localLayoutPlans": 6,
+        "materializations": 1,
+        "transformOnlyFrames": 4
+      },
+      "links": [
+        {
+          "actualGeometryFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "actualGeometryLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-69",
+          "geometryObjectId": "object-73",
+          "id": "scalar-transform",
+          "parentObjectId": "object-72",
+          "rawFirstPoint": {
+            "x": 300,
+            "y": 113
+          },
+          "rawLastPoint": {
+            "x": 340,
+            "y": 165.5
+          },
+          "sourceSocketCenter": {
+            "x": 300,
+            "y": 113
+          },
+          "targetSocketCenter": {
+            "x": 340,
+            "y": 165.5
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-70",
+          "geometryObjectId": "object-75",
+          "id": "transform-shader",
+          "parentObjectId": "object-74",
+          "rawFirstPoint": {
+            "x": 650,
+            "y": 103
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 158
+          },
+          "sourceSocketCenter": {
+            "x": 650,
+            "y": 103
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 158
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "actualGeometryLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-71",
+          "geometryObjectId": "object-77",
+          "id": "asset-matrix",
+          "parentObjectId": "object-76",
+          "rawFirstPoint": {
+            "x": 430,
+            "y": 403
+          },
+          "rawLastPoint": {
+            "x": 590,
+            "y": 493
+          },
+          "sourceSocketCenter": {
+            "x": 430,
+            "y": 403
+          },
+          "targetSocketCenter": {
+            "x": 590,
+            "y": 493
+          }
+        },
+        {
+          "actualGeometryFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "actualGeometryLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "framebufferClip": [
+            1103.9999773687139,
+            1427.9999130788442,
+            2712.00002196566,
+            2143.999941255446
+          ],
+          "geometryId": "geometry-72",
+          "geometryObjectId": "object-79",
+          "id": "matrix-shader",
+          "parentObjectId": "object-78",
+          "rawFirstPoint": {
+            "x": 980,
+            "y": 418
+          },
+          "rawLastPoint": {
+            "x": 720,
+            "y": 183
+          },
+          "sourceSocketCenter": {
+            "x": 980,
+            "y": 418
+          },
+          "targetSocketCenter": {
+            "x": 720,
+            "y": 183
+          }
+        }
+      ],
+      "representativeNode": {
+        "bounded": false,
+        "childObjectIds": [
+          "object-85",
+          "object-86",
+          "object-87",
+          "object-88",
+          "object-89",
+          "object-90",
+          "object-91",
+          "object-92",
+          "object-93",
+          "object-94",
+          "object-95",
+          "object-96",
+          "object-97",
+          "object-98",
+          "object-99",
+          "object-100",
+          "object-101",
+          "object-102",
+          "object-103",
+          "object-104"
+        ],
+        "descendantCount": 20,
+        "geometryCount": 28,
+        "geometryIds": [
+          "geometry-77",
+          "geometry-78",
+          "geometry-79",
+          "geometry-80",
+          "geometry-81",
+          "geometry-82",
+          "geometry-83",
+          "geometry-84",
+          "geometry-85",
+          "geometry-86",
+          "geometry-87",
+          "geometry-88",
+          "geometry-89",
+          "geometry-90",
+          "geometry-91",
+          "geometry-92",
+          "geometry-93",
+          "geometry-94",
+          "geometry-95",
+          "geometry-96",
+          "geometry-97",
+          "geometry-98",
+          "geometry-99",
+          "geometry-100",
+          "geometry-101",
+          "geometry-102",
+          "geometry-103",
+          "geometry-104"
+        ],
+        "name": "NodeCanvas.node:scalar",
+        "objectId": "object-84",
+        "textCount": 8,
+        "visible": true,
+        "visualSamples": [
+          {
+            "geometryIds": [
+              "geometry-77"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-85",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-78"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-86",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-79"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-87",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-80",
+              "geometry-81"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-88",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-82",
+              "geometry-83"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-89",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-84",
+              "geometry-85"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-90",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-86"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-91",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-87",
+              "geometry-88"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-92",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-89"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-93",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-90"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-94",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-91",
+              "geometry-92"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-95",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-93",
+              "geometry-94"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-96",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-95",
+              "geometry-96"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-97",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-97"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-98",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-98"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-99",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-99"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-100",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-100",
+              "geometry-101"
+            ],
+            "kind": "text",
+            "name": "",
+            "objectId": "object-101",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-102"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-102",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-103"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-103",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          },
+          {
+            "geometryIds": [
+              "geometry-104"
+            ],
+            "kind": "mesh",
+            "name": "",
+            "objectId": "object-104",
+            "parentObjectId": "object-84",
+            "worldScale": [
+              1.8880000114440918,
+              1.8880000114440918
+            ],
+            "worldScaleRatioToContentRoot": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "selection": {
+        "id": "matrix-shader",
+        "kind": "link"
+      },
+      "transform": {
+        "scale": 1.888,
+        "x": 184.00154646451892,
+        "y": 6.8599570879959515
+      }
+    }
+  }
+}

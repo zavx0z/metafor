@@ -102,6 +102,7 @@ def evaluate(target_id: str, js: str) -> Any:
 DOM_JS = r'''
 const canvas = document.querySelector("canvas")
 const status = document.querySelector("#status")
+const retainedDiagnostics = document.documentElement.dataset.retainedDiagnostics
 return {
   url: location.href,
   title: document.title,
@@ -119,6 +120,10 @@ return {
     y: document.documentElement.dataset.canvasY ?? null,
     scale: document.documentElement.dataset.canvasScale ?? null,
   },
+  retained: {
+    contentRootCount: document.documentElement.dataset.retainedContentRootCount ?? null,
+    diagnostics: retainedDiagnostics === undefined ? null : JSON.parse(retainedDiagnostics),
+  },
   inner: [innerWidth, innerHeight, devicePixelRatio],
   scroll: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
   canvas: canvas instanceof HTMLCanvasElement
@@ -129,6 +134,9 @@ return {
     : null,
 }
 '''
+
+
+RETAINED_OBSERVER = "globalThis.__nodeComponentRetainedObserver"
 
 
 TOUCH_JS = r'''
@@ -363,6 +371,421 @@ def command_touch(target_id: str) -> dict[str, Any]:
     return result
 
 
+def retained_call(target_id: str, expression: str) -> dict[str, Any]:
+    result = evaluate(target_id, f'''
+const observer = {RETAINED_OBSERVER}
+if (observer === undefined) throw new Error("Playground retained observer is unavailable")
+return observer.{expression}
+''')
+    if not isinstance(result, dict):
+        raise BrowserError(f"Retained observer {expression} did not return an object")
+    return result
+
+
+def retained_snapshot(target_id: str) -> dict[str, Any]:
+    return retained_call(target_id, "snapshot()")
+
+
+def retained_diagnostics(snapshot: dict[str, Any]) -> dict[str, int]:
+    diagnostics = snapshot.get("diagnostics")
+    if not isinstance(diagnostics, dict):
+        raise BrowserError(f"Retained snapshot has no diagnostics: {snapshot}")
+    result: dict[str, int] = {}
+    for key in ("localLayoutPlans", "materializations", "transformOnlyFrames"):
+        value = diagnostics.get(key)
+        if not isinstance(value, int) or value < 0:
+            raise BrowserError(f"Retained diagnostic {key} is invalid: {value!r}")
+        result[key] = value
+    return result
+
+
+def retained_wait(target_id: str, predicate: Any, label: str, timeout: float = 6) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    latest: dict[str, Any] | None = None
+    while time.monotonic() < deadline:
+        latest = retained_snapshot(target_id)
+        if predicate(latest):
+            return latest
+        time.sleep(0.05)
+    raise BrowserError(f"Timed out waiting for retained {label}: {json.dumps(latest, ensure_ascii=False)}")
+
+
+def require_retained_snapshot(snapshot: dict[str, Any], label: str) -> None:
+    content_root = snapshot.get("contentRoot")
+    if not isinstance(content_root, dict) or content_root.get("count") != 1:
+        raise BrowserError(f"{label}: expected one exact content root, got {content_root}")
+    if not isinstance(content_root.get("objectId"), str):
+        raise BrowserError(f"{label}: content root has no stable object identity")
+    components = snapshot.get("components")
+    if not isinstance(components, list) or not components:
+        raise BrowserError(f"{label}: retained component samples are empty")
+    diagnostics = retained_diagnostics(snapshot)
+    if diagnostics["localLayoutPlans"] <= 0 or diagnostics["materializations"] <= 0:
+        raise BrowserError(f"{label}: initial retained content was not materialized: {diagnostics}")
+    links = snapshot.get("links")
+    if not isinstance(links, list) or not links:
+        raise BrowserError(f"{label}: actual retained Link evidence is empty")
+    for link in links:
+        if not isinstance(link, dict):
+            raise BrowserError(f"{label}: invalid Link evidence {link!r}")
+        for left_key, right_key in (
+            ("rawFirstPoint", "sourceSocketCenter"),
+            ("rawLastPoint", "targetSocketCenter"),
+            ("actualGeometryFirstPoint", "sourceSocketCenter"),
+            ("actualGeometryLastPoint", "targetSocketCenter"),
+        ):
+            if not close_point(link.get(left_key), link.get(right_key)):
+                raise BrowserError(
+                    f"{label}: Link {link.get('id')} {left_key} != {right_key}: "
+                    f"{link.get(left_key)} != {link.get(right_key)}")
+        clip = link.get("framebufferClip")
+        if (not isinstance(clip, list) or len(clip) != 4
+                or not all(isinstance(value, (int, float)) for value in clip)
+                or clip[2] <= clip[0] or clip[3] <= clip[1]):
+            raise BrowserError(f"{label}: Link {link.get('id')} has no fixed framebuffer clip: {clip}")
+
+
+def close_point(left: Any, right: Any, tolerance: float = 1e-4) -> bool:
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return False
+    try:
+        return (abs(float(left["x"]) - float(right["x"])) <= tolerance
+                and abs(float(left["y"]) - float(right["y"])) <= tolerance)
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def retained_identity(snapshot: dict[str, Any]) -> dict[str, Any]:
+    content_root = snapshot["contentRoot"]
+    components = snapshot["components"]
+    return {
+        "contentRoot": content_root["objectId"],
+        "contentChildren": content_root["childObjectIds"],
+        "components": [{
+            "name": component["name"],
+            "objectId": component["objectId"],
+            "childObjectIds": component["childObjectIds"],
+            "geometryIds": component["geometryIds"],
+            "visualObjectIds": [sample["objectId"] for sample in component["visualSamples"]],
+        } for component in components],
+        "links": [{
+            "id": link["id"],
+            "parentObjectId": link["parentObjectId"],
+            "geometryObjectId": link["geometryObjectId"],
+            "geometryId": link["geometryId"],
+        } for link in snapshot["links"]],
+    }
+
+
+def retained_ratios(snapshot: dict[str, Any]) -> dict[str, list[float]]:
+    node = snapshot.get("representativeNode")
+    if not isinstance(node, dict):
+        raise BrowserError("Retained snapshot has no representative Node")
+    samples = node.get("visualSamples")
+    if not isinstance(samples, list) or not samples:
+        raise BrowserError("Representative Node has no actual visual samples")
+    ratios: dict[str, list[float]] = {}
+    for sample in samples:
+        if not isinstance(sample, dict) or not isinstance(sample.get("objectId"), str):
+            raise BrowserError(f"Invalid retained visual sample: {sample}")
+        ratio = sample.get("worldScaleRatioToContentRoot")
+        if (not isinstance(ratio, list) or len(ratio) != 2
+                or not all(isinstance(value, (int, float)) for value in ratio)):
+            raise BrowserError(f"Invalid matrixWorld scale ratio: {ratio}")
+        ratios[sample["objectId"]] = [float(ratio[0]), float(ratio[1])]
+    return ratios
+
+
+def require_same_ratios(expected: dict[str, list[float]], snapshot: dict[str, Any], label: str) -> None:
+    actual = retained_ratios(snapshot)
+    if actual.keys() != expected.keys():
+        raise BrowserError(f"{label}: representative visual identity changed across transforms")
+    for object_id, ratio in expected.items():
+        candidate = actual[object_id]
+        if any(abs(left - right) > 1e-6 for left, right in zip(ratio, candidate)):
+            raise BrowserError(
+                f"{label}: matrixWorld ratio changed for {object_id}: {ratio} -> {candidate}")
+
+
+def require_same_clips(expected: dict[str, Any], snapshot: dict[str, Any], label: str) -> None:
+    actual = {link["id"]: link["framebufferClip"] for link in snapshot["links"]}
+    if actual != expected:
+        raise BrowserError(f"{label}: fixed viewport Link clips changed: {expected} -> {actual}")
+
+
+def same_selection(left: Any, right: Any) -> bool:
+    return left == right
+
+
+def same_transform(left: Any, right: Any, tolerance: float = 1e-7) -> bool:
+    if not isinstance(left, dict) or not isinstance(right, dict):
+        return False
+    try:
+        return all(abs(float(left[key]) - float(right[key])) <= tolerance
+                   for key in ("x", "y", "scale"))
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def retained_evidence_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    components = snapshot["components"]
+    return {
+        "transform": snapshot["transform"],
+        "selection": snapshot["selection"],
+        "diagnostics": snapshot["diagnostics"],
+        "contentRoot": snapshot["contentRoot"],
+        "components": [{
+            "name": component["name"],
+            "objectId": component["objectId"],
+            "visible": component["visible"],
+            "descendantCount": component["descendantCount"],
+            "geometryCount": component["geometryCount"],
+            "textCount": component["textCount"],
+            "bounded": component["bounded"],
+        } for component in components],
+        "representativeNode": snapshot["representativeNode"],
+        "links": snapshot["links"],
+    }
+
+
+def command_retained(target_id: str, args: argparse.Namespace) -> dict[str, Any]:
+    focus = request_json("/cdp/command", "POST", {
+        "targetId": target_id,
+        "method": "Page.bringToFront",
+        "params": {},
+    })
+    focus_dom: dict[str, Any] | None = None
+    for _ in range(30):
+        focus_dom = dom(target_id)
+        if focus_dom.get("visibility") == "visible" and focus_dom.get("focused") is True:
+            break
+        time.sleep(0.05)
+    if focus_dom is None or focus_dom.get("visibility") != "visible" or focus_dom.get("focused") is not True:
+        raise BrowserError(f"Exact retained target did not become foreground-visible: {focus_dom}")
+    initial = retained_snapshot(target_id)
+    require_retained_snapshot(initial, "initial")
+    original_transform = initial["transform"]
+    original_selection = initial["selection"]
+    initial_diagnostics = retained_diagnostics(initial)
+    stable_identity = retained_identity(initial)
+    stable_ratios = retained_ratios(initial)
+    stable_clips = {link["id"]: link["framebufferClip"] for link in initial["links"]}
+    result: dict[str, Any] = {
+        "targetId": target_id,
+        "targetUrl": TARGET_URL,
+        "focus": {"command": focus, "dom": focus_dom},
+        "initial": retained_evidence_snapshot(initial),
+        "retainedIdentity": stable_identity,
+        "transformPhases": [],
+        "physicalDeviceProof": False,
+        "ownerAcceptance": False,
+    }
+    failure: Exception | None = None
+    try:
+        transforms = (
+            {"x": original_transform["x"] + 17, "y": original_transform["y"] + 11, "scale": 0.26},
+            {"x": original_transform["x"] - 13, "y": original_transform["y"] + 19, "scale": 0.75},
+            {"x": original_transform["x"] + 5, "y": original_transform["y"] - 7, "scale": 1.6},
+        )
+        for index, transform in enumerate(transforms, start=1):
+            phase = retained_call(target_id, f"setTransform({json.dumps(transform)})")
+            if phase.get("accepted") is not True or not isinstance(phase.get("snapshot"), dict):
+                raise BrowserError(f"transform-{index}: observer rejected transform: {phase}")
+            snapshot = phase["snapshot"]
+            require_retained_snapshot(snapshot, f"transform-{index}")
+            diagnostics = retained_diagnostics(snapshot)
+            if diagnostics["localLayoutPlans"] != initial_diagnostics["localLayoutPlans"]:
+                raise BrowserError(f"transform-{index}: local layout counter changed: {diagnostics}")
+            if diagnostics["materializations"] != initial_diagnostics["materializations"]:
+                raise BrowserError(f"transform-{index}: materialization counter changed: {diagnostics}")
+            if diagnostics["transformOnlyFrames"] != initial_diagnostics["transformOnlyFrames"] + index:
+                raise BrowserError(f"transform-{index}: transform-only counter is not exact: {diagnostics}")
+            if retained_identity(snapshot) != stable_identity:
+                raise BrowserError(f"transform-{index}: retained object/geometry identity changed")
+            require_same_ratios(stable_ratios, snapshot, f"transform-{index}")
+            require_same_clips(stable_clips, snapshot, f"transform-{index}")
+            result["transformPhases"].append(retained_evidence_snapshot(snapshot))
+
+        overview_node = result["transformPhases"][0].get("representativeNode")
+        if (not isinstance(overview_node, dict) or overview_node.get("geometryCount", 0) <= 0
+                or overview_node.get("textCount", 0) <= 0):
+            raise BrowserError(f"overview: representative Node body/text is not materialized: {overview_node}")
+        overview_kinds = {sample.get("kind") for sample in overview_node.get("visualSamples", [])
+                          if isinstance(sample, dict)}
+        if not {"mesh", "text"}.issubset(overview_kinds):
+            raise BrowserError(f"overview: actual Node visual samples are incomplete: {overview_kinds}")
+
+        wheel = retained_call(target_id, "wheelZoom()")
+        wheel_snapshot = wheel.get("snapshot")
+        if not isinstance(wheel_snapshot, dict) or same_transform(wheel.get("before"), wheel.get("after")):
+            raise BrowserError(f"wheel: retained transform did not change: {wheel}")
+        require_retained_transform_only(
+            wheel_snapshot, initial_diagnostics, 4, stable_identity, stable_ratios, stable_clips, "wheel")
+        result["wheel"] = {
+            "before": wheel["before"],
+            "after": wheel["after"],
+            "snapshot": retained_evidence_snapshot(wheel_snapshot),
+        }
+
+        pinch = retained_call(target_id, "pinchZoom()")
+        pinch_snapshot = pinch.get("snapshot")
+        if not isinstance(pinch_snapshot, dict) or same_transform(pinch.get("before"), pinch.get("after")):
+            raise BrowserError(f"pinch: retained transform did not change: {pinch}")
+        require_retained_transform_only(
+            pinch_snapshot, initial_diagnostics, 5, stable_identity, stable_ratios, stable_clips, "pinch")
+        result["pinch"] = {
+            "before": pinch["before"],
+            "after": pinch["after"],
+            "snapshot": retained_evidence_snapshot(pinch_snapshot),
+        }
+
+        selectable_nodes = [component["name"].split(":", 1)[1]
+                            for component in pinch_snapshot["components"]
+                            if component["name"].startswith("NodeCanvas.node:") and component["visible"]]
+        selected_id = original_selection.get("id") if isinstance(original_selection, dict) else None
+        node_id = next((candidate for candidate in selectable_nodes if candidate != selected_id), None)
+        if node_id is None:
+            raise BrowserError(f"No visible retained Node is available for transformed hit: {selectable_nodes}")
+        before_hit = retained_diagnostics(pinch_snapshot)
+        hit = retained_call(target_id, f"hitNode({json.dumps(node_id)})")
+        expected_selection = {"kind": "node", "id": node_id}
+        if not same_selection(hit.get("after"), expected_selection):
+            raise BrowserError(f"Transformed retained hit selected the wrong target: {hit}")
+        hit_snapshot = retained_wait(
+            target_id,
+            lambda current: (same_selection(current.get("selection"), expected_selection)
+                             and retained_diagnostics(current)["materializations"] >= before_hit["materializations"] + 1),
+            "dirty selection materialization",
+        )
+        after_hit = retained_diagnostics(hit_snapshot)
+        if after_hit != {
+            "localLayoutPlans": before_hit["localLayoutPlans"] + 1,
+            "materializations": before_hit["materializations"] + 1,
+            "transformOnlyFrames": before_hit["transformOnlyFrames"],
+        }:
+            raise BrowserError(f"Dirty selection did not increment exact counters once: {before_hit} -> {after_hit}")
+        result["dirtySelection"] = {
+            "command": {
+                "nodeId": hit["nodeId"],
+                "before": hit["before"],
+                "after": hit["after"],
+                "surfacePoint": hit["surfacePoint"],
+            },
+            "settled": retained_evidence_snapshot(hit_snapshot),
+        }
+        result["validations"] = {
+            "oneExactContentRoot": True,
+            "stableComponentAndGeometryIdentity": True,
+            "dirtySelectionPlannedAndMaterializedOnce": True,
+            "transformOnlyCounters": True,
+            "matrixWorldScaleRatiosStable": True,
+            "overviewBodyAndTextMaterialized": True,
+            "linkEndpointsEqualSocketCenters": True,
+            "fixedViewportClipStable": True,
+            "transformedSelection": True,
+        }
+    except Exception as error:
+        failure = error
+    finally:
+        restore_before = retained_snapshot(target_id)
+        restore_transform = retained_call(
+            target_id, f"setTransform({json.dumps(original_transform)})")
+        restore_selection = retained_call(
+            target_id, f"select({json.dumps(original_selection)})")
+        try:
+            restored = retained_wait(
+                target_id,
+                lambda current: (same_transform(current.get("transform"), original_transform)
+                                 and same_selection(current.get("selection"), original_selection)),
+                "original transform and selection restore",
+            )
+            result["restore"] = {
+                "before": {
+                    "transform": restore_before["transform"],
+                    "selection": restore_before["selection"],
+                    "diagnostics": restore_before["diagnostics"],
+                },
+                "transformCommandAccepted": restore_transform.get("accepted") is True,
+                "selectionCommandAccepted": restore_selection.get("accepted") is True,
+                "postRestore": retained_evidence_snapshot(restored),
+                "transformRestored": same_transform(restored.get("transform"), original_transform),
+                "selectionRestored": same_selection(restored.get("selection"), original_selection),
+                "postRestoreCounters": retained_diagnostics(restored),
+            }
+        except Exception as restore_error:
+            if failure is None:
+                failure = restore_error
+            else:
+                failure = BrowserError(f"{failure}; retained state restore also failed: {restore_error}")
+    if failure is not None:
+        raise failure
+    if args.output is not None:
+        output = Path(args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+        result["output"] = str(output.resolve())
+    return result
+
+
+def require_retained_transform_only(
+    snapshot: dict[str, Any],
+    initial_diagnostics: dict[str, int],
+    expected_transform_delta: int,
+    stable_identity: dict[str, Any],
+    stable_ratios: dict[str, list[float]],
+    stable_clips: dict[str, Any],
+    label: str,
+) -> None:
+    require_retained_snapshot(snapshot, label)
+    diagnostics = retained_diagnostics(snapshot)
+    if diagnostics != {
+        "localLayoutPlans": initial_diagnostics["localLayoutPlans"],
+        "materializations": initial_diagnostics["materializations"],
+        "transformOnlyFrames": initial_diagnostics["transformOnlyFrames"] + expected_transform_delta,
+    }:
+        raise BrowserError(f"{label}: counters are not transform-only: {diagnostics}")
+    if retained_identity(snapshot) != stable_identity:
+        raise BrowserError(f"{label}: retained object/geometry identity changed")
+    require_same_ratios(stable_ratios, snapshot, label)
+    require_same_clips(stable_clips, snapshot, label)
+
+
+def command_evidence(target_id: str, args: argparse.Namespace) -> dict[str, Any]:
+    focus = request_json("/cdp/command", "POST", {
+        "targetId": target_id,
+        "method": "Page.bringToFront",
+        "params": {},
+    })
+    touch_result = command_touch(target_id)
+    viewport_result = command_viewports(target_id, args)
+    final_dom = dom(target_id)
+    final_console = console(target_id, args.console_ms)
+    errors = console_errors(final_console)
+    if errors:
+        raise BrowserError(f"final native console errors: {json.dumps(errors, ensure_ascii=False)}")
+    result: dict[str, Any] = {
+        "targetId": target_id,
+        "targetUrl": TARGET_URL,
+        "focus": focus,
+        "touch": touch_result,
+        "viewports": viewport_result,
+        "finalNative": {"dom": final_dom, "console": final_console},
+        "nativeMetricsRestored": (
+            touch_result.get("nativeMetricsRestored") is True
+            and viewport_result.get("nativeMetricsRestored") is True
+        ),
+        "physicalDeviceProof": False,
+        "ownerAcceptance": False,
+    }
+    if result["nativeMetricsRestored"] is not True:
+        raise BrowserError("Combined browser evidence did not restore native metrics")
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+    result["output"] = str(output.resolve())
+    return result
+
+
 def print_json(value: Any) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True))
 
@@ -385,6 +808,12 @@ def build_parser() -> argparse.ArgumentParser:
     viewport_parser.add_argument("--output-dir")
     viewport_parser.add_argument("--console-ms", type=int, default=1200)
     subparsers.add_parser("touch")
+    retained_parser = subparsers.add_parser("retained")
+    retained_parser.add_argument("--output")
+    evidence_parser = subparsers.add_parser("evidence")
+    evidence_parser.add_argument("--output-dir", required=True)
+    evidence_parser.add_argument("--output", required=True)
+    evidence_parser.add_argument("--console-ms", type=int, default=1200)
     subparsers.add_parser("restore")
     return parser
 
@@ -421,6 +850,10 @@ def main() -> int:
         print_json(command_viewports(target_id, args))
     elif args.command == "touch":
         print_json(command_touch(target_id))
+    elif args.command == "retained":
+        print_json(command_retained(target_id, args))
+    elif args.command == "evidence":
+        print_json(command_evidence(target_id, args))
     elif args.command == "restore":
         restored = restore_viewport(target_id)
         print_json({"target": target, "restore": restored, "dom": dom(target_id)})

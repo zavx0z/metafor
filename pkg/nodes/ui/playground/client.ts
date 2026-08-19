@@ -12,6 +12,7 @@ import {
 import {NodeEditor} from "../node-editor.ts"
 import {STANDALONE_FIELD_KINDS, createCatalogNodeTree, createNoiseComparisonTree} from "./fixtures.ts"
 import {planNodeComponentPlaygroundFrames} from "./layout.ts"
+import {createPlaygroundRetainedObserver, type PlaygroundRetainedObserver} from "./retained-observer.ts"
 import {BlenderReferenceSurface, FieldCatalogSurface, SocketCatalogSurface} from "./surfaces.ts"
 
 const canvas = document.getElementById("node-component-canvas")
@@ -20,6 +21,7 @@ if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Canvas node compone
 if (!(status instanceof HTMLOutputElement)) throw new Error("Status node component playground не найден")
 
 try {
+  let retainedObserver: PlaygroundRetainedObserver | null = null
   const runtime = await UiRuntime.create(canvas, {
     fontUrl: "/engine-static/JetBrainsMono-Bold.ttf",
     virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
@@ -47,11 +49,13 @@ try {
     onSelectionChange(selection) {
       document.documentElement.dataset.selectedKind = selection?.kind ?? ""
       document.documentElement.dataset.selectedId = selection?.id ?? ""
+      retainedObserver?.publishAfterFrame()
     },
     onCanvasTransformChange(transform) {
       document.documentElement.dataset.canvasX = String(transform.x)
       document.documentElement.dataset.canvasY = String(transform.y)
       document.documentElement.dataset.canvasScale = String(transform.scale)
+      retainedObserver?.publishAfterFrame()
     },
   })
   editor.setTree(createCatalogNodeTree())
@@ -62,6 +66,10 @@ try {
   runtime.addSurface(detail, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).detail)
   runtime.addSurface(editor, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).editor)
   runtime.addSurface(sockets, ({w, h}) => planNodeComponentPlaygroundFrames(w, h).sockets)
+
+  retainedObserver = createPlaygroundRetainedObserver(editor)
+  globalThis.__nodeComponentRetainedObserver = retainedObserver
+  retainedObserver.publishAfterFrame()
 
   const resizeObserver = new ResizeObserver(() => runtime.handleResize())
   resizeObserver.observe(canvas)

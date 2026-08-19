@@ -435,7 +435,7 @@ Correction result checkpoint: `00d982041e99f260241fcd4df7e6b0c31853f0ae`.
 
 ### NODES-018.5 — Доказать correctness и performance
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель
 `NODES-018.5 — Доказать correctness и performance`.
 
 Классификация: финальный verification/evidence-срез; production mechanism не
@@ -482,13 +482,63 @@ evidence только standalone origin. Mobile emulation и synthetic TouchEven
 
 Артефакты: [`project/artifacts/NODES-018`](../artifacts/NODES-018/README.md).
 
-Фактические действия: ещё не выполнены.
+Фактические действия: только dev-only playground получил bounded observer
+actual `editor.node` graph. Он называет exact content-root и components через
+устойчивые WeakMap identities, читает actual visual/geometry children,
+`matrixWorld`, framebuffer clip, Text/body presence и first/last paired
+vertices Link ribbon geometry. `client.ts` публикует текущие counters после
+callback frame и не меняет production NodeCanvas API.
 
-Результат и вывод: ещё не получены.
+Versioned `node-system-dev` helper получил repeatable `retained` и `evidence`
+commands. `retained` фокусирует только exact target, сохраняет исходные
+transform/selection, выполняет три zoom, wheel, pinch и transformed actual-hit,
+проверяет identities/counters/ratios/endpoints/clip/body и восстанавливает
+исходное состояние в `finally` с отдельными post-restore counters. `evidence`
+выполняет atomic synthetic touch и полный native/portrait/landscape matrix,
+пишет JSON и exact canvas PNG прямо в task artifacts и в `finally` возвращает
+native device metrics. Python unit намеренно ломает transform phase и
+доказывает оба restore-вызова; отдельный test проверяет exact transform
+comparison.
 
-Подготовительный commit: текущий project-коммит после этой регистрации.
+Первый runtime проход нашёл только две ошибки evidence-механизма, не
+production: observer слишком узко искал logical pixel scale по первому geometry
+child, а hidden target не обслуживал rAF dirty frame. Промежуточная compacting
+правка также временно сместила тело `same_transform`. Все три расхождения
+исправлены в dev helper/observer, получили regressions, а каждый failure path
+вернул исходные transform/selection. Ни один browser path не опроверг `.3/.4`.
 
-Result checkpoint: ещё не записан.
+Результат и вывод: exact target
+`8A6231C66CBD889C40FA2B6677BAC369` на
+`http://127.0.0.1:4018/` подтвердил один content-root. Clean performance run
+начался с `{localLayoutPlans:6, materializations:1,
+transformOnlyFrames:0}`. Три `setCanvasTransform`, wheel и pinch последовательно
+дали `{6,1,1}` … `{6,1,5}` при тех же component/geometry identities и
+descendant/root `matrixWorld` ratios. Transformed actual hit выбрал Node
+`scalar` и ровно один раз увеличил dirty counters до `{7,2,5}`; restore вернул
+исходный Link selection и transform, а отдельный post-restore snapshot записал
+`{8,3,6}`.
+
+Representative Node на overview `0.26` сохранил `28` geometry и `8` Text
+objects. У всех четырёх Links actual first/last ribbon vertices равны raw
+source/target Socket centers; framebuffer clip оставался fixed. Desktop,
+portrait `390×844 @2` и landscape `844×390 @2` DOM готовы, без horizontal
+overflow и console errors. Atomic synthetic touch изменил pan и pinch; native
+`1920×1088 @2` восстановлен. Три exact canvas PNG просмотрены: desktop содержит
+все regions, mobile содержит только полный editor с Node bodies/text и
+соединёнными Socket/Link endpoints. Это доказательство standalone CDP origin;
+physical mobile и owner visual acceptance остаются открытыми gates.
+
+Проверки: общий affected suite `@ui/components` + `@ui/elements` + `@nodes/ui`
+— `101/101`, `1438` assertions; Engine clip + package-boundary — `6/6`, `75`
+assertions; focused playground/observer — pass; helper failure/restore unit —
+`2/2`; `@ui/elements`, `@ui/components`, `@nodes/ui` typechecks, playground
+typecheck и strict exact Engine source typecheck — pass; helper syntax/help и
+`git diff --check` — pass. Browser evidence и SHA-256 описаны в
+[`project/artifacts/NODES-018`](../artifacts/NODES-018/README.md).
+
+Подготовительный commit: `09cb592839147b16d4912ae093f74010f3c756be`.
+
+Result checkpoint: текущий result commit.
 
 ## Границы
 
