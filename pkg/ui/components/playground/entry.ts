@@ -1,19 +1,38 @@
-import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, palette, span, type CssColor, uiIcons} from "@ui/elements"
+import {type Object3D} from "@metafor/engine"
+import {UiSurface, UiRuntime, flexColumn, flexRow, h2, h3, p, span, type CssColor, uiIcons} from "@ui/elements"
 import {autoButtonWidth, Button, Field, measureFieldHeight, type ButtonColor, type ButtonProps, type ButtonSize, type ButtonVariant, Pane, type FieldDefinition} from "@ui/components"
-import {VirtualRouter} from "../../playground/virtual-router.ts"
 import {
-  FIELD_ROUTES,
-  FIELD_SECTIONS,
+  PlaygroundBackdropSurface,
+  PlaygroundDockSurface,
+  PlaygroundInfoSurface,
+  PlaygroundNavigationSurface,
+  PlaygroundRouter,
+  planPlaygroundShell,
+} from "@ui/playground"
+import {
   createFieldPlaygroundDefinitions,
-  displayFieldValue,
-  fieldRouteFromSection,
   fieldsForSection,
   fieldSectionFromRoute,
   toggledReference,
   updateFieldDefinition,
   type FieldRoute,
-  type FieldSection,
 } from "./fields.ts"
+import {
+  COMPONENT_PLAYGROUND_CATALOG,
+  COMPONENT_PLAYGROUND_ROUTES,
+  componentsPlaygroundCatalogRoute,
+  componentsPlaygroundDock,
+  componentsPlaygroundInfo,
+  componentsPlaygroundSectionRoute,
+  componentsPlaygroundSectionTitle,
+  componentsPlaygroundSections,
+  isComponentsRoute,
+  type ButtonRoute,
+  type ButtonRouteVariant,
+  type ComponentsCatalogRoute,
+  type ComponentsRoute,
+  type PaneVariant,
+} from "./routes.ts"
 
 type ButtonLabel = "Button" | "Apply" | "Run" | "Delete"
 type ButtonIcon = "none" | "apply" | "run" | "delete"
@@ -22,77 +41,52 @@ type ButtonState = "enabled" | "disabled"
 type ButtonWidth = "compact" | "regular" | "wide"
 type ButtonHeight = "compact" | "regular" | "large"
 type BasicButtonType = "Text button" | "Contained button" | "Outlined button"
-type ButtonRouteVariant = "text" | "contained" | "outlined"
 type ButtonRouteIcon = "svg"
-type ButtonRouteIconLabel = "left" | "right"
-type IconLabelPlacement = ButtonRouteIconLabel | "mixed"
-type PaneVariant = "glass" | "outlined" | "filled"
-type PaneRoute = "pane/variants" | `pane/variants/${PaneVariant}`
-type ComponentsRoute = ButtonRoute | PaneRoute | FieldRoute
+type IconLabelPlacement = "left" | "right" | "mixed"
 type ComponentName = "Button" | "Pane" | "Field"
-type ButtonRoute =
-  | "button/basic"
-  | `button/basic/${ButtonRouteVariant}`
-  | "button/icon-label"
-  | `button/icon-label/${ButtonRouteIconLabel}`
-  | "button/sizes"
-  | `button/sizes/${ButtonSize}`
-  | "button/color"
-  | `button/color/${ButtonColor}`
-  | "button/icon"
-  | `button/icon/${ButtonRouteIcon}`
 type ButtonSection = "Basic" | "Icon" | "Icon+Label" | "Sizes" | "Color"
-type PaneSection = "Variants"
 
-const BASIC_BUTTON_TYPES: readonly BasicButtonType[] = ["Text button", "Contained button", "Outlined button"]
-const BUTTON_SECTIONS: readonly ButtonSection[] = ["Basic", "Icon", "Icon+Label", "Sizes", "Color"]
 const BUTTON_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error", "neutral"]
 const BUTTON_DOC_COLORS: readonly ButtonColor[] = ["primary", "success", "warning", "error"]
 const BUTTON_SIZES: readonly ButtonSize[] = ["small", "medium", "large"]
-const BUTTON_ROUTES: readonly ButtonRoute[] = [
-  "button/basic",
-  "button/basic/text",
-  "button/basic/contained",
-  "button/basic/outlined",
-  "button/icon-label",
-  "button/icon-label/left",
-  "button/icon-label/right",
-  "button/sizes",
-  "button/sizes/small",
-  "button/sizes/medium",
-  "button/sizes/large",
-  "button/color",
-  "button/color/primary",
-  "button/color/success",
-  "button/color/warning",
-  "button/color/error",
-  "button/color/neutral",
-  "button/icon",
-  "button/icon/svg",
-]
-const PANE_ROUTES: readonly PaneRoute[] = [
-  "pane/variants",
-  "pane/variants/glass",
-  "pane/variants/outlined",
-  "pane/variants/filled",
-]
-const PANE_VARIANTS: readonly PaneVariant[] = ["glass", "outlined", "filled"]
-const COMPONENT_ROUTES: readonly ComponentsRoute[] = [...BUTTON_ROUTES, ...PANE_ROUTES, ...FIELD_ROUTES]
-const BUTTON_LABELS: readonly ButtonLabel[] = ["Button", "Apply", "Run", "Delete"]
-const BUTTON_ICONS: readonly ButtonIcon[] = ["none", "apply", "run", "delete"]
-const ICON_PLACEMENTS: readonly IconPlacement[] = ["start", "end", "only"]
-const BUTTON_STATES: readonly ButtonState[] = ["enabled", "disabled"]
-const BUTTON_WIDTHS: readonly ButtonWidth[] = ["compact", "regular", "wide"]
-const BUTTON_HEIGHTS: readonly ButtonHeight[] = ["compact", "regular", "large"]
-const COMPONENT_NAV = ["Button", "Pane", "Field", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack"] as const
-const BUTTON_RADII = [14, 24, 34, 999] as const
-const ICON_SIZES = [16, 20, 24] as const
-const LAYOUT_Z = -0.12
-const BACKDROP_Z = -0.18
-class ButtonComponentsScreen extends UiSurface {
-  readonly #router = new VirtualRouter<ComponentsRoute>(COMPONENT_ROUTES, "button/basic", {mode: "path"})
-  readonly #unsubscribe: () => void
-  #route: ComponentsRoute = this.#router.current
+type PreviewOwner = {
+  key: string
+  parent: Object3D
+  frame: Readonly<{x: number; y: number; w: number; h: number}> | null
+  layoutPlans: number
+  materializations: number
+}
+
+export type ComponentsPreviewOwnerDiagnostics = Readonly<{
+  key: string
+  objectId: string
+  childObjectIds: readonly string[]
+  layoutPlans: number
+  materializations: number
+  visible: boolean
+}>
+
+export type ComponentsPreviewDiagnostics = Readonly<{
+  route: ComponentsRoute
+  layoutPlans: number
+  materializations: number
+  owners: readonly ComponentsPreviewOwnerDiagnostics[]
+}>
+
+export class ComponentsPreviewSurface extends UiSurface {
+  readonly #retainedRoot: Object3D
+  readonly #previewOwner: PreviewOwner
+  readonly #fieldOwners = new Map<string, PreviewOwner>()
+  readonly #ownerByParent = new Map<Object3D, PreviewOwner>()
+  readonly #dirtyFields = new Set<string>()
+  readonly #objectIds = new WeakMap<object, string>()
+  readonly #onNavigate: (route: ComponentsRoute) => void
+  #nextObjectId = 1
+  #route: ComponentsRoute
+  #layout: Readonly<{route: ComponentsRoute; w: number; h: number; pixelScale: number; font: unknown}> | null = null
+  #dirtyPreview = true
+  #layoutPlans = 0
+  #materializations = 0
   #color: ButtonColor = "primary"
   #size: ButtonSize = "medium"
   #label: ButtonLabel = "Button"
@@ -111,174 +105,206 @@ class ButtonComponentsScreen extends UiSurface {
     (id, value) => this.#updateField(id, value),
     () => this.#toggleReference(),
   )
-  #fieldLastChange = "Field values are controlled by @ui/components"
 
-  constructor() {
+  constructor(route: ComponentsRoute, onNavigate: (route: ComponentsRoute) => void) {
     super({bgColor: null, borderColor: null})
-    const initialSize = routeSizeFromRoute(this.#route)
+    this.node.name = "ComponentsPreviewSurface"
+    this.#route = route
+    this.#onNavigate = onNavigate
+    this.#retainedRoot = this.createRetainedParent()
+    this.#retainedRoot.name = "ComponentsPreviewSurface.retainedRoot"
+    const previewParent = this.createRetainedParent(this.#retainedRoot)
+    previewParent.name = "ComponentsPreviewSurface.preview"
+    this.#previewOwner = {key: "preview", parent: previewParent, frame: null, layoutPlans: 0, materializations: 0}
+    this.#ownerByParent.set(previewParent, this.#previewOwner)
+    const initialSize = routeSizeFromRoute(route)
     if (initialSize !== null) this.#size = initialSize
-    const initialColor = routeColorFromRoute(this.#route)
+    const initialColor = routeColorFromRoute(route)
     if (initialColor !== null) this.#color = initialColor
-    this.#unsubscribe = this.#router.subscribe((route) => {
-      this.#route = route
-      const routeSize = routeSizeFromRoute(route)
-      if (routeSize !== null) this.#size = routeSize
-      const routeColor = routeColorFromRoute(route)
-      if (routeColor !== null) this.#color = routeColor
-      this.requestRender()
+  }
+
+  get diagnostics(): ComponentsPreviewDiagnostics {
+    const owners = [this.#previewOwner, ...this.#fieldOwners.values()].map((owner) => Object.freeze({
+      key: owner.key,
+      objectId: this.#objectId(owner.parent),
+      childObjectIds: Object.freeze(owner.parent.children.slice(0, 64).map((child) => this.#objectId(child))),
+      layoutPlans: owner.layoutPlans,
+      materializations: owner.materializations,
+      visible: owner.parent.visible,
+    }))
+    return Object.freeze({
+      route: this.#route,
+      layoutPlans: this.#layoutPlans,
+      materializations: this.#materializations,
+      owners: Object.freeze(owners),
     })
   }
 
-  override dispose(): void {
-    this.#unsubscribe()
-    this.#router.dispose()
-    super.dispose()
+  setRoute(route: ComponentsRoute): void {
+    if (route === this.#route) return
+    this.#route = route
+    const routeSize = routeSizeFromRoute(route)
+    if (routeSize !== null) this.#size = routeSize
+    const routeColor = routeColorFromRoute(route)
+    if (routeColor !== null) this.#color = routeColor
+    this.#dirtyPreview = true
+    this.requestRender()
   }
 
-  protected render(): void {
-    this.#backdrop()
-
-    const stageW = Math.max(1040, Math.min(1660, this.rectW - 36))
-    const stageH = Math.max(560, Math.min(860, this.rectH - 36))
-    const stageX = (this.rectW - stageW) / 2
-    const stageY = (this.rectH - stageH) / 2
-    const gap = 18
-    const catalogW = Math.round(Math.max(184, Math.min(228, stageW * 0.16)))
-    const sectionW = Math.round(Math.max(132, Math.min(172, stageW * 0.11)))
-    const paramsW = Math.round(Math.max(300, Math.min(372, stageW * 0.23)))
-    const dockH = Math.max(86, Math.min(112, stageH * 0.15))
-    const previewW = stageW - catalogW - sectionW - paramsW - gap * 3
-    const previewH = stageH - dockH - gap
-    const sectionX = stageX + catalogW + gap
-    const previewX = sectionX + sectionW + gap
-    const paramsX = previewX + previewW + gap
-
-    this.#catalog(stageX, stageY, catalogW, stageH)
-    this.#sectionPanel(sectionX, stageY, sectionW, stageH)
-    this.#preview(previewX, stageY, previewW, previewH)
-    this.#dock(previewX, stageY + previewH + gap, previewW, dockH)
-    this.#parameters(paramsX, stageY, paramsW, stageH)
+  setFieldValue(id: string, value: unknown): void {
+    this.#updateField(id, value)
   }
 
-  #backdrop(): void {
-    this.drawBackdropGradient({
-      base: 0x07101b,
-      glowA: {color: "rgba(111,211,255,0.16)", cx: 0.28, cy: 0.18, radius: 0.42},
-      glowB: {color: "rgba(82,196,123,0.10)", cx: 0.76, cy: 0.76, radius: 0.42},
-      z: BACKDROP_Z,
+  transformPreview(transform: Readonly<{x: number; y: number; scale: number}>): void {
+    this.updateRetainedTransform(this.#retainedRoot, (parent) => {
+      parent.position.set(transform.x * this.pixelScale, -transform.y * this.pixelScale, 0)
+      parent.scale.set(transform.scale, transform.scale, 1)
     })
   }
 
-  #catalog(x: number, y: number, w: number, h: number): void {
-    Pane(this, x, y, w, h, {
-      variant: "glass",
-      sx: {
-        background: "rgba(12, 18, 30, 0.78)",
-        borderColor: "rgba(214, 231, 255, 0.22)",
-        borderRadius: 36,
-        zIndex: LAYOUT_Z,
-      },
-    })
-
-    const pad = 22
-    h3(this, x, y + 28, w, 24, {children: "Components", style: {fontSize: 15, textAlign: "center"}})
-    const top = y + 76
-    const gap = 9
-    const rowH = 38
-    for (const [i, label] of COMPONENT_NAV.entries()) {
-      const active = label === this.#currentComponent()
-      const enabled = label === "Button" || label === "Pane" || label === "Field"
-      Button(this, x + pad, top + i * (rowH + gap), w - pad * 2, rowH, {
-        children: label,
-        variant: active ? "contained" : "glass",
-        color: "neutral",
-        ...activeNavStyle(active),
-        disabled: !enabled,
-        radius: 999,
-        fontPx: 11,
-        onClick: () => {
-          if (label === "Button") this.#router.go("button/basic")
-          else if (label === "Pane") this.#router.go("pane/variants")
-          else if (label === "Field") this.#router.go("field/values")
-          this.#record(`component:${label.toLowerCase()}`)
-        },
-      })
-    }
+  protected override onRetainedInteractionChange(parent: Object3D): void {
+    const owner = this.#ownerByParent.get(parent)
+    if (owner === undefined) return
+    if (owner === this.#previewOwner) this.#dirtyPreview = true
+    else this.#dirtyFields.add(owner.key.slice("field:".length))
   }
 
-  #sectionPanel(x: number, y: number, w: number, h: number): void {
-    Pane(this, x, y, w, h, {
-      variant: "glass",
-      sx: {
-        background: "rgba(12, 18, 30, 0.78)",
-        borderColor: "rgba(214, 231, 255, 0.22)",
-        borderRadius: 36,
-        zIndex: LAYOUT_Z,
-      },
-    })
+  protected override render(): void {
+    const previous = this.#layout
+    const geometryChanged = previous === null || previous.w !== this.rectW || previous.h !== this.rectH ||
+      previous.pixelScale !== this.pixelScale || previous.font !== this.font
+    const routeChanged = previous?.route !== this.#route
+    if (geometryChanged || routeChanged) this.#dirtyPreview = true
+    this.updateRetainedViewportClip(this.#retainedRoot, {x: 2, y: 2, w: Math.max(0, this.rectW - 4), h: Math.max(0, this.rectH - 4)})
 
-    const pad = 18
-    if (this.#currentComponent() === "Field") {
-      h3(this, x, y + 28, w, 24, {children: "Field", style: {fontSize: 15, textAlign: "center"}})
-      const top = y + 76
-      for (const [i, section] of FIELD_SECTIONS.entries()) {
-        const active = fieldSectionFromRoute(this.#route as FieldRoute) === section
-        Button(this, x + pad, top + i * 47, w - pad * 2, 38, {
-          children: section,
-          variant: active ? "contained" : "glass",
-          color: "neutral",
-          ...activeNavStyle(active),
-          radius: 999,
-          fontPx: 11,
-          onClick: () => this.#goFieldSection(section),
+    const fieldRoute = this.#route.startsWith("field/")
+    this.updateRetainedVisibility(this.#previewOwner.parent, true)
+    if (fieldRoute) this.#reconcileFieldOwners(geometryChanged || routeChanged)
+    else for (const owner of this.#fieldOwners.values()) this.updateRetainedVisibility(owner.parent, false)
+
+    if (this.#dirtyPreview) this.#materializePreview()
+    if (fieldRoute) this.#materializeDirtyFields()
+    this.#layout = {route: this.#route, w: this.rectW, h: this.rectH, pixelScale: this.pixelScale, font: this.font}
+  }
+
+  #reconcileFieldOwners(force: boolean): void {
+    const section = fieldSectionFromRoute(this.#route as FieldRoute)
+    const fields = fieldsForSection(this.#fields, section)
+    const frames = this.#planFieldFrames(fields)
+    const activeIds = new Set(fields.map(({id}) => id))
+    for (const field of this.#fields) {
+      let owner = this.#fieldOwners.get(field.id)
+      if (owner === undefined) {
+        const parent = this.createRetainedParent(this.#retainedRoot)
+        parent.name = `ComponentsPreviewSurface.field:${field.id}`
+        owner = {key: `field:${field.id}`, parent, frame: null, layoutPlans: 0, materializations: 0}
+        this.#fieldOwners.set(field.id, owner)
+        this.#ownerByParent.set(parent, owner)
+      }
+      const frame = frames.get(field.id)
+      this.updateRetainedVisibility(owner.parent, activeIds.has(field.id))
+      if (frame === undefined) continue
+      const previous = owner.frame
+      if (previous === null || previous.x !== frame.x || previous.y !== frame.y) {
+        this.updateRetainedTransform(owner.parent, (parent) => {
+          parent.position.set(frame.x * this.pixelScale, -frame.y * this.pixelScale, 0)
         })
       }
-      return
+      if (force || previous === null || previous.w !== frame.w || previous.h !== frame.h) this.#dirtyFields.add(field.id)
+      owner.frame = frame
     }
-    if (this.#currentComponent() === "Pane") {
-      h3(this, x, y + 28, w, 24, {children: "Pane", style: {fontSize: 15, textAlign: "center"}})
-      const active = this.#paneSection() === "Variants"
-      Button(this, x + pad, y + 76, w - pad * 2, 38, {
-        children: "Variants",
-        variant: active ? "contained" : "glass",
-        color: "neutral",
-        ...activeNavStyle(active),
-        radius: 999,
-        fontPx: 11,
-        onClick: () => this.#goPaneSection("Variants"),
-      })
-      return
-    }
-    h3(this, x, y + 28, w, 24, {children: "Button", style: {fontSize: 15, textAlign: "center"}})
-    const top = y + 76
-    for (const [i, section] of BUTTON_SECTIONS.entries()) {
-      const active = this.#routeSection() === section
-      Button(this, x + pad, top + i * 47, w - pad * 2, 38, {
-        children: section,
-        variant: active ? "contained" : "glass",
-        color: "neutral",
-        ...activeNavStyle(active),
-        radius: 999,
-        fontPx: 11,
-        onClick: () => this.#goSection(section),
-      })
+    if (force) for (const id of activeIds) this.#dirtyFields.add(id)
+  }
+
+  #planFieldFrames(fields: readonly FieldDefinition[]): Map<string, Readonly<{x: number; y: number; w: number; h: number}>> {
+    const frames = new Map<string, Readonly<{x: number; y: number; w: number; h: number}>>()
+    flexColumn({
+      x: 42,
+      y: 24,
+      w: Math.max(0, this.rectW - 84),
+      h: Math.max(0, this.rectH - 48),
+      gap: 18,
+      items: [
+        {height: "1fr", draw: () => {}},
+        {height: "3fr", draw: (x, y, w, h) => flexColumn({
+          x,
+          y,
+          w,
+          h,
+          gap: 12,
+          justifyContent: "center",
+          items: fields.map((field) => ({
+            height: measureFieldHeight(field),
+            draw: (fieldX: number, fieldY: number, fieldW: number, fieldH: number) => {
+              frames.set(field.id, {x: fieldX, y: fieldY, w: fieldW, h: fieldH})
+            },
+          })),
+        })},
+        {height: "1fr", draw: () => {}},
+      ],
+    })
+    return frames
+  }
+
+  #materializeDirtyFields(): void {
+    for (const id of [...this.#dirtyFields]) {
+      this.#dirtyFields.delete(id)
+      const owner = this.#fieldOwners.get(id)
+      if (owner === undefined || owner.frame === null || !owner.parent.visible) continue
+      try {
+        this.materializeRetainedParent(owner.parent, () => {
+          const currentField = this.#fields.find((candidate) => candidate.id === id)
+          if (currentField === undefined) return
+          Field(this, 0, 0, owner.frame!.w, {...currentField, key: `components-playground:${currentField.id}`})
+          owner.layoutPlans += 1
+          owner.materializations += 1
+          this.#layoutPlans += 1
+          this.#materializations += 1
+        })
+      } catch (error) {
+        this.#dirtyFields.add(id)
+        throw error
+      }
     }
   }
 
-  #preview(x: number, y: number, w: number, h: number): void {
+  #objectId(value: object): string {
+    const current = this.#objectIds.get(value)
+    if (current !== undefined) return current
+    const next = `object-${this.#nextObjectId++}`
+    this.#objectIds.set(value, next)
+    return next
+  }
+
+  #materializePreview(): void {
+    this.#dirtyPreview = false
+    try {
+      this.materializeRetainedParent(this.#previewOwner.parent, () => {
+        this.#drawPreview(0, 0, this.rectW, this.rectH)
+        this.#previewOwner.layoutPlans += 1
+        this.#previewOwner.materializations += 1
+        this.#layoutPlans += 1
+        this.#materializations += 1
+      })
+    } catch (error) {
+      this.#dirtyPreview = true
+      throw error
+    }
+  }
+
+  #drawPreview(x: number, y: number, w: number, h: number): void {
     Pane(this, x, y, w, h, {
       variant: "glass",
       sx: {
         background: "rgba(8, 13, 22, 0.72)",
         borderColor: "rgba(214, 231, 255, 0.22)",
         borderRadius: 38,
-        zIndex: LAYOUT_Z,
       },
     })
 
     this.pushClip(x + 2, y + 2, w - 4, h - 4)
     if (this.#currentComponent() === "Field") {
-      this.#fieldPreview(x, y, w, h)
+      this.#fieldPreviewChrome(x, y, w, h)
     } else if (this.#currentComponent() === "Pane") {
       const variant = this.#routePaneVariant()
       if (variant === null) this.#paneOverview(x, y, w, h)
@@ -913,250 +939,6 @@ class ButtonComponentsScreen extends UiSurface {
     })
   }
 
-  #dock(x: number, y: number, w: number, h: number): void {
-    Pane(this, x, y, w, h, {
-      variant: "glass",
-      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.20)", borderRadius: 34, zIndex: LAYOUT_Z},
-    })
-    if (this.#currentComponent() === "Field") {
-      flexRow({
-        x: x + 24,
-        y: y + (h - 42) / 2,
-        w: w - 48,
-        h: 42,
-        gap: 10,
-        items: FIELD_SECTIONS.map((section) => {
-          const active = fieldSectionFromRoute(this.#route as FieldRoute) === section
-          return {
-            width: "1fr" as const,
-            height: 42,
-            draw: (buttonX: number, buttonY: number, buttonW: number, buttonH: number) => Button(this, buttonX, buttonY, buttonW, buttonH, {
-              children: section,
-              variant: active ? "contained" : "glass",
-              color: "neutral",
-              ...activeNavStyle(active),
-              radius: 999,
-              fontPx: 10,
-              onClick: () => this.#goFieldSection(section),
-            }),
-          }
-        }),
-      })
-      return
-    }
-    if (this.#currentComponent() === "Pane") {
-      const itemGap = 12
-      const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (PANE_VARIANTS.length - 1)) / PANE_VARIANTS.length))
-      const rowW = itemW * PANE_VARIANTS.length + itemGap * (PANE_VARIANTS.length - 1)
-      const startX = x + (w - rowW) / 2
-      const routeVariant = this.#routePaneVariant()
-      for (const [i, variant] of PANE_VARIANTS.entries()) {
-        const active = routeVariant === variant
-        Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
-          children: paneVariantDockLabel(variant),
-          variant: active ? "contained" : "glass",
-          color: "neutral",
-          ...activeNavStyle(active),
-          radius: this.#radius,
-          onClick: () => this.#goPaneVariant(variant),
-        })
-      }
-      return
-    }
-    if (this.#routeSection() === "Icon") {
-      this.#iconDock(x, y, w, h)
-      return
-    }
-    if (this.#routeSection() === "Icon+Label") {
-      this.#iconLabelDock(x, y, w, h)
-      return
-    }
-    if (this.#routeSection() === "Color") {
-      this.#colorDock(x, y, w, h)
-      return
-    }
-    if (this.#routeSection() === "Sizes") {
-      this.#sizeDock(x, y, w, h)
-      return
-    }
-
-    const itemGap = 12
-    const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (BASIC_BUTTON_TYPES.length - 1)) / BASIC_BUTTON_TYPES.length))
-    const rowW = itemW * BASIC_BUTTON_TYPES.length + itemGap * (BASIC_BUTTON_TYPES.length - 1)
-    const startX = x + (w - rowW) / 2
-    for (const [i, type] of BASIC_BUTTON_TYPES.entries()) {
-      const variant = routeVariantFromButtonType(type)
-      const active = this.#routeVariant() === variant
-      Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
-        children: dockLabel(type),
-        variant: active ? "contained" : "glass",
-        color: "neutral",
-        ...activeNavStyle(active),
-        radius: this.#radius,
-        onClick: () => this.#go(variant),
-      })
-    }
-  }
-
-  #sizeDock(x: number, y: number, w: number, h: number): void {
-    const itemGap = 12
-    const itemW = Math.max(94, Math.min(148, (w - 64 - itemGap * (BUTTON_SIZES.length - 1)) / BUTTON_SIZES.length))
-    const rowW = itemW * BUTTON_SIZES.length + itemGap * (BUTTON_SIZES.length - 1)
-    const startX = x + (w - rowW) / 2
-    const routeSize = this.#routeSize()
-    for (const [i, size] of BUTTON_SIZES.entries()) {
-      const active = routeSize === size
-      Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
-        children: size,
-        variant: active ? "contained" : "glass",
-        color: active ? this.#color : "neutral",
-        ...activeNavStyle(active),
-        radius: this.#radius,
-        onClick: () => this.#goSize(size),
-      })
-    }
-  }
-
-  #iconDock(x: number, y: number, w: number, h: number): void {
-    const itemW = 118
-    const active = this.#routeIcon() === "svg"
-    Button(this, x + (w - itemW) / 2, y + (h - 42) / 2, itemW, 42, {
-      children: "svg",
-      variant: active ? "contained" : "outlined",
-      color: "primary",
-      radius: this.#radius,
-      onClick: () => this.#openSvgPicker(),
-    })
-  }
-
-  #iconLabelDock(x: number, y: number, w: number, h: number): void {
-    const itemGap = 12
-    const items: readonly ButtonRouteIconLabel[] = ["left", "right"]
-    const itemW = 112
-    const rowW = itemW * items.length + itemGap
-    const startX = x + (w - rowW) / 2
-    const placement = this.#routeIconLabelPlacement()
-    for (const [i, item] of items.entries()) {
-      const active = placement === item
-      Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
-        children: item,
-        variant: active ? "contained" : "outlined",
-        color: active ? this.#color : "neutral",
-        radius: this.#radius,
-        onClick: () => this.#goIconLabelPlacement(item),
-      })
-    }
-  }
-
-  #colorDock(x: number, y: number, w: number, h: number): void {
-    const itemGap = 10
-    const itemW = Math.max(78, Math.min(112, (w - 64 - itemGap * (BUTTON_DOC_COLORS.length - 1)) / BUTTON_DOC_COLORS.length))
-    const rowW = itemW * BUTTON_DOC_COLORS.length + itemGap * (BUTTON_DOC_COLORS.length - 1)
-    const startX = x + (w - rowW) / 2
-    const routeColor = this.#routeColor()
-    for (const [i, color] of BUTTON_DOC_COLORS.entries()) {
-      const active = routeColor === color
-      Button(this, startX + i * (itemW + itemGap), y + (h - 42) / 2, itemW, 42, {
-        children: color,
-        variant: active ? "contained" : "outlined",
-        color,
-        radius: this.#radius,
-        fontPx: 10,
-        onClick: () => this.#goColor(color),
-      })
-    }
-  }
-
-  #parameters(x: number, y: number, w: number, h: number): void {
-    Pane(this, x, y, w, h, {
-      variant: "glass",
-      sx: {background: "rgba(12, 18, 30, 0.78)", borderColor: "rgba(214, 231, 255, 0.22)", borderRadius: 36, zIndex: LAYOUT_Z},
-    })
-    if (this.#currentComponent() !== "Field") return
-    const pad = 24
-    h3(this, x + pad, y + 30, w - pad * 2, 24, {children: "Field contract", style: {fontSize: 15}})
-    p(this, x + pad, y + 76, w - pad * 2, 54, {
-      children: "Owner: @ui/components. Reused inside Node and outside it.",
-      style: {fontSize: 11, color: "muted"},
-    })
-    const section = fieldSectionFromRoute(this.#route as FieldRoute)
-    span(this, x + pad, y + 154, w - pad * 2, 18, {children: `section: ${section}`, style: {fontSize: 10, color: "cyan"}})
-    const fields = fieldsForSection(this.#fields, section)
-    for (const [index, field] of fields.entries()) {
-      span(this, x + pad, y + 190 + index * 30, w - pad * 2, 20, {
-        children: `${field.id}: ${field.kind}`,
-        style: {fontSize: 10, color: "text"},
-      })
-    }
-    p(this, x + pad, y + h - 104, w - pad * 2, 70, {
-      children: this.#fieldLastChange,
-      style: {fontSize: 10, color: "muted"},
-    })
-  }
-
-  #optionGroup<T extends string>(
-    x: number,
-    y: number,
-    w: number,
-    label: string,
-    values: readonly T[],
-    activeValue: T,
-    onSelect: (value: T) => void,
-    minButtonW: number,
-    options: {
-      color?: (value: T, active: boolean) => ButtonColor
-      display?: (value: T) => string
-    } = {},
-  ): number {
-    span(this, x, y, w, 18, {children: label, style: {fontSize: 10, color: "muted"}})
-    const gap = 6
-    const rowH = 28
-    const cols = Math.max(1, Math.min(values.length, Math.floor((w + gap) / (minButtonW + gap))))
-    const rows = Math.ceil(values.length / cols)
-    const btnW = (w - gap * (cols - 1)) / cols
-    for (const [i, value] of values.entries()) {
-      const active = activeValue === value
-      const col = i % cols
-      const row = Math.floor(i / cols)
-      Button(this, x + col * (btnW + gap), y + 24 + row * (rowH + gap), btnW, rowH, {
-        children: options.display?.(value) ?? value,
-        variant: active ? "contained" : "glass",
-        color: options.color?.(value, active) ?? (active ? this.#color : "neutral"),
-        radius: 999,
-        fontPx: 9,
-        onClick: () => onSelect(value),
-      })
-    }
-    return 24 + rows * rowH + (rows - 1) * gap
-  }
-
-  #numberGroup<T extends number>(
-    x: number,
-    y: number,
-    w: number,
-    label: string,
-    values: readonly T[],
-    activeValue: T,
-    onSelect: (value: T) => void,
-  ): number {
-    span(this, x, y, w, 18, {children: label, style: {fontSize: 10, color: "muted"}})
-    const gap = 6
-    const rowH = 28
-    const btnW = (w - gap * (values.length - 1)) / values.length
-    for (const [i, value] of values.entries()) {
-      const active = activeValue === value
-      Button(this, x + i * (btnW + gap), y + 24, btnW, rowH, {
-        children: String(value),
-        variant: active ? "contained" : "glass",
-        color: active ? this.#color : "neutral",
-        radius: 999,
-        fontPx: 9,
-        onClick: () => onSelect(value),
-      })
-    }
-    return 52
-  }
-
   #buttonProps(): ButtonProps {
     const props: ButtonProps = {
       label: this.#label,
@@ -1206,23 +988,6 @@ class ButtonComponentsScreen extends UiSurface {
     return undefined
   }
 
-  #codePreview(): readonly [string, string] {
-    const props = this.#iconPlacement === "only" ? [`label: "${this.#label}"`] : [`children: "${this.#label}"`]
-    props.push(`variant: "${buttonVariant(this.#currentButtonType())}"`, `color: "${this.#color}"`, `size: "${this.#size}"`, `radius: ${this.#radius}`)
-    if (this.#icon !== "none") props.push(`${this.#iconProp()}: uiIcons.${this.#icon === "delete" ? "clear" : this.#icon}`)
-    if (this.#icon !== "none") props.push(`iconSizePx: ${this.#iconSize}`)
-    if (this.#iconPlacement === "only") props.push("iconOnly: true")
-    if (this.#state === "disabled") props.push("disabled: true")
-    if (this.#tooltip) props.push(`tooltip: "${this.#label}"`)
-    return ["Button(host, x, y, w, h, {", `  ${props.join(", ")} })`]
-  }
-
-  #iconProp(): "startIcon" | "endIcon" | "iconSrc" {
-    if (this.#iconPlacement === "end") return "endIcon"
-    if (this.#iconPlacement === "only") return "iconSrc"
-    return "startIcon"
-  }
-
   #routeVariant(): ButtonRouteVariant | null {
     return routeVariantFromRoute(this.#route)
   }
@@ -1252,10 +1017,6 @@ class ButtonComponentsScreen extends UiSurface {
     return this.#route.startsWith("pane/") ? "Pane" : "Button"
   }
 
-  #paneSection(): PaneSection {
-    return "Variants"
-  }
-
   #routeSection(): ButtonSection {
     if (this.#route.startsWith("button/icon-label")) return "Icon+Label"
     if (this.#route.startsWith("button/icon")) return "Icon"
@@ -1270,75 +1031,27 @@ class ButtonComponentsScreen extends UiSurface {
 
   #go(variant: ButtonRouteVariant | null): void {
     const route: ButtonRoute = variant === null ? "button/basic" : `button/basic/${variant}`
-    this.#router.go(route)
+    this.#onNavigate(route)
     this.#record(variant === null ? "route:basic" : `route:${variant}`)
   }
 
-  #goSection(section: ButtonSection): void {
-    if (section === "Sizes") {
-      this.#router.go("button/sizes")
-      this.#record("route:sizes")
-      return
-    }
-    if (section === "Color") {
-      this.#router.go("button/color")
-      this.#record("route:color")
-      return
-    }
-    if (section === "Icon") {
-      this.#router.go("button/icon")
-      this.#record("route:icon")
-      return
-    }
-    if (section === "Icon+Label") {
-      this.#router.go("button/icon-label")
-      this.#record("route:icon-label")
-      return
-    }
-    this.#go(null)
-  }
-
-  #goPaneSection(_section: PaneSection): void {
-    this.#router.go("pane/variants")
-    this.#record("route:pane:variants")
-  }
-
-  #goPaneVariant(variant: PaneVariant): void {
-    this.#router.go(`pane/variants/${variant}`)
-    this.#record(`route:pane:variants:${variant}`)
-  }
-
-  #goFieldSection(section: FieldSection): void {
-    this.#router.go(fieldRouteFromSection(section))
-    this.#record(`route:field:${section.toLowerCase()}`)
-  }
-
-  #fieldPreview(x: number, y: number, w: number, h: number): void {
+  #fieldPreviewChrome(x: number, y: number, w: number, h: number): void {
     const section = fieldSectionFromRoute(this.#route as FieldRoute)
-    const fields = fieldsForSection(this.#fields, section)
     renderOverviewLayout(this, x, y, w, h, 42, `${section} fields`, [
       "Universal input components owned by @ui/components.",
       "The same Field renderer is imported by Node compositions.",
-    ], (slotX, slotY, slotW, slotH) => {
-      flexColumn({
-        x: slotX,
-        y: slotY,
-        w: slotW,
-        h: slotH,
-        gap: 12,
-        justifyContent: "center",
-        items: fields.map((field) => ({
-          height: measureFieldHeight(field),
-          draw: (fieldX: number, fieldY: number, fieldW: number) => Field(this, fieldX, fieldY, fieldW, {...field, key: `components-playground:${field.id}`}),
-        })),
-      })
-    })
+    ], () => {})
   }
 
   #updateField(id: string, value: unknown): void {
-    this.#fields = this.#fields.map((field) => field.id === id ? updateFieldDefinition(field, value) : field)
-    this.#fieldLastChange = `${id}: ${displayFieldValue(value)}`
-    this.#record(`field:${id}`)
+    const current = this.#fields.find((field) => field.id === id)
+    if (current === undefined) return
+    const next = updateFieldDefinition(current, value)
+    if (next === current) return
+    this.#fields = this.#fields.map((field) => field.id === id ? next : field)
+    this.#eventCount += 1
+    this.#dirtyFields.add(id)
+    this.requestRender()
   }
 
   #toggleReference(): void {
@@ -1349,48 +1062,14 @@ class ButtonComponentsScreen extends UiSurface {
 
   #goSize(size: ButtonSize): void {
     this.#size = size
-    this.#router.go(`button/sizes/${size}`)
+    this.#onNavigate(`button/sizes/${size}`)
     this.#record(`route:sizes:${size}`)
   }
 
   #goColor(color: ButtonColor): void {
     this.#color = color
-    this.#router.go(`button/color/${color}`)
+    this.#onNavigate(`button/color/${color}`)
     this.#record(`route:color:${color}`)
-  }
-
-  #goIconLabelPlacement(placement: ButtonRouteIconLabel): void {
-    this.#router.go(`button/icon-label/${placement}`)
-    this.#record(`route:icon-label:${placement}`)
-  }
-
-  #openSvgPicker(): void {
-    const input = document.createElement("input")
-    input.type = "file"
-    input.accept = ".svg,image/svg+xml"
-    input.style.display = "none"
-    input.addEventListener("change", () => {
-      const file = input.files?.[0]
-      input.remove()
-      if (file === undefined) return
-      void file.text().then((source) => {
-        if (!/<svg[\s>]/i.test(source)) {
-          this.#record("icon:svg:invalid")
-          return
-        }
-        this.#customSvgSource = source
-        this.#customSvgName = file.name
-        this.#router.go("button/icon/svg")
-        this.#record(`icon:svg:${file.name}`)
-      }).catch(() => {
-        this.#record("icon:svg:error")
-      })
-    }, {once: true})
-    document.body.append(input)
-    input.click()
-    window.setTimeout(() => {
-      if (input.isConnected) input.remove()
-    }, 60000)
   }
 
   #svgIconSrc(color: ButtonColor): string {
@@ -1418,18 +1097,9 @@ class ButtonComponentsScreen extends UiSurface {
 
   #record(_status: string): void {
     this.#eventCount += 1
+    this.#dirtyPreview = true
     this.requestRender()
   }
-}
-
-function iconDisplay(value: ButtonIcon): string {
-  if (value === "delete") return "delete"
-  return value
-}
-
-function activeNavStyle(active: boolean): Pick<ButtonProps, "fill" | "border"> {
-  if (!active) return {}
-  return {fill: palette.bgHot, border: palette.cyan}
 }
 
 function routeVariantFromRoute(route: ComponentsRoute): ButtonRouteVariant | null {
@@ -1473,22 +1143,10 @@ function buttonTypeFromRouteVariant(variant: ButtonRouteVariant): BasicButtonTyp
   return "Text button"
 }
 
-function routeVariantFromButtonType(type: BasicButtonType): ButtonRouteVariant {
-  if (type === "Contained button") return "contained"
-  if (type === "Outlined button") return "outlined"
-  return "text"
-}
-
 function buttonVariant(type: BasicButtonType): ButtonVariant {
   if (type === "Contained button") return "contained"
   if (type === "Outlined button") return "outlined"
   return "text"
-}
-
-function dockLabel(type: BasicButtonType): string {
-  if (type === "Contained button") return "Contained"
-  if (type === "Outlined button") return "Outlined"
-  return "Text"
 }
 
 function variantLabel(variant: ButtonRouteVariant): string {
@@ -1585,10 +1243,6 @@ function paneVariantTitle(variant: PaneVariant): string {
   if (variant === "outlined") return "Outlined"
   if (variant === "filled") return "Filled"
   return "Glass"
-}
-
-function paneVariantDockLabel(variant: PaneVariant): string {
-  return paneVariantTitle(variant)
 }
 
 function paneVariantDescriptionLines(variant: PaneVariant): readonly string[] {
@@ -2211,11 +1865,121 @@ function codeBlock(host: UiSurface, x: number, y: number, w: number, lines: read
   }
 }
 
-const canvas = document.getElementById("stage-canvas") as HTMLCanvasElement | null
-if (canvas === null) throw new Error("stage-canvas not found")
-const ui = await UiRuntime.create(canvas)
-ui.addSurface(new ButtonComponentsScreen(), ({w, h}) => ({x: 0, y: 0, w, h}))
-const ro = new ResizeObserver(() => ui.handleResize())
-ro.observe(canvas)
-window.addEventListener("resize", () => ui.handleResize())
-ui.handleResize()
+export type ComponentsPlaygroundObserver = Readonly<{
+  snapshot(): Readonly<Record<string, unknown>>
+  setFieldValue(id: string, value: unknown): Readonly<Record<string, unknown>>
+  transformPreview(transform: Readonly<{x: number; y: number; scale: number}>): Readonly<Record<string, unknown>>
+}>
+
+declare global {
+  var __componentsPlaygroundObserver: ComponentsPlaygroundObserver | undefined
+}
+
+async function startComponentsPlayground(): Promise<void> {
+  const canvas = document.getElementById("stage-canvas")
+  if (!(canvas instanceof HTMLCanvasElement)) throw new Error("stage-canvas not found")
+  document.documentElement.dataset.componentsPlayground = "starting"
+  try {
+    const runtime = await UiRuntime.create(canvas, {
+      fontUrl: "/JetBrainsMono-Bold.ttf",
+      virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
+    })
+    const router = new PlaygroundRouter<ComponentsRoute>(COMPONENT_PLAYGROUND_ROUTES, "button/basic", {mode: "path"})
+    const navigate = (route: ComponentsRoute): void => router.go(route)
+    const catalogNavigate = (route: ComponentsCatalogRoute): void => {
+      if (isComponentsRoute(route)) navigate(route)
+    }
+    const route = router.current
+    const backdrop = new PlaygroundBackdropSurface()
+    const catalog = new PlaygroundNavigationSurface<ComponentsCatalogRoute>({
+      title: "Components",
+      items: COMPONENT_PLAYGROUND_CATALOG,
+      route: componentsPlaygroundCatalogRoute(route),
+      onNavigate: catalogNavigate,
+    })
+    const sections = new PlaygroundNavigationSurface<ComponentsRoute>({
+      title: componentsPlaygroundSectionTitle(route),
+      items: componentsPlaygroundSections(route),
+      route: componentsPlaygroundSectionRoute(route),
+      onNavigate: navigate,
+    })
+    const dock = new PlaygroundDockSurface<ComponentsRoute>({
+      title: "Routes",
+      items: componentsPlaygroundDock(route),
+      route,
+      onNavigate: navigate,
+    })
+    const info = new PlaygroundInfoSurface(componentsPlaygroundInfo(route))
+    const preview = new ComponentsPreviewSurface(route, navigate)
+    const frames = (w: number, h: number) => planPlaygroundShell(w, h)
+
+    runtime.addSurface(backdrop, ({w, h}) => ({x: 0, y: 0, w, h}))
+    runtime.addSurface(catalog, ({w, h}) => frames(w, h).catalog)
+    runtime.addSurface(sections, ({w, h}) => frames(w, h).section)
+    runtime.addSurface(preview, ({w, h}) => frames(w, h).preview)
+    runtime.addSurface(dock, ({w, h}) => frames(w, h).dock)
+    runtime.addSurface(info, ({w, h}) => frames(w, h).info)
+
+    const snapshot = (): Readonly<Record<string, unknown>> => Object.freeze({
+      route: router.current,
+      catalog: catalog.diagnostics,
+      sections: sections.diagnostics,
+      dock: dock.diagnostics,
+      info: info.diagnostics,
+      preview: preview.diagnostics,
+    })
+    const publish = (): Readonly<Record<string, unknown>> => {
+      for (const surface of [catalog, sections, dock, info, preview]) surface.flushPendingRender()
+      const current = snapshot()
+      document.documentElement.dataset.componentsPlaygroundRoute = router.current
+      document.documentElement.dataset.componentsPlaygroundRetained = JSON.stringify(current)
+      return current
+    }
+    const applyRoute = (next: ComponentsRoute): void => {
+      const sectionItems = componentsPlaygroundSections(next)
+      catalog.setOptions({
+        title: "Components",
+        items: COMPONENT_PLAYGROUND_CATALOG,
+        route: componentsPlaygroundCatalogRoute(next),
+        onNavigate: catalogNavigate,
+      })
+      sections.setOptions({
+        title: componentsPlaygroundSectionTitle(next),
+        items: sectionItems,
+        route: componentsPlaygroundSectionRoute(next),
+        onNavigate: navigate,
+      })
+      dock.setOptions({title: "Routes", items: componentsPlaygroundDock(next), route: next, onNavigate: navigate})
+      info.setOptions(componentsPlaygroundInfo(next))
+      preview.setRoute(next)
+      runtime.handleResize()
+      publish()
+    }
+
+    router.subscribe(applyRoute)
+    globalThis.__componentsPlaygroundObserver = Object.freeze({
+      snapshot: publish,
+      setFieldValue(id, value) {
+        preview.setFieldValue(id, value)
+        return publish()
+      },
+      transformPreview(transform) {
+        preview.transformPreview(transform)
+        return publish()
+      },
+    })
+    new ResizeObserver(() => {
+      runtime.handleResize()
+      publish()
+    }).observe(canvas)
+    runtime.handleResize()
+    publish()
+    document.documentElement.dataset.componentsPlayground = "ready"
+  } catch (error) {
+    document.documentElement.dataset.componentsPlayground = "error"
+    document.documentElement.dataset.componentsPlaygroundError = error instanceof Error ? error.message : String(error)
+    throw error
+  }
+}
+
+if (typeof document !== "undefined") await startComponentsPlayground()

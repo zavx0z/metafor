@@ -20,5 +20,6 @@ import {
 } from "@ui/playground"
 ```
 
-UI Elements/Components playground мигрируются на package только после
-интеграции retained hierarchy NODES-018. Первый consumer — Node playground.
+Node и Components playground являются public-shell consumers. Components
+сохраняет package-owned route/data/preview и устойчивые retained Field parents;
+historical Elements playground автоматически не восстанавливается.

@@ -26,6 +26,18 @@
    subtree без независимого transform и dirty lifecycle; missing либо
    неоднозначный render key не выбирает случайный retained owner.
 
+## Dev playground boundary
+
+1. Standalone Components playground собирает catalog, sections, dock, info и
+   backdrop только через public `@ui/playground`; package владеет route IDs,
+   demo data и preview renderer, но не копирует общий shell.
+2. Consumer preview владеет одним устойчивым retained root. Каждый независимо
+   изменяемый controlled Field материализуется под устойчивым parent с ключом
+   его `id`; изменение одного value не перестраивает shell или соседние Fields.
+3. Одноразовые Button и Pane fragments могут оставаться flat внутри exact
+   preview parent: у них нет отдельного transform или recurring local dirty
+   lifecycle. Mobile shell показывает только тот же consumer preview.
+
 ## Универсальные поля
 
 1. `Field` является discriminated union с устойчивым `id`, `label`, optional

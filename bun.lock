@@ -250,6 +250,9 @@
         "@metafor/engine": "workspace:*",
         "@ui/elements": "workspace:*",
       },
+      "devDependencies": {
+        "@ui/playground": "workspace:*",
+      },
     },
     "pkg/ui/elements": {
       "name": "@ui/elements",
