@@ -9,7 +9,7 @@ The executable registry is `scripts/playgrounds.json`.
 
 | Selector | Package contour | Origin | Ready and canvas capability |
 | --- | --- | --- | --- |
-| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch |
+| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, path routes |
 | `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, path routes |
 | `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, path routes |
 | `elements` | `@ui/elements` | none | typed `unsupported`; no runnable playground exists |
@@ -52,6 +52,9 @@ bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" components --route /button/basic/t
 bun "$SKILL/scripts/ui-browser.ts" console "$PWD" components --route /button/basic/text
 bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" components \
   --route /button/basic/text --output /tmp/components-text.png
+bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" node-ui --route /editor/scene
+bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" node-ui \
+  --route /comparison/blender --output /tmp/node-comparison.png
 ```
 
 The full route is part of target identity. Zero matches fail unless `open` was
@@ -81,11 +84,9 @@ synthetic evidence.
 
 ## Node reference asset boundary
 
-The maintained Blender screenshot moves with this skill to `assets/`. The
-current Node playground source still contains its old task-local asset route;
-UI-003 does not rewrite that production/dev consumer. The integrating Node task
-must bind its own route to the new owner path rather than restore a duplicate
-skill directory.
+The maintained Blender screenshot lives with this skill in `assets/`. The Node
+playground binds `/ui-dev/blender-4.5.5-reference.png` directly to that owner
+file. No old node-local skill directory or compatibility route exists.
 
 ## Acceptance labels
 

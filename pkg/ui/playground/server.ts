@@ -8,11 +8,14 @@ export type PlaygroundServerOptions = Readonly<{
   fontPath: string
   title?: string
   hostname?: string
+  staticFiles?: Readonly<Record<string, string>>
+  canvasId?: string
 }>
 
 export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnType<typeof Bun.serve> {
   const hostname = options.hostname ?? "127.0.0.1"
   const title = options.title ?? options.name
+  const canvasId = options.canvasId ?? "playground-canvas"
   const html = `<!doctype html>
 <html lang="ru">
   <head>
@@ -24,11 +27,15 @@ export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnT
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
-    <canvas id="playground-canvas"></canvas>
+    <canvas id="${escapeHtml(canvasId)}"></canvas>
     <script type="module" src="/entry.js"></script>
   </body>
 </html>`
   let buildAssets = new Map<string, Blob>()
+  const staticRoutes = Object.fromEntries(Object.entries(options.staticFiles ?? {}).map(([route, path]) => [
+    route,
+    () => new Response(Bun.file(path), {headers: {"cache-control": "no-cache"}}),
+  ]))
 
   const buildEntry = async (): Promise<Response> => {
     const result = await Bun.build({
@@ -47,7 +54,7 @@ export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnT
     let entry: Blob | null = null
     for (const output of result.outputs) {
       const routePath = `/${basename(output.path)}`
-      if (routePath === "/entry.js") entry = output
+      if (output.kind === "entry-point") entry = output
       else nextAssets.set(routePath, output)
     }
     buildAssets = nextAssets
@@ -69,6 +76,7 @@ export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnT
       "/style.css": () => new Response(Bun.file(options.stylePath), {headers: {"content-type": "text/css; charset=utf-8", "cache-control": "no-cache"}}),
       "/entry.js": buildEntry,
       "/JetBrainsMono-Bold.ttf": () => new Response(Bun.file(options.fontPath), {headers: {"content-type": "font/ttf"}}),
+      ...staticRoutes,
       "/:asset": {
         GET(request) {
           const asset = buildAssets.get(`/${request.params.asset}`)

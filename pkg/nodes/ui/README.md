@@ -62,10 +62,12 @@ panels выполняется только общими `flexRow`/`flexColumn`/`
 bun run nodes:components
 ```
 
-Dev-only playground показывает все universal fields отдельно и внутри Node,
-полный Socket catalog, Links и visual containment. Он не импортирует layout
-solver или продуктовый consumer.
+Dev-only playground использует public `@ui/playground` и разделяет nested path
+routes `editor/*`, `socket/*` и `comparison/blender`. Одновременно виден только
+выбранный Node Editor либо Socket catalog; comparison показывает maintained
+Blender reference и одну representative live Node. Standalone universal fields
+принадлежат `@ui/components` и не входят в этот каталог.
 
-На mobile breakpoint playground отдаёт viewport NodeEditor целиком. NodeEditor
-поддерживает single-touch pan и two-touch pinch; overview LOD скрывает только
-детали controls, не меняя NodeTree или renderer identity.
+На mobile breakpoint остаётся только активный preview. NodeEditor поддерживает
+single-touch pan и two-touch pinch; overview LOD скрывает только детали controls,
+не меняя NodeTree или renderer identity.

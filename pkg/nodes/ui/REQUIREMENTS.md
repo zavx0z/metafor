@@ -120,13 +120,14 @@ format и автоматическое размещение принадлежа
    их новая интеграция выполняется после отдельного переписывания layout format.
 3. Package-level tests и component playground являются acceptance этой задачи;
    exact root consumer compile gap фиксируется как вход следующего этапа.
-4. Dev-only component playground показывает fields standalone и те же instances
-   внутри Node, все socket presets/shapes, Links и containment. Он не заменяет
-   будущую product integration. На desktop dev-only `ReferenceSurface` показывает
-   maintained Blender screenshot рядом с live NodeEditor через тот же FlexBox
-   flow с CSS-style declarative form; asset и Surface не экспортируются
-   production package. На mobile reference и catalogs скрываются, оставляя
-   NodeEditor.
+4. Dev-only component playground является consumer общего `@ui/playground` и
+   показывает один выбранный раздел: полный Node Editor, каталог типов, форм и
+   состояний Socket либо сравнение. Standalone Fields принадлежат playground
+   `@ui/components`; здесь они видны только внутри Node. Раздел сравнения на
+   desktop показывает maintained Blender screenshot и одну representative live
+   Node в равных FlexBox slots; asset и Surface не экспортируются production
+   package. На mobile остаётся только активный preview, а у comparison скрывается
+   reference и сохраняется live Node.
 
 ## Источник терминов
 

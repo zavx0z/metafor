@@ -6,22 +6,50 @@ import {BLENDER_SOCKET_KINDS, BLENDER_SOCKET_SHAPES} from "../blender-node.ts"
 import {validatePositionedNodeTree} from "../node-editor.ts"
 import {
   SOCKET_CATALOG,
-  STANDALONE_FIELD_KINDS,
   createCatalogNodeTree,
   createNoiseComparisonTree,
 } from "./fixtures.ts"
+import {
+  NODE_PLAYGROUND_CATALOG,
+  NODE_PLAYGROUND_ROUTES,
+  nodePlaygroundGroup,
+  nodePlaygroundSections,
+} from "./routes.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 
 describe("Blender-like Node component playground", () => {
-  test("catalogs every universal field standalone and inside Nodes", () => {
-    expect(STANDALONE_FIELD_KINDS).toEqual(FIELD_KINDS)
+  test("imports universal fields only inside Node composition", async () => {
     const tree = createCatalogNodeTree()
     const insideKinds = new Set(tree.nodes.flatMap(({node}) => [
       ...(node.properties?.map(({kind}) => kind) ?? []),
       ...(node.parameters?.flatMap(({field}) => field === undefined ? [] : [field.kind]) ?? []),
     ]))
     for (const kind of FIELD_KINDS) expect(insideKinds.has(kind)).toBeTrue()
+    const surfaces = await Bun.file(join(playgroundRoot, "surfaces.ts")).text()
+    expect(surfaces).not.toContain("FieldCatalogSurface")
+    expect(surfaces).not.toContain("createStandaloneFields")
+  })
+
+  test("exposes distinct editor, Socket and comparison sections without a Field catalog", () => {
+    expect(NODE_PLAYGROUND_CATALOG.map(({route}) => route)).toEqual([
+      "editor/scene",
+      "socket/types",
+      "comparison/blender",
+    ])
+    expect(NODE_PLAYGROUND_ROUTES).toEqual([
+      "editor/scene",
+      "editor/frames",
+      "editor/links",
+      "socket/types",
+      "socket/shapes",
+      "socket/states",
+      "comparison/blender",
+    ])
+    expect(nodePlaygroundGroup("editor/scene")).toBe("editor")
+    expect(nodePlaygroundGroup("socket/types")).toBe("socket")
+    expect(nodePlaygroundGroup("comparison/blender")).toBe("comparison")
+    expect(nodePlaygroundSections("socket/types").map(({label}) => label)).toEqual(["Типы", "Формы", "Состояния"])
   })
 
   test("catalogs nineteen socket types, eight shapes and a valid positioned NodeTree", () => {
@@ -40,8 +68,8 @@ describe("Blender-like Node component playground", () => {
     const tree = createNoiseComparisonTree()
     expect(() => validatePositionedNodeTree(tree)).not.toThrow()
     expect(tree.frames).toHaveLength(0)
-    expect(tree.nodes.map(({node}) => node.id)).toEqual(["comparison-mapping", "comparison-noise"])
-    expect(tree.links).toHaveLength(1)
+    expect(tree.nodes.map(({node}) => node.id)).toEqual(["comparison-noise"])
+    expect(tree.links).toHaveLength(0)
     const noise = tree.nodes.find(({node}) => node.id === "comparison-noise")!
     expect(noise.node.parameters?.map(({label}) => label)).toEqual([
       "Vector",
@@ -51,13 +79,22 @@ describe("Blender-like Node component playground", () => {
       "Lacunarity",
       "Distortion",
     ])
-    expect(noise.sockets.find(({socket}) => socket.id === "vector")?.center).toEqual(tree.links[0]!.points.at(-1))
+    expect(noise.sockets.find(({socket}) => socket.id === "vector")?.center).toBeDefined()
   })
 
   test("uses one Card-free WebGPU component graph and disables HMR", async () => {
     const server = await Bun.file(join(playgroundRoot, "server.ts")).text()
-    expect(server).toContain("development: {hmr: false}")
-    expect(server).toContain("/node-system-dev/blender-reference.png")
+    const surfaces = await Bun.file(join(playgroundRoot, "surfaces.ts")).text()
+    expect(server).toContain("startPlaygroundServer")
+    expect(server).toContain('title: "Node Component Library"')
+    expect(server).toContain("/ui-dev/blender-4.5.5-reference.png")
+    expect(server).toContain("../../../ui/.agents/skills/ui-dev/assets/blender-4.5.5-reference.png")
+    expect(surfaces).toContain("/ui-dev/blender-4.5.5-reference.png")
+    expect(`${server}\n${surfaces}`).not.toContain(["", "node-system-dev"].join("/"))
+    expect(await Bun.file(join(
+      playgroundRoot,
+      "../../../ui/.agents/skills/ui-dev/assets/blender-4.5.5-reference.png",
+    )).exists()).toBeTrue()
     const build = await Bun.build({
       entrypoints: [join(playgroundRoot, "client.ts")],
       target: "browser",
@@ -77,10 +114,10 @@ describe("Blender-like Node component playground", () => {
       "Bulk",
     ]) expect(source).not.toContain(forbidden)
     expect(source).toContain("NodeEditor")
-    expect(source).toContain("NodeCanvas")
+    expect(source).toContain("PlaygroundNavigationSurface")
     expect(source).toContain("BlenderReferenceSurface")
-    expect(source).toContain("FieldCatalogSurface")
     expect(source).toContain("SocketCatalogSurface")
+    expect(source).not.toContain("FieldCatalogSurface")
   })
 
   test("keeps retained observation dev-only and routes exact browser evidence through UI dev", async () => {
@@ -103,8 +140,10 @@ describe("Blender-like Node component playground", () => {
     expect(production).not.toContain("__nodeComponentRetainedObserver")
     expect(registry.selectors["node-ui"]).toMatchObject({
       package: "@nodes/ui",
+      httpMarker: "<title>Node Component Library</title>",
       ready: {kind: "dataset", name: "nodeComponentPlayground", value: "ready"},
       canvas: {selector: "#node-component-canvas", capability: "webgpu", touch: true},
+      routes: {mode: "path", default: "/editor/scene"},
     })
     expect(browser).toContain('cdp.send("Target.createTarget", {url, background: true})')
     expect(browser).toContain('canvas.toDataURL("image/png")')

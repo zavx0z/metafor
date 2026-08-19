@@ -34,4 +34,11 @@ describe("@ui/playground package boundary", () => {
     expect(source).toContain("PlaygroundNavigationSurface")
     for (const forbidden of ["NodeEditor", "BlenderSocket", "Hamiltonian", "Bulk"]) expect(source).not.toContain(forbidden)
   })
+
+  test("lets a consumer add exact static assets without owning server mechanics", async () => {
+    const source = await Bun.file(join(root, "server.ts")).text()
+    expect(source).toContain("staticFiles")
+    expect(source).toContain("staticRoutes")
+    expect(source).toContain("development: {hmr: false}")
+  })
 })

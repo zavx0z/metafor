@@ -12,42 +12,6 @@ import {
 } from "../blender-node.ts"
 import type {PositionedNode, PositionedNodeTree} from "../node-editor.ts"
 
-export const STANDALONE_FIELD_KINDS = Object.freeze([
-  "text",
-  "number",
-  "boolean",
-  "enum",
-  "color",
-  "vector",
-  "rotation",
-  "matrix",
-  "reference",
-  "readonly",
-] as const)
-
-export function createStandaloneFields(
-  update: (id: string, value: unknown) => void,
-  activateReference: () => void,
-): readonly FieldDefinition[] {
-  return [
-    {id: "text", label: "Text", kind: "text", value: "Blender Node", onChange: (value) => update("text", value)},
-    {id: "number", label: "Float", kind: "number", value: 0.625, step: 0.025, onChange: (value) => update("number", value)},
-    {id: "slider", label: "Factor", kind: "number", presentation: "slider", value: 0.72, min: 0, max: 1, step: 0.01, onChange: (value) => update("slider", value)},
-    {id: "boolean", label: "Clamp", kind: "boolean", value: true, onChange: (value) => update("boolean", value)},
-    {id: "enum", label: "Operation", kind: "enum", value: "multiply", options: [
-      {value: "add", label: "Add"},
-      {value: "multiply", label: "Multiply"},
-      {value: "power", label: "Power"},
-    ], onChange: (value) => update("enum", value)},
-    {id: "color", label: "Color", kind: "color", value: {r: 0.18, g: 0.58, b: 0.92, a: 1}, onChange: (value) => update("color", value)},
-    {id: "vector", label: "Vector", kind: "vector", value: [1, 2, 3], onChange: (value) => update("vector", value)},
-    {id: "rotation", label: "Rotation", kind: "rotation", value: [0, 45, 90], unit: "°", onChange: (value) => update("rotation", value)},
-    {id: "matrix", label: "Matrix", kind: "matrix", value: [[1, 0], [0, 1]], onChange: (value) => update("matrix", value)},
-    {id: "reference", label: "Material", kind: "reference", value: {id: "material-1", label: "Material.001", kind: "material"}, onActivate: activateReference},
-    {id: "readonly", label: "Result", kind: "readonly", value: "Ready"},
-  ]
-}
-
 export const SOCKET_CATALOG = BLENDER_SOCKET_KINDS.map((kind, index): BlenderSocket => ({
   id: `catalog-${kind}`,
   label: kind,
@@ -57,14 +21,6 @@ export const SOCKET_CATALOG = BLENDER_SOCKET_KINDS.map((kind, index): BlenderSoc
 
 /** One representative live Node used only for same-scale Blender comparison. */
 export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
-  const mapping: BlenderNode = {
-    id: "comparison-mapping",
-    title: "Mapping",
-    category: "Vector",
-    headerColor: categoryHeaderColor("Vector"),
-    sockets: [socket("vector", "Vector", "output", "vector")],
-    collapsed: true,
-  }
   const noise = blenderNode("comparison-noise", "Noise Texture", "Texture", [
     {id: "dimensions", label: "Dimensions", compactLabel: "hidden", kind: "enum", value: "3d", options: [
       {value: "1d", label: "1D"},
@@ -95,23 +51,12 @@ export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, Ble
     socket("fac", "Fac", "output", "float"),
     socket("color", "Color", "output", "color"),
   ], false)
-  const nodes: PositionedNode<BlenderNode, BlenderSocket>[] = [
-    positionBlenderNode(mapping, {x: 10, y: 142, w: 120, h: 24}),
-    positionCatalogNode(noise, 180, 34, 260),
-  ]
+  const nodes: PositionedNode<BlenderNode, BlenderSocket>[] = [positionCatalogNode(noise, 120, 34, 260)]
   return {
     bounds: {x: 0, y: 0, w: 500, h: 350},
     frames: [],
     nodes,
-    links: [link(
-      "comparison-vector-noise",
-      "comparison-mapping",
-      "vector",
-      "comparison-noise",
-      "vector",
-      "vector",
-      nodes,
-    )],
+    links: [],
   }
 }
 

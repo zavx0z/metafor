@@ -14,7 +14,7 @@
       "httpMarker": "<title>Node Component Library</title>",
       "ready": {"kind": "dataset", "name": "nodeComponentPlayground", "value": "ready"},
       "canvas": {"selector": "#node-component-canvas", "capability": "webgpu", "touch": true},
-      "routes": {"mode": "none", "default": "/"},
+      "routes": {"mode": "path", "default": "/editor/scene"},
       "stateKey": "node-ui",
       "logName": "node-ui.log"
     },
