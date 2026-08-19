@@ -102,9 +102,10 @@ standalone input examples и только импортирует components в N
 localization/mobile proof остаются текущим UI-001.3.
 
 [`UI-003 — Создать общий skill разработки UI и Node playground`](tasks/UI-003.md)
-переносит node-system-dev в `pkg/ui`, добавляет package-aware lifecycle dispatcher,
-background exact-CDP capture и visual/performance profiling по законам
-`$metafor-dev`. Implementation ведёт прежний skill-author чат в отдельном worktree.
+находится в `REVIEW`: единый `ui-dev` перенесён в `pkg/ui`, registry-driven
+lifecycle, background exact-CDP capture и structured profiling доказаны на
+Node UI и Components. Production consumers не менялись; Node asset route
+остаётся integration gate соответствующей Node-задачи.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
@@ -313,7 +314,7 @@ production удаляет `console.debug` и не публикует карту.
 | NODES-018 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-018.md) |
 | NODES-019 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-019.md) |
 | UI-001 | WAITING     | NODES-018 | [Открыть](tasks/UI-001.md) |
-| UI-003 | IN_PROGRESS | нет       | [Открыть](tasks/UI-003.md) |
+| UI-003 | REVIEW      | нет       | [Открыть](tasks/UI-003.md) |
 | NODES-017 | WAITING     | NODES-018, NODES-019, UI-001, UI-003 | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |

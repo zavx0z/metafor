@@ -1,4 +1,0 @@
-interface:
-  display_name: "Node System Development"
-  short_description: "Develop and visually debug Blender-based nodes"
-  default_prompt: "Use $node-system-dev to develop and visually verify the @nodes/ui component playground."

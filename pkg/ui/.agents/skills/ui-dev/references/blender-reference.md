@@ -17,7 +17,7 @@ Manual.
   Markdown mirror; verify every normative conclusion against the official
   rendered Blender 4.5 Manual, API, or source.
 - Maintained owner screenshot:
-  `pkg/nodes/.agents/skills/node-system-dev/assets/blender-4.5.5-reference.png`,
+  `pkg/ui/.agents/skills/ui-dev/assets/blender-4.5.5-reference.png`,
   SHA-256 `a493e1c03591800bb05644963369fca49669aa27f98e67a9971fd91735f2531d`.
 - Current NODES-017 owner screenshot and research, while that task exists:
   `project/artifacts/NODES-017/blender-4.5.5-reference.png` and
@@ -94,3 +94,6 @@ A comparison record includes Blender build/source revision, MetaFor commit,
 reference/current image paths, target ID and URL, viewport/DPR, per-row result,
 and remaining owner decision. Automated captures may populate evidence but
 cannot mark owner acceptance.
+
+This reference applies only when `@nodes/ui` Blender parity is in scope. Ordinary
+Elements, Components, and shared playground work should not load it.
