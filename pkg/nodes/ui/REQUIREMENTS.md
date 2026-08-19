@@ -6,25 +6,37 @@ format и автоматическое размещение принадлежа
 
 ## Публичный словарь
 
-1. Единственный публичный словарь: `NodeTree → Node → Socket → Link`.
+1. Единственный публичный словарь:
+   `NodeTree → Frame / Node → Parameter → Socket → Link`.
    Интерактивный компонент называется `NodeEditor`, read-only — `NodeCanvas`.
 2. `Socket` является видимым input/output/bidirectional endpoint. `Link`
    соединяет exact sockets. Port/Edge остаются только терминами старого layout
    и не входят в новый component API.
-3. Node содержит title, sockets, Properties и Parameters. `Fact` и `Card` не
-   являются сущностями новой библиотеки.
-4. Container Node задаёт visual containment; generated boundary crossing
-   является geometry, а не domain Gateway.
+3. `Frame` является отдельным visual owner вложенности. Node ссылается на него
+   через `frameId`; обычная Node не может исполнять роль Frame.
+4. `Parameter` является устойчивой строкой/identity внутри Node и владеет одним
+   universal `Field`. `Socket` может ссылаться на Parameter через
+   `parameterId`, но не владеет и не дублирует его Field.
+5. У одного Parameter может быть один Socket слева, один справа либо оба
+   одновременно. Это разные exact endpoints с разными IDs и общей строкой
+   Parameter.
+6. Component API допускает только visual sides `left | right`. `direction`
+   (`input | output | bidirectional`) является независимой capability и не
+   выводится из стороны. Fixed/adaptive выбор стороны принадлежит layout.
+7. Node также может содержать Properties, не являющиеся connection Parameter.
+   `Fact`, `Card`, Port и Edge не являются сущностями новой библиотеки.
 
 ## Component contracts
 
-1. `NodeEditor<TNode, TSocket, TLink>` и read-only `NodeCanvas` принимают независимые typed
-   `NodeRenderer`, `SocketRenderer`, `LinkRenderer` и `PositionedNodeTree`.
+1. `NodeEditor` и read-only `NodeCanvas` принимают независимые typed
+   `FrameRenderer`, `NodeRenderer`, `SocketRenderer`, `LinkRenderer` и
+   `PositionedNodeTree`.
 2. Renderer contracts сохраняют consumer fields и не импортируют старые
    `NodeSystemDocument`, Card model/layout/metrics, HUD, Hamiltonian или product
    code.
-3. Node renderer владеет intrinsic measurement и internal slots. Socket type
-   preset задаёт только имя типа, shape/color и optional default field.
+3. Node renderer владеет intrinsic measurement и Parameter slots. Socket type
+   preset задаёт только имя типа, shape/color и endpoint presentation; default
+   Field принадлежит Parameter.
 4. Consumer может зарегистрировать собственный Node/Socket/Link renderer без
    изменения NodeEditor или central switch.
 5. Поля внутри Node и standalone controls вызывают один renderer из
@@ -42,15 +54,16 @@ format и автоматическое размещение принадлежа
    `diamond-dot`.
 3. Type color является presentation preset и может быть переопределён consumer.
    Link и связанные sockets одного типа получают одну color identity.
-4. Input socket может показать default field; output socket не превращается в
-   field и остаётся connection endpoint.
+4. Unconnected Parameter может показать default Field независимо от того,
+   находится его Socket слева, справа или с обеих сторон. Connected state не
+   меняет Parameter identity.
 
 ## View и compositing
 
 1. NodeEditor поддерживает fit, pan, zoom, culling и selection независимо от
    конкретного renderer preset.
-2. Container background рисуется под Links, его chrome и child Nodes — над
-   Links. Link stroke доходит до exact socket center.
+2. Frame background рисуется под Links, его label/chrome и child Nodes — над
+   Links. Link stroke доходит до exact Socket center.
 3. Screen-visible minima strokes/sockets являются renderer policy и не
    возвращаются в geometry.
 4. Controlled selection и canvas transform сообщаются consumer callback-ами;

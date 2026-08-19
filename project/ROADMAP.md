@@ -225,6 +225,13 @@ controls, Links и interaction states проверяются side-by-side при
 responsive Flex composition, touch pan/pinch и достаточные hit targets
 проверяются отдельно от desktop.
 
+Техническая component model расширяет Blender: одна Parameter row может иметь
+два разных exact Socket — слева и справа — при одном `parameterId` и одном
+universal Field. Visual side ограничен `left/right`, но не определяет
+`input/output/bidirectional` capability. Fixed-вариант layout может закрепить
+input слева и output справа; adaptive-вариант выбирает разрешённую сторону, не
+дублируя Parameter и не меняя endpoint identity.
+
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
 signaling, secrets или authority и не заменяет существующие WSS, MessagePort,

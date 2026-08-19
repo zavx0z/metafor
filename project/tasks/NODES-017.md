@@ -21,6 +21,10 @@
   ортогональные Link routes с углами и проектный шрифт сохраняются. Обязательны
   Blender-подобная визуальная дисциплина, первый класс `Frame` для вложенности
   Node и полноценное использование на мобильном устройстве.
+* Владелец уточнил technical extension относительно Blender: component Node
+  имеет только стороны `left/right`, но один Parameter может владеть Socket с
+  каждой стороны одновременно. `direction` endpoint не определяется стороной;
+  fixed/adaptive placement остаётся законом layout.
 * На машине установлен Blender `4.5.5 LTS`. Создан изолированный reference
   `/tmp/blender-node-reference.blend` с Texture Coordinate, Mapping, Noise
   Texture, Color Ramp, Principled BSDF, Material Output, Links и Frame.
@@ -44,11 +48,13 @@
 но не притворяется Node с header/body/sockets. Вся child-композиция остаётся на
 общем Flex.
 
-### NODES-017.3 — Воспроизвести Socket rows и controls
+### NODES-017.3 — Разделить Parameter и двусторонние Socket
 
-Согласовать точный row rhythm, label alignment, input default values,
-output labels, connected/disabled states, Socket sizes/shapes и UI controls.
-Если Flex не выражает нужный layout, расширять общий Flex и его tests.
+Добавить first-class Parameter с одним universal Field и ссылками Socket через
+`parameterId`. Одна Flex row поддерживает left Socket, center Field/label,
+right Socket или оба endpoint одновременно. `top/bottom` удалить из component
+API. Затем согласовать row rhythm, connected/disabled states, Socket
+sizes/shapes и controls. Если Flex не выражает layout, расширять общий Flex.
 
 ### NODES-017.4 — Довести ортогональные Links и interaction states
 
@@ -89,6 +95,8 @@ console, DOM и visual matrix, затем оставить contour владел�
     вложенности Node.
 11. Mobile viewport использует тот же component API и Flex composition, а не
     отдельную урезанную Node implementation.
+12. Parameter рисуется один раз; его left/right Socket не копируют Field и не
+    меняют identity Parameter.
 
 ## Границы
 
@@ -96,6 +104,8 @@ console, DOM и visual matrix, затем оставить contour владел�
   пропорции, состояния и visual tokens.
 * Не переписывать layout format и не мигрировать Hamiltonian в этой задаче.
 * Не возвращать Card/HUD/NodeSystemSurface.
+* Не выводить `direction` Socket из `left/right` и не переносить layout policy
+  внутрь renderer.
 * Не закрывать задачу по automated screenshot без визуального сравнения и
   owner acceptance.
 
