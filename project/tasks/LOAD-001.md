@@ -1748,10 +1748,12 @@ controller и запускает `@hamiltonian/release` без знания pack
 cache policy или RPC. Release env `main/service` разворачивает сменяемые
 Window/Service Worker contours и подключает самостоятельные internal packages.
 
-Startup, release и internal code восстанавливаются из origin-bound caches;
-неуспешный response не становится executable entry, повреждённая exact entry
-удаляется с возможностью retry. Initial loading отделена от последующего
-versioned update, а prototype source не импортируется и не переносится.
+Startup, release и internal code восстанавливаются из origin-bound caches.
+Неуспешный HTTP response не кешируется и допускает повторный сетевой запрос;
+повреждённая первая exact service entry завершает startup fail-closed без
+автоматического удаления либо fallback ко второй entry. Initial loading
+отделена от последующего versioned update, а prototype source не импортируется
+и не переносится.
 
 Проверки текущего результата:
 
