@@ -224,10 +224,11 @@ slot и сопоставимый видимый масштаб. Полная Fra
 общий Blender renderer и universal compact Field presentation, затем повторить
 кадр. `Switcher` для `Normalize` сохранить по прямому решению владельца.
 
-`IN_PROGRESS`: общий порядок rows должен быть: right-side loose Socket,
-properties, Parameters, left-side loose Socket. Он не связывает `direction` со
-стороной. Semantic label Field остаётся обязательным, а компактный renderer
-получает универсальное явное скрытие visual label без Node-specific control.
+`COMPLETE`: result commit `3c2a955d3` ввёл общий порядок right-side loose Socket,
+Properties, Parameters, left-side loose Socket без связи side с `direction`.
+Universal compact Field сохраняет semantic label, но может отдать control всю
+row; `3D`/`fBM` теперь полноширинные. Texture header получил brown preset.
+Focused tests 16/16, три typechecks и exact live canvas зелёные.
 
 #### NODES-017.8.3 — Согласовать размер и положение Socket с reference
 
@@ -238,9 +239,9 @@ reference rows. После NODES-017.8.2 измерить исправленны
 результатом своей Parameter либо loose Socket Flex row и лежит на border Node,
 чтобы половина shape находилась снаружи. Fixture-specific offsets запрещены.
 
-`READY`: vertical center нельзя оценивать до исправления общего порядка rows в
-NODES-017.8.2; затем этот срез меняет только common Socket presentation и
-проверки exact row/border centers.
+`IN_PROGRESS`: исправленный row order позволяет измерить reference/live Socket.
+Срез меняет только common Socket presentation, comparison fit и проверки exact
+row/border centers.
 
 #### NODES-017.8.4 — Согласовать collapse chevron и title в header
 
@@ -338,10 +339,8 @@ connected Field не меняются. Center alignment для такого со
 
 ## Состояние
 
-`IN_PROGRESS`: равный comparison построен, но выявил конкретные renderer-дефекты.
-Текущий срез NODES-017.8.2 исправляет header, Blender-порядок loose Socket и
-полноширинные enum controls, сохраняя `Switcher` как принятую project divergence.
-Следующий NODES-017.8.3 согласует общие size и centers Socket с тем же reference.
+`IN_PROGRESS`: row order, texture header и полноширинные enums исправлены.
+Текущий NODES-017.8.3 согласует общие size и centers Socket с тем же reference.
 NODES-017.8.4 сохраняет rounded header, но исправляет collapse chevron и title
 alignment. NODES-017.8.5 переносит selection с border на четырёхстороннюю тень
 в оттенке header. NODES-017.8.6 устраняет пустые Node при zoom-out без отказа от

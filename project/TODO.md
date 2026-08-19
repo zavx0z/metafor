@@ -76,9 +76,9 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 исправляет отклонённый владельцем visual result NODES-016. NODES-017.8.1 уже
 поставила одну live Noise-подобную Node рядом с Blender reference в равном
 Flex slot и сохранила полную Frame-сцену отдельно. Текущий срез NODES-017.8.2
-исправляет выявленные в честном сравнении texture header, Blender-порядок loose
+исправил выявленные в честном сравнении texture header, Blender-порядок loose
 Socket и полноширинные enum controls. Boolean остаётся общим `Switcher` по
-решению владельца. Следующий NODES-017.8.3 согласует общий размер Socket и его
+решению владельца. Текущий NODES-017.8.3 согласует общий размер Socket и его
 exact center на border той же Flex row, без fixture offsets. NODES-017.8.4
 сохраняет выбранный владельцем rounded header, но заменяет текстовый collapse
 glyph и выравнивает chevron/title по reference. NODES-017.8.5 делает shadow
