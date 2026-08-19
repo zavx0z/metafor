@@ -5,6 +5,7 @@ import {fileURLToPath} from "node:url"
 import {getFixtureFamily, PLAYGROUND_FIXTURES} from "./fixtures.ts"
 import {PLAYGROUND_POLICIES} from "./policy-registry.ts"
 import {runPlaygroundLayout} from "./runner.ts"
+import {layoutPortLabels} from "./svg.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 const layoutRoot = fileURLToPath(new URL("..", import.meta.url))
@@ -14,13 +15,13 @@ const BASELINES = {
     direction: "RIGHT",
     bounds: {x: 0, y: 0, width: 632, height: 446},
     resultHash: "78d036df9a386533218936d0f2366e32f233f28a4f28d892d17bf1bb0fb4c844",
-    svgHash: "af3cdf224dd87c2591fae5c9ff93c56b87321b741f863f3bb98431406ba9da4b",
+    svgHash: "9f44acb2779ac8c222e37108de0c05d7001e2d736935cfaea327ceed21a7aaca",
   },
   "fixed-baseline-down": {
     direction: "DOWN",
     bounds: {x: 0, y: 0, width: 396, height: 830},
     resultHash: "bb8fd47580182a40198e6aff388dcf7d26b28651ed9d592fa825efc02b4929c1",
-    svgHash: "9d952e881efe4ca7d666f5ec18dec919a431bde018a4b34fee3a889d2bc9a365",
+    svgHash: "598d2e75b43b1390696c75b645eb4b626748b0af48631b1a58ed0887db1ba4e2",
   },
 } as const
 
@@ -30,14 +31,14 @@ const ADAPTIVE_BASELINES = {
     side: "EAST",
     bounds: {x: 0, y: 0, width: 540, height: 330},
     resultHash: "908e21c560fc58850a831e4b865123d650e4d1b6c72917476d23ed033aee115a",
-    svgHash: "db1a372da49a6913619ba33a6e009eb65a689358188ffabe61565385c0795e2a",
+    svgHash: "1584ac516c98b3c36491348387c7fb874be4089c7cf11e3465992583834e1ab1",
   },
   "adaptive-shared-down": {
     direction: "DOWN",
     side: "WEST",
     bounds: {x: 0, y: 0, width: 280, height: 400},
     resultHash: "5c50a710cb8f79b6c42cc79b9eb7ea219798e1700f2606952bc97f8a4899af3d",
-    svgHash: "0a7f3453fe80baf7a70d1510ac9917dbfdce32b56aad637765cee6eaf0d936bc",
+    svgHash: "6fad4af5516405f8f87e1e5155685b1cb06ab7d7dba758d713c8b5ebc795c249",
   },
 } as const
 
@@ -121,6 +122,41 @@ describe("dev-only nodes layout playground", () => {
     }
   })
 
+  test("places deterministic port labels outside route bounds with exact non-overlapping leaders", () => {
+    for (const fixture of PLAYGROUND_FIXTURES) {
+      const policy = fixture.family === "fixed-baseline" ? "fixed" : "adaptive"
+      const run = runPlaygroundLayout(policy, fixture.graph)
+      const labels = layoutPortLabels(run.result)
+      const repeated = layoutPortLabels(run.result)
+      const portById = new Map(run.result.ports.map((port) => [port.id, port]))
+
+      expect(repeated).toEqual(labels)
+      expect(labels).toHaveLength(run.result.ports.length)
+      expect(run.svg).toContain("data-kind=\"port-label\"")
+      expect(run.svg).toContain("class=\"port-label-leader\"")
+
+      for (const label of labels) {
+        const port = portById.get(label.portId)
+        expect(port).toBeDefined()
+        expect(label.leader.startPoint).toEqual({x: port!.x, y: port!.y})
+        expect(label.leader.endPoint.y).toBe(label.box.y + label.box.height / 2)
+        if (label.side === "WEST") {
+          expect(label.box.x + label.box.width).toBeLessThan(run.result.bounds.x)
+          expect(label.leader.endPoint.x).toBe(label.box.x + label.box.width)
+        } else {
+          expect(label.box.x).toBeGreaterThan(run.result.bounds.x + run.result.bounds.width)
+          expect(label.leader.endPoint.x).toBe(label.box.x)
+        }
+      }
+
+      for (let left = 0; left < labels.length; left += 1) {
+        for (let right = left + 1; right < labels.length; right += 1) {
+          expect(overlaps(labels[left]!.box, labels[right]!.box)).toBeFalse()
+        }
+      }
+    }
+  })
+
   test("keeps all playground sources outside production exports and free of forbidden imports", async () => {
     const packageJson = await Bun.file(join(layoutRoot, "package.json")).json() as {
       exports?: Record<string, unknown>
@@ -183,6 +219,16 @@ function withoutViewport(graph: (typeof PLAYGROUND_FIXTURES)[number]["graph"]): 
 function hash(value: unknown): string {
   const bytes = typeof value === "string" ? value : JSON.stringify(value)
   return new Bun.CryptoHasher("sha256").update(bytes).digest("hex")
+}
+
+function overlaps(
+  left: Readonly<{x: number; y: number; width: number; height: number}>,
+  right: Readonly<{x: number; y: number; width: number; height: number}>,
+): boolean {
+  return left.x < right.x + right.width
+    && left.x + left.width > right.x
+    && left.y < right.y + right.height
+    && left.y + left.height > right.y
 }
 
 async function sourceFiles(root: string): Promise<string[]> {

@@ -6,11 +6,25 @@ import type {
 
 const SVG_MARGIN = 36
 const EPSILON = 0.001
+const PORT_LABEL_CHAR_WIDTH = 6.2
+const PORT_LABEL_GAP = 6
+const PORT_LABEL_GUTTER = 24
+const PORT_LABEL_HEIGHT = 22
+const PORT_LABEL_HORIZONTAL_PADDING = 8
+const PORT_LABEL_MIN_WIDTH = 80
 
 export type PlaygroundGateway = Readonly<{
   edgeId: string
   nodeId: string
   point: LayoutPoint
+}>
+
+export type PlaygroundPortLabel = Readonly<{
+  portId: string
+  side: "WEST" | "EAST"
+  text: string
+  box: Readonly<{x: number; y: number; width: number; height: number}>
+  leader: Readonly<{startPoint: LayoutPoint; endPoint: LayoutPoint}>
 }>
 
 export function renderLayoutSvg(
@@ -29,11 +43,23 @@ export function renderLayoutSvg(
   const ports = [...result.ports].sort(compareById)
   const edges = [...result.edges].sort(compareById)
   const gateways = findGatewayPoints(graph, result)
+  const portLabels = layoutPortLabels(result)
+  const visibleBounds = portLabels.reduce((bounds, {box}) => ({
+    left: Math.min(bounds.left, box.x),
+    top: Math.min(bounds.top, box.y),
+    right: Math.max(bounds.right, box.x + box.width),
+    bottom: Math.max(bounds.bottom, box.y + box.height),
+  }), {
+    left: result.bounds.x,
+    top: result.bounds.y,
+    right: result.bounds.x + result.bounds.width,
+    bottom: result.bounds.y + result.bounds.height,
+  })
   const viewBox = [
-    result.bounds.x - SVG_MARGIN,
-    result.bounds.y - SVG_MARGIN,
-    result.bounds.width + SVG_MARGIN * 2,
-    result.bounds.height + SVG_MARGIN * 2,
+    visibleBounds.left - SVG_MARGIN,
+    visibleBounds.top - SVG_MARGIN,
+    visibleBounds.right - visibleBounds.left + SVG_MARGIN * 2,
+    visibleBounds.bottom - visibleBounds.top + SVG_MARGIN * 2,
   ].map(formatNumber).join(" ")
 
   const edgeMarkup = edges.map((edge) => {
@@ -66,16 +92,19 @@ export function renderLayoutSvg(
     `<rect class="gateway" data-edge-id="${escapeXml(gateway.edgeId)}" data-node-id="${escapeXml(gateway.nodeId)}" x="${formatNumber(gateway.point.x - 5)}" y="${formatNumber(gateway.point.y - 5)}" width="10" height="10"/>`).join("")
 
   const portMarkup = ports.map((port) => {
-    const side = port.side
-    const labelOffset = side === "WEST" ? -10 : 10
-    const anchor = side === "WEST" ? "end" : "start"
     return [
-      `<g class="port" data-port-id="${escapeXml(port.id)}" data-side="${side}">`,
+      `<g class="port" data-port-id="${escapeXml(port.id)}" data-side="${port.side}">`,
       `<circle cx="${formatNumber(port.x)}" cy="${formatNumber(port.y)}" r="6"/>`,
-      `<text x="${formatNumber(port.x + labelOffset)}" y="${formatNumber(port.y - 9)}" text-anchor="${anchor}">${escapeXml(port.id)} · ${side}</text>`,
       "</g>",
     ].join("")
   }).join("")
+  const portLabelMarkup = portLabels.map(({portId, side, text, box, leader}) => [
+    `<g class="port-label" data-kind="port-label" data-label-port-id="${escapeXml(portId)}" data-side="${side}" data-label-x="${formatNumber(box.x)}" data-label-y="${formatNumber(box.y)}" data-label-width="${formatNumber(box.width)}" data-label-height="${formatNumber(box.height)}">`,
+    `<line class="port-label-leader" x1="${formatNumber(leader.startPoint.x)}" y1="${formatNumber(leader.startPoint.y)}" x2="${formatNumber(leader.endPoint.x)}" y2="${formatNumber(leader.endPoint.y)}"/>`,
+    `<rect class="port-label-box" x="${formatNumber(box.x)}" y="${formatNumber(box.y)}" width="${formatNumber(box.width)}" height="${formatNumber(box.height)}" rx="5"/>`,
+    `<text class="port-label-text" x="${formatNumber(box.x + PORT_LABEL_HORIZONTAL_PADDING)}" y="${formatNumber(box.y + 15)}">${escapeXml(text)}</text>`,
+    "</g>",
+  ].join("")).join("")
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${escapeXml(title)}" data-direction="${result.direction}" viewBox="${viewBox}">`,
@@ -83,16 +112,52 @@ export function renderLayoutSvg(
     "<defs>",
     "<marker id=\"arrow\" markerWidth=\"8\" markerHeight=\"8\" refX=\"7\" refY=\"4\" orient=\"auto\" markerUnits=\"strokeWidth\"><path d=\"M0,0 L8,4 L0,8 Z\"/></marker>",
     "<style>",
-    ".bounds{fill:#08111d;stroke:#3f566f;stroke-dasharray:8 6;stroke-width:1}.edge polyline{fill:none;stroke:#7dd3fc;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}.edge text{fill:#bae6fd;font:12px ui-monospace,monospace;paint-order:stroke;stroke:#08111d;stroke-width:4}.bend{fill:#08111d;stroke:#fbbf24;stroke-width:2}.gateway{fill:#fb7185;stroke:#fff1f2;stroke-width:1}.node rect{stroke-width:2}.node.compound rect{fill:#162536;fill-opacity:.72;stroke:#64748b;stroke-dasharray:7 4}.node.leaf rect{fill:#172f46;stroke:#60a5fa}.node-id{fill:#f8fafc;font:600 13px ui-monospace,monospace}.node-size{fill:#94a3b8;font:11px ui-monospace,monospace}.port circle{fill:#f8fafc;stroke:#0ea5e9;stroke-width:3}.port text{fill:#e0f2fe;font:10px ui-monospace,monospace;paint-order:stroke;stroke:#08111d;stroke-width:3}",
+    ".bounds{fill:#08111d;stroke:#3f566f;stroke-dasharray:8 6;stroke-width:1}.edge polyline{fill:none;stroke:#7dd3fc;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}.edge text{fill:#bae6fd;font:12px ui-monospace,monospace;paint-order:stroke;stroke:#08111d;stroke-width:4}.bend{fill:#08111d;stroke:#fbbf24;stroke-width:2}.gateway{fill:#fb7185;stroke:#fff1f2;stroke-width:1}.node rect{stroke-width:2}.node.compound rect{fill:#162536;fill-opacity:.72;stroke:#64748b;stroke-dasharray:7 4}.node.leaf rect{fill:#172f46;stroke:#60a5fa}.node-id{fill:#f8fafc;font:600 13px ui-monospace,monospace}.node-size{fill:#94a3b8;font:11px ui-monospace,monospace}.port circle{fill:#f8fafc;stroke:#0ea5e9;stroke-width:3}.port-label-leader{stroke:#64748b;stroke-width:1.5;stroke-dasharray:4 3}.port-label-box{fill:#0b1725;stroke:#64748b;stroke-width:1}.port-label-text{fill:#e0f2fe;font:10px ui-monospace,monospace}",
     "</style>",
     "</defs>",
     `<rect class="bounds" data-kind="layout-bounds" x="${formatNumber(result.bounds.x)}" y="${formatNumber(result.bounds.y)}" width="${formatNumber(result.bounds.width)}" height="${formatNumber(result.bounds.height)}"/>`,
     `<g data-layer="edges">${edgeMarkup}</g>`,
     `<g data-layer="nodes">${nodeMarkup}</g>`,
     `<g data-layer="gateways">${gatewayMarkup}</g>`,
-    `<g data-layer="ports">${portMarkup}</g>`,
+    `<g data-layer="ports">${portMarkup}${portLabelMarkup}</g>`,
     "</svg>",
   ].join("")
+}
+
+/** Places debug labels outside route bounds and attaches each with one straight leader. */
+export function layoutPortLabels(result: LayoutResult): readonly PlaygroundPortLabel[] {
+  return (["WEST", "EAST"] as const).flatMap((side) => {
+    const ports = result.ports
+      .filter((port) => port.side === side)
+      .sort((left, right) => left.y - right.y || compareById(left, right))
+    let nextTop = result.bounds.y
+    return ports.map((port): PlaygroundPortLabel => {
+      const text = `${port.id} · ${side}`
+      const width = Math.max(
+        PORT_LABEL_MIN_WIDTH,
+        text.length * PORT_LABEL_CHAR_WIDTH + PORT_LABEL_HORIZONTAL_PADDING * 2,
+      )
+      const y = Math.max(port.y - PORT_LABEL_HEIGHT / 2, nextTop)
+      nextTop = y + PORT_LABEL_HEIGHT + PORT_LABEL_GAP
+      const x = side === "WEST"
+        ? result.bounds.x - PORT_LABEL_GUTTER - width
+        : result.bounds.x + result.bounds.width + PORT_LABEL_GUTTER
+      const box = {x, y, width, height: PORT_LABEL_HEIGHT}
+      return {
+        portId: port.id,
+        side,
+        text,
+        box,
+        leader: {
+          startPoint: {x: port.x, y: port.y},
+          endPoint: {
+            x: side === "WEST" ? box.x + box.width : box.x,
+            y: box.y + box.height / 2,
+          },
+        },
+      }
+    })
+  })
 }
 
 export function findGatewayPoints(graph: LayoutGraph, result: LayoutResult): readonly PlaygroundGateway[] {

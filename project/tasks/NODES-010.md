@@ -130,7 +130,7 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 | NODES-010.5 | Подключить adaptive через measured и Card adapters | CLOSED |
 | NODES-010.6 | Разделить fixed/adaptive Worker и bundle entrypoints | CLOSED |
 | NODES-010.7 | Перевести существующий Card consumer без изменения поведения | CLOSED |
-| NODES-010.8 | Доказать adapters, performance, playground и package boundary · `/root/nodes_010_8` | IN_PROGRESS |
+| NODES-010.8 | Доказать adapters, performance, playground и package boundary · `/root/nodes_010_8` | REVIEW |
 
 Каждый срез получает отдельный result checkpoint. `.2` и `.3` начинаются после
 `.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` и `.6` независимо
@@ -317,10 +317,11 @@ lifecycle не менялись. Compile gate закрыт; финальный `
 * Четыре SVG evidence и две browser screenshots показывают actual public
   fixed/adaptive policies в `RIGHT`/`DOWN`. Отдельный dev-only target дал по две
   SVG-панели, status `Compared RIGHT / DOWN`, `canvasCount=0`, без UI errors;
-  console capture — `0` entries. Временная вкладка и server закрыты. Это
-  isolated SVG proof, не WebGPU/Hamiltonian owner acceptance.
-* `bun test pkg/nodes`: `125 pass`, `0 fail`; focused bundle/playground:
-  `12/12`; focused Hamiltonian lifecycle/transition/browser build/host:
+  port labels находятся в collision-free внешних gutters и соединены exact
+  leaders; console capture — `0` entries. Временная вкладка и server закрыты.
+  Это isolated SVG proof, не WebGPU/Hamiltonian owner acceptance.
+* `bun test pkg/nodes`: `126 pass`, `0 fail`; focused bundle/playground:
+  `13/13`; focused Hamiltonian lifecycle/transition/browser build/host:
   `94/94`. Typecheck всех node packages и playground, TypeDoc, canonical root
   `bun run typecheck`, direct root `tsc` и `git diff --check` прошли.
 * Открытый внешний gate полного Hamiltonian suite: `292 pass`, `8 fail`,
@@ -346,6 +347,29 @@ resolved sides, comparison status и отсутствие Canvas/WebGPU подт
 детерминированное collision-free размещение с точной привязкой к port, после
 чего SVG hashes, screenshots, DOM/console evidence и связанные artifacts
 пересобираются. Layout policies, results и benchmark не меняются.
+
+### Correction NODES-010.8
+
+* SVG renderer детерминированно группирует port labels по resolved side и
+  упорядочивает их по `port.y`, затем semantic ID. Opaque boxes располагаются в
+  отдельных WEST/EAST gutters вне layout bounds; один прямой debug leader идёт
+  от exact port center к краю своей box. Этот leader не участвует в routing и
+  не меняет layout input/result.
+* Structural regression на всех четырёх fixtures подтверждает повторяемость,
+  отсутствие пересечения любых label boxes, нахождение boxes вне route bounds
+  и точные начала/окончания leaders. Frozen input/result hashes, benchmark и
+  десять package bundles не изменились; обновились только SVG/browser evidence.
+* Повторная browser-проверка fixed/adaptive `RIGHT`/`DOWN` получила
+  `overlapPairs=[]`, `outsideRouteBounds=true`, `exactLeaders=true` для каждой
+  панели, сохранила adaptive `source/shared EAST/WEST`, status
+  `Compared RIGHT / DOWN`, `canvasCount=0`, без UI errors и console entries.
+  Снимки визуально соответствуют этим данным; временная вкладка и server
+  закрыты, managed contour сохранён.
+* Focused package/bundle/playground: `13 pass`, `0 fail`; полный
+  `bun test pkg/nodes`: `126 pass`, `0 fail`; typecheck `nodes`,
+  `@nodes/layout`, `@nodes/ui`, `@nodes/hud` и playground, а также
+  `git diff --check` прошли. `.8` возвращён в `REVIEW`; ранее записанный внешний
+  full-Hamiltonian artifact gate не расширялся и не изменялся.
 
 ## Поведение процесса
 

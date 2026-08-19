@@ -82,3 +82,7 @@
    sides, nodes/compounds, edges/bends/gateways, bounds и policy diagnostics для
    `RIGHT`/`DOWN`. Его SVG и browser screenshot доказывают только этот
    изолированный путь и не являются WebGPU или product acceptance.
+4. Debug label каждого port располагается детерминированно вне route bounds и
+   соединяется одним прямым leader с exact port center. Label boxes не
+   пересекаются между собой или semantic routes; leader не является layout
+   route и не меняет policy input/result geometry.

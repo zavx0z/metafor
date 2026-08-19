@@ -77,6 +77,9 @@ bun project/artifacts/NODES-010/bundles.ts
 * Фактическое наблюдение: все четыре SVG созданы actual public policies и
   визуально содержат ожидаемые слои. Fixed result hashes совпали с frozen
   baselines; adaptive shared port выбран `EAST` в `RIGHT` и `WEST` в `DOWN`.
+  Port labels детерминированно упакованы во внешние WEST/EAST gutters: boxes
+  не пересекаются между собой или route bounds, один прямой leader начинается
+  в exact port center и заканчивается на краю собственной box.
 * Чувствительные сведения: отсутствуют.
 
 ```bash
@@ -85,13 +88,14 @@ bun project/artifacts/NODES-010/generate-svg-evidence.ts
 
 | SVG | SHA-256 |
 | --- | --- |
-| `fixed-right.svg` | `74f285a031c17bc185df52c0e3585118d81a3b60a6d62094f196dd8710194b08` |
-| `fixed-down.svg` | `6e015db009a1e9fe3b154319e9c4562a73db8f2a6be014050a70d89f50e0c900` |
-| `adaptive-right.svg` | `8bb338ee361160901bc20fc6a84c1b1045661b51794570f3e5dc8148c6b5b85e` |
-| `adaptive-down.svg` | `1b5c4b5dfd83f08e0d2df68c289a31c7c93a379366999e0c54f898133bae63cb` |
+| `fixed-right.svg` | `6363afefe16d307a8a65fb8d8aaa5bc7bb03c2b8ee9aa771ce179710726e8ca3` |
+| `fixed-down.svg` | `e625b9c548e6bc7a624b381c0b54925a3aa191ca8506ea8c1ea9e32dda7efaf6` |
+| `adaptive-right.svg` | `53c8b5424ceadad921425ebcb3fdd9e101db04f7618d2e7a07653a458e0a6667` |
+| `adaptive-down.svg` | `59fb7af2fa2af15c49fc6c2a4d3b0826c533f4f45b8e58e390110fe4c575c237` |
 
 Exact input/result/SVG hashes и policy diagnostics находятся в
-`svg-evidence.json`.
+`svg-evidence.json` (SHA-256
+`3be3747e7bea11230d8c61b116a69c848e57f50cd8468f97e0089df7afe9a6f4`).
 
 ## Browser screenshot
 
@@ -100,26 +104,29 @@ Exact input/result/SVG hashes и policy diagnostics находятся в
 * Ожидание: fixed и adaptive comparisons показывают по две читаемые панели
   `RIGHT`/`DOWN`, status `Compared RIGHT / DOWN`, без WebGPU/HUD.
 * Фактическое наблюдение: ожидание совпало. В отдельном target
-  `BFDB6F506DDAC6CC39E023C667A9E8F2` обе fixed и adaptive matrices показали
+  `98AB06197DFBB65604CA247A37CFBB2C` обе fixed и adaptive matrices показали
   `Compared RIGHT / DOWN`; по две SVG-панели были видимы, `canvasCount=0`,
   UI errors отсутствовали. Adaptive DOM evidence подтвердило
-  `source/shared: EAST` в `RIGHT` и `WEST` в `DOWN`. Console capture за
-  `1500 ms`: `0` entries.
+  `source/shared: EAST` в `RIGHT` и `WEST` в `DOWN`. Fixed и adaptive DOM
+  evidence для каждой панели дали `overlapPairs=[]`,
+  `outsideRouteBounds=true`, `exactLeaders=true`. Console capture за `1500 ms`:
+  `0` entries.
 * Чувствительные сведения: отсутствуют.
 
 | Screenshot | Размер | SHA-256 |
 | --- | ---: | --- |
-| `fixed-matrix.png` | 2628 × 2176 | `f5c087081f0e6d251073b2e0fc36ca55fd09db110e3d4768f639a99fa5cf0e93` |
-| `adaptive-matrix.png` | 2628 × 2176 | `03f79ea4352578438eeb07b7a855fc00e5b24b9a6c6e1136e216e05fd5d1b951` |
+| `fixed-matrix.png` | 2628 × 2176 | `0182f7d97f065f7853381dcf45a9b6006ac75a0d7925aa090aa83977dc979805` |
+| `adaptive-matrix.png` | 2628 × 2176 | `7d30ed4c52f6b9775991616232d0b95a724a8551448f6de8043cb597199377ae` |
 
-Machine-readable browser results находятся в `browser-dom-evidence.json` и
+Machine-readable fixed/adaptive browser results находятся в
+`browser-fixed-dom-evidence.json`, `browser-dom-evidence.json` и
 `browser-console.json`. Временная вкладка закрыта, dev-only server остановлен;
 исходный CDP target `44D16B99D13C1A8B35F293D86AEFE0D5` сохранён.
 
 ## Verification gate
 
-* `bun test pkg/nodes`: `125 pass`, `0 fail`.
-* Focused package/bundle/playground: `12 pass`, `0 fail`.
+* `bun test pkg/nodes`: `126 pass`, `0 fail`.
+* Focused package/bundle/playground: `13 pass`, `0 fail`.
 * Focused Hamiltonian Card migration/build/host: `94 pass`, `0 fail`.
 * Typecheck `nodes`, `@nodes/layout`, `@nodes/ui`, `@nodes/hud`, playground,
   canonical root `bun run typecheck` и direct root `tsc`: PASS.
