@@ -120,6 +120,22 @@ describe("Blender-like Node component playground", () => {
     expect(source).not.toContain("FieldCatalogSurface")
   })
 
+  test("publishes global and comparison readiness only after the reference texture frame", async () => {
+    const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
+    const textureWait = client.indexOf("void waitForReferenceFrame")
+    const referenceReady = client.indexOf('dataset.nodeReferenceReady = "ready"')
+    const globalReady = client.indexOf('dataset.nodeComponentPlayground = "ready"')
+
+    expect(textureWait).toBeGreaterThan(-1)
+    expect(referenceReady).toBeGreaterThan(textureWait)
+    expect(globalReady).toBeGreaterThan(referenceReady)
+    expect(client).toContain("TextureLoader.status(BLENDER_REFERENCE_SRC)")
+    expect(client).toContain("runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)")
+    expect(client).toContain('dataset.nodeReferenceReady = "error"')
+    expect(client).toContain("planned.reference.visible !== false")
+    expect(client).toContain("reference: {x: 0, y: 0, w: 1, h: 1}")
+  })
+
   test("keeps retained observation dev-only and routes exact browser evidence through UI dev", async () => {
     const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
     const observer = await Bun.file(join(playgroundRoot, "retained-observer.ts")).text()

@@ -79,14 +79,19 @@
 
 * Источник: background exact-CDP canvas route `/comparison/blender` через
   `UI dev`.
+* Версия проекта: UI-004.13 working tree на integration baseline
+  `f9f3ace2d6110388db3a3fb3fc29f10e5559c248`.
 * Ожидание: UI-owned Blender reference загружен рядом ровно с одной live
   representative Node; full scene и Socket catalog не примешаны.
-* Фактическое наблюдение: desktop показывает загруженный Blender 4.5.5
-  reference и одну live Noise Texture Node в равных slots; full scene/Socket
-  catalog отсутствуют, console 0, native metrics восстановлены.
+* Фактическое наблюдение: TextureLoader, comparison marker и global marker
+  достигли `ready` только перед capture; desktop отчётливо показывает
+  оригинальную Blender 4.5.5 Noise Texture Node и одну live Noise Texture Node
+  в равных slots. Portrait/landscape сохраняют compact contract с одной live
+  Node; console 0, horizontal overflow отсутствует, native `1920×1088 @2`
+  восстановлен.
 * Чувствительные сведения: нет.
 * Контрольные суммы: desktop
-  `bb169812100c7b2ea86984c6453138392186263474947a9c7cdbc3d833b4bb94`;
+  `722ddb5b53e3d4a44c30822aa22eac568a60da018a3df43060f5a790dca7bad5`;
   portrait `fdc30313ed5cbe62fb0177b8368007c40fa599995e29ac2d92fbe1e1787d0ef0`;
   landscape `700bfba8aa435ea0c4c68587cf4866a9ec9837bc68e4ea39649e0ed9227cd915`.
 

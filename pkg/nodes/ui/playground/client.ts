@@ -1,3 +1,4 @@
+import {TextureLoader} from "@metafor/engine"
 import {UiRuntime} from "@ui/elements"
 import {
   PlaygroundBackdropSurface,
@@ -19,6 +20,7 @@ import {
 import {NodeEditor} from "../node-editor.ts"
 import {createCatalogNodeTree, createNoiseComparisonTree} from "./fixtures.ts"
 import {planNodeComponentPlaygroundFrames} from "./layout.ts"
+import {waitForReferenceFrame} from "./reference-readiness.ts"
 import {createPlaygroundRetainedObserver, type PlaygroundRetainedObserver} from "./retained-observer.ts"
 import {
   NODE_PLAYGROUND_CATALOG,
@@ -30,15 +32,17 @@ import {
   nodePlaygroundSections,
   type NodePlaygroundRoute,
 } from "./routes.ts"
-import {BlenderReferenceSurface, SocketCatalogSurface} from "./surfaces.ts"
+import {BLENDER_REFERENCE_SRC, BlenderReferenceSurface, SocketCatalogSurface} from "./surfaces.ts"
 
 const canvas = document.getElementById("node-component-canvas")
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Canvas node component playground не найден")
 
 document.documentElement.dataset.nodeComponentPlayground = "starting"
+document.documentElement.dataset.nodeReferenceReady = "loading"
 
 try {
   let retainedObserver: PlaygroundRetainedObserver | null = null
+  let preparingReference = true
   const runtime = await UiRuntime.create(canvas, {
     fontUrl: "/JetBrainsMono-Bold.ttf",
     virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
@@ -99,7 +103,11 @@ try {
   })
   editor.setTree(tree)
 
-  const frames = (w: number, h: number) => planNodeComponentPlaygroundFrames(w, h, router.current)
+  const frames = (w: number, h: number) => {
+    const planned = planNodeComponentPlaygroundFrames(w, h, router.current)
+    if (!preparingReference || planned.reference.visible !== false) return planned
+    return {...planned, reference: {x: 0, y: 0, w: 1, h: 1}}
+  }
   runtime.addSurface(backdrop, ({w, h}) => frames(w, h).backdrop)
   runtime.addSurface(catalog, ({w, h}) => frames(w, h).catalog)
   runtime.addSurface(sections, ({w, h}) => frames(w, h).section)
@@ -139,15 +147,42 @@ try {
     runtime.handleResize()
     retainedObserver?.publishAfterFrame()
   }).observe(canvas)
-  document.documentElement.dataset.nodeComponentPlayground = "ready"
   document.documentElement.dataset.socketKinds = String(BLENDER_SOCKET_KINDS.length)
   document.documentElement.dataset.socketShapes = String(BLENDER_SOCKET_SHAPES.length)
   document.documentElement.dataset.nodeCount = String(tree.nodes.length)
   document.documentElement.dataset.linkCount = String(tree.links.length)
   document.documentElement.dataset.comparisonNodeCount = String(comparisonTree.nodes.length)
   document.documentElement.dataset.comparisonLinkCount = String(comparisonTree.links.length)
+  renderPlaygroundFrame()
+  void waitForReferenceFrame({
+    readStatus: () => {
+      const status = TextureLoader.status(BLENDER_REFERENCE_SRC)
+      document.documentElement.dataset.nodeReferenceTexture = status
+      return status
+    },
+    renderNextFrame: async () => {
+      preparingReference = false
+      renderPlaygroundFrame()
+    },
+  }).then(() => {
+    document.documentElement.dataset.nodeReferenceReady = "ready"
+    document.documentElement.dataset.nodeComponentPlayground = "ready"
+  }).catch((error: unknown) => {
+    publishPlaygroundError(error)
+  })
+
+  function renderPlaygroundFrame(): void {
+    runtime.relayout()
+    runtime.space.updateWorldMatrix()
+    runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
+  }
 } catch (error) {
+  publishPlaygroundError(error)
+  throw error
+}
+
+function publishPlaygroundError(error: unknown): void {
+  document.documentElement.dataset.nodeReferenceReady = "error"
   document.documentElement.dataset.nodeComponentPlayground = "error"
   document.documentElement.dataset.nodeComponentError = error instanceof Error ? error.message : String(error)
-  throw error
 }

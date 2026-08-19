@@ -10,12 +10,13 @@ import {
 import {SOCKET_CATALOG} from "./fixtures.ts"
 
 export type SocketCatalogMode = "types" | "shapes" | "states"
+export const BLENDER_REFERENCE_SRC = "/ui-dev/blender-4.5.5-reference.png"
 
 export class BlenderReferenceSurface extends UiSurface {
   constructor() {
     super({bgColor: null, borderColor: null})
     this.setBackgroundImage({
-      src: "/ui-dev/blender-4.5.5-reference.png",
+      src: BLENDER_REFERENCE_SRC,
       fit: "cover",
       opacity: 1,
       scale: 0.98,
