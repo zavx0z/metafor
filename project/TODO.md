@@ -78,9 +78,10 @@ Semantic topology отделена от Card presentation; fixed policy выне
 общего routing core, а fixed RIGHT/DOWN закреплены в dev-only SVG playground.
 Bounded adaptive side-selection через тот же common core реализована и
 проверена; measured/Card adapters и отдельные Worker executors завершены.
-Текущий срез механически переводит существующий Hamiltonian Card consumer на
-новый explicit presentation contract и сохраняет прежний fixed behavior;
-adaptive product integration не входит в эту задачу.
+Существующий Hamiltonian Card consumer переведён на новый explicit presentation
+contract и сохранил fixed behavior. Текущий финальный срез собирает benchmark,
+bundle, SVG/browser и полные test/typecheck evidence; adaptive product
+integration не входит в эту задачу.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.

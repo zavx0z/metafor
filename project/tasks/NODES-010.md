@@ -129,8 +129,8 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 | NODES-010.4 | Реализовать bounded adaptive side-selection | CLOSED |
 | NODES-010.5 | Подключить adaptive через measured и Card adapters | CLOSED |
 | NODES-010.6 | Разделить fixed/adaptive Worker и bundle entrypoints | CLOSED |
-| NODES-010.7 | Перевести существующий Card consumer без изменения поведения · `/root/nodes_010_7` | IN_PROGRESS |
-| NODES-010.8 | Доказать adapters, performance, playground и package boundary | WAITING |
+| NODES-010.7 | Перевести существующий Card consumer без изменения поведения | CLOSED |
+| NODES-010.8 | Доказать adapters, performance, playground и package boundary · `/root/nodes_010_8` | IN_PROGRESS |
 
 Каждый срез получает отдельный result checkpoint. `.2` и `.3` начинаются после
 `.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` и `.6` независимо
@@ -269,6 +269,29 @@ tests. Общая логика не переехала в UI и policies не и
 Package results приняты. Root compile всё ещё требует только механического
 перевода существующего Hamiltonian Card consumer на explicit Card presentation;
 это зарегистрировано отдельным `.7` без включения adaptive product behavior.
+
+## Результат NODES-010.7
+
+* Hamiltonian lifecycle projection теперь строит Card-free semantic
+  `NodeSystemDocument` и отдельный `NodeSystemCardPresentation`; прежний Card
+  document materialize только через `adaptNodeSystemCardPresentation`.
+* Port row identity, node title/facts/actions/tone и edge label/tone принадлежат
+  presentation. Semantic IDs, ports, containment, order, edge topology и
+  revision сохранены.
+* Layout transition сохраняет обязательную resolved side. Orchestration и
+  isolated browser Worker импортируют exact fixed client/executor subpaths;
+  production build tests запрещают adaptive symbols.
+* Root `bun run typecheck` и direct root `tsc` проходят. Focused
+  lifecycle/transition/browser build — `45 pass`, host — `49 pass`, focused
+  nodes — `30 pass`, Worker/fixed boundary — `20 pass`; behavior gap не найден.
+
+### Closing review NODES-010.7
+
+Root перечитал topology/presentation split, Card materialization, structure key,
+refresh/interpolation resolved-side path и exact fixed Worker imports. Изменение
+является mechanical adoption: adaptive Hamiltonian behavior, topology и
+lifecycle не менялись. Compile gate закрыт; финальный `.8` проверяет всю
+композицию и браузерный SVG playground отдельно.
 
 ## Поведение процесса
 
