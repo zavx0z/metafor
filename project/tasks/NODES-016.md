@@ -19,6 +19,10 @@ WebGPU playground показывает полный component catalog.
 * `Visual` в renderer names признан лишним; `Fact` не является универсальным
   термином. Generic key/value row называется Property, настоящий вычислительный
   вход — Parameter.
+* После начала NODES-016 владелец отдельно запретил backward compatibility и
+  адаптацию к существующему верхнеуровневому коду. Card/HUD/NodeSystemSurface
+  удаляются; новый layout format и consumer integration принадлежат следующему
+  этапу.
 
 ## Источники Blender
 
@@ -63,19 +67,24 @@ renderer. Node properties/default socket fields используют тольк�
 все field kinds standalone, socket types/shapes и несколько разных Node types,
 Links и container Node. Layout playground на 4015 остаётся независимым.
 
-### NODES-016.5 — Compatibility и доказательства
+### NODES-016.5 — Legacy removal и доказательства
 
-Сохранить существующий Card/Hamiltonian API, добавить настоящий non-Card bundle
-consumer, package-boundary regressions, full typechecks/tests, browser DOM,
-console и visual evidence.
+Удалить Card model/layout/surface, Card HUD и их exports/tests без aliases,
+добавить настоящий non-Card bundle consumer, package-boundary regressions,
+package typechecks/tests, browser DOM, console и visual evidence. Hamiltonian
+и другие старые consumers не мигрируются; exact root compile gap фиксируется
+как вход следующего layout/integration этапа.
 
 ## Границы
 
-* Не переименовывать и не мигрировать Hamiltonian/Card consumer в этой задаче.
-* Не менять layout algorithms, Worker или semantic document contract.
+* Не мигрировать Hamiltonian или другой верхнеуровневый consumer в этой задаче.
+* Не адаптировать новые компоненты к старому layout/document format.
+* Не менять layout algorithms и Worker: весь их новый format принадлежит
+  следующему этапу.
 * Не копировать Blender source/assets; используются термины, типовые категории
   и UX-законы.
-* Generic Surface не импортирует Card, HUD или product code.
+* Card/HUD/NodeSystemSurface legacy удаляется, а не deprecated/re-exported.
+* Generic Surface не импортирует старый NodeSystem, HUD или product code.
 * Fields принадлежат `@ui/components`; `@nodes/ui` не создаёт их копии.
 
 ## Критерии готовности
@@ -86,9 +95,10 @@ console и visual evidence.
 3. Catalog содержит не менее 18 socket kinds, 6 shapes и 9 field kinds.
 4. Каждый field kind показан standalone и хотя бы один раз внутри Node.
 5. Fit/pan/zoom, selection, Link drawing и containment compositing проверены.
-6. Existing Card/Hamiltonian compile/tests не меняют behavior.
-7. `@ui/components`, `nodes`, `@nodes/ui`, playground typechecks, package tests,
-   browser console и `git diff --check` проходят.
+6. `@nodes/ui` exports и bundles не содержат Card/Fact/NodeSystemSurface symbols.
+7. `@ui/components`, `@nodes/ui`, playground typechecks, package tests, browser
+   console и `git diff --check` проходят; старые root consumer errors перечислены
+   exact и не маскируются compatibility-кодом.
 8. Component playground открыт владельцу через `ai-macos`; Hamiltonian process
    не запускается без отдельной необходимости.
 

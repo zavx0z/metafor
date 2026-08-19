@@ -177,17 +177,17 @@ platform lifecycle и transport adapters могут различаться.
 `NodeTree → Node → Socket → Link`; интерактивный компонент называется
 `NodeEditor`, а read-only вариант — `NodeCanvas`. `@nodes/ui` владеет generic
 viewport/editor renderer contracts и подключаемыми Node/Socket/Link renderers.
-Текущая Card остаётся compatibility preset до отдельной consumer migration, но
-generic editor физически не импортирует Card model, Card measurement или Card
-metrics.
+Прежние Card model, Card adapters и `NodeSystemSurface` не входят в новую
+границу и удаляются без compatibility aliases. Верхнеуровневые consumers не
+адаптируются к ним в этой работе: новая интеграция выполняется после отдельного
+пересмотра layout format.
 
 Универсальные поля принадлежат `@ui/components`, а не node-system: text,
 number/slider, boolean, enum, color, vector/rotation, matrix и resource reference
 используются одинаково внутри Node properties/socket defaults и в обычных
 панелях. `@nodes/ui` владеет только их размещением внутри Node preset.
 
-`@nodes/ui` также сохраняет intrinsic Card measurement, viewport и compatibility renderer-компоненты,
-а `@nodes/layout` получает минимальный ELK-like `LayoutGraph` с уже измеренными
+Действующий `@nodes/layout` пока получает минимальный ELK-like `LayoutGraph` с уже измеренными
 node sizes и port offsets, единолично вычисляет node/compound/gateway/edge
 coordinates и возвращает exact parameter-socket routes. В Hamiltonian renderer
 измеряет загруженный шрифт на main thread, а полный placement/routing выполняет
@@ -201,14 +201,12 @@ Hamiltonian-specific projection, composition, presentation и HUD собираю
 `hamiltonian/visual`; невизуальные lifecycle, control и startup остаются в
 orchestration.
 
-Semantic topology node-system не определяется конкретной Card Model. Port
-принадлежит node, а Card, Compact и другие presentation presets отдельно
-связывают semantic ports с измеренными anchors и содержимым. Layout получает
-только normalized numeric geometry и side constraints. Fixed и adaptive
-policies физически независимы, используют общий placement/routing/validation
-core и возвращают resolved side каждого port; edge source/target не подменяют
-capability либо направление живого сообщения. До product integration обе
-policies проверяются через dev-only SVG playground без WebGPU и Engine imports.
+Действующий semantic/layout contract сохраняется только как отдельная
+алгоритмическая граница до следующего этапа его переписывания. Новая component
+library не наследует его `NodeSystemDocument`, Port/Edge naming, Card rows или
+measurement format и не вводит adapter между старым и новым API. До нового
+layout integration существующие policies продолжают независимо проверяться
+через dev-only SVG playground без WebGPU и Engine imports.
 Отдельный component playground `@nodes/ui` показывает Blender-подобный catalog:
 универсальные fields standalone и внутри Node, socket type/shape presets,
 Links, containment и generic renderer boundary. Этот catalog не заменяет
