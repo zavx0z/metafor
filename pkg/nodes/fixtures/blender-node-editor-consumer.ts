@@ -36,11 +36,9 @@ const target: BlenderNode = {
     ],
     onChange: () => {},
   }],
-  sockets: [{
+  parameters: [{
     id: "value",
-    direction: "input",
     label: "Value",
-    socketType: "float",
     field: {
       id: "value",
       kind: "number",
@@ -48,6 +46,14 @@ const target: BlenderNode = {
       value: 1,
       onChange: () => {},
     },
+  }],
+  sockets: [{
+    id: "value",
+    direction: "input",
+    label: "Value",
+    socketType: "float",
+    parameterId: "value",
+    side: "left",
   }],
 }
 

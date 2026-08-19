@@ -36,3 +36,14 @@
   Старые дефекты Parameter rows остаются и принадлежат NODES-017.3.
 * Контрольная сумма: SHA-256
   `acf2d478ebf52a0c81d9793def59ac9bbe2143f2d931768b2c9a2a92410023c2`.
+
+## two-sided-parameter-checkpoint.png
+
+* Источник: exact WebGPU canvas после NODES-017.3.
+* Ожидание: Matrix Parameter рисуется один раз, а разные Socket стоят слева и
+  справа на одной Flex row; catalog содержит 8 source shapes.
+* Фактическое наблюдение: один Matrix control имеет два exact endpoint на одной
+  высоте; Field не дублируется. Visual density остаётся отдельным незавершённым
+  срезом.
+* Контрольная сумма: SHA-256
+  `41752d246d0dc56176d6ee9376bb095a1564bd29ca6c1a8a86a4e6df8caabe7f`.

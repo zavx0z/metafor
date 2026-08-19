@@ -14,6 +14,7 @@ import type {
   Link,
   LinkRenderer,
   Node,
+  Parameter,
   NodeEditorRenderers,
   NodeRenderer,
   NodeRect,
@@ -56,6 +57,8 @@ export const BLENDER_SOCKET_SHAPES = Object.freeze([
   "circle-dot",
   "square-dot",
   "diamond-dot",
+  "line",
+  "volume-grid",
 ] as const)
 
 export type BlenderSocketShape = typeof BLENDER_SOCKET_SHAPES[number]
@@ -78,17 +81,23 @@ export type BlenderSocket = Socket & Readonly<{
   label: string
   socketType: BlenderSocketKind
   shape?: BlenderSocketShape
-  field?: FieldDefinition
   side?: SocketSide
   description?: string
 }>
 
-export type BlenderNode = Node & Readonly<{
+export type BlenderParameter = Parameter & Readonly<{
+  label: string
+  field?: FieldDefinition
+  description?: string
+}>
+
+export type BlenderNode = Omit<Node, "parameters"> & Readonly<{
   title: string
   label?: string
   category?: string
   headerColor?: FieldColor
   properties?: readonly FieldDefinition[]
+  parameters?: readonly BlenderParameter[]
   sockets?: readonly BlenderSocket[]
   collapsed?: boolean
 }>
@@ -102,6 +111,7 @@ export type BlenderNodePlan = Readonly<{
   header: NodeRect
   body: NodeRect
   fields: readonly Readonly<{field: FieldDefinition; rect: NodeRect}>[]
+  parameters: readonly Readonly<{parameter: BlenderParameter; rect: NodeRect}>[]
   sockets: readonly PositionedSocket<BlenderSocket>[]
 }>
 
@@ -151,6 +161,7 @@ export function measureBlenderNode(node: BlenderNode): Readonly<{width: number; 
 export function planBlenderNode(node: BlenderNode, frame: NodeRect, scale = 1): BlenderNodePlan {
   const regions = blenderNodeRegions(frame, scale)
   const fields: Array<{field: FieldDefinition; rect: NodeRect}> = []
+  const parameters: Array<{parameter: BlenderParameter; rect: NodeRect}> = []
   const sockets: PositionedSocket<BlenderSocket>[] = []
   const rows = blenderNodeRows(node)
   flexColumn({
@@ -166,15 +177,16 @@ export function planBlenderNode(node: BlenderNode, frame: NodeRect, scale = 1): 
       draw: (x: number, y: number, w: number, h: number) => {
         const rect = {x, y, w, h}
         if (row.field !== undefined) fields.push({field: row.field, rect})
-        if (row.socket !== undefined) sockets.push({
-          socket: row.socket,
-          side: socketSide(row.socket),
-          center: socketCenter(frame, rect, row.socket),
+        if (row.parameter !== undefined) parameters.push({parameter: row.parameter, rect})
+        for (const socket of row.sockets) sockets.push({
+          socket,
+          side: socketSide(socket),
+          center: socketCenter(frame, rect, socket),
         })
       },
     })),
   })
-  return {header: regions.header, body: regions.body, fields, sockets}
+  return {header: regions.header, body: regions.body, fields, parameters, sockets}
 }
 
 export function positionBlenderNode(node: BlenderNode, rect: NodeRect): PositionedNode<BlenderNode, BlenderSocket> {
@@ -273,31 +285,27 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket> = Obj
         })},
       ],
     })
+    const plan = planBlenderNode(node, rect, scale)
     if (!node.collapsed && scale >= 0.68) {
-      for (const {field, rect: slot} of planBlenderNode(node, rect, scale).fields) {
+      for (const {field, rect: slot} of plan.fields) {
         Field(host, slot.x, slot.y, slot.w, {...field, key: `${node.id}:${field.id}`})
+      }
+      for (const {parameter, rect: slot} of plan.parameters) {
+        if (parameter.field !== undefined) continue
+        Typography(host, slot.x, slot.y, slot.w, slot.h, {
+          children: parameter.label,
+          variant: "caption",
+          sx: {textAlign: "center"},
+        })
       }
     }
     for (const positioned of entry.sockets) {
       const {socket, center, side} = positioned
-      if (socket.field !== undefined) continue
+      if (socket.parameterId !== undefined) continue
       if (side === "left") {
         drawSideSocketLabel(host, rect, center.y, socket.label, "left")
-      } else if (side === "right") {
-        drawSideSocketLabel(host, rect, center.y, socket.label, "right")
       } else {
-        flexRow({
-          x: rect.x,
-          y: side === "top" ? rect.y + 7 : rect.y + rect.h - 24,
-          w: rect.w,
-          h: 18,
-          justifyContent: "center",
-          items: [{width: Math.min(140, rect.w - 20), height: 18, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
-            children: socket.label,
-            variant: "caption",
-            sx: {textAlign: "center"},
-          })}],
-        })
+        drawSideSocketLabel(host, rect, center.y, socket.label, "right")
       }
     }
   },
@@ -326,22 +334,22 @@ export const blenderLinkRenderer: LinkRenderer<BlenderLink> = Object.freeze({
   },
 })
 
-type BlenderNodeRow = Readonly<{field?: FieldDefinition; socket?: BlenderSocket}>
+type BlenderNodeRow = Readonly<{
+  field?: FieldDefinition
+  parameter?: BlenderParameter
+  sockets: readonly BlenderSocket[]
+}>
 
 function blenderNodeRows(node: BlenderNode): readonly BlenderNodeRow[] {
   const rows: BlenderNodeRow[] = []
-  const fieldIds = new Set<string>()
-  for (const field of node.properties ?? []) {
-    const socket = (node.sockets ?? []).find((candidate) => candidate.field?.id === field.id)
-    rows.push({field, ...(socket === undefined ? {} : {socket})})
-    fieldIds.add(field.id)
-  }
+  for (const field of node.properties ?? []) rows.push({field, sockets: []})
+  for (const parameter of node.parameters ?? []) rows.push({
+    parameter,
+    ...(parameter.field === undefined ? {} : {field: parameter.field}),
+    sockets: (node.sockets ?? []).filter((socket) => socket.parameterId === parameter.id),
+  })
   for (const socket of node.sockets ?? []) {
-    if (socket.field === undefined) rows.push({socket})
-    else if (!fieldIds.has(socket.field.id)) {
-      rows.push({field: socket.field, socket})
-      fieldIds.add(socket.field.id)
-    }
+    if (socket.parameterId === undefined) rows.push({sockets: [socket]})
   }
   return rows
 }
@@ -364,9 +372,7 @@ function socketCenter(
   const side = socketSide(socket)
   const controlCenterY = rowRect.y + rowRect.h / 2
   if (side === "left") return {x: nodeRect.x, y: controlCenterY}
-  if (side === "right") return {x: nodeRect.x + nodeRect.w, y: controlCenterY}
-  if (side === "top") return {x: rowRect.x + rowRect.w / 2, y: nodeRect.y}
-  return {x: rowRect.x + rowRect.w / 2, y: nodeRect.y + nodeRect.h}
+  return {x: nodeRect.x + nodeRect.w, y: controlCenterY}
 }
 
 function blenderNodeRegions(rect: Readonly<{x: number; y: number; w: number; h: number}>, scale: number): Readonly<{
@@ -421,6 +427,23 @@ function drawSocketShape(
   color: Color,
   selected: boolean,
 ): void {
+  if (shape === "line") {
+    host.drawLine(cx, cy - size * 0.62, cx, cy + size * 0.62, color, Math.max(2, size * 0.28), Z.TEXT + 0.03)
+    return
+  }
+  if (shape === "volume-grid") {
+    const half = size * 0.54
+    host.drawRoundedRect(cx - half, cy - half, half * 2, half * 2, {
+      radius: Math.max(1, size * 0.12),
+      fill: color,
+      border: selected ? palette.windowActiveBorder : palette.bg,
+      borderWidth: Math.max(1, size * 0.14),
+      z: Z.TEXT + 0.03,
+    })
+    host.drawLine(cx, cy - half + 1, cx, cy + half - 1, palette.bg, Math.max(1, size * 0.12), Z.TEXT + 0.04)
+    host.drawLine(cx - half + 1, cy, cx + half - 1, cy, palette.bg, Math.max(1, size * 0.12), Z.TEXT + 0.04)
+    return
+  }
   const baseShape = shape.replace("-dot", "") as "circle" | "square" | "diamond"
   const border = selected ? palette.windowActiveBorder : palette.bg
   if (baseShape === "circle" || baseShape === "square") {

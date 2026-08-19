@@ -18,14 +18,14 @@ describe("Blender-like Node component playground", () => {
     const tree = createCatalogNodeTree()
     const insideKinds = new Set(tree.nodes.flatMap(({node}) => [
       ...(node.properties?.map(({kind}) => kind) ?? []),
-      ...(node.sockets?.flatMap(({field}) => field === undefined ? [] : [field.kind]) ?? []),
+      ...(node.parameters?.flatMap(({field}) => field === undefined ? [] : [field.kind]) ?? []),
     ]))
     for (const kind of FIELD_KINDS) expect(insideKinds.has(kind)).toBeTrue()
   })
 
-  test("catalogs nineteen socket types, six shapes and a valid positioned NodeTree", () => {
+  test("catalogs nineteen socket types, eight shapes and a valid positioned NodeTree", () => {
     expect(SOCKET_CATALOG.map(({socketType}) => socketType)).toEqual([...BLENDER_SOCKET_KINDS])
-    expect(new Set(BLENDER_SOCKET_SHAPES).size).toBe(6)
+    expect(new Set(BLENDER_SOCKET_SHAPES).size).toBe(8)
     const tree = createCatalogNodeTree()
     expect(() => validatePositionedNodeTree(tree)).not.toThrow()
     expect(tree.frames).toHaveLength(1)

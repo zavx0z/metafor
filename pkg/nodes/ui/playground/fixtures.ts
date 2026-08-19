@@ -5,6 +5,7 @@ import {
   type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
+  type BlenderParameter,
   type BlenderSocket,
   type BlenderSocketKind,
 } from "../blender-node.ts"
@@ -61,13 +62,19 @@ export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, Blender
       {value: "multiply", label: "Multiply"},
     ]},
   ], [
-    socket("value", "Value", "input", "float", {id: "factor", label: "Factor", kind: "number", presentation: "slider", value: 0.65, min: 0, max: 1, step: 0.01}),
-    socket("enabled", "Enabled", "input", "boolean", {id: "clamp", label: "Clamp", kind: "boolean", value: true}),
+    parameter({id: "factor", label: "Factor", kind: "number", presentation: "slider", value: 0.65, min: 0, max: 1, step: 0.01}),
+    parameter({id: "clamp", label: "Clamp", kind: "boolean", value: true}),
+  ], [
+    socket("value", "Factor", "input", "float", "factor", "left"),
+    socket("enabled", "Clamp", "input", "boolean", "clamp", "left"),
     socket("result", "Result", "output", "float"),
   ])
   const transform = blenderNode("transform", "Transform", "Vector", [], [
-    socket("vector", "Vector", "input", "vector", {id: "translation", label: "Translation", kind: "vector", value: [1, 2, 3]}),
-    socket("rotation", "Rotation", "input", "rotation", {id: "rotation", label: "Rotation", kind: "rotation", value: [0, 45, 90]}),
+    parameter({id: "translation", label: "Translation", kind: "vector", value: [1, 2, 3]}),
+    parameter({id: "rotation", label: "Rotation", kind: "rotation", value: [0, 45, 90]}),
+  ], [
+    socket("vector", "Translation", "input", "vector", "translation", "left"),
+    socket("rotation", "Rotation", "input", "rotation", "rotation", "left"),
     socket("matrix", "Matrix", "output", "matrix"),
   ])
   const shader = blenderNode("shader", "Principled", "Shader", [
@@ -76,14 +83,17 @@ export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, Blender
       {value: "multi", label: "Multiscatter"},
     ]},
   ], [
-    socket("color", "Color", "input", "color", {id: "base-color", label: "Base Color", kind: "color", value: {r: 0.15, g: 0.42, b: 0.88, a: 1}}),
-    socket("material", "Material", "input", "material", {id: "material-value", label: "Material", kind: "reference", value: {id: "material-1", label: "Material.001", kind: "material"}}),
+    parameter({id: "base-color", label: "Base Color", kind: "color", value: {r: 0.15, g: 0.42, b: 0.88, a: 1}}),
+    parameter({id: "material-value", label: "Material", kind: "reference", value: {id: "material-1", label: "Material.001", kind: "material"}}),
+  ], [
+    socket("color", "Base Color", "input", "color", "base-color", "left"),
+    socket("material", "Material", "input", "material", "material-value", "left"),
     socket("shader", "Shader", "output", "shader"),
   ])
   const asset = blenderNode("asset", "Asset Input", "Resource", [
     {id: "name", label: "Name", kind: "text", value: "Suzanne"},
     {id: "object", label: "Object", kind: "reference", value: {id: "suzanne", label: "Suzanne", kind: "object"}},
-  ], [
+  ], [], [
     socket("object", "Object", "output", "object"),
     socket("image", "Image", "output", "image"),
     socket("string", "Name", "output", "string"),
@@ -91,7 +101,10 @@ export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, Blender
   const matrix = blenderNode("matrix", "Matrix Math", "Utility", [
     {id: "status", label: "Status", kind: "readonly", value: "Identity"},
   ], [
-    socket("matrix-in", "Matrix", "input", "matrix", {id: "matrix-value", label: "Matrix", kind: "matrix", value: [[1, 0], [0, 1]]}),
+    parameter({id: "matrix-value", label: "Matrix", kind: "matrix", value: [[1, 0], [0, 1]]}),
+  ], [
+    socket("matrix-in", "Matrix", "input", "matrix", "matrix-value", "left"),
+    socket("matrix-out", "Matrix", "output", "matrix", "matrix-value", "right"),
     socket("geometry", "Geometry", "input", "geometry"),
     socket("bundle", "Bundle", "bidirectional", "bundle"),
     socket("closure", "Closure", "output", "closure"),
@@ -123,9 +136,14 @@ function blenderNode(
   title: string,
   category: string,
   properties: readonly FieldDefinition[],
+  parameters: readonly BlenderParameter[],
   sockets: readonly BlenderSocket[],
 ): BlenderNode {
-  return {id, frameId: "catalog-frame", title, category, properties, sockets}
+  return {id, frameId: "catalog-frame", title, category, properties, parameters, sockets}
+}
+
+function parameter(field: FieldDefinition): BlenderParameter {
+  return {id: field.id, label: field.label, field}
 }
 
 function socket(
@@ -133,9 +151,17 @@ function socket(
   label: string,
   direction: BlenderSocket["direction"],
   socketType: BlenderSocket["socketType"],
-  field?: FieldDefinition,
+  parameterId?: string,
+  side?: BlenderSocket["side"],
 ): BlenderSocket {
-  return {id, label, direction, socketType, ...(field === undefined ? {} : {field})}
+  return {
+    id,
+    label,
+    direction,
+    socketType,
+    ...(parameterId === undefined ? {} : {parameterId}),
+    ...(side === undefined ? {} : {side}),
+  }
 }
 
 function link(

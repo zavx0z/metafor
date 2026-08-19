@@ -31,11 +31,16 @@ Frame через `parentFrameId`. Validation отвергает cycles, неиз
 children за пределами direct Frame.
 
 `blender-node` предоставляет стандартный Node renderer, 19 Socket presets,
-6 Socket shapes и Link renderer. Это сменяемый preset: consumer может передать
+8 Socket shapes и Link renderer. Это сменяемый preset: consumer может передать
 собственные typed Node/Socket/Link renderer-ы без изменения editor.
 
 Поля Node properties и default values Socket используют тот же универсальный
 `Field` из `@ui/components`, что и обычные панели вне Node Editor.
+
+Parameter владеет одним `Field`; Socket ссылается на него через `parameterId`.
+Одна Parameter row может иметь отдельный Socket слева, справа или оба endpoint
+одновременно. `direction` не выводится из стороны. Component boundary принимает
+только resolved `left/right`; выбор стороны остаётся у layout policy.
 
 ## Flexbox-закон
 

@@ -13,10 +13,15 @@ export type NodePoint = Readonly<{x: number; y: number}>
 export type NodeRect = Readonly<{x: number; y: number; w: number; h: number}>
 export type NodeCanvasTransform = Readonly<{x: number; y: number; scale: number}>
 
+export type Parameter = Readonly<{
+  id: string
+}>
+
 /** Minimal Blender-like component identity; domain data is carried by TNode. */
 export type Node = Readonly<{
   id: string
   frameId?: string
+  parameters?: readonly Parameter[]
 }>
 
 /** Visual owner of nested Frames and Nodes; it is not a computation Node. */
@@ -26,13 +31,14 @@ export type Frame = Readonly<{
 }>
 
 export type SocketDirection = "input" | "output" | "bidirectional"
-export type SocketSide = "left" | "right" | "top" | "bottom"
-export type SocketShape = "circle" | "square" | "diamond" | "circle-dot" | "square-dot" | "diamond-dot"
+export type SocketSide = "left" | "right"
+export type SocketShape = "circle" | "square" | "diamond" | "circle-dot" | "square-dot" | "diamond-dot" | "line" | "volume-grid"
 
 /** Visible connection endpoint; layout Port remains an independent lower-level term. */
 export type Socket = Readonly<{
   id: string
   direction: SocketDirection
+  parameterId?: string
 }>
 
 export type SocketEndpoint = Readonly<{nodeId: string; socketId: string}>
@@ -614,17 +620,35 @@ export function validatePositionedNodeTree(tree: PositionedNodeTree): void {
     if (frameIds.has(entry.node.id)) throw new Error(`Frame and Node ids must be distinct: ${entry.node.id}`)
     nodeIds.add(entry.node.id)
     requireRect(entry.rect, `Node rect: ${entry.node.id}`)
+    const parameterIds = new Set<string>()
+    for (const parameter of entry.node.parameters ?? []) {
+      if (!parameter.id || parameterIds.has(parameter.id)) {
+        throw new Error(`Duplicate or empty Parameter id: ${entry.node.id}/${parameter.id}`)
+      }
+      parameterIds.add(parameter.id)
+    }
     if (entry.node.frameId !== undefined) {
       const frame = frameById.get(entry.node.frameId)
       if (frame === undefined) throw new Error(`Unknown Node Frame: ${entry.node.id}/${entry.node.frameId}`)
       if (!rectContains(frame.rect, entry.rect)) throw new Error(`Node is outside Frame: ${entry.node.id}/${entry.node.frameId}`)
     }
     const socketIds = new Set<string>()
+    const parameterSides = new Set<string>()
     for (const positioned of entry.sockets) {
       if (!positioned.socket.id || socketIds.has(positioned.socket.id)) {
         throw new Error(`Duplicate or empty Socket id: ${entry.node.id}/${positioned.socket.id}`)
       }
       socketIds.add(positioned.socket.id)
+      if (positioned.socket.parameterId !== undefined) {
+        if (!parameterIds.has(positioned.socket.parameterId)) {
+          throw new Error(`Unknown Socket Parameter: ${entry.node.id}/${positioned.socket.id}/${positioned.socket.parameterId}`)
+        }
+        const key = `${positioned.socket.parameterId}:${positioned.side}`
+        if (parameterSides.has(key)) {
+          throw new Error(`Duplicate Parameter Socket side: ${entry.node.id}/${key}`)
+        }
+        parameterSides.add(key)
+      }
       requirePoint(positioned.center, `Socket center: ${entry.node.id}/${positioned.socket.id}`)
       if (!pointOnRectSide(positioned.center, positioned.side, entry.rect)) {
         throw new Error(`Socket is detached from Node side: ${entry.node.id}/${positioned.socket.id}`)
@@ -736,12 +760,8 @@ function isSelected(selection: NodeEditorSelection, kind: Exclude<NodeEditorSele
 
 function pointOnRectSide(point: NodePoint, side: SocketSide, rect: NodeRect): boolean {
   const epsilon = 1e-6
-  if (side === "left" || side === "right") {
-    const x = side === "left" ? rect.x : rect.x + rect.w
-    return Math.abs(point.x - x) <= epsilon && point.y >= rect.y - epsilon && point.y <= rect.y + rect.h + epsilon
-  }
-  const y = side === "top" ? rect.y : rect.y + rect.h
-  return Math.abs(point.y - y) <= epsilon && point.x >= rect.x - epsilon && point.x <= rect.x + rect.w + epsilon
+  const x = side === "left" ? rect.x : rect.x + rect.w
+  return Math.abs(point.x - x) <= epsilon && point.y >= rect.y - epsilon && point.y <= rect.y + rect.h + epsilon
 }
 
 function requireRect(rect: NodeRect, label: string): void {

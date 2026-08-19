@@ -105,6 +105,41 @@ describe("generic Blender-like Node Editor contracts", () => {
     })).toThrow("Unknown Node Frame")
   })
 
+  test("allows one Parameter row to own distinct left and right Sockets", () => {
+    const parameterTree: PositionedNodeTree = {
+      bounds: tree.bounds,
+      frames: tree.frames,
+      nodes: [{
+        node: {id: "parameter-node", frameId: "frame", parameters: [{id: "value"}]},
+        rect: {x: 100, y: 80, w: 200, h: 100},
+        sockets: [
+          {socket: {id: "value-left", parameterId: "value", direction: "input"}, side: "left", center: {x: 100, y: 130}},
+          {socket: {id: "value-right", parameterId: "value", direction: "input"}, side: "right", center: {x: 300, y: 130}},
+        ],
+      }],
+      links: [],
+    }
+    expect(() => validatePositionedNodeTree(parameterTree)).not.toThrow()
+    expect(() => validatePositionedNodeTree({
+      ...parameterTree,
+      nodes: parameterTree.nodes.map((entry) => ({
+        ...entry,
+        sockets: [...entry.sockets, {
+          socket: {id: "value-left-duplicate", parameterId: "value", direction: "output" as const},
+          side: "left" as const,
+          center: {x: 100, y: 150},
+        }],
+      })),
+    })).toThrow("Duplicate Parameter Socket side")
+    expect(() => validatePositionedNodeTree({
+      ...parameterTree,
+      nodes: parameterTree.nodes.map((entry) => ({
+        ...entry,
+        sockets: entry.sockets.map((socket) => ({...socket, socket: {...socket.socket, parameterId: "missing"}})),
+      })),
+    })).toThrow("Unknown Socket Parameter")
+  })
+
   test("places Frame backgrounds below Links and Frame labels before Nodes", () => {
     expect(planNodeEditorPaintSteps(tree.frames, tree.frames, tree.nodes)).toEqual([
       {kind: "frame-background", frameId: "frame"},

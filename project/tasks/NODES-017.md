@@ -70,19 +70,35 @@ right Socket или оба endpoint одновременно. `top/bottom` уд�
 API. Затем согласовать row rhythm, connected/disabled states, Socket
 sizes/shapes и controls. Если Flex не выражает layout, расширять общий Flex.
 
-### NODES-017.4 — Довести ортогональные Links и interaction states
+`COMPLETE`: generic Node владеет `parameters[]`, Socket ссылается через
+`parameterId`, component `SocketSide` ограничен `left/right`. Validation
+разрешает разные endpoint одного Parameter с обеих сторон независимо от
+`direction`, но отклоняет неизвестный Parameter и два Socket одной стороны.
+Blender plan выводит Field один раз и оба centers из одной Flex row. Catalog
+расширен с 6 до всех 8 source shapes (`line`, `volume-grid`). Focused tests
+15/15, package-boundary 4/4, UI/playground typechecks и browser console зелёные;
+exact technical canvas сохранён в artifacts. Visual density ещё не принята.
+
+### NODES-017.4 — Воспроизвести Node и Parameter visual rhythm
+
+Согласовать по reference единые theme tokens, canvas grid, компактный
+header/body, one-unit row rhythm, labels, connected/disabled controls,
+selection, collapse и shadow. Проектный шрифт сохраняется; вся child geometry
+вычисляется Flex.
+
+### NODES-017.5 — Довести ортогональные Links и interaction states
 
 Сохранить ортогональные route points и скруглённые углы, но согласовать
 толщину, contrast, selected/highlight states, слой и точное присоединение к
 центрам Socket. Blender Bézier не копируется.
 
-### NODES-017.5 — Сделать Node Editor пригодным для mobile
+### NODES-017.6 — Сделать Node Editor пригодным для mobile
 
 Добавить responsive component layout, touch pan, two-pointer pinch zoom,
 selection и mobile-sized hit targets без изменения scene geometry. Проверить
 минимум `390×844 @3x`, portrait/landscape и отсутствие horizontal UI overflow.
 
-### NODES-017.6 — Side-by-side playground и owner acceptance
+### NODES-017.7 — Side-by-side playground и owner acceptance
 
 Playground показывает одну сопоставимую Blender scene при одинаковом масштабе,
 а catalog остаётся отдельной областью. Зафиксировать reference/current кадры,
@@ -137,5 +153,5 @@ console, DOM и visual matrix, затем оставить contour владел�
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.3 — first-class
-Parameter и left/right Socket на одной Flex row.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-017.4 — Blender-like
+Node/Parameter visual rhythm при сохранении ортогональных Links.

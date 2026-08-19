@@ -10,7 +10,7 @@ import {
 } from "./blender-node.ts"
 
 describe("Blender-like Node presets", () => {
-  test("publishes the complete first socket catalog and six shapes", () => {
+  test("publishes the complete first socket catalog and eight source shapes", () => {
     expect(BLENDER_SOCKET_KINDS).toHaveLength(19)
     expect(BLENDER_SOCKET_SHAPES).toEqual([
       "circle",
@@ -19,13 +19,15 @@ describe("Blender-like Node presets", () => {
       "circle-dot",
       "square-dot",
       "diamond-dot",
+      "line",
+      "volume-grid",
     ])
     expect(Object.keys(BLENDER_SOCKET_PRESETS).sort()).toEqual([...BLENDER_SOCKET_KINDS].sort())
     expect(blenderSocketPreset("float").defaultFieldKind).toBe("number")
     expect(blenderSocketPreset("geometry").defaultFieldKind).toBeUndefined()
   })
 
-  test("measures standalone properties and socket default fields through shared UI fields", () => {
+  test("measures standalone Properties and Parameter Fields through shared UI fields", () => {
     const node: BlenderNode = {
       id: "math",
       title: "Math",
@@ -36,12 +38,18 @@ describe("Blender-like Node presets", () => {
         value: "add",
         options: [{value: "add", label: "Add"}],
       }],
+      parameters: [{
+        id: "value",
+        label: "Value",
+        field: {id: "value", label: "Value", kind: "number", value: 0.5, min: 0, max: 1},
+      }],
       sockets: [{
         id: "value",
         label: "Value",
         direction: "input",
         socketType: "float",
-        field: {id: "value", label: "Value", kind: "number", value: 0.5, min: 0, max: 1},
+        parameterId: "value",
+        side: "left",
       }],
     }
     const measured = measureBlenderNode(node)
