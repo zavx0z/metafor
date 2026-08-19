@@ -16,7 +16,8 @@
     "./edge-flow-marker": "./edge-flow-marker.ts",
     "./connection-color": "./connection-color.ts",
     "./viewport": "./viewport.ts",
-    "./surface": "./surface.ts"
+    "./surface": "./surface.ts",
+    "./node-editor": "./node-editor.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --pretty false"
