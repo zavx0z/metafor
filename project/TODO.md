@@ -73,14 +73,13 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
-исправляет отклонённый владельцем visual result NODES-016. Текущий срез
-NODES-017.8.1 исправляет несопоставимый side-by-side: Blender reference
-показывал одну крупную Noise Texture, а live panel — всю уменьшенную Frame-сцену.
-Верхний comparison должен показывать одну representative Node в одинаковом
-масштабе; полная Frame-сцена остаётся отдельной областью. Corrected
-`node-system-dev`, Frame/Parameter/visual rhythm/Links и isolated mobile proof
-уже закреплены checkpoint-коммитами. Physical mobile и owner acceptance
-остаются gate после correction.
+исправляет отклонённый владельцем visual result NODES-016. NODES-017.8.1 уже
+поставила одну live Noise-подобную Node рядом с Blender reference в равном
+Flex slot и сохранила полную Frame-сцену отдельно. Текущий срез NODES-017.8.2
+исправляет выявленные в честном сравнении texture header, Blender-порядок loose
+Socket и полноширинные enum controls. Boolean остаётся общим `Switcher` по
+решению владельца. Physical mobile и owner acceptance остаются gate после
+correction.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.

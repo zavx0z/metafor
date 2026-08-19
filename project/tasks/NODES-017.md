@@ -25,6 +25,9 @@
   имеет только стороны `left/right`, но один Parameter может владеть Socket с
   каждой стороны одновременно. `direction` endpoint не определяется стороной;
   fixed/adaptive placement остаётся законом layout.
+* Владелец отдельно подтвердил Boolean presentation: `Normalize` и другие
+  Boolean Field сохраняют общий `Switcher`, даже когда Blender reference
+  показывает checkbox. Это project divergence, а не visual defect.
 * На машине установлен Blender `4.5.5 LTS`. Создан изолированный reference
   `/tmp/blender-node-reference.blend` с Texture Coordinate, Mapping, Noise
   Texture, Color Ramp, Principled BSDF, Material Output, Links и Frame.
@@ -199,9 +202,26 @@ slot и сопоставимый видимый масштаб. Полная Fra
 демонстрацию всей component system. На mobile все вспомогательные regions
 скрываются и остаётся прежний полный NodeEditor.
 
-`IN_PROGRESS`: причиной correction является неверная область сравнения, а не
-новый renderer или layout policy. Реализация не вводит fixture-specific rect
-арифметику: page regions и Node rows остаются под общим Flex/FlexCss.
+`COMPLETE`: result commit `aa15737e9` добавил отдельную live Noise-подобную Node
+в равном Flex slot рядом с reference; полная Frame-сцена и Socket catalog
+остались отдельными нижними regions, а mobile по-прежнему показывает только
+полный NodeEditor. Focused tests 8/8 и UI/playground typechecks зелёные.
+Сопоставимый кадр впервые позволил увидеть три самостоятельных renderer-дефекта,
+которые вынесены в следующий correction.
+
+#### NODES-017.8.2 — Исправить выявленные отличия representative Node
+
+Сопоставимый кадр NODES-017.8.1 показал, что live Texture Node получает
+бирюзовый fallback header вместо Blender texture-brown; loose output Socket
+`Fac`/`Color` оказываются после inputs вместо верхней части body; enum controls
+`3D`/`fBM` занимают только часть строки из-за лишнего видимого label. Исправить
+общий Blender renderer и universal compact Field presentation, затем повторить
+кадр. `Switcher` для `Normalize` сохранить по прямому решению владельца.
+
+`IN_PROGRESS`: общий порядок rows должен быть: right-side loose Socket,
+properties, Parameters, left-side loose Socket. Он не связывает `direction` со
+стороной. Semantic label Field остаётся обязательным, а компактный renderer
+получает универсальное явное скрытие visual label без Node-specific control.
 
 ## Визуальный контракт
 
@@ -253,7 +273,7 @@ slot и сопоставимый видимый масштаб. Полная Fra
 
 ## Состояние
 
-`IN_PROGRESS`: владелец отклонил несопоставимый live comparison. Текущий срез
-NODES-017.8.1 строит representative Node в одинаковом масштабе, повторяет
-desktop/mobile evidence и заново предъявляет exact target 4016. Physical proof
-по-прежнему ждёт Android device (`@meta/android devices: []`).
+`IN_PROGRESS`: равный comparison построен, но выявил конкретные renderer-дефекты.
+Текущий срез NODES-017.8.2 исправляет header, Blender-порядок loose Socket и
+полноширинные enum controls, сохраняя `Switcher` как принятую project divergence.
+Physical proof по-прежнему ждёт Android device (`@meta/android devices: []`).
