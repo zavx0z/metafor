@@ -135,7 +135,7 @@ Result checkpoint: `d15d66671810a5a483e64ae1782c89dae29be025`.
 
 ### NODES-018.2 — Добавить retained component parent в UiSurface
 
-Статус и исполнитель: `REVIEW`, внутренний исполнитель
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель
 `NODES-018.2 — Добавить retained component parent в UiSurface`.
 
 Классификация: следующий implementation-срез того же UI owner contract; он
@@ -209,10 +209,60 @@ Result checkpoint: `57c66555848fda99c8d102a11a0d7c9ca67a3f62`.
 
 ### NODES-018.3 — Перевести NodeCanvas на retained content hierarchy
 
-Создать retained content-root NodeCanvas и component parents для Frame, Link и
-Node. FlexBox plans работают в локальных coordinates; pan/zoom обновляет только
-content-root position/scale. Объединить Node background/foreground materialize,
-чтобы одна Node планировалась один раз на dirty cycle.
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+`NODES-018.3 — Перевести NodeCanvas на retained content hierarchy`.
+
+Классификация: следующий implementation-срез; он меняет один render-механизм
+NodeCanvas с flat CPU projection на retained local component hierarchy.
+
+Требование: NodeCanvas владеет одним retained content-root и engine
+`Object3D` component parents для Grid, Frame passes, Link и Node. Positioned
+geometry и FlexBox plans материализуются локально только при dirty; pan/zoom
+обновляет position/scale одного content-root. Одна Node выполняет один
+intrinsic plan и одну materialization за dirty cycle.
+
+Основание и связанная история: NODES-018.1 result `d15d66671` доказал flat
+baseline `{3,1,0} → {6,2,0}`, NODES-018.2 result `57c665558` дал атомарный
+retained-parent lifecycle. NODES-017.8.8 локализовал двойной
+`renderedBlenderNodePlan` и независимые visual scale floors.
+
+Наблюдаемое расхождение: `planNodeEditorViewport` CPU-преобразует все
+Frame/Node/Socket/Link на каждом render, Node background/foreground независимо
+планируют один intrinsic subtree, а renderer contexts передают canvas scale и
+повторяют его в text/radius/stroke/Socket/Field metrics.
+
+Причина: подтверждена — render path остаётся screen-coordinate immediate mode,
+несмотря на готовые engine hierarchy и retained lifecycle.
+
+Разрешённое изменение одного механизма: `@nodes/ui` создаёт и reconciles
+retained component parents, materializes local geometry в paint order и
+переводит Node renderer на один local render/plan. Visual renderer metrics и
+compact Field становятся intrinsic local values без canvas-transform scale и
+screen floors; content-root наследует единственный transform. Допустимы только
+необходимые public renderer-context и `@ui/components` local-metric изменения.
+Clipping, culling и transformed hit/input correctness остаются NODES-018.4;
+semantic NodeTree/layout solver, Hamiltonian/Card и visual corrections
+NODES-017.8.3–.7 не меняются.
+
+Regression: representative Frame/Link/Node tree после dirty имеет устойчивые
+content/component parent и geometry identities; серия `setCanvasTransform` и
+wheel/pinch transform-only frames не увеличивает `localLayoutPlans` либо
+`materializations`, но увеличивает `transformOnlyFrames`. Следующий dirty
+semantic/style cycle materializes изменившийся subtree, а одна Blender Node
+вызывает intrinsic `planBlenderNode` ровно один раз.
+
+Среда и критерий приёмки: focused NodeCanvas/Blender retained tests,
+`@ui/components`, `@ui/elements` и `@nodes/ui` tests/typechecks, exact Engine
+source typecheck, package-boundary regressions и `git diff --check`. Browser
+interaction/visual proof выполняется после NODES-018.4 в NODES-018.5.
+
+Фактические действия: ещё не выполнены.
+
+Результат и вывод: ещё не получены.
+
+Подготовительный commit: текущий project-коммит после этой регистрации.
+
+Result checkpoint: ещё не записан.
 
 ### NODES-018.4 — Согласовать clipping, culling и input transforms
 
