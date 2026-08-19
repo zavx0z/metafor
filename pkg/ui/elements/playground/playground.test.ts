@@ -108,6 +108,22 @@ describe("restored @ui/elements playground", () => {
     }
   })
 
+  test("waits for a positive public-shell preview frame before retained materialization", () => {
+    const surface = new ElementsPreviewSurface("div", () => {})
+    try {
+      surface.attachCanvas(createFakeRuntime())
+      surface.setRect({x: 0, y: 0, w: 40, h: 446}, 0.001, font)
+      expect(surface.diagnostics).toMatchObject({layoutPlans: 0, materializations: 0, childObjectIds: []})
+
+      surface.setRect({x: 0, y: 0, w: 936, h: 742}, 0.001, font)
+      expect(surface.diagnostics.layoutPlans).toBe(1)
+      expect(surface.diagnostics.materializations).toBe(1)
+      expect(surface.diagnostics.childObjectIds.length).toBeGreaterThan(0)
+    } finally {
+      surface.dispose()
+    }
+  })
+
   test("serves historical path routes through the public no-HMR server", async () => {
     const port = await freePort()
     const process = Bun.spawn(["bun", "playground/server.ts"], {

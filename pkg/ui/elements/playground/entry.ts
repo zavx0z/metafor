@@ -95,6 +95,8 @@ const ELEMENT_DENSITIES: readonly ElementDensity[] = ["compact", "regular", "air
 
 const LAYOUT_Z = -0.12
 const DOCK_SEPARATOR = "|"
+const MIN_PREVIEW_WIDTH = 128
+const MIN_PREVIEW_HEIGHT = 96
 
 export type ElementDockAction = `${ElementRoute}|${string}`
 
@@ -228,13 +230,14 @@ export class ElementsPreviewSurface extends UiSurface {
     const routeChanged = previous?.route !== this.#route
     if (geometryChanged || routeChanged) this.#dirtyPreview = true
     this.updateRetainedViewportClip(this.#retainedRoot, {x: 2, y: 2, w: Math.max(0, this.rectW - 4), h: Math.max(0, this.rectH - 4)})
+    if (this.rectW < MIN_PREVIEW_WIDTH || this.rectH < MIN_PREVIEW_HEIGHT) return
     if (!this.#dirtyPreview) return
     this.#dirtyPreview = false
     try {
       this.materializeRetainedParent(this.#previewParent, () => this.#drawPreview(0, 0, this.rectW, this.rectH))
     } catch (error) {
       this.#dirtyPreview = true
-      throw error
+      throw new Error(`Elements preview ${this.rectW}x${this.rectH} failed retained materialization`, {cause: error})
     }
     this.#layoutPlans += 1
     this.#materializations += 1
@@ -1096,7 +1099,7 @@ async function startElementsPlayground(): Promise<void> {
     document.documentElement.dataset.elementsPlayground = "ready"
   } catch (error) {
     document.documentElement.dataset.elementsPlayground = "error"
-    document.documentElement.dataset.elementsPlaygroundError = error instanceof Error ? error.message : String(error)
+    document.documentElement.dataset.elementsPlaygroundError = error instanceof Error ? error.stack ?? error.message : String(error)
     throw error
   }
 }
