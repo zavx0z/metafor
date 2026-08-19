@@ -86,12 +86,15 @@ canonical owner caches и атомарное переключение сменя
 действующим Hamiltonian-контрактом; неизменяемый startup в этот выпуск не
 входит. Владелец признал текущий loader checkpoint
 достаточным для development update-срезов, не закрывая остальную `LOAD-001`.
+Parent reconciliation завершён: первый Window/Metafor module и ABI отделены от
+minimal proof, current startup/release contract и live cache evidence записаны
+в closing handoff. `LOAD-001` находится в `REVIEW` до независимого verdict.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
-| LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
+| LOAD-001 | REVIEW      | нет       | [Открыть](tasks/LOAD-001.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |

@@ -2,14 +2,13 @@
 
 ## Коротко
 
-Новый browser loader разделён на два последовательных уровня: неизменяемый
-`startup` и обновляемый `import`. Минимальный startup получает управление и
-запускает importers в Window и Service Worker. Importers формируют загружаемый
-контур из двух разных пространств: `internal` содержит служебную логику самого
-Hamiltonian для сетевого взаимодействия и обслуживания развёртывания, а
-`metafor` содержит среду, ради загрузки которой создан Hamiltonian. Module не
-закрепляется именем за Window или Service Worker и может быть размещён также в
-Dedicated Worker.
+Текущий browser loader разделён на неизменяемый package
+`@hamiltonian/startup` и запускаемый им сменяемый `@hamiltonian/release`.
+Startup синхронно регистрирует browser listeners, получает управление и
+передаёт release только низкоуровневые primitives; cache policy, RPC, состав и
+обновление packages startup не принадлежат. Release разворачивает Window и
+Service Worker contours и подключает самостоятельные `@internal/*` packages;
+будущая среда `@metafor/*` остаётся отдельным владельцем.
 
 Прежний Hamiltonian остаётся отдельно запускаемым прототипом. Новый loader
 создаётся с нуля в чистых source-директориях и не получает перенесённый
@@ -90,7 +89,23 @@ Evidence-backed gate выполнен в
   script URL и обязательные для него response headers. Применимость этого пути
   к `web/service` требует отдельного воспроизводимого proof.
 
-## Решения владельца
+## Актуальная граница после package/release-линии
+
+Первоначальный proof ниже последовательно использовал packages `@startup/*`,
+`@import/*`, отдельный `@internal/rpc` и caches `startup/import/internal`.
+Следующая package/release-линия поглотила этот состав без переноса prototype
+source: current path имеет вид
+`HTML → @hamiltonian/startup(main/service) →
+@hamiltonian/release(main/service) → @internal/visual`, а RPC входит в env
+`service` release package. Действующим законом владеет
+`hamiltonian/README.md`; старые имена и mechanics в разделах и подзадачах ниже
+являются историческим evidence initial loader, а не current contract.
+
+Первый предметный Window/Metafor module, его ABI, первый `@metafor/*` cache и
+получение внешнего source address явно не входят в minimal loader proof и не
+блокируют закрытие родителя.
+
+## Решения владельца для первоначального loader proof
 
 * Направление называется `LOAD`, потому что владеет загрузкой, а не обновлением.
 * Browser loader имеет неизменяемый `startup` и environment-specific
@@ -1687,7 +1702,7 @@ Result checkpoint: этот commit.
 
 ## Текущее состояние и следующий шаг
 
-`LOAD-001` находится в `IN_PROGRESS`. Срезы `.1` и `.2` остановлены после
+`LOAD-001` находится в `REVIEW`. Срезы `.1` и `.2` остановлены после
 owner-решений не создавать широкую package architecture и не использовать Bun
 Fullstack/HMR. Срезы `.3`–`.22` находятся в `REVIEW`; они последовательно
 доказали статический startup, Service Worker control, SPA/offline cache,
@@ -1710,8 +1725,8 @@ loader из startup. Срез `.24` находится в `REVIEW`: владел
 пустое visual-окружение больше не является незакрытым доказательством: оно
 закреплено в Hamiltonian-контракте. Первый предметный Window/Metafor module и
 его ABI остаются будущим решением вне minimal loader proof. `LOAD-001` остаётся
-`IN_PROGRESS` до отдельного parent reconciliation после закрывающей проверки
-package/release линии.
+в `REVIEW`: package/release-линия закрыта, parent reconciliation выполнен, а
+первый предметный module/ABI остаётся отдельным будущим решением.
 
 Test-only Puppeteer suite `bun run --cwd hamiltonian test:load` защищает уже
 принятую loader boundary без изменения product source. Два последовательных
@@ -1723,3 +1738,65 @@ navigation, запуск Window importer и новое `/sw`-соединени�
 восстановление тогдашних `startup`, `import` и `internal` из Cache Storage. Это
 автоматизированное regression evidence изолированного контура, а не замена
 оставшемуся live owner-сценарию в canonical Hamiltonian contour.
+
+## Готовый результат для REVIEW
+
+Minimal loader доказан и сохранён в текущей clean-room форме. Первый HTML
+доставляет только static shell и env artifacts `@hamiltonian/startup`; startup
+регистрирует Service Worker, синхронно принимает browser events, получает
+controller и запускает `@hamiltonian/release` без знания package composition,
+cache policy или RPC. Release env `main/service` разворачивает сменяемые
+Window/Service Worker contours и подключает самостоятельные internal packages.
+
+Startup, release и internal code восстанавливаются из origin-bound caches;
+неуспешный response не становится executable entry, повреждённая exact entry
+удаляется с возможностью retry. Initial loading отделена от последующего
+versioned update, а prototype source не импортируется и не переносится.
+
+Проверки текущего результата:
+
+* `bun run --cwd hamiltonian test:load` — `11 pass`, `0 fail`, включая current
+  boundary, first install, two isolated profiles, transaction recovery,
+  reconnect, cold cache restore и exact retry;
+* canonical `bun run typecheck` — PASS;
+* последний полный Hamiltonian suite после package-boundary correction —
+  `301 pass`, `0 fail` по 38 файлам;
+* live server state: release `main/service 0.1.9`, Visual `main 0.1.10` с
+  точными SHA-256/size;
+* live controller и active registration используют
+  `/@hamiltonian/startup?env=service`; waiting/installing отсутствуют;
+* Cache Storage содержит только `startup`, `release`, `internal`, code entries
+  побайтно совпадают с package identity, `transaction` отсутствует;
+* managed Hamiltonian PID `62873`, iTerm `/dev/ttys003`, CDP Chrome PID
+  `12306`, target `44D16B99D13C1A8B35F293D86AEFE0D5` оставлены работающими.
+
+## Closing handoff
+
+Граница результата — первоначальная browser загрузка clean-room Hamiltonian,
+неизменяемый startup, controller handoff, offline restoration и запуск первого
+сменяемого release/internal composition. Затронуты `@hamiltonian/startup`,
+`@hamiltonian/release`, `@internal/visual`, `hamiltonian/static`, корневые
+routes/server и Hamiltonian test infrastructure.
+
+Постоянные владельцы:
+
+* `hamiltonian/README.md` — immutable startup, release delegation, Window
+  environment, cache ownership и доказанная граница prototype/clean-room;
+* `.agents/skills/metafor-dev/references/development.md` — package env,
+  ownership, build, initial delivery, update и test-isolation workflow;
+* startup/release package manifests и public runtime contracts — точные env,
+  dependency и ABI между startup и release;
+* `hamiltonian/tests/load-001.*`, runtime, release, isolation и browser tests —
+  initial install, controller, cache restoration, retry и последующий handover.
+
+Исторические `@startup/*`, `@import/*`, отдельный `@internal/rpc`, cache
+`import`, heartbeat и прежние URLs сохраняются только в task history. Первый
+предметный Window/Metafor module и его ABI, первый `@metafor/*`, внешний source
+address, multi-peer discovery, обновление Bun/OS processes, resources, remote
+delivery и trust не входят в результат. Prototype остаётся отдельно
+запускаемым через `server_proto.ts`.
+
+Независимая closing review должна проверить current contract, public
+boundaries, code/tests, live evidence и честность отделения historical initial
+proof от действующего loader. До положительного verdict карточка и строка
+`TODO` сохраняются; managed contour не останавливается.
