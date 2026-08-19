@@ -88,6 +88,16 @@ const transformRoot = (surface: {node: Object3D}): void => {
   surface.node.updateWorldMatrix(true)
 }
 
+const pressKey = (surface: {onKey(event: KeyboardEvent): void; flushPendingRender(): void}, key: string): number => {
+  let prevented = 0
+  surface.onKey({
+    key,
+    preventDefault: () => { prevented += 1 },
+  } as KeyboardEvent)
+  surface.flushPendingRender()
+  return prevented
+}
+
 let font: TrueTypeFont
 
 beforeAll(async () => {
@@ -184,6 +194,118 @@ describe("retained @ui/playground surfaces", () => {
     expect(surface.diagnostics.materializations).toBe(6)
     expect(materializations(surface.diagnostics)).toEqual({panel: 1, "item:first": 2, "item:second": 1, "item:third": 2})
     expectOwnersStable(surface, initial, new Set(["item:first", "item:third"]))
+    surface.dispose()
+  })
+
+  test("keeps one enabled keyboard focus, activates the live route callback, and shares it with pointer clicks", async () => {
+    const firstCalls: Route[] = []
+    const liveCalls: Route[] = []
+    const disabledItems: readonly PlaygroundNavigationItem<Route>[] = [
+      items[0]!,
+      {...items[1]!, disabled: true},
+      items[2]!,
+    ]
+    const surface = new PlaygroundNavigationSurface<Route>({
+      title: "Catalog",
+      items: disabledItems,
+      route: "first",
+      onNavigate: (route) => { firstCalls.push(route) },
+    })
+    surface.attachCanvas(createFakeRuntime())
+    surface.setRect({x: 0, y: 0, w: 210, h: 640}, 0.001, font)
+
+    expect(surface.focusedItemId).toBe("first")
+    surface.onActivate()
+    surface.flushPendingRender()
+    const beforeMove = snapshots(surface)
+    const beforeMoveCounters = materializations(surface.diagnostics)
+    const beforeMoveLayoutPlans = surface.diagnostics.layoutPlans
+
+    expect(pressKey(surface, "ArrowDown")).toBe(1)
+    expect(surface.focusedItemId).toBe("third")
+    expect(surface.diagnostics.layoutPlans).toBe(beforeMoveLayoutPlans)
+    expect(materializations(surface.diagnostics)).toEqual({
+      ...beforeMoveCounters,
+      "item:first": beforeMoveCounters["item:first"]! + 1,
+      "item:third": beforeMoveCounters["item:third"]! + 1,
+    })
+    expectOwnersStable(surface, beforeMove, new Set(["item:first", "item:third"]))
+    expect(snapshot(owner(surface, "item:first"))).not.toEqual(beforeMove.get("item:first"))
+    expect(snapshot(owner(surface, "item:third"))).not.toEqual(beforeMove.get("item:third"))
+
+    expect(pressKey(surface, "ArrowRight")).toBe(1)
+    expect(surface.focusedItemId).toBe("first")
+    expect(pressKey(surface, "ArrowUp")).toBe(1)
+    expect(surface.focusedItemId).toBe("third")
+    expect(pressKey(surface, "ArrowLeft")).toBe(1)
+    expect(surface.focusedItemId).toBe("first")
+    expect(pressKey(surface, "End")).toBe(1)
+    expect(surface.focusedItemId).toBe("third")
+    expect(pressKey(surface, "Home")).toBe(1)
+    expect(surface.focusedItemId).toBe("first")
+    expect(pressKey(surface, "End")).toBe(1)
+    expect(surface.focusedItemId).toBe("third")
+
+    surface.setOptions({
+      title: "Catalog",
+      items: disabledItems,
+      route: "first",
+      onNavigate: (route) => { liveCalls.push(route) },
+    })
+    expect(pressKey(surface, "Enter")).toBe(1)
+    expect(pressKey(surface, " ")).toBe(1)
+    expect(firstCalls).toEqual([])
+    expect(liveCalls).toEqual(["third", "third"])
+
+    const beforePointer = snapshots(surface)
+    const beforePointerCounters = materializations(surface.diagnostics)
+    const pointer = {button: 0, preventDefault() {}} as MouseEvent
+    surface.onPointerDown(pointer, 50, 111)
+    surface.onPointerUp(pointer, 50, 111)
+    surface.flushPendingRender()
+    expect(surface.focusedItemId).toBe("first")
+    expect(liveCalls).toEqual(["third", "third", "first"])
+    expect(materializations(surface.diagnostics)).toEqual({
+      ...beforePointerCounters,
+      "item:first": beforePointerCounters["item:first"]! + 1,
+      "item:third": beforePointerCounters["item:third"]! + 1,
+    })
+    expectOwnersStable(surface, beforePointer, new Set(["item:first", "item:third"]))
+
+    await Bun.sleep(140)
+    surface.flushPendingRender()
+    const beforeTransform = surface.diagnostics
+    const beforeTransformOwners = snapshots(surface)
+    transformRoot(surface)
+    expect(surface.diagnostics).toEqual(beforeTransform)
+    expectOwnersStable(surface, beforeTransformOwners)
+    surface.dispose()
+  })
+
+  test("applies the same enabled keyboard order to Dock", () => {
+    const calls: Route[] = []
+    const dockItems: readonly PlaygroundNavigationItem<Route>[] = [
+      items[0]!,
+      {...items[1]!, disabled: true},
+      items[2]!,
+    ]
+    const surface = new PlaygroundDockSurface<Route>({
+      title: "Routes",
+      items: dockItems,
+      route: "first",
+      onNavigate: (route) => { calls.push(route) },
+    })
+    surface.attachCanvas(createFakeRuntime())
+    surface.setRect({x: 0, y: 0, w: 936, h: 100}, 0.001, font)
+    surface.onActivate()
+    surface.flushPendingRender()
+    const beforeMove = snapshots(surface)
+
+    expect(pressKey(surface, "ArrowRight")).toBe(1)
+    expect(surface.focusedItemId).toBe("third")
+    expect(pressKey(surface, "Enter")).toBe(1)
+    expect(calls).toEqual(["third"])
+    expectOwnersStable(surface, beforeMove, new Set(["item:first", "item:third"]))
     surface.dispose()
   })
 

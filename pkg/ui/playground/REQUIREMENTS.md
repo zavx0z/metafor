@@ -33,3 +33,7 @@ playground. Он не владеет production semantics UI Components либо
     descriptor state, независимого transform либо пользы от partial
     materialization. Consumer preview остаётся отдельной consumer-owned Surface
     и может иметь один retained parent без переноса consumer vocabulary в shell.
+11. Navigation и dock хранят один детерминированный focus среди enabled item:
+    pointer, Arrow Up/Down/Left/Right и Home/End меняют одно keyed состояние,
+    Enter/Space вызывают текущий route callback. Видимое перемещение focus
+    материализует только прежний и новый item owner; disabled item пропускается.

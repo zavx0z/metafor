@@ -193,13 +193,21 @@ abstract class RetainedPlaygroundSurface extends UiSurface {
 abstract class PlaygroundNavigationBaseSurface<Route extends string> extends RetainedPlaygroundSurface {
   #options: NormalizedNavigationOptions<Route>
   #layout: Readonly<{w: number; h: number; pixelScale: number; font: unknown; itemIds: readonly string[]}> | null = null
+  #focusedItemId: string | null
+  #focusVisible = false
   readonly #dock: boolean
 
   protected constructor(options: PlaygroundNavigationOptions<Route>, dock: boolean) {
     const normalized = normalizeNavigationOptions(options)
     super(dock ? "PlaygroundDockSurface" : `PlaygroundNavigationSurface.${normalized.title}`)
     this.#options = normalized
+    this.#focusedItemId = preferredNavigationFocus(normalized, null)
     this.#dock = dock
+  }
+
+  /** Stable descriptor focus shared by pointer and keyboard navigation. */
+  get focusedItemId(): string | null {
+    return this.#focusedItemId
   }
 
   setOptions(options: PlaygroundNavigationOptions<Route>): void {
@@ -225,7 +233,43 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
     }
 
     this.#options = next
+    const nextFocus = preferredNavigationFocus(next, this.#focusedItemId)
+    if (this.#setFocus(nextFocus, this.#focusVisible)) changed = true
     if (changed) this.requestRender()
+  }
+
+  onActivate(): void {
+    if (this.#setFocus(this.#focusedItemId, true)) this.requestRender()
+  }
+
+  override onDeactivate(): void {
+    super.onDeactivate()
+    if (this.#setFocus(this.#focusedItemId, false)) this.requestRender()
+  }
+
+  onKey(event: KeyboardEvent): void {
+    const direction = navigationDirection(event.key)
+    if (direction !== null) {
+      event.preventDefault()
+      const enabled = this.#options.items.filter((item) => !item.disabled)
+      let nextFocus: string | null = null
+      if (enabled.length > 0) {
+        if (direction === "home") nextFocus = enabled[0]!.id
+        else if (direction === "end") nextFocus = enabled.at(-1)!.id
+        else {
+          const currentIndex = enabled.findIndex(({id}) => id === this.#focusedItemId)
+          const origin = currentIndex < 0 ? (direction === "next" ? -1 : 0) : currentIndex
+          const offset = direction === "next" ? 1 : -1
+          nextFocus = enabled[(origin + offset + enabled.length) % enabled.length]!.id
+        }
+      }
+      if (this.#setFocus(nextFocus, true)) this.requestRender()
+      return
+    }
+    if (!isNavigationActivationKey(event.key)) return
+    event.preventDefault()
+    if (this.#setFocus(preferredNavigationFocus(this.#options, this.#focusedItemId), true)) this.requestRender()
+    this.#activateFocusedItem()
   }
 
   protected override render(): void {
@@ -327,19 +371,41 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
     const item = this.#options.items.find((candidate) => candidate.id === id)
     if (item === undefined) return
     const active = item.route === this.#options.route
+    const focused = this.#focusVisible && item.id === this.#focusedItemId
     Button(this, 0, 0, frame.w, frame.h, {
       children: item.label,
       variant: active ? "contained" : "glass",
       color: "neutral",
-      ...activeNavigationStyle(active),
+      ...navigationStyle(active, focused),
       disabled: item.disabled,
       radius: 999,
       fontPx: this.#dock ? 10 : 11,
       onClick: () => {
         const current = this.#options.items.find((candidate) => candidate.id === id)
-        if (current !== undefined) this.#options.onNavigate(current.route)
+        if (current === undefined || current.disabled) return
+        if (this.#setFocus(current.id, true)) this.requestRender()
+        this.#options.onNavigate(current.route)
       },
     })
+  }
+
+  #setFocus(id: string | null, visible: boolean): boolean {
+    const nextId = id === null || this.#options.items.some((item) => item.id === id && !item.disabled) ? id : null
+    const previousId = this.#focusedItemId
+    const previousVisual = this.#focusVisible ? previousId : null
+    const nextVisual = visible ? nextId : null
+    if (previousVisual !== nextVisual) {
+      if (previousVisual !== null) this.markOwnerDirty(itemOwnerKey(previousVisual))
+      if (nextVisual !== null) this.markOwnerDirty(itemOwnerKey(nextVisual))
+    }
+    this.#focusedItemId = nextId
+    this.#focusVisible = visible
+    return previousId !== nextId || previousVisual !== nextVisual
+  }
+
+  #activateFocusedItem(): void {
+    const item = this.#options.items.find(({id, disabled}) => id === this.#focusedItemId && !disabled)
+    if (item !== undefined) this.#options.onNavigate(item.route)
   }
 }
 
@@ -543,6 +609,27 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
   return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
+function preferredNavigationFocus<Route extends string>(
+  options: NormalizedNavigationOptions<Route>,
+  current: string | null,
+): string | null {
+  if (current !== null && options.items.some(({id, disabled}) => id === current && !disabled)) return current
+  return options.items.find(({route, disabled}) => route === options.route && !disabled)?.id ??
+    options.items.find(({disabled}) => !disabled)?.id ?? null
+}
+
+function navigationDirection(key: string): "previous" | "next" | "home" | "end" | null {
+  if (key === "ArrowUp" || key === "ArrowLeft") return "previous"
+  if (key === "ArrowDown" || key === "ArrowRight") return "next"
+  if (key === "Home") return "home"
+  if (key === "End") return "end"
+  return null
+}
+
+function isNavigationActivationKey(key: string): boolean {
+  return key === "Enter" || key === " " || key === "Space" || key === "Spacebar"
+}
+
 function drawPanel(surface: UiSurface, width: number, height: number, dock = false): void {
   Pane(surface, 0, 0, width, height, {
     variant: "glass",
@@ -555,6 +642,9 @@ function drawPanel(surface: UiSurface, width: number, height: number, dock = fal
   })
 }
 
-function activeNavigationStyle(active: boolean): Pick<ButtonProps, "fill" | "border"> {
-  return active ? {fill: palette.bgHot, border: palette.cyan} : {}
+function navigationStyle(active: boolean, focused: boolean): Pick<ButtonProps, "fill" | "border"> {
+  if (active && focused) return {fill: palette.bgHot, border: palette.borderBright}
+  if (active) return {fill: palette.bgHot, border: palette.cyan}
+  if (focused) return {fill: palette.bgPanelDim, border: palette.borderBright}
+  return {}
 }
