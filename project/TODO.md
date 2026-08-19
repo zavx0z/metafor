@@ -74,8 +74,9 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 исправляет отклонённый владельцем visual result NODES-016. Текущий срез
-фиксирует настоящий локальный Blender 4.5.5 reference и side-by-side defect
-matrix до любых новых renderer-правок.
+создаёт versioned `node-system-dev` skill в отдельной пользовательской задаче;
+Frame/Parameter/visual rhythm/Links и isolated mobile proof уже закреплены
+checkpoint-коммитами, physical mobile и owner acceptance остаются gate.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.

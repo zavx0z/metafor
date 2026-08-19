@@ -123,7 +123,17 @@ sequence доказала pan (`x≈42,y≈340`) и pinch (`scale 0.3125→0.552
 service фактически применил DPR 2, несмотря на запрос 3. Android service имеет
 `devices: []`, поэтому physical-device acceptance остаётся открытым gate.
 
-### NODES-017.7 — Side-by-side playground и owner acceptance
+### NODES-017.7 — Создать versioned skill разработки Node System
+
+В отдельной пользовательской задаче создать
+`pkg/nodes/.agents/skills/node-system-dev`: узкий skill для lifecycle component
+playground, exact CDP targeting, DOM/console/canvas evidence, atomic synthetic
+touch sequences, desktop/mobile viewport restore и Blender reference research.
+Включить только полезные maintained references/assets, проверить scripts и
+`quick_validate.py`. Skill не заменяет `$metafor-dev` для Hamiltonian и не
+выдаёт emulation/screenshot за physical-device либо owner acceptance.
+
+### NODES-017.8 — Side-by-side playground и owner acceptance
 
 Playground показывает одну сопоставимую Blender scene при одинаковом масштабе,
 а catalog остаётся отдельной областью. Зафиксировать reference/current кадры,
@@ -181,4 +191,5 @@ console, DOM и visual matrix, затем оставить contour владел�
 ## Состояние
 
 `IN_PROGRESS`, исполнитель `/root`; NODES-017.6 implemented, physical mobile
-gate открыт; текущий срез NODES-017.7 — side-by-side и owner acceptance.
+gate открыт; текущий срез NODES-017.7 передан отдельной пользовательской задаче
+после project checkpoint.
