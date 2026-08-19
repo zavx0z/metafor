@@ -221,6 +221,10 @@ verification; `.21` checkpoint `0ba474cac` устранил strict errors protot
 update. `bun run typecheck` и полный Hamiltonian suite `299/299` проходят;
 managed contour и browser caches не изменились. Родитель снова находится в
 `REVIEW`; owner-visible contour оставлен работающим.
+Третья closing review подтвердила code/typecheck/test result, но вернула `.20`
+в работу: verification block README потерял переход в каталог `hamiltonian`
+перед prototype build-командами. Это то же требование и тот же механизм, новый
+срез не создаётся.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
@@ -260,7 +264,7 @@ production удаляет `console.debug` и не публикует карту.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | LOAD-001 | IN_PROGRESS | нет       | [Открыть](tasks/LOAD-001.md) |
 | UPD-002 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-002.md) |
-| UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
+| UPD-003 | IN_PROGRESS | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
