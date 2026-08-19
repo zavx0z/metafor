@@ -127,13 +127,15 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 | NODES-010.2 | Отделить fixed policy от общего placement/routing core | CLOSED |
 | NODES-010.3 | Создать dev-only SVG playground и fixed baseline | CLOSED |
 | NODES-010.4 | Реализовать bounded adaptive side-selection | CLOSED |
-| NODES-010.5 | Подключить adaptive через measured и Card adapters · `/root/nodes_010_5` | IN_PROGRESS |
-| NODES-010.6 | Разделить fixed/adaptive Worker и bundle entrypoints · `/root/nodes_010_6` | IN_PROGRESS |
-| NODES-010.7 | Доказать adapters, performance, playground и package boundary | WAITING |
+| NODES-010.5 | Подключить adaptive через measured и Card adapters | CLOSED |
+| NODES-010.6 | Разделить fixed/adaptive Worker и bundle entrypoints | CLOSED |
+| NODES-010.7 | Перевести существующий Card consumer без изменения поведения · `/root/nodes_010_7` | IN_PROGRESS |
+| NODES-010.8 | Доказать adapters, performance, playground и package boundary | WAITING |
 
 Каждый срез получает отдельный result checkpoint. `.2` и `.3` начинаются после
 `.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` и `.6` независимо
-зависят от `.4`; `.7` закрывает все предыдущие результаты.
+зависят от `.4`; `.7` закрывает mechanical consumer-adoption gate `.1`; `.8`
+закрывает все предыдущие результаты.
 
 ## Результат NODES-010.1
 
@@ -232,6 +234,41 @@ common-objective comparison, typed witnesses и playground integration.
 Implementation не импортирует Worker, UI или product code и не копирует
 placement/router/validators. Срез принят; следующие independent gates —
 presentation adapter и policy-specific Worker transport.
+
+## Результат NODES-010.5
+
+* Pure `nodes/adaptive-layout` принимает Card-free `MeasuredNodeSystem`, а
+  `@nodes/ui/adaptive-card-layout` является тонким sync Card wrapper над тем же
+  measured adapter и public adaptive policy.
+* Общие identity projection, topology verification, measurement
+  materialization, Card row ordering/scoring и result mapping вынесены из
+  прежнего 792-строчного fixed adapter. Fixed wrapper теперь 115 строк и
+  сохраняет прежние tests/hashes.
+* Surface рисует marker по resolved positioned side и не изменяет optional
+  semantic side constraint.
+* Bundle evidence: fixed Card `101194/31762 gzip`, adaptive measured/Bare
+  `92424/28666`, adaptive Card `106552/33451` bytes; implementations физически
+  не включают противоположную policy.
+
+## Результат NODES-010.6
+
+* Worker request lifecycle стал generic и policy-neutral; fixed/adaptive client
+  и executor доступны отдельными public subpaths. Compatibility
+  `LayoutWorkerClient`/`runLayoutWorkerRequest` остаётся fixed-only.
+* Adaptive success structured-clone сохраняет diagnostics, failure сохраняет
+  serialized `AdaptiveLayoutError` code и полный typed witness. Generation,
+  stale cancellation, remote error, dispose и no-main-thread-fallback общие.
+* Bundle evidence raw/gzip: fixed executor `75979/23867`, adaptive executor
+  `81563/25729`, fixed client `1527/694`, adaptive client `1530/696`.
+
+### Closing review NODES-010.5–NODES-010.6
+
+Root перечитал measured projection, policy mapping, Card common adapter,
+resolved-side Surface path, generic Worker transport, exact executors и bundle
+tests. Общая логика не переехала в UI и policies не импортируют друг друга.
+Package results приняты. Root compile всё ещё требует только механического
+перевода существующего Hamiltonian Card consumer на explicit Card presentation;
+это зарегистрировано отдельным `.7` без включения adaptive product behavior.
 
 ## Поведение процесса
 
