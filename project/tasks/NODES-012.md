@@ -1,10 +1,11 @@
-# NODES-012 — Исправить порядок SVG-слоёв выносок портов
+# NODES-012 — Исправить порядок SVG-слоёв вложенной сцены
 
 ## Коротко
 
 В dev-only SVG playground линии, соединяющие точный порт с внешней debug-подписью,
-не проходят поверх листовых нод и их текста. Сокеты и внешние рамки с подписями
-остаются поверх сцены и читаются полностью.
+не проходят поверх листовых нод и их текста. Родительский compound рисуется до
+своих потомков и не затемняет их полупрозрачным fill. Сокеты и внешние рамки с
+подписями остаются поверх сцены и читаются полностью.
 
 ## История и evidence
 
@@ -16,23 +17,28 @@
 * NODES-011 перевела интерфейс на русский и закрыта коммитом `65cc67581`.
 * 19 августа 2026 года владелец прислал screenshot fixed RIGHT: серые пунктирные
   `port-label-leader` проходят поверх `observer`, `producer`, `consumer-a` и
-  `consumer-b`.
+  `consumer-b`, а полупрозрачные parent compounds затемняют дочерние карточки.
 
 ## Подтверждённая причина
 
-`svg.ts` материализует leader, label box и label text одним `port-label` group
-внутри последнего слоя `ports`. В SVG порядок элементов задаёт painting order,
-поэтому leader оказывается выше слоя `nodes`. Это presentation defect; layout,
-routing и координаты портов корректны.
+В SVG порядок элементов задаёт painting order. `svg.ts` материализовал leader,
+label box и label text одним `port-label` group внутри последнего слоя `ports`,
+поэтому leader оказывался выше слоя `nodes`. Внутри `nodes` все элементы
+сортировались только по ID; `source-zone` и `target-zone` поэтому рисовались
+после своих детей и накрывали их полупрозрачным fill. Оба расхождения являются
+presentation defects; layout, routing и координаты портов корректны.
 
 ## Решение
 
 1. Разделить линии выносок и их внешние рамки/текст на разные SVG-слои.
 2. Рисовать semantic edges, затем leaders, затем nodes, gateways и exact ports,
    затем внешние label boxes/text.
-3. Сохранить общий `PlaygroundPortLabel` projection и одну вычисленную geometry:
+3. Внутри слоя nodes рисовать каждого ancestor до его descendants, сохраняя
+   детерминированный ID-order среди нод одинаковой глубины.
+4. Сохранить общий `PlaygroundPortLabel` projection и одну вычисленную geometry:
    presentation не дублирует placement подписей.
-4. Закрепить структурным regression точный относительный порядок слоёв и
+5. Закрепить структурным regression точный относительный порядок слоёв,
+   ancestor/descendant painting order и
    browser screenshot на nested fixed RIGHT/DOWN и flat adaptive RIGHT/DOWN.
 
 ## Границы
@@ -46,14 +52,22 @@ routing и координаты портов корректны.
 ## Критерии готовности
 
 1. Ни один `port-label-leader` не рисуется поверх leaf node fill или текста.
-2. Exact socket, label box и label text остаются видимыми поверх сцены.
-3. Fixed/adaptive RIGHT/DOWN сохраняют прежние result hashes и geometry.
-4. Structural regression доказывает `edges → leaders → nodes → gateways →
+2. Каждый parent compound предшествует всем своим descendants в SVG и не
+   затемняет дочерние карточки.
+3. Exact socket, label box и label text остаются видимыми поверх сцены.
+4. Fixed/adaptive RIGHT/DOWN сохраняют прежние result hashes и geometry.
+5. Structural regression доказывает `edges → leaders → nodes → gateways →
    ports → labels` и отсутствие leader внутри верхнего label layer.
-5. `bun test pkg/nodes`, playground typecheck, browser console и
+6. `bun test pkg/nodes`, playground typecheck, browser console и
    `git diff --check` проходят.
-6. В открытом через `ai-macos` playground владелец получает исправленную сцену
+7. В открытом через `ai-macos` playground владелец получает исправленную сцену
    без перекрытия карточек пунктирными leader lines.
+
+## Checkpoints
+
+* `a402ad171` — leaders отделены от внешних labels и помещены между semantic
+  edges и nodes; fixed RIGHT screenshot доказал, что пунктир скрыт листовыми
+  карточками, и одновременно выделил оставшееся затемнение детей parent fill.
 
 ## Состояние
 
