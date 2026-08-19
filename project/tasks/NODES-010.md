@@ -126,13 +126,14 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 | NODES-010.1 | Закрепить semantic, Card, measured и positioned contracts | CLOSED |
 | NODES-010.2 | Отделить fixed policy от общего placement/routing core | CLOSED |
 | NODES-010.3 | Создать dev-only SVG playground и fixed baseline | CLOSED |
-| NODES-010.4 | Реализовать bounded adaptive side-selection · `/root/nodes_010_4` | IN_PROGRESS |
-| NODES-010.5 | Разделить fixed/adaptive Worker и bundle entrypoints | WAITING |
-| NODES-010.6 | Доказать adapters, performance, playground и package boundary | WAITING |
+| NODES-010.4 | Реализовать bounded adaptive side-selection | CLOSED |
+| NODES-010.5 | Подключить adaptive через measured и Card adapters · `/root/nodes_010_5` | IN_PROGRESS |
+| NODES-010.6 | Разделить fixed/adaptive Worker и bundle entrypoints · `/root/nodes_010_6` | IN_PROGRESS |
+| NODES-010.7 | Доказать adapters, performance, playground и package boundary | WAITING |
 
 Каждый срез получает отдельный result checkpoint. `.2` и `.3` начинаются после
-`.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` зависит от `.4`;
-`.6` закрывает все предыдущие результаты.
+`.1`; `.4` зависит от `.2` и playground baseline `.3`; `.5` и `.6` независимо
+зависят от `.4`; `.7` закрывает все предыдущие результаты.
 
 ## Результат NODES-010.1
 
@@ -203,6 +204,34 @@ Root независимо перечитал fixed policy/core diff и playgroun
 повторил весь `pkg/nodes`: `106 pass`, `0 fail`, `1785 expect()`. Typecheck
 четырёх packages и playground, TypeDoc и `git diff --check` успешны. Оба среза
 приняты и закрыты; gate adaptive открыт.
+
+## Результат NODES-010.4
+
+* Добавлен independent public `@nodes/layout/adaptive`: measured ports задают
+  capability и allowed WEST/EAST sides, а один exact port получает одну side
+  для всех incident edges.
+* Search использует hard budget `16`, stable semantic-ID order, deterministic
+  seeds и local flips без полного `2^N`. Diagnostics фиксируют theoretical,
+  generated, attempted и routable candidates, selected sides и fixed/dynamic
+  counts.
+* Невозможный graph возвращает typed `AdaptiveLayoutError` с code
+  `NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT` и machine-readable witness для empty
+  constraints, capability-role conflict либо bounded unroutable attempts.
+* Regressions доказывают geometry-dependent EAST/WEST, shared inout port,
+  mixed constraints, WEST→EAST/EAST→EAST routes, capability/side independence,
+  permutations/repeats и bounded `64 → 16` search.
+* Playground получил одну adaptive registry entry и frozen RIGHT/DOWN matrix;
+  fixed result/SVG hashes не изменились.
+* Bundle evidence: fixed `75580/23707 gzip`, adaptive `81141/25581` bytes;
+  implementation-specific symbols не пересекаются.
+
+### Closing review NODES-010.4
+
+Root перечитал adaptive normalization, capability validation, candidate queue,
+common-objective comparison, typed witnesses и playground integration.
+Implementation не импортирует Worker, UI или product code и не копирует
+placement/router/validators. Срез принят; следующие independent gates —
+presentation adapter и policy-specific Worker transport.
 
 ## Поведение процесса
 

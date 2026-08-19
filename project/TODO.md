@@ -76,8 +76,10 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 [`NODES-010 — Отделить карточку от ноды и поддержать две раскладки`](tasks/NODES-010.md).
 Semantic topology отделена от Card presentation; fixed policy вынесена из
 общего routing core, а fixed RIGHT/DOWN закреплены в dev-only SVG playground.
-Текущий срез реализует bounded adaptive side-selection через тот же common
-core, не меняя frozen fixed geometry и не добавляя product integration.
+Bounded adaptive side-selection через тот же common core реализована и
+проверена. Параллельные текущие срезы подключают её через универсальный
+measured/Card adapter и отдельный Worker executor; product integration не
+входит в эту задачу.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
