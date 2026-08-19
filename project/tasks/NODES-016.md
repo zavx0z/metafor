@@ -77,6 +77,12 @@ registry, Standard Node measurement и независимые Node/Socket/Link r
 все field kinds standalone, socket types/shapes и несколько разных Node types,
 Links и container Node. Layout playground на 4015 остаётся независимым.
 
+`COMPLETE`: checkpoint `b867bd546`; отдельный WebGPU catalog на 4016, 10 field
+kinds standalone и внутри Nodes, 19 socket kinds, 6 shapes, 6 Nodes/4 Links,
+Flexbox composition на field/node/editor/catalog/region уровнях. Focused gate:
+20 tests / 103 assertions, component/UI/playground typechecks и browser console
+зелёные; visual proof выполнен на target `1E982897F323D83C771E45E6CA2C4C7C`.
+
 ### NODES-016.5 — Legacy removal и доказательства
 
 Удалить Card model/layout/surface, Card HUD и их exports/tests без aliases,
@@ -118,4 +124,4 @@ package typechecks/tests, browser DOM, console и visual evidence. Hamiltonian
 
 ## Состояние
 
-`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.4.
+`IN_PROGRESS`, исполнитель `/root`; текущий срез NODES-016.5.
