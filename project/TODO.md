@@ -26,7 +26,6 @@ flowchart LR
     MF421["MF-421 · деактивация невидимого monitor display"]
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
-    NODES018["NODES-018 · retained parent/child UI transforms"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     LOAD001["LOAD-001 · минимальный browser loader"]
@@ -49,7 +48,6 @@ flowchart LR
     MF109 --> MF110
     MF405 --> MF406
     MF411 --> MF414
-    NODES018 --> NODES017
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -74,20 +72,12 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
-[`NODES-018 — Перевести UI на engine parent/child transforms`](tasks/NODES-018.md)
-находится в `REVIEW`: глобальный UI-закон, lifecycle-safe retained component
-parents, local NodeCanvas hierarchy и единый matrix path для clip/culling/input
-закреплены в owner docs, public contracts, code и regressions. Exact standalone
-browser proof подтвердил неизменные layout/materialization counters на чистом
-pan/zoom, устойчивые parent/child scale ratios, exact Socket/Link endpoints,
-desktop/mobile canvas и restored native metrics.
-
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
 полноширинные enums. Остальные Socket/header/shadow/LOD/alignment corrections
-не вошли в NODES-018. Задача остаётся `WAITING` до отдельного решения владельца
-о closing prerequisite и возврате visual corrections в работу. Physical mobile
-и owner acceptance остаются её собственными gates.
+не входили в завершённый retained prerequisite и возвращены в работу после его
+owner acceptance. Physical mobile и owner acceptance остаются её собственными
+gates.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
@@ -287,8 +277,7 @@ production удаляет `console.debug` и не публикует карту.
 | UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| NODES-018 | REVIEW      | нет       | [Открыть](tasks/NODES-018.md) |
-| NODES-017 | WAITING     | NODES-018 | [Открыть](tasks/NODES-017.md) |
+| NODES-017 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
 | MF-427 | WAITING     | MF-426      | [Открыть](tasks/MF-427.md) |
