@@ -2,8 +2,10 @@
 
 `@hamiltonian/release` владеет сменяемой частью Hamiltonian после устойчивого
 [`@hamiltonian/startup`](../startup/README.md). Один release определяет
-согласованный состав `@hamiltonian/release`, `@internal/*` и будущих
-`@metafor/*` packages, но не включает startup в сменяемую группу.
+согласованный состав `@hamiltonian/release`,
+[`@internal/*`](../docs/INTERNAL.md) и будущих
+[`@metafor/*`](../docs/METAFOR.md) packages, но не включает startup в сменяемую
+группу.
 
 ## Ответственность
 
@@ -98,7 +100,8 @@ host, а не источником истины для локального Serv
 является сменяемым server runtime за `startup/server`. Целевой путь определён
 [общим законом](../README.md#общий-закон): тонкий `server.ts` запускает
 `startup/server`, тот проверяет и запускает `release/server`, а release
-определяет весь последующий `internal`/`metafor` состав серверной среды.
+определяет весь последующий [`@internal/*`](../docs/INTERNAL.md) и
+[`@metafor/*`](../docs/METAFOR.md) состав серверной среды.
 
 Значит, наличие собранного `release/server` сегодня не доказывает полное
 server self-update. Такое доказательство потребует отдельной реализации

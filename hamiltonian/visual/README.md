@@ -5,7 +5,7 @@
 runtime сам и не определяет generic graph, layout или renderer laws.
 
 Доказанный источник наблюдений и граница рабочего контура описаны в
-[документе прототипа](../PROTOTYPE.md#причинный-монитор). Универсальная модель и
+[документе прототипа](../docs/PROTOTYPE.md#причинный-монитор). Универсальная модель и
 geometry принадлежат [`nodes`](../../pkg/nodes/README.md), layout —
 [`@nodes/layout`](../../pkg/nodes/layout/requirements/COMMON.md), а card/render
 surface — [`@nodes/ui`](../../pkg/nodes/ui/REQUIREMENTS.md).

@@ -6,11 +6,11 @@ clean-room packages как evidence и не является их исходны
 production runtime MetaFor.
 
 Поддерживаемый development contour, package publication и проверки описаны в
-[руководстве разработки](../.agents/skills/metafor-dev/references/development.md).
+[руководстве разработки](../../.agents/skills/metafor-dev/references/development.md).
 Оно запускает clean-room среду; прототип не становится из-за этого текущим
 development runtime и поднимается изолированно только для отдельной задачи его
 приёмки. Общий целевой смысл Hamiltonian определён в
-[корневом README](README.md).
+[корневом README](../README.md).
 
 ## Граница прототипа
 
@@ -36,7 +36,7 @@ transport и сообщение появляются вслед за событ�
 на существующем transport, а не отдельной связью.
 
 Каждый контур передаёт current declaration по закону
-[`@hamiltonian/visual`](visual/README.md#декларации-контуров). Новая declaration
+[`@hamiltonian/visual`](../visual/README.md#декларации-контуров). Новая declaration
 того же logical contour заменяет прежнюю целиком; stale snapshot или позднее
 live event не возвращают вытесненную incarnation. Cross-contour transport
 ссылается на exact current endpoints обеих declarations.
@@ -157,12 +157,12 @@ Versioned module проверяется по фактическим bytes до �
 получает новый код только через новое page execution, Dedicated Worker и Bun
 process — через cold rebirth. Этот локальный механизм прототипа не является
 clean-room release transaction, описанной у
-[`@hamiltonian/release`](release/README.md#обновление-browser-release).
+[`@hamiltonian/release`](../release/README.md#обновление-browser-release).
 
 ## Визуальная проекция
 
 Прототип адаптирует retained lifecycle к
-[`@hamiltonian/visual`](visual/README.md), а тот — к generic `nodes`, layout и
+[`@hamiltonian/visual`](../visual/README.md), а тот — к generic `nodes`, layout и
 UI packages. Визуальная группировка не создаёт lifecycle entity и не меняет
 владельца transport. Transient traffic показывает наблюдённое сообщение, но не
 копирует payload, token, signaling data, RPC values или Particle content.

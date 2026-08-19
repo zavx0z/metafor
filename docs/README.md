@@ -45,12 +45,14 @@
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
 * [Hamiltonian](../hamiltonian/README.md) — общий закон распределённой доставки,
-  размещения, знакомства, обновления и повторного воплощения. Package owners:
+  размещения, знакомства, обновления и повторного воплощения. Общие владельцы:
+  [`@internal/*`](../hamiltonian/docs/INTERNAL.md),
+  [будущий `@metafor/*`](../hamiltonian/docs/METAFOR.md) и
+  [рабочий прототип](../hamiltonian/docs/PROTOTYPE.md). Package owners:
   [`startup`](../hamiltonian/startup/README.md),
   [`release`](../hamiltonian/release/README.md),
-  [стандартная Window-среда](../hamiltonian/internal/visual/README.md) и
-  [причинная visual-проекция](../hamiltonian/visual/README.md). Отдельно
-  описана [доказанная граница рабочего прототипа](../hamiltonian/PROTOTYPE.md).
+  [visual function](../hamiltonian/internal/visual/README.md) и
+  [причинная visual-проекция](../hamiltonian/visual/README.md).
 * [Node system](../pkg/nodes/README.md) — универсальная model/geometry граница,
   минимальная раскладка `@nodes/layout`, HUD-free renderer `@nodes/ui` и
   необязательная HUD-интеграция `@nodes/hud`. Model и Worker transport

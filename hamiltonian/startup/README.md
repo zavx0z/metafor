@@ -20,9 +20,10 @@ Startup:
 * при замене направляет новые события преемнику, завершает уже начатые события
   прежнего runtime и затем уничтожает прежнее воплощение.
 
-Startup не выбирает состав `internal`/`metafor` packages, не владеет cache и
-update policy, не реализует RPC, signaling или прикладную работу. Эти решения
-принадлежат release и загруженным им packages.
+Startup не выбирает состав [`@internal/*`](../docs/INTERNAL.md) и будущих
+[`@metafor/*`](../docs/METAFOR.md) packages, не владеет cache и update policy,
+не реализует RPC, signaling или прикладную работу. Эти решения принадлежат
+release и загруженным им packages.
 
 ## Реализованные browser-среды
 

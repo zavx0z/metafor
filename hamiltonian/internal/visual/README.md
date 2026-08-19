@@ -1,16 +1,29 @@
 # `@internal/visual`
 
-`@internal/visual` — стандартная Window-среда clean-room Hamiltonian. Package
-создаёт пустое общее визуальное пространство, в которое последующие
-`internal` или `metafor` modules могут поместить собственное представление.
+`@internal/visual` — package визуальной функции Hamiltonian внутри общего
+namespace [`@internal/*`](../../docs/INTERNAL.md). Имя `visual` определяет
+функцию, а не Window или другую среду исполнения: один package сохраняет эту
+identity во всех поддерживаемых env.
 
-Он является самостоятельным artifact сменяемого
+Package является самостоятельной сменяемой единицей
 [`@hamiltonian/release`](../../release/README.md), а не частью startup или
-встроенными bytes release main.
+встроенными bytes другого package.
 
-## Предметная ответственность
+## Поддерживаемые среды
 
-Реализованный env `main`:
+| Env | Реализованное состояние |
+| --- | --- |
+| `main` | Полная стандартная визуальная среда Window |
+| `server` | Только точный environment marker; server visual runtime отсутствует |
+
+Другие env сейчас не объявлены. Они могут появиться позднее, если visual
+функции понадобится соответствующее исполнение, без создания нового имени
+package. Такое расширение меняет package-wide version и выпускает полный набор
+объявленных env artifacts по [общему internal law](../../docs/INTERNAL.md#identity-и-версия-package).
+
+## Visual в env `main`
+
+Реализованный `main`:
 
 * создаёт один `UiRuntime` на принадлежащем странице canvas;
 * владеет lifecycle общих `Space`, `ViewPoint` и `HUD`;
@@ -21,25 +34,25 @@
 
 Встроенный surface-display отключён. Package не наполняет `UIDisplay`
 предметной сценой и не создаёт второй visual runtime: содержимое подключают
-последующие функциональные modules.
+последующие функциональные packages.
+
+HTML, canvas и font resources принадлежат общей статической оболочке
+Hamiltonian. `@internal/visual:main` использует их, но не становится их
+transport owner.
 
 ## Жизненный цикл
 
-`@hamiltonian/release:main` импортирует package по его каноническому имени после
-browser startup. Создание runtime завершается до публикации готового
-environment export. При смене версии package заменяется как отдельный artifact
-в составе общего release и начинает новую Window incarnation вместе с
-перезагрузкой управляемой страницы.
+Release импортирует `@internal/visual` по одному bare package name, а выбранная
+condition разрешает поддерживаемый env. В `main` создание runtime завершается
+до публикации готового environment export. При смене версии visual заменяется
+как отдельный artifact в составе общего release; управляемая Window получает
+его в новом page execution.
 
-HTML, canvas и font resources принадлежат общей статической оболочке
-Hamiltonian. Package использует их, но не становится их transport owner.
+Env `server` сейчас подтверждает только выбранную среду импорта. Он не создаёт
+UiRuntime, не переносит Window API в Bun и не является доказательством будущего
+server visual lifecycle.
 
-## Среды и границы
-
-| Среда | Состояние |
-| --- | --- |
-| `main` | Реализована стандартная Window-среда |
-| `server` | Реализован только точный environment marker; server visual runtime отсутствует |
+## Границы
 
 Package не импортирует рабочий прототип, его причинный monitor,
 [`@hamiltonian/visual`](../../visual/README.md), Bulk или предметные node-system

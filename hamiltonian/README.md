@@ -79,13 +79,27 @@ epoch и защиты от двух одновременно действующ�
 
 ## Карта документации
 
+Общие документы, не принадлежащие одному package:
+
+| Владелец | Что описывает |
+| --- | --- |
+| [`@internal/*`](docs/INTERNAL.md) | Namespace сменяемой внутренней функциональности Hamiltonian и общий закон его packages |
+| [`@metafor/*`](docs/METAFOR.md) | Будущая граница загружаемой функциональности MetaFor |
+| [Рабочий прототип](docs/PROTOTYPE.md) | Доказанные lifecycle, signaling и peer-законы отдельно запускаемого опыта |
+
+Документы конкретных packages:
+
 | Владелец | Что описывает |
 | --- | --- |
 | [`@hamiltonian/startup`](startup/README.md) | Устойчивая bootstrap-оболочка, её среды и передача управления release |
 | [`@hamiltonian/release`](release/README.md) | Состав сменяемого выпуска, browser update и host-side publication/delivery |
-| [`@internal/visual`](internal/visual/README.md) | Стандартная чистая Window-среда после loader |
+| [`@internal/visual`](internal/visual/README.md) | Visual function Hamiltonian и её текущие `main`/`server` среды |
 | [`@hamiltonian/visual`](visual/README.md) | Проекция и presentation причинного node-system монитора прототипа |
-| [Рабочий прототип](PROTOTYPE.md) | Доказанные lifecycle, signaling и peer-законы отдельно запускаемого опыта |
+
+Operational documentation:
+
+| Владелец | Что описывает |
+| --- | --- |
 | [Разработка Hamiltonian](../.agents/skills/metafor-dev/references/development.md) | Запуск, публикация release, проверки и точные operational действия |
 
 Public types и код задают точные API перечисленных packages. Этот README не
@@ -96,7 +110,8 @@ Public types и код задают точные API перечисленных 
 
 Действующий закон current declarations и причинного монитора принадлежит
 [`@hamiltonian/visual`](visual/README.md#декларации-контуров), а доказанная
-граница его применения — [рабочему прототипу](PROTOTYPE.md#причинный-монитор).
+граница его применения —
+[рабочему прототипу](docs/PROTOTYPE.md#причинный-монитор).
 
 ## Стандартная Window-среда clean-room loader
 
