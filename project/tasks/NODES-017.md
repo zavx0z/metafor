@@ -28,6 +28,12 @@
 * Владелец отдельно подтвердил Boolean presentation: `Normalize` и другие
   Boolean Field сохраняют общий `Switcher`, даже когда Blender reference
   показывает checkbox. Это project divergence, а не visual defect.
+* Владелец предпочёл принятую MetaFor-форму header, скруглённую со всех четырёх
+  сторон, и поручил её сохранить. Blender-подобными должны стать форма collapse
+  chevron, его отступы и оптическое выравнивание с title, но не углы header.
+* Владелец задал собственный selection law: Node имеет нейтральную тень со всех
+  четырёх сторон; selection не рисует отдельный border, а окрашивает эту тень в
+  оттенок header конкретной Node.
 * На машине установлен Blender `4.5.5 LTS`. Создан изолированный reference
   `/tmp/blender-node-reference.blend` с Texture Coordinate, Mapping, Noise
   Texture, Color Ramp, Principled BSDF, Material Output, Links и Frame.
@@ -223,6 +229,65 @@ properties, Parameters, left-side loose Socket. Он не связывает `di
 стороной. Semantic label Field остаётся обязательным, а компактный renderer
 получает универсальное явное скрытие visual label без Node-specific control.
 
+#### NODES-017.8.3 — Согласовать размер и положение Socket с reference
+
+Owner-visible equal-scale кадр показал отдельный дефект Socket: live circles
+меньше reference, а их вертикальные centers не совпадают с соответствующими
+reference rows. После NODES-017.8.2 измерить исправленный кадр и согласовать
+общую Blender Socket size/border policy. Каждый Socket center остаётся exact
+результатом своей Parameter либо loose Socket Flex row и лежит на border Node,
+чтобы половина shape находилась снаружи. Fixture-specific offsets запрещены.
+
+`READY`: vertical center нельзя оценивать до исправления общего порядка rows в
+NODES-017.8.2; затем этот срез меняет только common Socket presentation и
+проверки exact row/border centers.
+
+#### NODES-017.8.4 — Согласовать collapse chevron и title в header
+
+Сохранить выбранный владельцем rounded header со всеми четырьмя скруглёнными
+углами. Заменить текстовый glyph `⌄`/`›` на общий геометрический chevron,
+согласовать его размер, stroke, left padding и оптический vertical center с
+Blender reference, а title выровнять с ним в одной Flex row. Изменение действует
+для expanded и collapsed Node и не вводит fixture-specific offsets.
+
+`READY`: выполнять после renderer correction NODES-017.8.2 и Socket correction
+NODES-017.8.3, затем проверить на той же representative Node и collapsed Mapping.
+
+#### NODES-017.8.5 — Сделать четырёхстороннюю Node shadow носителем selection
+
+Заменить смещённую вправо-вниз Node shadow на общий симметричный shadow halo со
+всех четырёх сторон. В обычном состоянии halo нейтральный. При selection border
+Node не меняется, а halo получает прозрачный оттенок фактического header color.
+Одинаковый закон действует для expanded и collapsed Node и не зависит от fixture.
+
+`READY`: выполнять после NODES-017.8.4; primitive shadow geometry допустима как
+drawing policy renderer и не является UI child layout. Проверка различает
+ordinary/selected border и shadow colors.
+
+#### NODES-017.8.6 — Убрать пустые Node при overview zoom
+
+Owner-visible zoom-out показал пустые bodies: Flex продолжает правильно
+вычислять все row rects, но renderer жёстко не рисует fields/labels при
+`scale < 0.38`, сохраняя полную измеренную высоту Node. Заменить бинарный LOD на
+progressive presentation в тех же Flex rows: полноценные controls на рабочем
+масштабе, компактные row silhouettes на overview и только затем header-only на
+предельном масштабе. Не создавать вторую Node model, reflow geometry или
+fixture-specific размеры.
+
+`READY`: выполнять после NODES-017.8.5. Regression должен доказать три LOD
+уровня, отсутствие пустого body на overview и неизменные Socket centers/routes.
+
+#### NODES-017.8.7 — Выровнять connected Parameter label слева
+
+Owner-visible representative Node показала, что connected `Vector` Parameter,
+у которого default Field скрыт, ошибочно центрирует label по всей строке.
+Parameter label должен начинаться слева с внутренним отступом после left Socket,
+как в reference. Он остаётся в той же Flex row; Socket center и скрытие
+connected Field не меняются. Center alignment для такого состояния запрещён.
+
+`READY`: выполнять после NODES-017.8.6 и проверить одновременно left-only и
+двусторонний Parameter, не выводя text alignment из `direction` Socket.
+
 ## Визуальный контракт
 
 1. Reference — локальный Blender `4.5.5 LTS`, не приблизительный mockup.
@@ -276,4 +341,9 @@ properties, Parameters, left-side loose Socket. Он не связывает `di
 `IN_PROGRESS`: равный comparison построен, но выявил конкретные renderer-дефекты.
 Текущий срез NODES-017.8.2 исправляет header, Blender-порядок loose Socket и
 полноширинные enum controls, сохраняя `Switcher` как принятую project divergence.
-Physical proof по-прежнему ждёт Android device (`@meta/android devices: []`).
+Следующий NODES-017.8.3 согласует общие size и centers Socket с тем же reference.
+NODES-017.8.4 сохраняет rounded header, но исправляет collapse chevron и title
+alignment. NODES-017.8.5 переносит selection с border на четырёхстороннюю тень
+в оттенке header. NODES-017.8.6 устраняет пустые Node при zoom-out без отказа от
+Flex rows. NODES-017.8.7 выравнивает connected Parameter label слева. Physical
+proof по-прежнему ждёт Android device (`@meta/android devices: []`).

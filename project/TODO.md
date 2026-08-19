@@ -78,8 +78,15 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 Flex slot и сохранила полную Frame-сцену отдельно. Текущий срез NODES-017.8.2
 исправляет выявленные в честном сравнении texture header, Blender-порядок loose
 Socket и полноширинные enum controls. Boolean остаётся общим `Switcher` по
-решению владельца. Physical mobile и owner acceptance остаются gate после
-correction.
+решению владельца. Следующий NODES-017.8.3 согласует общий размер Socket и его
+exact center на border той же Flex row, без fixture offsets. NODES-017.8.4
+сохраняет выбранный владельцем rounded header, но заменяет текстовый collapse
+glyph и выравнивает chevron/title по reference. NODES-017.8.5 делает shadow
+симметричной со всех сторон и переносит selection с border на оттенок header
+в этой тени. NODES-017.8.6 заменяет бинарное скрытие body при zoom-out на
+progressive LOD в тех же Flex rows. NODES-017.8.7 выравнивает connected
+Parameter label слева внутри той же строки. Physical mobile и owner acceptance
+остаются gate после correction.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
