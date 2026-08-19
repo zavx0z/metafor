@@ -184,6 +184,14 @@ Named public types browser package доступны зависимому workspa
 entrypoint допустим только для package без public exports; он не должен скрывать
 named exports runtime entrypoint.
 
+Тип можно реэкспортировать только внутри границы одного workspace package.
+Package не реэкспортирует тип, объявленный другим package: consumer импортирует
+его напрямую из package-владельца, а новый public type текущего package должен
+быть объявлен внутри его собственного root. Правило одинаково действует для
+`export type { ... } from`, `export { type ... } from`, `export *` и схемы
+`import type → export`; владельца определяет ближайший `package.json` source
+файла и target declaration.
+
 ## Получить пакет release
 
 ```http

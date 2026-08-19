@@ -100,6 +100,11 @@ build. Срез `UPD-002.15` заново опубликовал development art
 source maps и owner-scoped diagnostics и устранил смешанный
 production/development contour после `.13`. Оба результата ожидают review в
 оставленном live contour.
+Текущий срез `UPD-002.16` закрепляет уточнённый owner-law type boundaries:
+внутрипакетный type re-export допустим, cross-package type re-export запрещён.
+AST-аудит `startup`/`release`/`internal` нашёл ровно два нарушения для
+environment types package `@metafor/hamiltonian` в server barrel package
+`@hamiltonian/release`; runtime и browser в correction не меняются.
 Обновление уже работающего Bun runtime остаётся будущим большим этапом.
 Package `@hamiltonian/startup` устанавливает Service Worker, восстанавливает
 HTML/startup offline и запускает browser env package `@hamiltonian/release` из
