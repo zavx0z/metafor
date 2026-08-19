@@ -1,93 +1,93 @@
 # `@hamiltonian/visual`
 
-`@hamiltonian/visual` проецирует причинные observations Hamiltonian в
-универсальную node system и владеет её Hamiltonian-specific presentation.
-Текущая prototype implementation и её cleanup принадлежат
+`@hamiltonian/visual` проецирует причинные наблюдения Hamiltonian в
+универсальную нодовую систему и владеет их отображением. Текущее воплощение
+пакета относится к прототипу; его приёмкой и очисткой владеет
 [`HAM-006`](../../project/tasks/HAM-006.md).
 
-Общая карта владельцев находится в
-[корневом README Hamiltonian](../README.md#распределение-ответственности).
+Общие владельцы и названия закреплены в корневом README Hamiltonian:
+[карта ответственности](../README.md#распределение-ответственности) и
+[терминологический словарь](../README.md#терминологический-словарь).
 
-## Закон visual-проекции
+## Закон визуальной проекции
 
-Когда lifecycle owner публикует current declaration или message observation:
+Когда владелец жизненного цикла публикует действующую декларацию или наблюдение
+сообщения:
 
-1. Hamiltonian visual registry проверяет contour identity, incarnation,
-   revision, owner chains и transport endpoints;
-1. projection строит current node-system document;
-1. `@nodes/layout` вычисляет geometry для exact document и viewport;
-1. `@nodes/ui` материализует cards, ports, edges и transform;
-1. Hamiltonian presentation применяет selection, transport colors и transient
-   traffic;
-1. наблюдатель получает сцену, совпадающую с current declarations и causal
-   frontier.
+1. реестр проверяет идентичность контура, воплощение, редакцию, цепочки
+   владельцев и стороны связей;
+1. проекция строит действующий документ нодовой системы;
+1. `@nodes/layout` вычисляет геометрию для точных документа и области просмотра;
+1. `@nodes/ui` создаёт карточки, порты, связи и преобразование холста;
+1. отображение Hamiltonian применяет выбор, цвета каналов и временное движение
+   сообщений;
+1. наблюдатель получает сцену, совпадающую с действующими декларациями и
+   причинной границей.
 
-## Состав package
+## Состав пакета
 
 | Зависимость | Роль |
 | --- | --- |
-| [`nodes`](../../pkg/nodes/README.md) | Универсальная node-system model и geometry boundary |
-| [`@nodes/layout`](../../pkg/nodes/layout/requirements/COMMON.md) | Pure layout geometry |
-| [`@nodes/ui`](../../pkg/nodes/ui/REQUIREMENTS.md) | Cards, ports, canvas transform и renderer surface |
-| `@nodes/hud` | Необязательная HUD-интеграция generic node system |
+| [`nodes`](../../pkg/nodes/README.md) | Общая модель нодовой системы и граница геометрии |
+| [`@nodes/layout`](../../pkg/nodes/layout/requirements/COMMON.md) | Чистое вычисление геометрии раскладки |
+| [`@nodes/ui`](../../pkg/nodes/ui/REQUIREMENTS.md) | Карточки, порты, преобразование холста и поверхность отрисовки |
+| `@nodes/hud` | Необязательное подключение HUD к общей нодовой системе |
 
 ## Декларации контуров
 
-Каждый независимо авторитетный наблюдаемый contour публикует одну current
-declaration: logical contour identity, incarnation, exact root, монотонную
-revision/frontier и ownership-closed набор entities и transport.
+Каждый независимо авторитетный наблюдаемый контур публикует одну действующую
+декларацию: логическую идентичность, воплощение, точный корень, монотонные
+`revision` и `frontier`, а также замкнутый по владению набор сущностей и связей.
 
-При declaration новой incarnation registry атомарно заменяет predecessor этого
-logical contour. Другие current contours продолжают существовать независимо.
-Для той же incarnation registry принимает только большую revision и
-неотступающий causal frontier. Stale incarnation, равная revision и
-немонотонный frontier получают отказ до materialization.
+Декларация нового воплощения атомарно заменяет предшественника того же
+логического контура. Другие действующие контуры сохраняются независимо. Для
+одного воплощения реестр принимает только большую редакцию и причинную границу,
+которая не отступает. Устаревшее воплощение, равная редакция и отступившая
+граница отклоняются до построения сцены.
 
-Каждая некорневая entity ссылается на exact owner, а owner chain завершается в
-root declaration. Retained transport содержит current owner и оба exact
-endpoints. Cross-contour transport приходит отдельной boundary-записью между
-current incarnations.
+Каждая некорневая сущность ссылается на точного владельца, а цепочка владельцев
+завершается корнем декларации. Сохранённая связь содержит действующего
+владельца и обе точные стороны. Межконтурная связь приходит отдельной
+пограничной записью между действующими воплощениями.
 
-Current declaration авторитетно задаёт structural membership до следующей
-принятой declaration того же contour. Live observation обновляет факты уже
-объявленного subject. Structural add/remove проходит через следующую
-declaration и одной replacement-operation обновляет зависимые transport.
+Действующая декларация задаёт структурный состав до следующей принятой
+декларации того же контура. Живое наблюдение обновляет факты уже объявленного
+участника. Добавление или удаление структуры проходит через следующую
+декларацию и одной заменой обновляет зависимые связи.
 
-При отсутствующем root/owner, ownership cycle или stale endpoint registry
-отклоняет declaration и сохраняет последний валидный current document.
+При отсутствующем корне или владельце, цикле владения либо устаревшей стороне
+связи реестр отклоняет декларацию и сохраняет последний допустимый документ.
 
-## Материализация и presentation
+## Построение и отображение
 
-Retained document содержит текущую структуру. Terminal transport остаётся
-видимым со своим состоянием, пока живы endpoints. Завершение owner удаляет его
-ownership-поддерево и принадлежащие transport. Presentation-only container
-группирует доказанные nodes и сохраняет runtime owners/endpoints исходного
-document.
+Сохранённый документ содержит текущую структуру. Завершённая связь остаётся
+видимой со своим состоянием, пока живы обе стороны. Завершение владельца
+удаляет его поддерево и принадлежащие ему связи. Контейнер отображения
+группирует доказанные ноды, сохраняя исходных владельцев и стороны связей.
 
-Structural change или новый viewport создаёт новый layout request. Telemetry
-change при прежнем geometry key обновляет presentation поверх готовой geometry.
-Layouter принимает результат только для совпавших document и viewport.
+Структурное изменение или новая область просмотра создаёт новый запрос
+раскладки. Изменение телеметрии при прежнем ключе геометрии обновляет
+отображение поверх готовой геометрии. Результат раскладки принимается только
+для совпавших документа и области просмотра.
 
-Каждое наблюдённое сообщение создаёт одну transient particle на current active
-edge в фактическом направлении. До первого готового route presentation хранит
-последнее ещё актуальное observation edge. Пока частицы живы, renderer
-запрашивает animation frames; после их завершения сцена возвращается к
-render-on-demand.
+Каждое наблюдённое сообщение создаёт одну временную частицу на действующей
+связи в фактическом направлении. До готовности первого маршрута отображение
+хранит последнее актуальное наблюдение этой связи. Пока частицы живы,
+отрисовщик запрашивает кадры; после их завершения сцена снова рисуется только
+по необходимости.
 
-Hamiltonian palette назначает цвет transport family. Direction задаёт стороны
-socket, а lifecycle state — отдельный visual признак. `@nodes/ui` получает
-opaque connection type и применяет generic fallback для новых families.
+Палитра Hamiltonian назначает цвет семейству каналов. Направление задаёт
+стороны порта, а состояние жизненного цикла передаётся отдельным визуальным
+признаком. `@nodes/ui` получает непрозрачный тип соединения и использует общий
+резервный вид для новых семейств.
 
-## Текущее состояние package
+## Текущее состояние пакета
 
-Public subpaths package сейчас предоставляют browser layout-worker adapter,
-HUD composition и presentation helpers. Root source рабочего прототипа
-предоставляет lifecycle ingress, основной adapter и orchestration.
+Открытые пути экспорта сейчас предоставляют браузерный переход к Worker
+раскладки, состав HUD и вспомогательные функции отображения. Корневой исходный
+код прототипа предоставляет вход наблюдений, основной переходник и
+оркестрацию. Точные экспорты задают [`package.json`](package.json) и открытый
+исходный код.
 
-Следующий package-boundary result переносит оставшиеся Hamiltonian-specific
-visual adapters под package owner, сохраняя lifecycle observation и control у
-владельцев рабочего прототипа. Точные exports задают
-[`package.json`](package.json) и public source.
-
-Запуск, visual acceptance и diagnostics описывает
-[руководство разработки](../../.agents/skills/metafor-dev/references/development.md).
+Запуск, визуальная приёмка и диагностика описаны в
+[руководстве разработки](../../.agents/skills/metafor-dev/references/development.md).

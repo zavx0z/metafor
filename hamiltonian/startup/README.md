@@ -1,58 +1,59 @@
 # `@hamiltonian/startup`
 
-`@hamiltonian/startup` — устойчивая bootstrap-оболочка между platform entrypoint
-и сменяемым [`@hamiltonian/release`](../release/README.md). Она обеспечивает
-путь к проверенному release при первом запуске, восстановлении и замене всей
-последующей среды.
+`@hamiltonian/startup` — устойчивая начальная оболочка между платформенной
+точкой входа и сменяемым [`@hamiltonian/release`](../release/README.md). Она
+обеспечивает путь к проверенному выпуску при первом запуске, восстановлении и
+замене всей последующей среды.
 
-Общая карта владельцев находится в
-[корневом README Hamiltonian](../README.md#распределение-ответственности).
+Общие владельцы и названия закреплены в корневом README Hamiltonian:
+[карта ответственности](../README.md#распределение-ответственности) и
+[терминологический словарь](../README.md#терминологический-словарь).
 
-## Закон startup
+## Закон начальной оболочки
 
-Когда platform entrypoint начинает новую incarnation:
+Когда платформенная точка входа начинает новое воплощение:
 
-1. startup устанавливает минимальные platform lifecycle hooks;
-1. startup читает локальный release artifact либо получает его через delivery;
-1. startup проверяет artifact и создаёт отдельный release runtime;
-1. startup запускает candidate и направляет ему новые platform events;
-1. startup дожидается операций predecessor, вызывает его lifecycle cleanup и
-   публикует candidate как current runtime.
+1. `startup` устанавливает минимальные обработчики жизненного цикла платформы;
+1. читает локальный артефакт выпуска либо получает его через доставку;
+1. проверяет артефакт и создаёт отдельное исполнение выпуска;
+1. запускает кандидата и направляет ему новые события платформы;
+1. дожидается операций предшественника, завершает его жизненный цикл и
+   публикует кандидата как действующее исполнение.
 
-Наблюдаемый результат — один current release runtime с подтверждёнными package
-identity, env и version, которому platform передаёт последующие события.
+Наблюдаемый результат — одно действующее исполнение выпуска с подтверждёнными
+именем пакета, средой и версией, которому платформа передаёт следующие события.
 
-## Реализованные browser-среды
+## Реализованные браузерные среды
 
-| Env | Событие и результат |
+| Среда | Событие и результат |
 | --- | --- |
-| `main` | Window регистрирует startup Service Worker, получает controller и передаёт выполнение release main |
-| `service` | Service Worker синхронно принимает platform events, поднимает release runtime и направляет ему `fetch`/`message` |
+| `main` | Window регистрирует Service Worker начальной оболочки, получает `controller` и передаёт выполнение в `release/main` |
+| `service` | Service Worker синхронно принимает события платформы, поднимает исполнение выпуска и направляет ему `fetch` и `message` |
 
-Service startup получает один release artifact из canonical local storage либо
-через сеть. Он передаёт release замороженные primitives проверки, чтения и
-исполнения. Release возвращает runtime lifecycle, который startup готовит,
-активирует, обслуживает и завершает.
+Среда `service` получает один артефакт выпуска из основного локального
+хранилища либо через сеть. Она передаёт выпуску неизменяемый набор операций
+проверки, чтения и исполнения. Выпуск возвращает интерфейс жизненного цикла,
+который `startup` готовит, активирует, обслуживает и завершает.
 
-## Целевая server-среда
+## Целевая серверная среда
 
-Текущее server entrypoint напрямую запускает `@hamiltonian/release:server` и
-владеет HTTP/WSS surface. Следующий принимаемый результат добавляет env
-`startup/server`: `server.ts` создаёт startup, startup проверяет и запускает
-`release/server`, а handover рождает новую incarnation всей рабочей среды после
-startup.
+Текущая серверная точка входа напрямую запускает
+`@hamiltonian/release:server` и владеет поверхностью HTTP/WSS. Следующий
+принимаемый результат добавляет среду `startup/server`: `server.ts` создаёт
+начальную оболочку, она проверяет и запускает `release/server`, а передача
+управления рождает новое воплощение всей рабочей среды после `startup`.
 
-Server startup реализует ту же последовательность bootstrap/handover через
-Bun process primitives. Browser startup реализует её через Service Worker
-registration, events и local browser code storage.
+Серверная оболочка выполняет ту же последовательность через средства процессов
+Bun. Браузерная оболочка выполняет её через регистрацию и события Service
+Worker и локальное хранилище кода браузера.
 
-## Public-граница
+## Публичная граница
 
-Package сейчас экспортирует `main` и `service` entrypoints. Public loader
-dependencies и release runtime contract принадлежат
-`@hamiltonian/release:service`; startup предоставляет platform implementation
-этого contract.
+Пакет сейчас экспортирует точки входа `main` и `service`. Договор операций
+загрузчика и жизненного цикла выпуска принадлежит
+`@hamiltonian/release:service`; `startup` предоставляет его платформенную
+реализацию.
 
-Точные export conditions, artifacts и operations задают
-[`package.json`](package.json), public source и
+Точные условия экспорта, артефакты и операции задают
+[`package.json`](package.json), открытый исходный код и
 [руководство разработки](../../.agents/skills/metafor-dev/references/development.md).

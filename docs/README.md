@@ -46,11 +46,11 @@
   transport наблюдения.
 * [Hamiltonian](../hamiltonian/README.md) — общий закон распределённой доставки,
   размещения, знакомства, обновления и повторного воплощения. Владелец
-  namespace: [`@internal/*`](../hamiltonian/internal/README.md). Package owners:
-  [`startup`](../hamiltonian/startup/README.md),
-  [`release`](../hamiltonian/release/README.md),
-  [visual function](../hamiltonian/internal/visual/README.md) и
-  [причинная visual-проекция](../hamiltonian/visual/README.md).
+  пространства имён: [`@internal/*`](../hamiltonian/internal/README.md).
+  Владельцы пакетов: [`@hamiltonian/startup`](../hamiltonian/startup/README.md),
+  [`@hamiltonian/release`](../hamiltonian/release/README.md),
+  [`@internal/visual`](../hamiltonian/internal/visual/README.md) и
+  [`@hamiltonian/visual`](../hamiltonian/visual/README.md).
 * [Node system](../pkg/nodes/README.md) — универсальная model/geometry граница,
   минимальная раскладка `@nodes/layout`, HUD-free renderer `@nodes/ui` и
   необязательная HUD-интеграция `@nodes/hud`. Model и Worker transport
