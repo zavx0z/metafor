@@ -1,25 +1,26 @@
-import type {LayoutGraph, LayoutPoint, LayoutResult} from "@nodes/layout"
+import type {LayoutPoint, LayoutResult} from "@nodes/layout"
 import {getPlaygroundPolicy} from "./policy-registry.ts"
 import {findGatewayPoints, renderLayoutSvg} from "./svg.ts"
-import type {PlaygroundMetrics, PlaygroundRun} from "./types.ts"
+import type {PlaygroundFixture, PlaygroundMetrics, PlaygroundRun} from "./types.ts"
 
-export function runPlaygroundLayout(policyId: string, input: LayoutGraph): PlaygroundRun {
+export function runPlaygroundLayout(policyId: string, input: PlaygroundFixture["graph"]): PlaygroundRun {
   const policy = getPlaygroundPolicy(policyId)
   const startedAt = performance.now()
-  const result = policy.run(input)
+  const {result, diagnostics: policyDiagnostics} = policy.run(input)
   const durationMs = performance.now() - startedAt
   const metrics = measureResult(input, result, durationMs)
   return {
     policyId,
     input,
     result,
+    policyDiagnostics,
     metrics,
     svg: renderLayoutSvg(input, result, `${policy.label} · ${result.direction}`),
   }
 }
 
 export function measureResult(
-  input: LayoutGraph,
+  input: PlaygroundFixture["graph"],
   result: LayoutResult,
   durationMs: number,
 ): PlaygroundMetrics {

@@ -1,7 +1,8 @@
 # Общие алгоритмические требования
 
-Этот документ владеет законами алгоритма `@nodes/layout`, общими для режимов
-[`RIGHT`](RIGHT.md) и [`DOWN`](DOWN.md).
+Этот документ владеет законами алгоритма `@nodes/layout`, общими для fixed и
+[`adaptive`](ADAPTIVE.md) policies в режимах [`RIGHT`](RIGHT.md) и
+[`DOWN`](DOWN.md).
 
 Позднее уточнение владельца заменяет противоречащую раннюю формулировку. Public
 types задают точную форму протокола, код реализует перечисленные законы, а tests
@@ -53,7 +54,9 @@ types задают точную форму протокола, код реали
 2. Capability порта не входит в общий placement/routing contract. До вызова
    общего solver конкретная policy разрешает для каждого endpoint одну сторону
    `WEST` или `EAST`; source/target edge role не выводит и не проверяет
-   capability. Fixed policy отдельно закрепляет source=`EAST`, target=`WEST`.
+   capability. Fixed policy отдельно закрепляет source=`EAST`, target=`WEST`,
+   а adaptive policy применяет уже заданные adapter-ом capability и допустимые
+   стороны по законам [`ADAPTIVE.md`](ADAPTIVE.md).
 3. Section физически начинается и заканчивается в exact port centers; endpoint
    нельзя заменить точкой на node boundary. Первый segment выходит наружу через
    resolved source side, последний входит через resolved target side.

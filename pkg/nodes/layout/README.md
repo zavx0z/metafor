@@ -8,6 +8,7 @@ placement, размеры compound-контейнеров, gateways и орто�
 Алгоритмические требования разделены по режимам:
 
 * [общие законы](requirements/COMMON.md);
+* [adaptive side-selection](requirements/ADAPTIVE.md);
 * [горизонтальная раскладка `RIGHT`](requirements/RIGHT.md);
 * [вертикальная раскладка `DOWN`](requirements/DOWN.md).
 
@@ -24,11 +25,17 @@ WebGPU, конкретном consumer или способе отображени
 port в обеих ролях и только затем передаёт graph общему solver. Корневой
 `layout` остаётся compatibility alias `layoutFixed`.
 
+`@nodes/layout/adaptive` является независимым public entrypoint. Его measured
+port явно содержит capability и непустые `allowedSides`. Одна сторона является
+fixed constraint, две — bounded adaptive choice; один exact port получает одну
+side для всех своих edges. Policy рассматривает не более `16` устойчивых
+assignments, а каждый candidate передаёт тому же общему solver и сравнивает по
+его routing-first objective. Полного `2^N` search и fixed fallback нет.
+
 Общий placement/routing/validation core получает `ResolvedLayoutGraph`, где у
 каждого measured port уже есть одна сторона `WEST | EAST`. Он не читает и не
-выводит socket capability и не содержит adaptive side-selection. Это позволяет
-следующим policies переиспользовать geometry laws без копирования router и
-validators.
+выводит socket capability. Обе policies переиспользуют geometry laws без
+копирования router и validators.
 
 ## Протокол
 
@@ -109,6 +116,30 @@ const result = layoutFixed(graph)
 
 Синхронная pure function нужна для offline tests и других небраузерных
 потребителей. Она не использует Worker и не имеет side effects.
+
+Adaptive consumer импортирует отдельный entrypoint:
+
+```ts
+import {layoutAdaptiveWithDiagnostics} from "@nodes/layout/adaptive"
+
+const {result, diagnostics} = layoutAdaptiveWithDiagnostics({
+  viewport: {width: 900, height: 600},
+  nodes: [
+    {id: "source", width: 180, height: 100},
+    {id: "target", width: 180, height: 100},
+  ],
+  ports: [
+    {id: "source/io", nodeId: "source", y: 72, capability: "inout", allowedSides: ["WEST", "EAST"]},
+    {id: "target/in", nodeId: "target", y: 72, capability: "in", allowedSides: ["WEST"]},
+  ],
+  edges: [{id: "message", sourcePortId: "source/io", targetPortId: "target/in"}],
+})
+```
+
+Diagnostics не входят в `LayoutResult`: production consumer может вызвать
+`layoutAdaptive`, а playground и benchmark получают candidate counts через
+явный диагностический вызов. Невозможный выбор возвращает
+`AdaptiveLayoutError` с machine-readable witness.
 
 ## Минимизация пересечений
 

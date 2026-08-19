@@ -13,6 +13,12 @@ const DEFAULT_SPACING = 28
 const MAX_ROUTED_PLACEMENTS = 8
 const MAX_FALLBACK_ROUTED_PLACEMENTS = 24
 
+/** Internal policy-facing evaluation used to compare resolved side candidates. */
+export type ResolvedLayoutEvaluation = Readonly<{
+  result: LayoutResult
+  engine: EngineResult
+}>
+
 /**
  * Вычисляет всю геометрию graph с уже выбранными сторонами портов: placement,
  * compound compaction и routing.
@@ -42,6 +48,24 @@ const MAX_FALLBACK_ROUTED_PLACEMENTS = 24
 export function layoutResolved(graph: ResolvedLayoutGraph): LayoutResult {
   const input = toPlacementInput(graph)
   return toLayoutResult(layoutEngine(input))
+}
+
+/** Runs the common solver while retaining its existing objective metrics. */
+export function evaluateResolvedLayout(graph: ResolvedLayoutGraph): ResolvedLayoutEvaluation {
+  const input = toPlacementInput(graph)
+  const engine = layoutEngine(input)
+  return {result: toLayoutResult(engine), engine}
+}
+
+/**
+ * Compares two already legal common-solver outcomes by the routing-first
+ * objective. Policies use this instead of recreating scoring from geometry.
+ */
+export function compareResolvedLayoutEvaluations(
+  left: ResolvedLayoutEvaluation,
+  right: ResolvedLayoutEvaluation,
+): number {
+  return compareEngineQuality(left.engine, right.engine, compareFinalPlacementQuality)
 }
 
 function layoutEngine(input: PlacementInput): EngineResult {
@@ -206,6 +230,55 @@ function layoutEngine(input: PlacementInput): EngineResult {
     `NO_LEGAL_LAYOUT: ${attemptedPlacements}/${placements.length} placements provide no legal route graph` +
     (firstRouteFailure === null ? "" : `; first route failure: ${firstRouteFailure}`),
   )
+}
+
+function compareEngineQuality(
+  left: EngineResult,
+  right: EngineResult,
+  comparePlacement: (left: PlacementResult, right: PlacementResult) => number,
+): number {
+  const leftMetrics = left.routing.metrics
+  const rightMetrics = right.routing.metrics
+  const primary = leftMetrics.crossings - rightMetrics.crossings ||
+    leftMetrics.maxCrossings - rightMetrics.maxCrossings ||
+    leftMetrics.totalTurns - rightMetrics.totalTurns ||
+    leftMetrics.maxTurns - rightMetrics.maxTurns ||
+    left.placement.metrics.sourceCorridorDeficit - right.placement.metrics.sourceCorridorDeficit ||
+    leftMetrics.totalManhattan - rightMetrics.totalManhattan ||
+    leftMetrics.maxManhattan - rightMetrics.maxManhattan ||
+    leftMetrics.maxDetour - rightMetrics.maxDetour
+  if (primary !== 0) return primary
+  const leftDetours = [...leftMetrics.perEdge]
+    .sort((a, b) => compareIds(a.edgeId, b.edgeId)).map(({detour}) => detour)
+  const rightDetours = [...rightMetrics.perEdge]
+    .sort((a, b) => compareIds(a.edgeId, b.edgeId)).map(({detour}) => detour)
+  for (let index = 0; index < Math.max(leftDetours.length, rightDetours.length); index += 1) {
+    const difference = (leftDetours[index] ?? 0) - (rightDetours[index] ?? 0)
+    if (difference !== 0) return difference
+  }
+  return comparePlacement(left.placement, right.placement) ||
+    leftMetrics.clearanceVariance - rightMetrics.clearanceVariance ||
+    compareIds(stablePlacementKey(left.placement), stablePlacementKey(right.placement))
+}
+
+function compareFinalPlacementQuality(left: PlacementResult, right: PlacementResult): number {
+  if (left.direction === "RIGHT" && right.direction === "RIGHT") return 0
+  if (left.metrics.displayEmptyRatio !== right.metrics.displayEmptyRatio) {
+    return left.metrics.displayEmptyRatio - right.metrics.displayEmptyRatio
+  }
+  if (left.metrics.compoundEmptyRatio !== right.metrics.compoundEmptyRatio) {
+    return left.metrics.compoundEmptyRatio - right.metrics.compoundEmptyRatio
+  }
+  if (left.metrics.fitScale !== right.metrics.fitScale) {
+    return right.metrics.fitScale - left.metrics.fitScale
+  }
+  const leftArea = left.bounds.w * left.bounds.h
+  const rightArea = right.bounds.w * right.bounds.h
+  return leftArea - rightArea
+}
+
+function stablePlacementKey(placement: PlacementResult): string {
+  return JSON.stringify({nodes: placement.nodes, ports: placement.ports, bounds: placement.bounds})
 }
 
 function compactSourceTerminalTracks(

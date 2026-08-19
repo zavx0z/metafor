@@ -1,6 +1,6 @@
 {
   "name": "@nodes/layout — протокол раскладки",
-  "entryPoints": ["./src/index.ts"],
+  "entryPoints": ["./src/index.ts", "./src/adaptive.ts"],
   "out": "../../../tmp/typedoc/layout",
   "readme": "./README.md",
   "excludeExternals": true,

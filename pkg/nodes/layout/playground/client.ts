@@ -1,4 +1,3 @@
-import type {LayoutGraph} from "@nodes/layout"
 import {
   getFixtureFamily,
   getPlaygroundFixture,
@@ -63,7 +62,7 @@ runEditedInput()
 
 function runEditedInput(): void {
   try {
-    const graph = JSON.parse(inputEditor.value) as LayoutGraph
+    const graph = JSON.parse(inputEditor.value) as PlaygroundFixture["graph"]
     const fixture = PLAYGROUND_FIXTURES.find(({id}) => id === fixtureSelect.value)
     const run = runPlaygroundLayout(policySelect.value, graph)
     currentRun = run
@@ -157,6 +156,7 @@ function successDiagnostics(run: PlaygroundRun, fixture: PlaygroundFixture | und
     actualDirection: run.result.direction,
     directionMatchesFixture: expectedDirection === undefined ? null : expectedDirection === run.result.direction,
     metrics: run.metrics,
+    policyDiagnostics: run.policyDiagnostics,
     validation: "The public policy returned successfully. No playground-owned layout, routing or hard validator was run.",
   }
 }

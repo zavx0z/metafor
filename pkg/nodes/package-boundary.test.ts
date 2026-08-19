@@ -57,9 +57,10 @@ describe("universal node-system package boundaries", () => {
     }
   })
 
-  test("builds independent core, fixed-card and custom-positioned consumers", async () => {
+  test("builds independent core, fixed, adaptive and custom-positioned consumers", async () => {
     const core = await buildFixture("core-consumer.ts")
     const fixed = await buildFixture("fixed-card-consumer.ts")
+    const adaptive = await buildFixture("adaptive-layout-consumer.ts")
     const custom = await buildFixture("custom-positioned-consumer.ts")
 
     expect(core.source).not.toContain("struct GlobalUniforms")
@@ -68,12 +69,20 @@ describe("universal node-system package boundaries", () => {
     expect(fixed.source).toContain("NO_LEGAL_LAYOUT")
     expect(fixed.source).not.toContain("NodeInspectorSurface")
     expect(fixed.source).not.toContain("struct GlobalUniforms")
+    expect(fixed.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(adaptive.source).toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(adaptive.source).toContain("NO_LEGAL_LAYOUT")
+    expect(adaptive.source).not.toContain("Port has conflicting edge roles")
+    expect(adaptive.source).not.toContain("NodeSystemSurface")
+    expect(adaptive.source).not.toContain("NodeInspectorSurface")
+    expect(adaptive.source).not.toContain("struct GlobalUniforms")
     expect(custom.source).toContain("NodeSystemSurface")
     expect(custom.source).not.toContain("NO_LEGAL_LAYOUT")
     expect(custom.source).not.toContain("NodeInspectorSurface")
 
     expect(core.bytes).toBeLessThan(8_000)
     expect(fixed.bytes).toBeLessThan(115_000)
+    expect(adaptive.bytes).toBeLessThan(120_000)
     expect(custom.bytes).toBeLessThan(300_000)
   })
 })

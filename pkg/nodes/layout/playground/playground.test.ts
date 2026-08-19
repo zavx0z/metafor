@@ -2,7 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {readdir} from "node:fs/promises"
 import {join, relative} from "node:path"
 import {fileURLToPath} from "node:url"
-import {PLAYGROUND_FIXTURES} from "./fixtures.ts"
+import {getFixtureFamily, PLAYGROUND_FIXTURES} from "./fixtures.ts"
 import {PLAYGROUND_POLICIES} from "./policy-registry.ts"
 import {runPlaygroundLayout} from "./runner.ts"
 
@@ -24,11 +24,28 @@ const BASELINES = {
   },
 } as const
 
+const ADAPTIVE_BASELINES = {
+  "adaptive-shared-right": {
+    direction: "RIGHT",
+    side: "EAST",
+    bounds: {x: 0, y: 0, width: 540, height: 330},
+    resultHash: "908e21c560fc58850a831e4b865123d650e4d1b6c72917476d23ed033aee115a",
+    svgHash: "db1a372da49a6913619ba33a6e009eb65a689358188ffabe61565385c0795e2a",
+  },
+  "adaptive-shared-down": {
+    direction: "DOWN",
+    side: "WEST",
+    bounds: {x: 0, y: 0, width: 280, height: 400},
+    resultHash: "5c50a710cb8f79b6c42cc79b9eb7ea219798e1700f2606952bc97f8a4899af3d",
+    svgHash: "0a7f3453fe80baf7a70d1510ac9917dbfdce32b56aad637765cee6eaf0d936bc",
+  },
+} as const
+
 describe("dev-only nodes layout playground", () => {
   test("runs the public fixed policy against frozen RIGHT and DOWN inputs", () => {
-    expect(PLAYGROUND_POLICIES.map(({id}) => id)).toEqual(["fixed"])
+    expect(PLAYGROUND_POLICIES.map(({id}) => id)).toEqual(["fixed", "adaptive"])
 
-    for (const fixture of PLAYGROUND_FIXTURES) {
+    for (const fixture of getFixtureFamily("fixed-baseline")) {
       const baseline = BASELINES[fixture.id as keyof typeof BASELINES]
       expect(baseline, `missing baseline for ${fixture.id}`).toBeDefined()
       const first = runPlaygroundLayout("fixed", fixture.graph)
@@ -45,16 +62,46 @@ describe("dev-only nodes layout playground", () => {
   })
 
   test("keeps the comparison fixtures topology-identical apart from viewport", () => {
-    const [right, down] = PLAYGROUND_FIXTURES
-    expect(right).toBeDefined()
-    expect(down).toBeDefined()
-    expect(withoutViewport(right!.graph)).toEqual(withoutViewport(down!.graph))
-    expect(right!.graph.viewport.width).toBeGreaterThan(right!.graph.viewport.height)
-    expect(down!.graph.viewport.width).toBeLessThan(down!.graph.viewport.height)
+    for (const family of ["fixed-baseline", "adaptive-side-selection"]) {
+      const [right, down] = getFixtureFamily(family)
+      expect(right).toBeDefined()
+      expect(down).toBeDefined()
+      expect(withoutViewport(right!.graph)).toEqual(withoutViewport(down!.graph))
+      expect(right!.graph.viewport.width).toBeGreaterThan(right!.graph.viewport.height)
+      expect(down!.graph.viewport.width).toBeLessThan(down!.graph.viewport.height)
+    }
+  })
+
+  test("runs the public adaptive policy as a deterministic RIGHT and DOWN matrix", () => {
+    for (const fixture of getFixtureFamily("adaptive-side-selection")) {
+      const baseline = ADAPTIVE_BASELINES[fixture.id as keyof typeof ADAPTIVE_BASELINES]
+      const first = runPlaygroundLayout("adaptive", fixture.graph)
+      const second = runPlaygroundLayout("adaptive", fixture.graph)
+      const shared = first.result.ports.find(({id}) => id === "source/shared")
+
+      expect(baseline, `missing baseline for ${fixture.id}`).toBeDefined()
+      expect(first.result.direction).toBe(fixture.expectedDirection)
+      expect(first.result.direction).toBe(baseline.direction)
+      expect(first.result.bounds).toEqual(baseline.bounds)
+      expect(shared?.side).toBe(baseline.side)
+      expect(first.svg).toContain("data-port-id=\"source/shared\"")
+      expect(first.svg).toContain(`data-side="${baseline.side}"`)
+      expect(hash(first.result)).toBe(baseline.resultHash)
+      expect(hash(first.svg)).toBe(baseline.svgHash)
+      expect(first.policyDiagnostics).toMatchObject({
+        candidateBudget: 16,
+        theoreticalCandidateCount: "2",
+        dynamicPortCount: 1,
+        attemptedCandidates: 2,
+      })
+      expect(second.result).toEqual(first.result)
+      expect(second.svg).toBe(first.svg)
+      expect(second.policyDiagnostics).toEqual(first.policyDiagnostics)
+    }
   })
 
   test("renders inspectable nodes, compounds, exact ports, routes, bends, gateways and bounds", () => {
-    for (const fixture of PLAYGROUND_FIXTURES) {
+    for (const fixture of getFixtureFamily("fixed-baseline")) {
       const run = runPlaygroundLayout("fixed", fixture.graph)
       expect(run.svg).toContain(`data-direction="${fixture.expectedDirection}"`)
       expect(run.svg).toContain("data-kind=\"layout-bounds\"")
@@ -103,6 +150,9 @@ describe("dev-only nodes layout playground", () => {
     const callers = loaded.filter(({contents}) =>
       /import\s*{[^}]*\blayoutFixed\b[^}]*}\s*from\s*["']@nodes\/layout\/fixed["']/.test(contents))
     expect(callers.map(({path}) => relative(playgroundRoot, path))).toEqual(["policy-registry.ts"])
+    const adaptiveCallers = loaded.filter(({contents}) =>
+      /import\s*{[^}]*\blayoutAdaptiveWithDiagnostics\b[^}]*}\s*from\s*["']@nodes\/layout\/adaptive["']/.test(contents))
+    expect(adaptiveCallers.map(({path}) => relative(playgroundRoot, path))).toEqual(["policy-registry.ts"])
   })
 
   test("builds as a browser-only SVG tool without renderer or GPU code", async () => {

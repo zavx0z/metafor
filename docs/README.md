@@ -52,6 +52,7 @@
   принадлежат [`nodes`](../pkg/nodes/REQUIREMENTS.md), fixed card adapter,
   отображение и view — [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
+  [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),
   [`RIGHT`](../pkg/nodes/layout/requirements/RIGHT.md) и
   [`DOWN`](../pkg/nodes/layout/requirements/DOWN.md).
 * [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте

@@ -1,4 +1,4 @@
-import type {LayoutGraph} from "@nodes/layout"
+import type {AdaptiveLayoutGraph} from "@nodes/layout/adaptive"
 import type {PlaygroundFixture} from "./types.ts"
 
 const fixedTopology = {
@@ -11,12 +11,12 @@ const fixedTopology = {
     {id: "consumer-b", parentId: "target-zone", width: 172, height: 98, contentHeight: 88},
   ],
   ports: [
-    {id: "producer/out-primary", nodeId: "producer", y: 46},
-    {id: "producer/out-secondary", nodeId: "producer", y: 82},
-    {id: "consumer-a/in-primary", nodeId: "consumer-a", y: 44},
-    {id: "consumer-a/out-reply", nodeId: "consumer-a", y: 76},
-    {id: "consumer-b/in-secondary", nodeId: "consumer-b", y: 62},
-    {id: "observer/in-reply", nodeId: "observer", y: 56},
+    {id: "producer/out-primary", nodeId: "producer", y: 46, capability: "out", allowedSides: ["EAST"]},
+    {id: "producer/out-secondary", nodeId: "producer", y: 82, capability: "out", allowedSides: ["EAST"]},
+    {id: "consumer-a/in-primary", nodeId: "consumer-a", y: 44, capability: "in", allowedSides: ["WEST"]},
+    {id: "consumer-a/out-reply", nodeId: "consumer-a", y: 76, capability: "out", allowedSides: ["EAST"]},
+    {id: "consumer-b/in-secondary", nodeId: "consumer-b", y: 62, capability: "in", allowedSides: ["WEST"]},
+    {id: "observer/in-reply", nodeId: "observer", y: 56, capability: "in", allowedSides: ["WEST"]},
   ],
   edges: [
     {id: "primary", sourcePortId: "producer/out-primary", targetPortId: "consumer-a/in-primary"},
@@ -24,13 +24,31 @@ const fixedTopology = {
     {id: "reply", sourcePortId: "consumer-a/out-reply", targetPortId: "observer/in-reply"},
   ],
   layoutOptions: {spacing: 28, layerSpacing: 36, padding: 28, clearance: 28},
-} as const satisfies Omit<LayoutGraph, "viewport">
+} as const satisfies Omit<AdaptiveLayoutGraph, "viewport">
+
+const adaptiveTopology = {
+  nodes: [
+    {id: "source", width: 168, height: 104, contentHeight: 92},
+    {id: "target-a", width: 176, height: 96, contentHeight: 84},
+    {id: "target-b", width: 160, height: 88, contentHeight: 76},
+  ],
+  ports: [
+    {id: "source/shared", nodeId: "source", y: 54, capability: "inout", allowedSides: ["WEST", "EAST"]},
+    {id: "target-a/in", nodeId: "target-a", y: 48, capability: "in", allowedSides: ["WEST"]},
+    {id: "target-b/in", nodeId: "target-b", y: 44, capability: "in", allowedSides: ["WEST"]},
+  ],
+  edges: [
+    {id: "to-a", sourcePortId: "source/shared", targetPortId: "target-a/in"},
+    {id: "to-b", sourcePortId: "source/shared", targetPortId: "target-b/in"},
+  ],
+  layoutOptions: {spacing: 28, layerSpacing: 36, padding: 28, clearance: 28},
+} as const satisfies Omit<AdaptiveLayoutGraph, "viewport">
 
 function fixedFixture(
   id: string,
   label: string,
   expectedDirection: PlaygroundFixture["expectedDirection"],
-  viewport: LayoutGraph["viewport"],
+  viewport: AdaptiveLayoutGraph["viewport"],
 ): PlaygroundFixture {
   return {
     id,
@@ -42,9 +60,27 @@ function fixedFixture(
   }
 }
 
+function adaptiveFixture(
+  id: string,
+  label: string,
+  expectedDirection: PlaygroundFixture["expectedDirection"],
+  viewport: AdaptiveLayoutGraph["viewport"],
+): PlaygroundFixture {
+  return {
+    id,
+    family: "adaptive-side-selection",
+    label,
+    description: "One shared inout socket is resolved once for both edges through the public adaptive policy.",
+    expectedDirection,
+    graph: {...adaptiveTopology, viewport},
+  }
+}
+
 export const PLAYGROUND_FIXTURES: readonly PlaygroundFixture[] = [
   fixedFixture("fixed-baseline-right", "Fixed baseline · landscape", "RIGHT", {width: 1180, height: 680}),
   fixedFixture("fixed-baseline-down", "Fixed baseline · portrait", "DOWN", {width: 520, height: 920}),
+  adaptiveFixture("adaptive-shared-right", "Adaptive shared port · landscape", "RIGHT", {width: 960, height: 560}),
+  adaptiveFixture("adaptive-shared-down", "Adaptive shared port · portrait", "DOWN", {width: 480, height: 820}),
 ]
 
 export function getPlaygroundFixture(id: string): PlaygroundFixture {
