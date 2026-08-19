@@ -559,6 +559,59 @@ typecheck и strict exact Engine source typecheck — pass; helper syntax/help �
 
 Result checkpoint: `0a4ce7f810d4b5731d1fc7db7a47dc52f675e35c`.
 
+## Итоговый result checkpoint
+
+Все пять подзадач имеют отдельные preparation/result boundaries и статус
+`COMPLETE`. Parent result объединяет действующие owner laws и публичные
+contracts, retained implementation, regressions и exact standalone evidence;
+задача переводится в `REVIEW` без closing, удаления артефактов, интеграции в
+другую ветку либо разблокировки NODES-017.
+
+Parent result commit: текущий result commit; exact hash записывается следующим
+project-only record.
+
+## Closing handoff для REVIEW
+
+Граница результата:
+
+* `@metafor/engine`: inherited `matrixWorld` UI-law и optional framebuffer clip
+  обычного `MeshBasicMaterial`; владельцы — `pkg/engine/CONTRACT.md`, public
+  material/renderer contract и shader regression.
+* `@ui/elements`: один retained-parent staging/swap/disposal lifecycle, exact
+  parent hit/wheel/clip records, matrix conversions и dirty interaction hook;
+  владелец — `pkg/ui/elements/REQUIREMENTS.md`.
+* `@ui/components`: compact Field metrics являются intrinsic local geometry и
+  Button delayed state возвращается к exact retained owner; владелец —
+  `pkg/ui/components/REQUIREMENTS.md`.
+* `@nodes/ui`: один content-root, retained paint components, typed one-plan Node
+  renderer, transform-only counters, shared culling/clip/input hierarchy и
+  dev-only observer; владелец — `pkg/nodes/ui/REQUIREMENTS.md`.
+* `node-system-dev`: repeatable exact-target `retained`/`evidence` proof и
+  restore/focus units; это versioned development evidence, не production API.
+
+Проверяемое evidence:
+
+* result line: `.1` `d15d66671` + terminology correction `a2a44e144`, `.2`
+  `57c665558`, `.3` `0f511a575`, `.4` `a4d611767` + retained-control correction
+  `00d982041`, `.5` `0a4ce7f81`;
+* affected UI/Node suite `101/101`, Engine clip + package-boundary `6/6`, Python
+  helper restore/focus `2/2`, package/playground typechecks и strict exact
+  Engine source typecheck проходят;
+* [`project/artifacts/NODES-018`](../artifacts/NODES-018/README.md) хранит
+  machine-readable exact-target proof и три побайтово повторённые canvas PNG с
+  SHA-256;
+* live review contour: checkout-owned PID `52416`, origin
+  `http://127.0.0.1:4018/`, exact target
+  `8A6231C66CBD889C40FA2B6677BAC369`, native `1920×1088 @2`, console `0`;
+  внешний PID `68355` на 4016 сохранён без adoption.
+
+Границы review: semantic NodeTree, layout solver, Hamiltonian/Card и visual
+corrections NODES-017 не менялись. Canonical broad Engine script всё ещё видит
+записанный NODES-016 Hamiltonian/Card consumer gap; exact Engine source contract
+проверен отдельно. Mobile evidence является emulation+synthetic TouchEvent, а
+не physical-device либо owner visual acceptance. Эти два gates принадлежат
+NODES-017 и не подменены NODES-018.
+
 ## Границы
 
 * Не менять semantic NodeTree и layout solver format.
@@ -583,6 +636,6 @@ Result checkpoint: `0a4ce7f810d4b5731d1fc7db7a47dc52f675e35c`.
 
 ## Состояние
 
-`IN_PROGRESS`: NODES-018.1–.4 завершены result checkpoints. Текущий финальный
-срез — NODES-018.5 browser correctness/performance proof. Visual corrections
-NODES-017 не выполняются параллельно.
+`REVIEW`: parent result зафиксирован отдельным commit после completion audit.
+Closing review, удаление карточки/артефактов, интеграция и перевод NODES-017 из
+`WAITING` требуют отдельного решения владельца и в эту задачу не входят.

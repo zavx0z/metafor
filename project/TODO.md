@@ -75,16 +75,19 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
 [`NODES-018 — Перевести UI на engine parent/child transforms`](tasks/NODES-018.md)
-исправляет найденный в NODES-017 системный разрыв: Three.js-like engine уже
-поддерживает inherited `matrixWorld`, но immediate-mode `UiSurface` и NodeCanvas
-запекают transform каждого child на CPU и пересоздают плоские layers. Текущий
-срез закрепляет retained engine/UI contract и baseline перед переносом NodeCanvas.
+находится в `REVIEW`: глобальный UI-закон, lifecycle-safe retained component
+parents, local NodeCanvas hierarchy и единый matrix path для clip/culling/input
+закреплены в owner docs, public contracts, code и regressions. Exact standalone
+browser proof подтвердил неизменные layout/materialization counters на чистом
+pan/zoom, устойчивые parent/child scale ratios, exact Socket/Link endpoints,
+desktop/mobile canvas и restored native metrics.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 уже получила equal-scale comparison, correct row order, texture header и
 полноширинные enums. Остальные Socket/header/shadow/LOD/alignment corrections
-ждут NODES-018, чтобы не закреплять ручной scale path. Physical mobile и owner
-acceptance остаются gate после возврата задачи в работу.
+не вошли в NODES-018. Задача остаётся `WAITING` до отдельного решения владельца
+о closing prerequisite и возврате visual corrections в работу. Physical mobile
+и owner acceptance остаются её собственными gates.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.
@@ -284,7 +287,7 @@ production удаляет `console.debug` и не публикует карту.
 | UPD-003 | REVIEW      | нет       | [Открыть](tasks/UPD-003.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| NODES-018 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-018.md) |
+| NODES-018 | REVIEW      | нет       | [Открыть](tasks/NODES-018.md) |
 | NODES-017 | WAITING     | NODES-018 | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
