@@ -67,7 +67,7 @@ engine. Culling, clipping и pointer conversion читают тот же transfo
 
 ### NODES-018.1 — Закрепить engine/UI retained contract и baseline
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель
 `NODES-018.1 — Закрепить engine/UI retained contract и baseline`.
 
 Классификация: диагностический contract/baseline-срез; он закрепляет один
@@ -140,8 +140,18 @@ Correction evidence финального audit на `e05a8541a`: верхние 
 тот же документальный контракт NODES-018.1, а не новый layout mechanism или
 visual correction NODES-017.
 
-Correction preparation: текущий project commit; correction result ещё не
-записан.
+Correction actual: три owner-doc строки теперь называют только единую систему
+FlexBox, а responsive/mobile/reference flow описывают через CSS-style
+declarative form. Существующие code identifiers `flexRowCss`/`flexColumnCss`,
+runtime, tests и visuals не менялись.
+
+Correction result: `FlexCss` больше не встречается в двух owner docs; task
+history сохраняет это имя только как явно отвергнутую прежнюю формулировку.
+`git diff --check` проходит.
+
+Correction preparation: `d0231f3e982a13e2b7898e38f7e7fe2e2598f622`.
+Correction result: текущий correction result commit; точный hash записывается
+следующим project-only record после создания commit.
 
 ### NODES-018.2 — Добавить retained component parent в UiSurface
 

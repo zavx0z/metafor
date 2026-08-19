@@ -92,8 +92,9 @@ format и автоматическое размещение принадлежа
    готовым route segments; selected Link рисуется отдельным последним проходом
    поверх ordinary Links, но под Node.
 9. Mobile NodeEditor использует тот же positioned tree и renderers. Один touch
-   панорамирует canvas, два touch выполняют anchor-preserving pinch; responsive
-   FlexCss скрывает catalog surfaces, но не создаёт отдельную mobile Node.
+   панорамирует canvas, два touch выполняют anchor-preserving pinch; единый
+   responsive FlexBox flow, заданный CSS-style declarative form, скрывает
+   catalog surfaces, но не создаёт отдельную mobile Node.
 10. На overview-scale Node сохраняет структуру body через progressive LOD в тех
     же Flex rows; детали controls возвращаются после pinch без второй Node model.
 11. Content viewport переводится через inverse `matrixWorld` единственного
@@ -122,9 +123,10 @@ format и автоматическое размещение принадлежа
 4. Dev-only component playground показывает fields standalone и те же instances
    внутри Node, все socket presets/shapes, Links и containment. Он не заменяет
    будущую product integration. На desktop dev-only `ReferenceSurface` показывает
-   maintained Blender screenshot рядом с live NodeEditor через тот же FlexCss;
-   asset и Surface не экспортируются production package. На mobile reference и
-   catalogs скрываются, оставляя NodeEditor.
+   maintained Blender screenshot рядом с live NodeEditor через тот же FlexBox
+   flow с CSS-style declarative form; asset и Surface не экспортируются
+   production package. На mobile reference и catalogs скрываются, оставляя
+   NodeEditor.
 
 ## Источник терминов
 

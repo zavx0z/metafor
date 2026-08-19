@@ -68,8 +68,9 @@ FlexBox единолично вычисляет local child slots, а child то
    после Flex callback. Ручные coordinates также допустимы для внешней scene
    geometry: positioned Nodes, exact Socket centers, Link routes, mesh vertices.
    Эти данные не являются UI child-layout.
-6. Surface-to-display placement также планируется общим Flex/FlexCss helper,
-   если одновременно размещается несколько UI surfaces.
+6. Surface-to-display placement также планируется единым FlexBox flow;
+   responsive constraints задаются его CSS-style declarative form, если
+   одновременно размещается несколько UI surfaces.
 7. Structural tests каждой новой UI-системы доказывают использование Flex на
    уровне page/region, component и вложенных controls.
 8. Surface, которая осознанно владеет touch canvas, объявляет
