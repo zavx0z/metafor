@@ -74,10 +74,10 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 Параллельно в отдельном worktree выполняется
 [`NODES-010 — Отделить карточку от ноды и поддержать две раскладки`](tasks/NODES-010.md).
-Первый срез отделяет semantic topology от Card presentation и закрепляет
-normalized measured contract. Затем fixed и adaptive policies разделяются над
-общим routing core, а их geometry и варианты проверяются в dev-only SVG
-playground без WebGPU.
+Первый срез отделил semantic topology от Card presentation и закрепил
+normalized measured contract. Параллельные текущие срезы отделяют fixed policy
+от общего routing core и создают fixed-baseline dev-only SVG playground без
+WebGPU. Adaptive начинается после их принятых результатов.
 
 Начата `LOAD-001 — Загружать браузерный функционал через минимальный Service
 Worker`. Весь прежний Hamiltonian остаётся отдельно запускаемым прототипом.

@@ -123,9 +123,9 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
 
 | ID | Срез | Состояние |
 | --- | --- | --- |
-| NODES-010.1 | Закрепить semantic, Card, measured и positioned contracts | REVIEW |
-| NODES-010.2 | Отделить fixed policy от общего placement/routing core | READY |
-| NODES-010.3 | Создать dev-only SVG playground и fixed baseline | READY |
+| NODES-010.1 | Закрепить semantic, Card, measured и positioned contracts | CLOSED |
+| NODES-010.2 | Отделить fixed policy от общего placement/routing core · `/root/nodes_010_2` | IN_PROGRESS |
+| NODES-010.3 | Создать dev-only SVG playground и fixed baseline · `/root/nodes_010_3` | IN_PROGRESS |
 | NODES-010.4 | Реализовать bounded adaptive side-selection | WAITING |
 | NODES-010.5 | Разделить fixed/adaptive Worker и bundle entrypoints | WAITING |
 | NODES-010.6 | Доказать adapters, performance, playground и package boundary | WAITING |
@@ -163,6 +163,15 @@ independent subpath entrypoints внутри `@nodes/layout` и `@nodes/ui`, а 
   выводят `source=out/EAST`, `target=in/WEST`; следующий срез должен принимать
   уже resolved endpoints из fixed policy, не добавляя adaptive и не копируя
   placement/routing/validation core.
+
+### Closing review NODES-010.1
+
+Root независимо перечитал public types, Card adapter, measured validation,
+fixed materialization и propagation resolved side через move/resize. Повторены
+Card/model/validation/incremental/fixed/package-boundary tests: `35 pass`,
+`0 fail`, `1361 expect()`. Typecheck `nodes`, `@nodes/layout`, `@nodes/ui` и
+`@nodes/hud`, а также `git diff --check` успешны. Срез принят и закрыт;
+consumer-adoption gate Hamiltonian остаётся вне NODES-010.1.
 
 ## Поведение процесса
 
