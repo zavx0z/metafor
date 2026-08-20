@@ -4,6 +4,7 @@ import {fileURLToPath} from "node:url"
 import {TrueTypeFont} from "@metafor/engine"
 import {FIELD_KINDS} from "@ui/components/field"
 import {definePlaygroundStoryModule, planPlaygroundShell} from "@ui/playground"
+import {UiSurface as BaseUiSurface, type UiSurface} from "@ui/elements"
 import type {UiRuntime} from "@ui/elements/runtime"
 import {
   COMPONENT_STORIES,
@@ -17,6 +18,22 @@ import {ComponentsStoryPreviewSurface} from "./story-preview.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 let font: TrueTypeFont
+type HitCall = Parameters<UiSurface["hit"]>
+type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type TextCall = Parameters<UiSurface["drawText"]>
+type CenteredTextCall = Parameters<UiSurface["drawTextCentered"]>
+
+class StoryActionSurface extends BaseUiSurface {
+  readonly hits: HitCall[] = []
+
+  override drawRoundedRect(..._args: RoundedRectCall): void {}
+  override drawText(..._args: TextCall): number { return 0 }
+  override drawTextCentered(..._args: CenteredTextCall): number { return 0 }
+  override hit(...args: HitCall): void { this.hits.push(args) }
+  override pushClip(): void {}
+  override popClip(): void {}
+  protected render(): void {}
+}
 
 beforeAll(async () => {
   const bytes = await Bun.file(new URL("../../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
@@ -71,6 +88,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "matrix-input",
       "reference-input",
       "enum-input",
+      "collection-input",
       "checkbox",
       "switcher",
       "progress-checkbox",
@@ -94,6 +112,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Ввод матрицы",
       "Выбор ссылки",
       "Выбор значения",
+      "Редактор коллекции",
       "Флажок",
       "Переключатель",
       "Флажок прогресса",
@@ -119,6 +138,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       .map((specifier) => specifier.slice(2))
       .sort()
     expect(publicInputLeaves).toEqual([
+      "collection-input",
       "color-input",
       "enum-input",
       "matrix-input",
@@ -254,9 +274,101 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(enumImplementation).toContain('globalThis.__componentsStoryControlBridge?.("value", value)')
     expect(enumImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onChange: ${value}`)')
 
+    expect(componentSectionItems("collection-input/value/selected").map(({id}) => id)).toEqual([
+      "value", "state", "density",
+    ])
+    expect(componentVariantItems("collection-input/value/selected").map(({id}) => id)).toEqual([
+      "selected", "empty",
+    ])
+    expect(componentVariantItems("collection-input/state/disabled").map(({id}) => id)).toEqual([
+      "disabled", "readonly",
+    ])
+    expect(componentVariantItems("collection-input/density/compact").map(({id}) => id)).toEqual(["compact"])
+    const collection = await COMPONENT_STORIES.load("collection-input/value/selected")
+    expect(collection.defaultArgs).toEqual({
+      items: [
+        {id: "position", label: "Позиция", description: "Векторный атрибут"},
+        {id: "normal", label: "Нормаль", description: "Отключённый атрибут", disabled: true},
+        {id: "rotation", label: "Вращение", description: "Углы объекта"},
+      ],
+      "selected-id": "rotation",
+      "visible-rows": 3,
+      density: "regular",
+      disabled: false,
+      readonly: false,
+      event: "Ожидание",
+    })
+    expect(collection.controls.map(({key, label}) => [key, label])).toEqual([
+      ["items", "Элементы"],
+      ["selected-id", "Выбранный элемент"],
+      ["visible-rows", "Видимые строки"],
+      ["density", "Плотность"],
+      ["disabled", "Недоступно"],
+      ["readonly", "Только чтение"],
+      ["event", "Последнее событие"],
+    ])
+    const collectionSource = collection.source({...collection.defaultArgs, "visible-rows": 2, density: "compact"})
+    expect(collectionSource).toContain('from "@ui/components/collection-input"')
+    expect(collectionSource).toContain('selectedId: "rotation"')
+    expect(collectionSource).toContain("visibleRows: 2")
+    expect(collectionSource).toContain('density: "compact"')
+    expect(collectionSource).toContain("onSelect: setSelectedId")
+    expect(collectionSource).toContain("onAdd: addItem")
+    expect(collectionSource).toContain("onRemove: removeItem")
+
+    const bridgeEvents: [string, unknown][] = []
+    globalThis.__componentsStoryControlBridge = (key, value) => bridgeEvents.push([key, value])
+    const actionSurface = new StoryActionSurface()
+    try {
+      collection.render(actionSurface, collection.defaultArgs, {x: 0, y: 0, w: 1024, h: 720})
+      for (const hit of actionSurface.hits) hit[4]()
+    } finally {
+      globalThis.__componentsStoryControlBridge = undefined
+      actionSurface.dispose()
+    }
+    expect(bridgeEvents).toEqual([
+      ["selected-id", "position"],
+      ["event", "onSelect: position"],
+      ["selected-id", "rotation"],
+      ["event", "onSelect: rotation"],
+      ["items", [
+        {id: "position", label: "Позиция", description: "Векторный атрибут"},
+        {id: "normal", label: "Нормаль", description: "Отключённый атрибут", disabled: true},
+        {id: "rotation", label: "Вращение", description: "Углы объекта"},
+        {id: "item-4", label: "Элемент 4"},
+      ]],
+      ["selected-id", "item-4"],
+      ["event", "onAdd"],
+      ["items", [
+        {id: "position", label: "Позиция", description: "Векторный атрибут"},
+        {id: "normal", label: "Нормаль", description: "Отключённый атрибут", disabled: true},
+      ]],
+      ["selected-id", null],
+      ["event", "onRemove: rotation"],
+    ])
+
+    const collectionEmpty = await COMPONENT_STORIES.load("collection-input/value/empty")
+    expect(collectionEmpty.defaultArgs).toMatchObject({items: [], "selected-id": null})
+    const collectionDisabled = await COMPONENT_STORIES.load("collection-input/state/disabled")
+    expect(collectionDisabled.defaultArgs).toMatchObject({disabled: true})
+    const collectionReadonly = await COMPONENT_STORIES.load("collection-input/state/readonly")
+    expect(collectionReadonly.defaultArgs).toMatchObject({readonly: true})
+    const collectionCompact = await COMPONENT_STORIES.load("collection-input/density/compact")
+    expect(collectionCompact.defaultArgs).toMatchObject({density: "compact"})
+
+    const collectionImplementation = await Bun.file(join(playgroundRoot, "stories", "collection-input.ts")).text()
+    expect(collectionImplementation).toContain('from "@ui/components/collection-input"')
+    expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("selected-id", id)')
+    expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onSelect: ${id}`)')
+    expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onAdd")')
+    expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onRemove: ${id}`)')
+
     const referenceField = await COMPONENT_STORIES.load("field/reference/default")
     expect(referenceField.source(referenceField.defaultArgs)).toContain('from "@ui/components/field"')
     expect(referenceField.source(referenceField.defaultArgs)).toContain('kind: "reference"')
+    const collectionField = await COMPONENT_STORIES.load("field/collection/default")
+    expect(collectionField.source(collectionField.defaultArgs)).toContain('kind: "collection"')
+    expect(collectionField.source(collectionField.defaultArgs)).toContain("onSelect: setSelectedId")
   })
 
   test("loads exact public Button, Pane and Field stories lazily", async () => {
@@ -342,10 +454,12 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(entry!.source).not.toContain("function createStandaloneInputStory")
     expect(entry!.source).not.toContain("function createReferenceInputStory")
     expect(entry!.source).not.toContain("function createEnumInputStory")
+    expect(entry!.source).not.toContain("function createCollectionInputStory")
     expect(entry!.source).not.toContain('@ui/components/vector-input')
     expect(entry!.source).not.toContain('@ui/components/matrix-input')
     expect(entry!.source).not.toContain('@ui/components/reference-input')
     expect(entry!.source).not.toContain('@ui/components/enum-input')
+    expect(entry!.source).not.toContain('@ui/components/collection-input')
     expect(outputs.some(({source}) => source.includes("function createButtonStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createFieldStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createSimpleComponentStory"))).toBeTrue()
@@ -359,6 +473,9 @@ describe("@ui/components package-owned Workbench stories", () => {
     const enumInputChunk = outputs.find(({source}) => source.includes("function createEnumInputStory"))
     expect(enumInputChunk).toBeDefined()
     expect(enumInputChunk!.source).toContain('@ui/components/enum-input')
+    const collectionInputChunk = outputs.find(({source}) => source.includes("function createCollectionInputStory"))
+    expect(collectionInputChunk).toBeDefined()
+    expect(collectionInputChunk!.source).toContain('@ui/components/collection-input')
   })
 
   test("uses public full-viewport Workbench geometry and the package server", async () => {

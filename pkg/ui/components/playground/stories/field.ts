@@ -18,6 +18,12 @@ type FieldStoryArgs = PlaygroundStoryArgs & Readonly<{
   disabled: boolean
 }>
 
+const COLLECTION_ITEMS = Object.freeze([
+  Object.freeze({id: "position", label: "Позиция", description: "Векторный атрибут"}),
+  Object.freeze({id: "normal", label: "Нормаль", description: "Отключённый атрибут", disabled: true}),
+  Object.freeze({id: "rotation", label: "Вращение", description: "Углы объекта"}),
+])
+
 declare global {
   var __componentsStoryControlBridge: ((key: string, value: unknown) => void) | undefined
 }
@@ -108,6 +114,7 @@ function initialFieldValue(kind: FieldStoryKind): unknown {
   if (kind === "rotation") return [0, 45, 90]
   if (kind === "matrix") return [[1, 0], [0, 1]]
   if (kind === "reference") return {id: "material-1", label: "Material.001", kind: "material"}
+  if (kind === "collection") return "rotation"
   return "Готово"
 }
 
@@ -180,6 +187,19 @@ function createFieldDefinition(
     placeholder: "Не выбрано",
     onActivate: () => change(args.value === null ? initialFieldValue("reference") : null),
   }
+  if (options.kind === "collection") return {
+    ...base,
+    kind: "collection",
+    items: COLLECTION_ITEMS,
+    selectedId: collectionSelectedId(args.value),
+    visibleRows: 3,
+    onSelect: change,
+    onAdd: () => globalThis.__componentsStoryControlBridge?.("event", "onAdd"),
+    onRemove: (id) => {
+      change(null)
+      globalThis.__componentsStoryControlBridge?.("event", `onRemove: ${id}`)
+    },
+  }
   return {...base, kind: "readonly", value: String(args.value)}
 }
 
@@ -191,8 +211,13 @@ function sourceFieldDefinition(
     '  id: "example",',
     `  label: ${JSON.stringify(fieldLabel(options.kind))},`,
     `  kind: ${JSON.stringify(options.kind)},`,
-    `  value: ${JSON.stringify(args.value)},`,
   ]
+  if (options.kind === "collection") properties.push(
+    `  items: ${JSON.stringify(COLLECTION_ITEMS)},`,
+    `  selectedId: ${JSON.stringify(collectionSelectedId(args.value))},`,
+    "  visibleRows: 3,",
+  )
+  else properties.push(`  value: ${JSON.stringify(args.value)},`)
   if (options.kind === "number") {
     properties.push(`  presentation: ${JSON.stringify(options.presentation === "slider" ? "slider" : "input")},`)
     properties.push("  min: 0,", "  max: 1,", "  step: 0.025,")
@@ -207,7 +232,12 @@ function sourceFieldDefinition(
   )
   if (options.kind === "vector" || options.kind === "rotation") properties.push("  dimensions: 3,")
   if (options.kind === "rotation") properties.push('  unit: "°",')
-  if (options.kind !== "readonly") properties.push("  onChange: setValue,")
+  if (options.kind === "collection") properties.push(
+    "  onSelect: setSelectedId,",
+    "  onAdd: addItem,",
+    "  onRemove: removeItem,",
+  )
+  else if (options.kind !== "readonly") properties.push("  onChange: setValue,")
   if (args.disabled) properties.push("  disabled: true,")
   return ["{", ...properties, "}"].join("\n")
 }
@@ -222,7 +252,13 @@ function fieldLabel(kind: FieldStoryKind): string {
   if (kind === "rotation") return "Вращение"
   if (kind === "matrix") return "Матрица"
   if (kind === "reference") return "Материал"
+  if (kind === "collection") return "Атрибуты"
   return "Результат"
+}
+
+function collectionSelectedId(value: unknown): string | null {
+  if (value === null) return null
+  return typeof value === "string" && COLLECTION_ITEMS.some(({id}) => id === value) ? value : "rotation"
 }
 
 function finiteNumber(value: unknown, fallback: number): number {

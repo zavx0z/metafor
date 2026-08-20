@@ -32,6 +32,7 @@ export type FieldStoryKind =
   | "rotation"
   | "matrix"
   | "reference"
+  | "collection"
   | "readonly"
 
 export type SimpleComponentStory =
@@ -61,6 +62,7 @@ export type EnumInputStoryVariant =
   | "menu-error"
   | "disabled"
   | "readonly"
+export type CollectionInputStoryVariant = "selected" | "empty" | "disabled" | "readonly" | "compact"
 
 const loadButtonStory = (
   section: ButtonStorySection,
@@ -110,6 +112,13 @@ const loadEnumInputStory = (
 ) => async (): Promise<PlaygroundStoryModule> => {
   const {createEnumInputStory} = await import("./stories/enum-input.ts")
   return createEnumInputStory(variant)
+}
+
+const loadCollectionInputStory = (
+  variant: CollectionInputStoryVariant,
+) => async (): Promise<PlaygroundStoryModule> => {
+  const {createCollectionInputStory} = await import("./stories/collection-input.ts")
+  return createCollectionInputStory(variant)
 }
 
 const singleVariant = (
@@ -240,6 +249,7 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             {id: "rotation", label: "Вращение", variants: [{id: "default", label: "XYZ", title: "Field · Вращение", load: loadFieldStory("rotation", "default")}]},
             {id: "matrix", label: "Матрица", variants: [{id: "default", label: "2×2", title: "Field · Матрица", load: loadFieldStory("matrix", "default")}]},
             {id: "reference", label: "Ссылка", variants: [{id: "default", label: "Ресурс", title: "Field · Ссылка", load: loadFieldStory("reference", "default")}]},
+            {id: "collection", label: "Коллекция", variants: [{id: "default", label: "Элементы", title: "Field · Коллекция", load: loadFieldStory("collection", "default")}]},
             {id: "readonly", label: "Только чтение", variants: [{id: "default", label: "Результат", title: "Field · Только чтение", load: loadFieldStory("readonly", "default")}]},
           ],
         },
@@ -308,6 +318,31 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             variants: [
               {id: "disabled", label: "Недоступно", title: "EnumInput · Недоступно", load: loadEnumInputStory("disabled")},
               {id: "readonly", label: "Только чтение", title: "EnumInput · Только чтение", load: loadEnumInputStory("readonly")},
+            ],
+          },
+        ]},
+        {id: "collection-input", label: "Редактор коллекции", apiName: "CollectionInput", tags: ["input", "collection", "список", "выбор", "добавление", "удаление"], sections: [
+          {
+            id: "value",
+            label: "Значение",
+            variants: [
+              {id: "selected", label: "Выбрано", title: "CollectionInput · Выбранный элемент", load: loadCollectionInputStory("selected")},
+              {id: "empty", label: "Пусто", title: "CollectionInput · Пустая коллекция", load: loadCollectionInputStory("empty")},
+            ],
+          },
+          {
+            id: "state",
+            label: "Состояние",
+            variants: [
+              {id: "disabled", label: "Недоступно", title: "CollectionInput · Недоступно", load: loadCollectionInputStory("disabled")},
+              {id: "readonly", label: "Только чтение", title: "CollectionInput · Только чтение", load: loadCollectionInputStory("readonly")},
+            ],
+          },
+          {
+            id: "density",
+            label: "Плотность",
+            variants: [
+              {id: "compact", label: "Компактная", title: "CollectionInput · Компактная плотность", load: loadCollectionInputStory("compact")},
             ],
           },
         ]},
