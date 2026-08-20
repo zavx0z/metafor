@@ -83,8 +83,9 @@ public retained shell. Desktop/mobile proof завершён; отдельным
 
 [`UI-006 — Обновлять содержимое маршрута и показывать имя пакета`](tasks/UI-006.md)
 исправляет stale Node canvas после client-side route transition, затем приводит
-HTML titles всех package playground-ов к точным package names. Implementation
-готова; остаётся owner-visible клик по трём Node sections без reload.
+HTML titles всех package playground-ов к точным package names. Владелец
+подтвердил живое переключение content без reload; результат ожидает независимой
+closing review.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
@@ -98,7 +99,7 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-006 | IN_PROGRESS | нет         | [Открыть](tasks/UI-006.md) |
+| UI-006 | REVIEW      | нет         | [Открыть](tasks/UI-006.md) |
 | UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
