@@ -82,21 +82,21 @@ beforeAll(async () => {
 })
 
 describe("retained ColorInput owner", () => {
-  test("opens, drags continuously and closes by reclick while rematerializing only its exact parent", () => {
+  test("opens, drags continuously and dismisses by outside/Escape while rematerializing only its exact parent", () => {
     const surface = new RetainedColorSurface()
     try {
       surface.attachCanvas(createFakeRuntime())
       surface.setRect({x: 0, y: 0, w: 320, h: 240}, 0.001, font)
       const siblingChildren = [...surface.siblingOwner.children]
       const siblingGeometries = siblingChildren.map((child) => (child as {geometry?: BufferGeometry}).geometry)
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(0)
+      expect(pickerPlanes(surface.colorOwner)).toHaveLength(1)
 
       const pointer = {button: 0, preventDefault() {}} as MouseEvent
       surface.onPointerDown(pointer, 31, 31)
       surface.flushPendingRender()
       surface.onPointerUp(pointer, 31, 31)
       surface.flushPendingRender()
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(3)
+      expect(pickerPlanes(surface.colorOwner)).toHaveLength(4)
       expect(surface.siblingMaterializations).toBe(1)
       expect(surface.siblingOwner.children).toEqual(siblingChildren)
 
@@ -108,20 +108,27 @@ describe("retained ColorInput owner", () => {
       expect(surface.published).toHaveLength(2)
       expect(surface.published.every((value) => Object.isFrozen(value))).toBeTrue()
       expect(surface.colorMaterializations).toBe(beforeDragMaterializations + 2)
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(3)
+      expect(pickerPlanes(surface.colorOwner)).toHaveLength(4)
       expect(surface.siblingMaterializations).toBe(1)
       expect(surface.siblingOwner.children).toEqual(siblingChildren)
       expect(surface.siblingOwner.children.map((child) => (child as {geometry?: BufferGeometry}).geometry)).toEqual(siblingGeometries)
 
       surface.onPointerUp(pointer, 82, 161)
       surface.flushPendingRender()
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(3)
+      expect(pickerPlanes(surface.colorOwner)).toHaveLength(4)
+
+      surface.onPointerDown(pointer, 280, 220)
+      surface.flushPendingRender()
+      expect(pickerPlanes(surface.colorOwner)).toHaveLength(1)
 
       surface.onPointerDown(pointer, 31, 31)
       surface.flushPendingRender()
       surface.onPointerUp(pointer, 31, 31)
       surface.flushPendingRender()
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(0)
+      expect(pickerPlanes(surface.colorOwner)).toHaveLength(4)
+      expect(surface.dismissTopLayer("escape")).toBeTrue()
+      surface.flushPendingRender()
+      expect(pickerPlanes(surface.colorOwner)).toHaveLength(1)
       expect(surface.siblingMaterializations).toBe(1)
       expect(surface.siblingOwner.children).toEqual(siblingChildren)
     } finally {

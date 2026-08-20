@@ -4,9 +4,6 @@ import {
   focusInput,
   handleActiveInputKey,
   insertActiveInputText,
-  blenderRgba8ToColor,
-  palette,
-  resolveWidgetColors,
   uiIcons,
   uiShapeMetrics,
   type UiSurface,
@@ -95,7 +92,7 @@ describe("public PathInput", () => {
     PathInput(surface, 4, 6, 120, 28, props)
 
     expect(surface.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
-      {x: 4, y: 6, width: 95, height: 28},
+      {x: 4, y: 6, width: 98, height: 28},
       {x: 102, y: 6, width: uiShapeMetrics.iconActionSlot, height: 28},
     ])
 
@@ -123,6 +120,29 @@ describe("public PathInput", () => {
     expect(events).toEqual([])
   })
 
+  test("joins the path and exact folder action under one ControlGroup and omits an absent owner action", () => {
+    const joined = new RecordingSurface()
+    PathInput(joined, 4, 6, 120, 22, pathProps([]))
+    expect(joined.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
+      {x: 4, y: 6, width: 98, height: 22},
+      {x: 102, y: 6, width: 22, height: 22},
+    ])
+    const joinedOuter = joined.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)
+    expect(joinedOuter.map((call) => call.slice(0, 4))).toEqual([
+      [4, 6, 120, 22],
+      [4, 6, 120, 22],
+    ])
+    expect(joined.roundedRects.some((call) => call.slice(0, 4).toString() === [101.5, 6, 1, 22].toString())).toBeTrue()
+
+    const {onBrowse: _onBrowse, ...withoutBrowse} = pathProps([])
+    const noAction = new RecordingSurface()
+    PathInput(noAction, 4, 6, 120, 22, withoutBrowse)
+    expect(noAction.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
+      {x: 4, y: 6, width: 120, height: 22},
+    ])
+    expect(noAction.images.map(([src]) => src)).not.toContain(uiIcons.folder)
+  })
+
   test("keeps raw platform-invalid-looking text and leaves Enter to the surrounding form", () => {
     const events: string[] = []
     const surface = new RecordingSurface()
@@ -140,7 +160,7 @@ describe("public PathInput", () => {
       const surface = new RecordingSurface()
       PathInput(surface, 0, 0, 120, 28, pathProps(events, state))
 
-      expect(surface.roundedRects).toHaveLength(2)
+      expect(surface.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
       expect(surface.hits).toHaveLength(1)
       trigger(surface.hits[0])
       expect(events).toEqual([])
@@ -150,33 +170,17 @@ describe("public PathInput", () => {
   test("uses one Elements-owned regular and compact geometry", () => {
     const regular = new RecordingSurface()
     PathInput(regular, 4, 6, 120, 28, pathProps([]))
-    expect(regular.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 9, w: 95, h: uiShapeMetrics.controlHeight},
-      {x: 102, y: 9, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
+    expect(regular.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius).map((call) => call.slice(0, 4))).toEqual([
+      [4, 6, 120, 28],
+      [4, 6, 120, 28],
     ])
+    expect(regular.roundedRects.some((call) => call.slice(0, 4).toString() === [101.5, 6, 1, 28].toString())).toBeTrue()
 
     const compact = new RecordingSurface()
     PathInput(compact, 4, 6, 120, 22, pathProps([], {density: "compact"}))
-    expect(compact.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 95, h: uiShapeMetrics.controlHeight},
-      {x: 102, y: 6, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
-    ])
-    const calls = [...regular.roundedRects, ...compact.roundedRects]
-    for (const call of calls) {
-      expect(call[4].radius).toBe(uiShapeMetrics.lowRadius)
-      expect(call[4].borderWidth).toBe(uiShapeMetrics.borderWidth)
-    }
-    expect(calls.map((call) => call[4].fill)).toEqual([
-      blenderRgba8ToColor(resolveWidgetColors("text").inner),
-      palette.bgInput,
-      blenderRgba8ToColor(resolveWidgetColors("text").inner),
-      palette.bgInput,
-    ])
-    expect(calls.map((call) => call[4].border)).toEqual([
-      blenderRgba8ToColor(resolveWidgetColors("text").outline),
-      blenderRgba8ToColor(resolveWidgetColors("tool").outline),
-      blenderRgba8ToColor(resolveWidgetColors("text").outline),
-      blenderRgba8ToColor(resolveWidgetColors("tool").outline),
+    expect(compact.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius).map((call) => call.slice(0, 4))).toEqual([
+      [4, 6, 120, 22],
+      [4, 6, 120, 22],
     ])
   })
 

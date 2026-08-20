@@ -1,8 +1,5 @@
 import {describe, expect, test} from "bun:test"
 import {
-  blenderRgba8ToColor,
-  palette,
-  resolveWidgetColors,
   uiIcons,
   uiShapeMetrics,
   type UiSurface,
@@ -98,7 +95,7 @@ describe("public ReferenceInput", () => {
     }))
 
     expect(surface.centeredTexts.map(([text]) => text)).toContain("Выберите ресурс")
-    expect(surface.roundedRects).toHaveLength(2)
+    expect(surface.images.map(([src]) => src)).not.toContain(uiIcons.close)
     expect(surface.hits).toHaveLength(2)
     trigger(surface.hits[0])
     expect(events).toEqual(["activate"])
@@ -112,8 +109,8 @@ describe("public ReferenceInput", () => {
     ReferenceInput(surface, 4, 6, 120, 22, referenceProps(events, {density: "compact"}))
 
     expect(surface.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
-      {x: 4, y: 6, width: 70, height: 22},
-      {x: 77, y: 6, width: 22, height: 22},
+      {x: 4, y: 6, width: 76, height: 22},
+      {x: 80, y: 6, width: 22, height: 22},
       {x: 102, y: 6, width: 22, height: 22},
     ])
     trigger(surface.hits[2])
@@ -124,12 +121,33 @@ describe("public ReferenceInput", () => {
     expect(events).toEqual(["clear", "activate", "pick"])
   })
 
+  test("joins unequal cells and never substitutes activate for an absent picker owner", () => {
+    const joined = new RecordingSurface()
+    ReferenceInput(joined, 4, 6, 120, 22, referenceProps([]))
+    expect(joined.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
+      {x: 4, y: 6, width: 76, height: 22},
+      {x: 80, y: 6, width: 22, height: 22},
+      {x: 102, y: 6, width: 22, height: 22},
+    ])
+    expect(joined.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius).map((call) => call.slice(0, 4))).toEqual([
+      [4, 6, 120, 22],
+      [4, 6, 120, 22],
+    ])
+
+    const {onPick: _onPick, ...withoutPick} = referenceProps([])
+    const noPicker = new RecordingSurface()
+    ReferenceInput(noPicker, 4, 6, 120, 22, withoutPick)
+    expect(noPicker.images.map(([src]) => src)).not.toContain(uiIcons.picker)
+    trigger(noPicker.hits[0])
+    expect(noPicker.hits).toHaveLength(2)
+  })
+
   test("omits only clear when its owner callback is absent", () => {
     const surface = new RecordingSurface()
     const {onClear: _onClear, ...withoutClear} = referenceProps([])
     ReferenceInput(surface, 0, 0, 120, 22, withoutClear)
 
-    expect(surface.roundedRects).toHaveLength(2)
+    expect(surface.images.map(([src]) => src)).not.toContain(uiIcons.close)
     expect(surface.hits).toHaveLength(2)
   })
 
@@ -139,7 +157,7 @@ describe("public ReferenceInput", () => {
       const surface = new RecordingSurface()
       ReferenceInput(surface, 0, 0, 120, 28, referenceProps(events, state))
 
-      expect(surface.roundedRects).toHaveLength(3)
+      expect(surface.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
       for (const hit of surface.hits) trigger(hit)
       expect(events).toEqual([])
     }
@@ -148,28 +166,18 @@ describe("public ReferenceInput", () => {
   test("uses one Elements-owned regular and compact geometry with MetaFor materials", () => {
     const regular = new RecordingSurface()
     ReferenceInput(regular, 4, 6, 120, 28, referenceProps([]))
-    expect(regular.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 9, w: 70, h: uiShapeMetrics.controlHeight},
-      {x: 77, y: 9, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
-      {x: 102, y: 9, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
+    expect(regular.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius).map((call) => call.slice(0, 4))).toEqual([
+      [4, 6, 120, 28],
+      [4, 6, 120, 28],
     ])
+    expect(regular.roundedRects.filter((call) => call[4].radius === 0 && call[2] === 1).map((call) => call[0])).toEqual([79.5, 101.5])
 
     const compact = new RecordingSurface()
     ReferenceInput(compact, 4, 6, 120, 22, referenceProps([], {density: "compact"}))
-    expect(compact.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 70, h: uiShapeMetrics.controlHeight},
-      {x: 77, y: 6, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
-      {x: 102, y: 6, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
+    expect(compact.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius).map((call) => call.slice(0, 4))).toEqual([
+      [4, 6, 120, 22],
+      [4, 6, 120, 22],
     ])
-    const calls = [...regular.roundedRects, ...compact.roundedRects]
-    for (const call of calls) {
-      expect(call[4].radius).toBe(uiShapeMetrics.lowRadius)
-      expect(call[4].borderWidth).toBe(uiShapeMetrics.borderWidth)
-    }
-    const expectedKinds = ["regular", "tool", "tool", "regular", "tool", "tool"] as const
-    expect(calls.map((call) => call[4].fill)).toEqual(expectedKinds.map(() => palette.bgInput))
-    expect(calls.map((call) => call[4].border)).toEqual(expectedKinds.map((kind) =>
-      blenderRgba8ToColor(resolveWidgetColors(kind).outline)))
   })
 
   test("returns one action contract standalone and through both reference Field densities", () => {

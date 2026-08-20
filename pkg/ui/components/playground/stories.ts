@@ -65,7 +65,7 @@ export type EnumInputStoryVariant =
   | "readonly"
 export type CollectionInputStoryVariant = "selected" | "empty" | "disabled" | "readonly" | "compact"
 export type PathInputStoryVariant = "path" | "empty" | "disabled" | "readonly" | "compact"
-export type ColorInputStoryVariant = "closed" | "open"
+export type ColorInputStoryVariant = "closed" | "open" | "expanded"
 
 const loadButtonStory = (
   section: ButtonStorySection,
@@ -306,6 +306,12 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             label: "Открыт",
             title: "ColorInput · Открытый picker",
             load: loadColorInputStory("open"),
+          }]},
+          {id: "presentation", label: "Представление", variants: [{
+            id: "expanded",
+            label: "Развёрнут",
+            title: "ColorInput · Развёрнутый",
+            load: loadColorInputStory("expanded"),
           }]},
         ]},
         {id: "vector-input", label: "Ввод вектора", apiName: "VectorInput", tags: ["input", "vector", "2D", "3D", "4D"], sections: [{

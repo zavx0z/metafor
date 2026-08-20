@@ -8,6 +8,9 @@ struct PerObjectUniforms {
     normalMatrix: mat4x4<f32>,
     hsva: vec4<f32>,
     geometry: vec4<f32>,
+    checkerPrimary: vec4<f32>,
+    checkerSecondary: vec4<f32>,
+    checkerParams: vec4<f32>,
     clipBounds: vec4<f32>,
 };
 @binding(0) @group(1) var<uniform> perObject: PerObjectUniforms;
@@ -68,16 +71,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         return vec4<f32>(hsvToRgb(vec3<f32>(hue, saturation, perObject.hsva.z)), opacity);
     }
 
-    let level = clamp(1.0 - uv.y, 0.0, 1.0);
+    let level = select(perObject.hsva.w, clamp(1.0 - uv.y, 0.0, 1.0), mode < 2.5);
     let selectedValue = select(perObject.hsva.z, level, mode < 1.5);
     let rgb = hsvToRgb(vec3<f32>(perObject.hsva.x, perObject.hsva.y, selectedValue));
     if (mode < 1.5) {
         return vec4<f32>(rgb, opacity);
     }
 
-    let checkerCell = vec2<f32>(0.004);
+    let checkerCell = vec2<f32>(max(perObject.checkerParams.x, 0.0001));
     let checkerIndex = floor((uv * size) / checkerCell);
-    let checker = select(0.32, 0.54, i32(checkerIndex.x + checkerIndex.y) % 2 == 0);
-    let composite = mix(vec3<f32>(checker), rgb, level);
+    let checker = select(perObject.checkerPrimary.rgb, perObject.checkerSecondary.rgb, i32(checkerIndex.x + checkerIndex.y) % 2 == 0);
+    let composite = mix(checker, rgb, level);
     return vec4<f32>(composite, opacity);
 }

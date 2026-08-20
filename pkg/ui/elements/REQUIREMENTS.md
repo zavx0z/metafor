@@ -42,30 +42,35 @@ FlexBox единолично вычисляет local child slots, а child то
    Components-владелец enum задаёт options/value/cycle semantics, но не рисует
    выбор значения через Button и не повторяет его shape policy.
 9. Public Elements vocabulary следует простейшим HTML-аналогам: `div`, `span`,
-   `button`, `input`, `select`, `img`, `ul/li` и layout primitives. `IconButton`,
-   `ControlGroup`, `ColorInput`, picker popup и другие составные controls не
+   `button`, `input`, `select`, `popover`, `img`, `ul/li` и layout primitives.
+   `IconButton`, `ControlGroup`, `ColorInput`, picker popup composition и другие составные controls не
    публикуются как Elements; они принадлежат `@ui/components`.
-10. Low-level `UiSurface`/Engine drawing capability может иметь не-HTML имя,
+10. `popover` владеет только generic disclosure lifecycle: controlled либо
+    uncontrolled open, stable key, одна active root chain на `UiRuntime`,
+    outside/Escape dismissal и viewport-bounded bottom-to-top placement.
+    Trigger/content рисуются caller-ом из обычных Elements; Component semantics
+    в `popover` запрещены. Detached Surface остаётся отдельным safe scope.
+11. Low-level `UiSurface`/Engine drawing capability может иметь не-HTML имя,
     когда реализует analytical shader, clip, shadow либо marker. Такая функция
     не становится semantic Element или самостоятельным public control:
     Component использует её только как rendering primitive внутри композиции
     Elements.
-11. Blender theme owner хранит raw RGBA и roundness отдельно для widget classes
+12. Blender theme owner хранит raw RGBA и roundness отдельно для widget classes
     `regular`, `text`, `number`, `numberSlider`, `option`, `toggle`, `tool`,
     `toolbarItem`, `tab`, `menu`, `menuBack`, `menuItem`, `box`, `listItem`,
     `scroll`, а также namespaces `state` и `spaceNode`.
     Alpha source fields сохраняется; классы нельзя схлопнуть в один flat
     `bgInput/bgHot/cyan` state law.
-12. Pure `resolveWidgetColors(kind, state)` повторяет class-specific Blender
+13. Pure `resolveWidgetColors(kind, state)` повторяет class-specific Blender
     transitions. Generic hover использует Blender HSL transform, menu rows и
     numeric zones — свои algorithms, generic disabled/search-no-match — свои
     alpha factors. Compatibility palette aliases допустимы только после
     resolver и не становятся владельцем поведения.
-13. Material owner отдельно хранит widget emboss, menu shadow, editor
+14. Material owner отдельно хранит widget emboss, menu shadow, editor
     border/outline, checker colors/size и class roundness. Standard radius
     вычисляется из `.2 × widget unit/actual rect`; scroll/panel/popup не получают
     тот же radius без собственного source law.
-14. Resolver precedence детерминирован и повторяет source order. Generic class
+15. Resolver precedence детерминирован и повторяет source order. Generic class
     сначала получает list-item override и alpha, затем selected/pressed либо
     active-default/hover; menu item использует собственную mutually-exclusive
     chain. Numeric zone является отдельным secondary draw result поверх base.

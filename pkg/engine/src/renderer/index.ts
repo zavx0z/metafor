@@ -1777,8 +1777,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         colorPickerModeCode(material.mode),
         material.opacity,
       )
+      this.writePerObjectRgba(offsetFloats + 40, material.checkerPrimary)
+      this.writePerObjectRgba(offsetFloats + 44, material.checkerSecondary)
+      this.writePerObjectVec4(offsetFloats + 48, material.checkerSize, 0, 0, 0)
       if (material.clipBounds !== null) {
-        this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 40)
+        this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 52)
       }
     } else if (isRadialBackdropMaterial(material)) {
       this.writePerObjectRgba(offsetFloats + 32, material.base)
@@ -2524,6 +2527,7 @@ function clamp01(value: number): number {
 function colorPickerModeCode(mode: ColorPickerMaterial["mode"]): number {
   if (mode === "value") return 1
   if (mode === "alpha") return 2
+  if (mode === "swatch") return 3
   return 0
 }
 

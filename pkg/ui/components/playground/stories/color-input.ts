@@ -1,9 +1,10 @@
 import {
   ColorInput,
+  measureColorInputHeight,
   normalizeColorInputValue,
+  type ColorInputPresentation,
   type ColorInputValue,
 } from "@ui/components/color-input"
-import {uiShapeMetrics} from "@ui/elements"
 import {
   definePlaygroundStoryModule,
   type PlaygroundStoryArgs,
@@ -14,6 +15,7 @@ import type {ColorInputStoryVariant} from "../stories.ts"
 type ColorInputStoryArgs = PlaygroundStoryArgs & Readonly<{
   value: ColorInputValue
   open: boolean
+  presentation: ColorInputPresentation
   disabled: boolean
   readonly: boolean
   event: string
@@ -30,6 +32,7 @@ export function createColorInputStory(variant: ColorInputStoryVariant): Playgrou
     defaultArgs: {
       value: SAMPLE_COLOR,
       open: variant === "open",
+      presentation: variant === "expanded" ? "expanded" : "compact",
       disabled: false,
       readonly: false,
       event: "Ожидание",
@@ -37,6 +40,16 @@ export function createColorInputStory(variant: ColorInputStoryVariant): Playgrou
     controls: [
       {key: "value", label: "RGBA", group: "Значение", kind: "custom"},
       {key: "open", label: "Picker открыт", group: "Состояние", kind: "boolean"},
+      {
+        key: "presentation",
+        label: "Представление",
+        group: "Внешний вид",
+        kind: "select",
+        options: [
+          {value: "compact", label: "Компактное"},
+          {value: "expanded", label: "Развёрнутое"},
+        ],
+      },
       {key: "disabled", label: "Недоступно", group: "Состояние", kind: "boolean"},
       {key: "readonly", label: "Только чтение", group: "Состояние", kind: "boolean"},
       {key: "event", label: "Последнее событие", group: "События", kind: "custom"},
@@ -44,7 +57,7 @@ export function createColorInputStory(variant: ColorInputStoryVariant): Playgrou
     render(surface, args, frame) {
       const value = colorValue(args.value)
       const width = Math.min(146, frame.w)
-      const height = uiShapeMetrics.controlHeight
+      const height = measureColorInputHeight(args.presentation)
       ColorInput(
         surface,
         frame.x + (frame.w - width) / 2,
@@ -54,7 +67,8 @@ export function createColorInputStory(variant: ColorInputStoryVariant): Playgrou
         {
           key: "components-story-color-input",
           value,
-          open: args.open,
+          presentation: args.presentation,
+          open: args.presentation === "compact" && args.open,
           disabled: args.disabled,
           readOnly: args.readonly,
           onChange(next) {
@@ -71,6 +85,7 @@ export function createColorInputStory(variant: ColorInputStoryVariant): Playgrou
     source(args) {
       const states = [
         "  open,",
+        `  presentation: ${JSON.stringify(args.presentation)},`,
         ...(args.disabled ? ["  disabled: true,"] : []),
         ...(args.readonly ? ["  readOnly: true,"] : []),
       ]

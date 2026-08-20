@@ -1,5 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {
+  blenderRgba8ToColor,
+  blenderTheme,
   UiSurface as BaseUiSurface,
   type ColorPickerPlaneDrawOptions,
   type HitOptions,
@@ -57,6 +59,11 @@ describe("Component-internal color picker plane", () => {
 
     expect(surface.planes).toHaveLength(1)
     expect(surface.planes[0]).toMatchObject({x: 10, y: 20, w: 100, h: 100, options: {mode: "wheel"}})
+    expect(surface.planes[0]?.options).toMatchObject({
+      checkerPrimary: blenderRgba8ToColor(blenderTheme.material.checkerPrimary),
+      checkerSecondary: blenderRgba8ToColor(blenderTheme.material.checkerSecondary),
+      checkerSize: blenderTheme.material.checkerSize,
+    })
     expect(surface.hits).toHaveLength(1)
     const pointer = pointerOptions(surface.hits[0]!)
     pointer.onPointerDown?.(110, 70, {} as MouseEvent)

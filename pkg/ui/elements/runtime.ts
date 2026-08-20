@@ -96,6 +96,7 @@ export interface UiSurfaceNode {
   setFramebufferClipSpace?(space: "display" | "screen"): void
   setFramebufferDisplayId?(displayId: UiDisplayId): void
   onPointerLeave?(): void
+  dismissTopLayer?(reason: "outside" | "escape"): boolean
   setActive?(active: boolean): void
   onActivate?(): void
   onDeactivate?(): void
@@ -1892,6 +1893,7 @@ export class UiRuntime {
     const canvasCoords = this.#localCoords(event)
     const hudSlot = this.#surfaceAt(canvasCoords.x, canvasCoords.y, "hud")
     if (hudSlot !== undefined) {
+      dismissOtherSurfaceLayers(this.#surfaces, hudSlot.surface)
       if (this.inputProxy !== null) {
         event.preventDefault()
       } else {
@@ -1909,6 +1911,7 @@ export class UiRuntime {
       ? undefined
       : this.#surfaceAt(displayCoords.x, displayCoords.y, "display", displayCoords.displayId)
     if (displayCoords === null || slot === undefined) {
+      dismissOtherSurfaceLayers(this.#surfaces)
       this.#clearKeyboardFocus()
       if (this.#isDisplayNavigationMode() && event.button === 0) {
         event.preventDefault()
@@ -1934,6 +1937,7 @@ export class UiRuntime {
       this.#activeDisplayId = slot.displayId
       this.#emitViewPointChange()
     }
+    dismissOtherSurfaceLayers(this.#surfaces, slot.surface)
     this.setFocused(slot.surface)
     this.#pressedSlot = slot
     if (displayCoords.displayId !== this.#surfaceDisplayId) this.#armDisplayDragCandidate(event, displayCoords.displayId)
@@ -2016,6 +2020,7 @@ export class UiRuntime {
       this.#activeDisplayId = slot.displayId
       this.#emitViewPointChange()
     }
+    dismissOtherSurfaceLayers(this.#surfaces, slot.surface)
     this.setFocused(slot.surface)
     this.#pressedSlot = slot
     this.#activeTouchId = touch.identifier
@@ -2106,6 +2111,7 @@ export class UiRuntime {
       return
     }
 
+    dismissOtherSurfaceLayers(this.#surfaces)
     if (!this.#isDisplayNavigationMode()) return
     this.#beginDisplayTouchNavigation(event, touch, displayCoords?.displayId ?? this.#displayHoverDisplayId)
   }
@@ -2244,6 +2250,10 @@ export class UiRuntime {
   #onKey(event: KeyboardEvent): void {
     const focused = this.#focused
     if (focused === null) return
+    if (event.key === "Escape" && focused.dismissTopLayer?.("escape") === true) {
+      event.preventDefault()
+      return
+    }
     focused.onKey?.(event)
     if (!event.defaultPrevented) handleActiveInputKey(focused as UiSurfaceForInput, event)
   }
@@ -2259,6 +2269,19 @@ export class UiRuntime {
     if (focused === null) return
     focused.onInputText?.(text)
     insertActiveInputText(focused as UiSurfaceForInput, text)
+  }
+}
+
+/** Dismisses active layers outside one runtime pointer target without duplicate Surface calls. */
+export function dismissOtherSurfaceLayers(
+  slots: readonly Readonly<{surface: UiSurfaceNode}>[],
+  target?: UiSurfaceNode,
+): void {
+  const visited = new Set<UiSurfaceNode>()
+  for (const {surface} of slots) {
+    if (surface === target || visited.has(surface)) continue
+    visited.add(surface)
+    surface.dismissTopLayer?.("outside")
   }
 }
 

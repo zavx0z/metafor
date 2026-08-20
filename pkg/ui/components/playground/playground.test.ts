@@ -236,11 +236,14 @@ describe("@ui/components package-owned Workbench stories", () => {
 
     const closedColor = await COMPONENT_STORIES.load("color-input/basic/color-input")
     const openColor = await COMPONENT_STORIES.load("color-input/state/open")
+    const expandedColor = await COMPONENT_STORIES.load("color-input/presentation/expanded")
     expect(closedColor.defaultArgs).toMatchObject({open: false, disabled: false, readonly: false})
     expect(openColor.defaultArgs).toMatchObject({open: true, disabled: false, readonly: false})
+    expect(expandedColor.defaultArgs).toMatchObject({presentation: "expanded", open: false})
     expect(openColor.source(openColor.defaultArgs)).toContain('from "@ui/components/color-input"')
     expect(openColor.source(openColor.defaultArgs)).toContain("let open = true")
     expect(openColor.source(openColor.defaultArgs)).toContain("  open,")
+    expect(expandedColor.source(expandedColor.defaultArgs)).toContain('presentation: "expanded"')
 
     expect(componentSectionItems("enum-input/presentation/cycle").map(({id}) => id)).toEqual([
       "presentation", "value", "exception", "state",

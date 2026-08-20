@@ -29,9 +29,11 @@ export type ControlGroupCellContext = Readonly<{
 
 export type ControlGroupProps = Readonly<{
   rows?: number
-  columns?: number
+  columns?: number | readonly ControlGroupTrack[]
   children?(context: ControlGroupContext): void
 }>
+
+export type ControlGroupTrack = number | "grow" | `${number}fr`
 
 const controlGroupCellStyle: Readonly<StyleProps> = Object.freeze({
   borderRadius: 0,
@@ -50,7 +52,8 @@ export function ControlGroup(
 ): void {
   if (width <= 0 || height <= 0) return
   const rows = controlGroupCount(props.rows)
-  const columns = controlGroupCount(props.columns)
+  const columnTracks = controlGroupTracks(props.columns)
+  const columns = columnTracks.length
 
   div(surface, x, y, width, height, {
     style: {
@@ -65,7 +68,7 @@ export function ControlGroup(
   props.children?.(controlGroupContext(rows, columns))
 
   drawControlGroupRowRules(surface, x, y, width, height, rows)
-  drawControlGroupColumnRules(surface, x, y, width, height, columns)
+  drawControlGroupColumnRules(surface, x, y, width, height, columnTracks)
 
   div(surface, x, y, width, height, {
     style: {
@@ -137,7 +140,7 @@ function drawControlGroupColumnRules(
   y: number,
   width: number,
   height: number,
-  columns: number,
+  columns: readonly ControlGroupTrack[],
 ): void {
   flexRow({
     x,
@@ -145,11 +148,11 @@ function drawControlGroupColumnRules(
     w: width,
     h: height,
     gap: 0,
-    items: Array.from({length: columns}, (_, index) => ({
-      width: "1fr" as const,
+    items: columns.map((track, index) => ({
+      width: track,
       height,
       draw: (columnX, _columnY, columnWidth) => {
-        if (index < columns - 1) drawControlGroupRule(
+        if (index < columns.length - 1) drawControlGroupRule(
           surface,
           columnX + columnWidth - uiShapeMetrics.separatorWidth / 2,
           y,
@@ -182,4 +185,9 @@ function drawControlGroupRule(
 function controlGroupCount(value: number | undefined): number {
   if (!Number.isFinite(value)) return 1
   return Math.max(1, Math.trunc(value!))
+}
+
+function controlGroupTracks(value: number | readonly ControlGroupTrack[] | undefined): readonly ControlGroupTrack[] {
+  if (Array.isArray(value)) return value.length === 0 ? ["1fr"] : [...value]
+  return Array.from({length: controlGroupCount(value as number | undefined)}, () => "1fr" as const)
 }

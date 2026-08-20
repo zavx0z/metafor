@@ -5,6 +5,8 @@ import {select, type SelectElementOption} from "./select.ts"
 import {blenderRgba8ToColor, resolveWidgetColors} from "./blender-theme.ts"
 import {uiShapeMetrics} from "./shape.ts"
 import {palette} from "./theme.ts"
+import type {DismissableLayerOptions} from "./surface.ts"
+import type {UiSurfaceRect} from "./runtime.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
 type TextCall = Parameters<UiSurface["drawText"]>
@@ -20,6 +22,8 @@ class RecordingSurface extends BaseUiSurface {
   readonly shadows: ShadowCall[] = []
   readonly renderKeys: string[] = []
   readonly keyedRenders: string[] = []
+  readonly dismissables: DismissableLayerOptions[] = []
+  viewport: UiSurfaceRect = {x: 0, y: 0, w: 320, h: 240}
 
   override drawRoundedRect(...args: RoundedRectCall): void { this.roundedRects.push(args) }
   override drawText(...args: TextCall): number { this.texts.push(args); return 0 }
@@ -28,6 +32,8 @@ class RecordingSurface extends BaseUiSurface {
   override drawRoundedShadow(...args: ShadowCall): void { this.shadows.push(args) }
   override registerRenderKey(key: string): void { this.renderKeys.push(key) }
   override requestKeyedRender(key: string): void { this.keyedRenders.push(key) }
+  override interactionViewport(): UiSurfaceRect { return this.viewport }
+  override dismissableLayer(options: DismissableLayerOptions): void { this.dismissables.push(options) }
   protected render(): void {}
 
   clearRecording(): void {
@@ -35,6 +41,7 @@ class RecordingSurface extends BaseUiSurface {
     this.texts.length = 0
     this.images.length = 0
     this.hits.length = 0
+    this.dismissables.length = 0
   }
 }
 
@@ -232,6 +239,25 @@ describe("select element", () => {
     surface.clearRecording()
     select(surface, 0, 0, 146, 22, props)
     expect(surface.texts.map(([text]) => text)).toEqual(["Multiply"])
+  })
+
+  test("uses the common popover owner for outside dismissal and viewport flip", async () => {
+    const surface = new RecordingSurface()
+    const props = {key: "common", value: "multiply", options}
+    select(surface, 0, 70, 146, 22, props)
+    trigger(surface.hits[0])
+    surface.clearRecording()
+    surface.viewport = {x: 0, y: 0, w: 180, h: 100}
+    select(surface, 0, 70, 146, 22, props)
+
+    expect(surface.dismissables).toHaveLength(1)
+    expect(surface.roundedRects[1]?.[1]).toBe(0)
+    surface.dismissables[0]?.dismiss("outside")
+    surface.clearRecording()
+    select(surface, 0, 70, 146, 22, props)
+    expect(surface.texts.map(([text]) => text)).toEqual(["Multiply"])
+    const source = await Bun.file(new URL("./select.ts", import.meta.url)).text()
+    expect(source).toContain('from "./popover.ts"')
   })
 
   test("keeps explicit idle border override stronger than the subtle default", () => {

@@ -88,6 +88,7 @@ type RetainedMaterialization = {
   provisionalParents: Set<Object3D>
   hits: RetainedHitRecord[]
   wheelHits: RetainedWheelHitRecord[]
+  dismissables: RetainedDismissableLayerRecord[]
   renderKeys: Set<string>
 }
 
@@ -228,6 +229,9 @@ export type ColorPickerPlaneDrawOptions = Readonly<{
   value: number
   alpha: number
   opacity?: number
+  checkerPrimary: Color
+  checkerSecondary: Color
+  checkerSize: number
   z?: number
 }>
 
@@ -344,6 +348,22 @@ type RetainedWheelHitRecord = Readonly<{
   onWheel(event: WheelEvent): void
 }>
 
+export type DismissReason = "outside" | "escape" | "replaced"
+
+export type DismissableLayerOptions = Readonly<{
+  key: string
+  regions: readonly UiSurfaceRect[]
+  dismiss(reason: DismissReason): void
+}>
+
+type DismissableLayerRecord = DismissableLayerOptions & Readonly<{
+  parent: Object3D | null
+}>
+
+type RetainedDismissableLayerRecord = DismissableLayerRecord & Readonly<{
+  parent: Object3D
+}>
+
 type ResolvedHitBox = HitBox & Readonly<{retainedParent?: Object3D}>
 type ResolvedWheelHitBox = WheelHitBox & Readonly<{retainedParent?: Object3D}>
 
@@ -428,6 +448,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #retainedParents = new Set<Object3D>()
   readonly #retainedHits = new Map<Object3D, readonly RetainedHitRecord[]>()
   readonly #retainedWheelHits = new Map<Object3D, readonly RetainedWheelHitRecord[]>()
+  readonly #retainedDismissables = new Map<Object3D, readonly RetainedDismissableLayerRecord[]>()
   readonly #retainedRenderKeys = new Map<Object3D, ReadonlySet<string>>()
   readonly #retainedDraws = new Map<Object3D, () => void>()
   readonly #retainedViewportClips = new Map<Object3D, ClipLocalRect>()
@@ -441,6 +462,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #padLeft: number
   #hits: HitBox[] = []
   #wheelHits: WheelHitBox[] = []
+  #dismissables: DismissableLayerRecord[] = []
   protected hoveredHit: HitBox | null = null
   protected pressedHit: HitBox | null = null
   #hoveredHitKey: string | null = null
@@ -712,6 +734,52 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#retainedMaterialization?.renderKeys.add(key)
   }
 
+  /** Runtime identity for one active HTML-like popup chain; a detached Surface is its own scope. */
+  interactionScope(): object {
+    return this.canvas ?? this
+  }
+
+  /** Visible viewport in the local coordinate space of the active materialization. */
+  interactionViewport(): UiSurfaceRect {
+    const viewport = {x: 0, y: 0, w: this.rectW, h: this.rectH}
+    const transaction = this.#retainedMaterialization
+    if (transaction === null) return viewport
+    const surfaceClip = clipLocalRectToSurfaceRect(this.#retainedViewportClip(transaction.target))
+    return this.surfaceToRetainedRect(transaction.target, surfaceClip)
+  }
+
+  /** Atomically registers one outside/Escape dismissal region set. */
+  dismissableLayer(options: DismissableLayerOptions): void {
+    const key = options.key.trim()
+    if (key.length === 0) throw new Error("dismissableLayer requires a stable non-empty key")
+    const regions = options.regions.map((region) => {
+      if (![region.x, region.y, region.w, region.h].every(Number.isFinite) || region.w < 0 || region.h < 0) {
+        throw new Error("dismissableLayer requires finite non-negative regions")
+      }
+      return Object.freeze({...region})
+    })
+    const transaction = this.#retainedMaterialization
+    const record: DismissableLayerRecord = {
+      parent: transaction?.target ?? null,
+      key,
+      regions,
+      dismiss: options.dismiss,
+    }
+    if (transaction === null) this.#dismissables.push(record)
+    else {
+      transaction.dismissables.push(record as RetainedDismissableLayerRecord)
+      transaction.renderKeys.add(key)
+    }
+  }
+
+  /** Dismisses the topmost layer for runtime cross-Surface outside/Escape dispatch. */
+  dismissTopLayer(reason: "outside" | "escape"): boolean {
+    const record = this.#topDismissableLayer()
+    if (record === null) return false
+    this.#dismissLayer(record, reason)
+    return true
+  }
+
   /**
    * Schedules only the retained owner previously staged with this key.
    * Missing or ambiguous ownership falls back to the ordinary Surface render.
@@ -816,6 +884,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       provisionalParents: new Set<Object3D>(),
       hits: [],
       wheelHits: [],
+      dismissables: [],
       renderKeys: new Set<string>(),
     }
     const previousClipStack = this.#clipStack
@@ -845,6 +914,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#retainedDraws.set(parent, draw)
     this.#replaceRetainedHits(parent, transaction.hits)
     this.#replaceRetainedWheelHits(parent, transaction.wheelHits)
+    this.#replaceRetainedDismissables(parent, transaction.dismissables)
     this.#replaceRetainedRenderKeys(parent, transaction.renderKeys)
     this.#disposeSubtrees(previousChildren)
     this.#keyedRerenderParents.delete(parent)
@@ -1275,6 +1345,9 @@ export abstract class UiSurface implements UiSurfaceNode {
       saturation: opts.saturation,
       value: opts.value,
       alpha: opts.alpha,
+      checkerPrimary: opts.checkerPrimary,
+      checkerSecondary: opts.checkerSecondary,
+      checkerSize: opts.checkerSize * ps,
     }
     if (opts.opacity !== undefined) materialOptions.opacity = opts.opacity
     const material = new ColorPickerMaterial(materialOptions)
@@ -1624,7 +1697,10 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   onPointerDown(_event: MouseEvent, localX: number, localY: number): void {
-    const hit = this.#hitAt(localX - this.#padLeft, localY - this.#padTop)
+    const innerX = localX - this.#padLeft
+    const innerY = localY - this.#padTop
+    this.#dismissOutside(innerX, innerY)
+    const hit = this.#hitAt(innerX, innerY)
     if (hit === null) return
     this.pressedHit = hit
     this.#pressedHitKey = hit.key
@@ -1680,6 +1756,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#cancelPendingLayerRerender()
     this.#hits = []
     this.#wheelHits = []
+    this.#dismissables = []
     this.#setHoveredHit(null)
     this.pressedHit = null
     this.#pressedHitKey = null
@@ -1775,6 +1852,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     for (const layer of this.#contentLayers()) this.#clearLayer(layer)
     this.#hits = []
     this.#wheelHits = []
+    this.#dismissables = []
     this.#pendingTooltipDraws = []
     this.#clipStack = [{xMin: 0, yMin: 0, xMax: this.rectW, yMax: this.rectH}]
     this.render()
@@ -2057,6 +2135,29 @@ export abstract class UiSurface implements UiSurfaceNode {
     return null
   }
 
+  #dismissOutside(x: number, y: number): void {
+    const record = this.#topDismissableLayer()
+    if (record === null || this.#pointInsideDismissable(record, x, y)) return
+    this.#dismissLayer(record, "outside")
+  }
+
+  #topDismissableLayer(): DismissableLayerRecord | null {
+    const retained = this.#retainedRecordsInPaintOrder(this.#retainedDismissables)
+    if (retained.length > 0) return retained[retained.length - 1]!
+    return this.#dismissables[this.#dismissables.length - 1] ?? null
+  }
+
+  #pointInsideDismissable(record: DismissableLayerRecord, x: number, y: number): boolean {
+    const point = record.parent === null ? {x, y} : this.surfaceToRetainedPoint(record.parent, {x, y})
+    return record.regions.some((region) => pointInsideRect(point, region))
+  }
+
+  #dismissLayer(record: DismissableLayerRecord, reason: "outside" | "escape"): void {
+    if (record.parent !== null) this.#notifyRetainedInteraction(record.parent, record.key)
+    record.dismiss(reason)
+    this.requestKeyedRender(record.key)
+  }
+
   #retainedHitAt(x: number, y: number): ResolvedHitBox | null {
     const records = this.#retainedRecordsInPaintOrder(this.#retainedHits)
     for (let index = records.length - 1; index >= 0; index -= 1) {
@@ -2275,6 +2376,11 @@ export abstract class UiSurface implements UiSurfaceNode {
     else this.#retainedWheelHits.set(parent, [...hits])
   }
 
+  #replaceRetainedDismissables(parent: Object3D, records: readonly RetainedDismissableLayerRecord[]): void {
+    if (records.length === 0) this.#retainedDismissables.delete(parent)
+    else this.#retainedDismissables.set(parent, [...records])
+  }
+
   #replaceRetainedRenderKeys(parent: Object3D, keys: ReadonlySet<string>): void {
     if (keys.size === 0) this.#retainedRenderKeys.delete(parent)
     else this.#retainedRenderKeys.set(parent, new Set(keys))
@@ -2354,6 +2460,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       this.#releaseRetainedHitState(obj)
       this.#retainedHits.delete(obj)
       this.#retainedWheelHits.delete(obj)
+      this.#retainedDismissables.delete(obj)
       this.#retainedRenderKeys.delete(obj)
       this.#retainedDraws.delete(obj)
       this.#keyedRerenderParents.delete(obj)

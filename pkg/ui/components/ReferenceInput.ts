@@ -1,5 +1,6 @@
-import {flexRow, palette, uiIcons, uiShapeMetrics, type UiSurface} from "@ui/elements"
+import {flexRow, uiIcons, uiShapeMetrics, type UiSurface} from "@ui/elements"
 import {Button, IconButton, type ButtonProps} from "./Button.ts"
+import {ControlGroup, type ControlGroupTrack} from "./ControlGroup.ts"
 
 export type ReferenceInputValue = Readonly<{
   id: string
@@ -31,59 +32,59 @@ export function ReferenceInput(
   props: ReferenceInputProps,
 ): void {
   const disabled = props.disabled === true || props.readOnly === true
+  const showPicker = props.onPick !== undefined
   const showClear = props.value !== null && props.onClear !== undefined
-  const gap = uiShapeMetrics.tightGap
   const pickerWidth = uiShapeMetrics.iconActionSlot
   const clearWidth = showClear ? uiShapeMetrics.iconActionSlot : 0
+  const actionTracks: ControlGroupTrack[] = ["grow"]
+  if (showPicker) actionTracks.push(pickerWidth)
+  if (showClear) actionTracks.push(clearWidth)
   const mainProps: ButtonProps = {
     children: props.value?.label ?? props.placeholder ?? "Не выбрано",
     startIcon: uiIcons.resource,
-    variant: "contained",
-    fill: palette.bgInput,
-    disabled,
-    action: () => props.onActivate?.(),
+    disabled: disabled || props.onActivate === undefined,
+    action: props.onActivate ?? (() => {}),
   }
   const tooltip = props.value?.kind ?? props.tooltip
   if (tooltip !== undefined) mainProps.tooltip = tooltip
-  const pickerAction = props.onPick ?? props.onActivate
-  const pickerProps: Parameters<typeof IconButton>[5] = {
-    label: "Выбрать ресурс",
-    iconSrc: uiIcons.picker,
-    variant: "contained",
-    fill: palette.bgInput,
-    disabled: disabled || pickerAction === undefined,
-    action: () => pickerAction?.(),
-  }
 
-  flexRow({
-    x,
-    y,
-    w: width,
-    h: height,
-    gap,
-    alignItems: "stretch",
-    items: [
-      {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
-        Button(host, slotX, slotY, slotW, slotH, mainProps)
-      }},
-      {width: pickerWidth, height, draw: (slotX, slotY, slotW, slotH) => {
-        IconButton(host, slotX, slotY, slotW, slotH, pickerProps)
-      }},
-      ...(showClear ? [{
-        width: clearWidth,
-        height,
-        draw: (slotX: number, slotY: number, slotW: number, slotH: number) => {
-          const clearProps: Parameters<typeof IconButton>[5] = {
-            label: "Очистить ссылку",
-            iconSrc: uiIcons.close,
-            variant: "contained",
-            fill: palette.bgInput,
-            disabled,
-            action: () => props.onClear?.(),
-          }
-          IconButton(host, slotX, slotY, slotW, slotH, clearProps)
-        },
-      }] : []),
-    ],
+  ControlGroup(host, x, y, width, height, {
+    columns: actionTracks,
+    children(group) {
+      let column = 1
+      flexRow({
+        x,
+        y,
+        w: width,
+        h: height,
+        gap: 0,
+        alignItems: "stretch",
+        items: [
+          {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
+            Button(host, slotX, slotY, slotW, slotH, {...mainProps, sx: group.cellStyle})
+          }},
+          showPicker && {width: pickerWidth, height, draw: (slotX, slotY, slotW, slotH) => {
+            const cell = column++
+            IconButton(host, slotX, slotY, slotW, slotH, {
+              label: "Выбрать ресурс",
+              iconSrc: uiIcons.picker,
+              disabled,
+              action: props.onPick!,
+              sx: group.cell(0, cell).cellStyle,
+            })
+          }},
+          showClear && {width: clearWidth, height, draw: (slotX, slotY, slotW, slotH) => {
+            const cell = column++
+            IconButton(host, slotX, slotY, slotW, slotH, {
+              label: "Очистить ссылку",
+              iconSrc: uiIcons.close,
+              disabled,
+              action: props.onClear!,
+              sx: group.cell(0, cell).cellStyle,
+            })
+          }},
+        ],
+      })
+    },
   })
 }

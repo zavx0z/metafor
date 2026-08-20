@@ -1,10 +1,3 @@
-import {button, type ButtonElementLayout, type ButtonElementProps, type ButtonElementState} from "./button.ts"
-import {controlChromeRect} from "./control-shape.ts"
-import {drawIconCentered} from "./icon.ts"
-import {uiIcons} from "./icons.ts"
-import {flexColumn, flexRow} from "./flex.ts"
-import {uiShapeMetrics} from "./shape.ts"
-import {mergeStyle, textMaterial, type StyleProps} from "./style.ts"
 import {Color} from "@metafor/engine"
 import {
   blenderRgba8ToColor,
@@ -12,6 +5,14 @@ import {
   resolveWidgetColors,
   type BlenderWidgetState,
 } from "./blender-theme.ts"
+import {button, type ButtonElementLayout, type ButtonElementProps, type ButtonElementState} from "./button.ts"
+import {controlChromeRect} from "./control-shape.ts"
+import {flexColumn, flexRow} from "./flex.ts"
+import {drawIconCentered} from "./icon.ts"
+import {uiIcons} from "./icons.ts"
+import {popover, type PopoverContext, type PopoverProps} from "./popover.ts"
+import {uiShapeMetrics} from "./shape.ts"
+import {mergeStyle, textMaterial, type StyleProps} from "./style.ts"
 import {type UiSurface, Z} from "./surface.ts"
 
 export type SelectElementValue = string | number
@@ -35,13 +36,7 @@ export type SelectElementProps<Value extends SelectElementValue = SelectElementV
   onOpenChange?(open: boolean): void
 }
 
-type SelectRuntimeState = {
-  openKeys: Set<string>
-}
-
-const selectRuntime = new WeakMap<UiSurface, SelectRuntimeState>()
-
-/** Draws one controlled dense select with an Elements-owned disclosure menu. */
+/** Draws one dense select on the common Elements popover lifecycle. */
 export function select<Value extends SelectElementValue = SelectElementValue>(
   surface: UiSurface,
   x: number,
@@ -51,34 +46,67 @@ export function select<Value extends SelectElementValue = SelectElementValue>(
   props: SelectElementProps<Value> = {},
 ): void {
   const key = props.key ?? `select:${x}:${y}:${width}:${height}`
-  const runtime = selectRuntimeFor(surface)
   const options = props.options ?? []
   const disabled = props.disabled === true
-  if (disabled) runtime.openKeys.delete(key)
   const selected = options.find((option) => Object.is(option.value, props.value))
   const label = props.value === undefined || props.value === null || props.value === ""
     ? props.placeholder ?? ""
     : selected?.label ?? String(props.value)
   const placeholder = props.value === undefined || props.value === null || props.value === ""
   const style = mergeStyle(props)
-  const open = !disabled && options.length > 0 && (props.open ?? runtime.openKeys.has(key))
-  surface.registerRenderKey(key)
+  const chrome = controlChromeRect(x, y, width, height, style)
+  if (disabled || options.length === 0) {
+    drawSelectTrigger(surface, x, y, width, height, props, key, label, placeholder, false, undefined)
+    return
+  }
+  const border = uiShapeMetrics.borderWidth
+  const menuHeight = options.length * uiShapeMetrics.controlHeight + border * 2
+  const popoverProps: PopoverProps = {
+    key,
+    ...(props.open === undefined ? {} : {open: props.open}),
+    contentSize: {width: chrome.width, height: menuHeight},
+    onOpenChange: (open) => props.onOpenChange?.(open),
+    trigger: (context) => {
+      drawSelectTrigger(surface, x, y, width, height, props, key, label, placeholder, context.open, context)
+    },
+    content: (rect, context) => {
+      drawSelectMenu(surface, rect, key, options, props.value, props.onChange, context)
+    },
+  }
+  popover(surface, chrome.x, chrome.y, chrome.width, chrome.height, popoverProps)
+}
+
+function drawSelectTrigger<Value extends SelectElementValue>(
+  surface: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  props: SelectElementProps<Value>,
+  key: string,
+  label: string,
+  placeholder: boolean,
+  open: boolean,
+  context: PopoverContext | undefined,
+): void {
+  const disabled = props.disabled === true
   const elementProps: ButtonElementProps = {
     key,
-    children: (state, layout) => drawSelectContent(surface, label, placeholder, resolvedSelectState(state, props.active === true || open), layout, props.chevronSrc ?? uiIcons.chevronDown),
-    style: (state) => selectStyle(style, resolvedSelectState(state, props.active === true || open)),
+    children: (state, layout) => drawSelectContent(
+      surface,
+      label,
+      placeholder,
+      resolvedSelectState(state, props.active === true || open),
+      layout,
+      props.chevronSrc ?? uiIcons.chevronDown,
+    ),
+    style: (state) => selectStyle(props.style ?? {}, resolvedSelectState(state, props.active === true || open)),
   }
   if (props.disabled !== undefined) elementProps.disabled = props.disabled
-  if (!disabled && (options.length > 0 || props.onClick !== undefined)) {
+  if (!disabled && (context !== undefined || props.onClick !== undefined)) {
     elementProps.onClick = () => {
-      const nextOpen = options.length > 0 && !open
-      if (props.open === undefined) {
-        if (nextOpen) runtime.openKeys.add(key)
-        else runtime.openKeys.delete(key)
-      }
-      props.onOpenChange?.(nextOpen)
+      context?.toggle()
       props.onClick?.()
-      surface.requestKeyedRender(key)
     }
   }
   if (props.tooltip !== undefined) elementProps.tooltip = props.tooltip
@@ -91,18 +119,6 @@ export function select<Value extends SelectElementValue = SelectElementValue>(
     if (props.onPointerUp !== undefined) elementProps.onPointerUp = props.onPointerUp
   }
   button(surface, x, y, width, height, elementProps)
-  if (open) {
-    drawSelectMenu(surface, controlChromeRect(x, y, width, height, style), key, options, props.value, props.onChange, props.onOpenChange, props.open === undefined, runtime)
-  }
-}
-
-function selectRuntimeFor(surface: UiSurface): SelectRuntimeState {
-  let runtime = selectRuntime.get(surface)
-  if (runtime === undefined) {
-    runtime = {openKeys: new Set<string>()}
-    selectRuntime.set(surface, runtime)
-  }
-  return runtime
 }
 
 function resolvedSelectState(state: ButtonElementState, active: boolean | undefined): ButtonElementState {
@@ -114,9 +130,7 @@ function selectStyle(style: StyleProps, state: ButtonElementState): StyleProps {
   const colors = resolveWidgetColors("menu", selectWidgetState(state))
   const result: StyleProps = {
     ...style,
-    borderColor: style.borderColor === undefined
-      ? blenderRgba8ToColor(colors.outline)
-      : style.borderColor,
+    borderColor: style.borderColor === undefined ? blenderRgba8ToColor(colors.outline) : style.borderColor,
     color: style.color ?? blenderRgba8ToColor(colors.text),
   }
   if (style.background === undefined && style.backgroundColor === undefined) {
@@ -135,20 +149,15 @@ function selectWidgetState(state: ButtonElementState): BlenderWidgetState {
 
 function drawSelectMenu<Value extends SelectElementValue>(
   surface: UiSurface,
-  chrome: Readonly<{x: number; y: number; width: number; height: number}>,
+  rect: Readonly<{x: number; y: number; w: number; h: number}>,
   key: string,
   options: readonly SelectElementOption<Value>[],
   value: Value | null | undefined,
   onChange: ((value: Value) => void) | undefined,
-  onOpenChange: ((open: boolean) => void) | undefined,
-  internallyControlled: boolean,
-  runtime: SelectRuntimeState,
+  context: PopoverContext,
 ): void {
   const border = uiShapeMetrics.borderWidth
-  const menuX = chrome.x
-  const menuY = chrome.y + chrome.height + uiShapeMetrics.separatorWidth
-  const menuHeight = options.length * uiShapeMetrics.controlHeight + border * 2
-  surface.drawRoundedShadow(menuX, menuY, chrome.width, menuHeight, {
+  surface.drawRoundedShadow(rect.x, rect.y, rect.w, rect.h, {
     radius: uiShapeMetrics.lowRadius,
     blur: blenderTheme.material.menuShadowWidth,
     spread: 0,
@@ -157,7 +166,7 @@ function drawSelectMenu<Value extends SelectElementValue>(
     z: Z.ELEMENT + 0.19,
   })
   const menuColors = resolveWidgetColors("menuBack")
-  surface.drawRoundedRect(menuX, menuY, chrome.width, menuHeight, {
+  surface.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
     radius: uiShapeMetrics.lowRadius,
     fill: blenderRgba8ToColor(menuColors.inner),
     border: blenderRgba8ToColor(menuColors.outline),
@@ -166,10 +175,10 @@ function drawSelectMenu<Value extends SelectElementValue>(
   })
 
   flexColumn({
-    x: menuX + border,
-    y: menuY + border,
-    w: Math.max(0, chrome.width - border * 2),
-    h: Math.max(0, menuHeight - border * 2),
+    x: rect.x + border,
+    y: rect.y + border,
+    w: Math.max(0, rect.w - border * 2),
+    h: Math.max(0, rect.h - border * 2),
     gap: 0,
     items: options.map((option) => ({
       height: uiShapeMetrics.controlHeight,
@@ -196,15 +205,11 @@ function drawSelectMenu<Value extends SelectElementValue>(
           maxWidthPx: Math.max(1, rowWidth - uiShapeMetrics.tightGap * 4),
           z: Z.TEXT + 0.22,
         })
-        const tooltip = option.description === undefined
-          ? undefined
-          : {label: option.description, delayMs: 450}
+        const tooltip = option.description === undefined ? undefined : {label: option.description, delayMs: 450}
         surface.hit(rowX, rowY, rowWidth, rowHeight, () => {
           if (disabled) return
-          if (internallyControlled) runtime.openKeys.delete(key)
           onChange?.(option.value)
-          onOpenChange?.(false)
-          surface.requestKeyedRender(key)
+          context.close()
         }, {
           key: rowKey,
           cursor: disabled ? "default" : "pointer",
@@ -230,9 +235,7 @@ function drawSelectContent(
 ): void {
   const content = layout.content
   const colors = resolveWidgetColors("menu", selectWidgetState(state))
-  const text = placeholder
-    ? resolveWidgetColors("menu", {inactive: true}).text
-    : colors.text
+  const text = placeholder ? resolveWidgetColors("menu", {inactive: true}).text : colors.text
   flexRow({
     x: content.x,
     y: content.y,

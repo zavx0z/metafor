@@ -1,6 +1,7 @@
 import {Material, type MaterialParameters} from "./Material"
+import {Color} from "../math/Color"
 
-export type ColorPickerMaterialMode = "wheel" | "value" | "alpha"
+export type ColorPickerMaterialMode = "wheel" | "value" | "alpha" | "swatch"
 
 export interface ColorPickerMaterialParameters extends MaterialParameters {
   width: number
@@ -11,6 +12,9 @@ export interface ColorPickerMaterialParameters extends MaterialParameters {
   value: number
   alpha: number
   opacity?: number
+  checkerPrimary: Color
+  checkerSecondary: Color
+  checkerSize: number
 }
 
 /** One texture-free analytical quad used by low-level color picker planes. */
@@ -25,6 +29,9 @@ export class ColorPickerMaterial extends Material {
   public value: number
   public alpha: number
   public opacity: number
+  public checkerPrimary: Color
+  public checkerSecondary: Color
+  public checkerSize: number
   public clipBounds: [number, number, number, number] | null = null
 
   constructor(parameters: ColorPickerMaterialParameters) {
@@ -37,6 +44,9 @@ export class ColorPickerMaterial extends Material {
     this.value = clampUnit(parameters.value)
     this.alpha = clampUnit(parameters.alpha)
     this.opacity = clampUnit(parameters.opacity ?? 1)
+    this.checkerPrimary = parameters.checkerPrimary.clone()
+    this.checkerSecondary = parameters.checkerSecondary.clone()
+    this.checkerSize = finiteNonNegative(parameters.checkerSize)
   }
 }
 

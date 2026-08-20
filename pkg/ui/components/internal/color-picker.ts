@@ -1,4 +1,6 @@
 import {
+  blenderRgba8ToColor,
+  blenderTheme,
   palette,
   type ColorPickerPlaneDrawOptions,
   type HitOptions,
@@ -42,6 +44,9 @@ export function colorPickerPlane(
     value: value.v,
     alpha: value.a,
     opacity: disabled ? 0.42 : 1,
+    checkerPrimary: blenderRgba8ToColor(blenderTheme.material.checkerPrimary),
+    checkerSecondary: blenderRgba8ToColor(blenderTheme.material.checkerSecondary),
+    checkerSize: blenderTheme.material.checkerSize,
     z: Z.ELEMENT + 0.22,
   })
   drawPickerMarker(surface, x, y, width, height, props.mode, value, disabled)
@@ -93,6 +98,29 @@ export function normalizeColorPickerValue(value: Partial<ColorPickerValue>): Col
     s: clampUnit(value.s ?? 0),
     v: clampUnit(value.v ?? 0),
     a: clampUnit(value.a ?? 1),
+  })
+}
+
+/** Draws the current color over the exact Blender checker without pointer semantics. */
+export function colorPickerSwatch(
+  surface: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  value: ColorPickerValue,
+): void {
+  const normalized = normalizeColorPickerValue(value)
+  surface.drawColorPickerPlane(x, y, width, height, {
+    mode: "swatch",
+    hue: normalized.h,
+    saturation: normalized.s,
+    value: normalized.v,
+    alpha: normalized.a,
+    checkerPrimary: blenderRgba8ToColor(blenderTheme.material.checkerPrimary),
+    checkerSecondary: blenderRgba8ToColor(blenderTheme.material.checkerSecondary),
+    checkerSize: blenderTheme.material.checkerSize,
+    z: Z.ELEMENT + 0.22,
   })
 }
 

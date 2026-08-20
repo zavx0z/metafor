@@ -73,6 +73,16 @@ describe("public ControlGroup", () => {
     ])
   })
 
+  test("owns unequal grow/action tracks without a caller gap", () => {
+    const surface = new RecordingSurface()
+    ControlGroup(surface, 4, 6, 120, 22, {columns: ["grow", 22]})
+
+    const rules = surface.roundedRects.filter((call) => call[4].radius === 0)
+    expect(rules.map((call) => call.slice(0, 4))).toEqual([
+      [101.5, 6, 1, 22],
+    ])
+  })
+
   test("keeps ordinary group composition on Elements and Flex instead of direct Surface rules", async () => {
     const source = await Bun.file(new URL("./ControlGroup.ts", import.meta.url)).text()
     expect(source).toContain("flexColumn({")

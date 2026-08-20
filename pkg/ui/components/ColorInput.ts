@@ -1,19 +1,22 @@
-import {Color} from "@metafor/engine"
 import {
+  blenderRgba8ToColor,
   button,
+  div,
   flexColumn,
   flexRow,
-  palette,
+  popover,
+  resolveWidgetColors,
   uiShapeMetrics,
   Z,
   type ButtonElementProps,
+  type PopoverProps,
   type UiSurface,
 } from "@ui/elements"
 import {
   colorPickerPlane,
+  colorPickerSwatch,
   type ColorPickerValue,
 } from "./internal/color-picker.ts"
-import {TextField} from "./TextField.ts"
 
 export type ColorInputValue = Readonly<{
   r: number
@@ -23,6 +26,7 @@ export type ColorInputValue = Readonly<{
 }>
 
 export type ColorInputDensity = "regular" | "compact"
+export type ColorInputPresentation = "compact" | "expanded"
 
 export type ColorInputProps = {
   key?: string
@@ -30,26 +34,28 @@ export type ColorInputProps = {
   disabled?: boolean
   readOnly?: boolean
   density?: ColorInputDensity
+  presentation?: ColorInputPresentation
   open?: boolean
   onChange?(value: ColorInputValue): void
   onOpenChange?(open: boolean): void
 }
 
 type ColorInputRuntime = {
-  openKeys: Set<string>
   drafts: Map<string, Readonly<{value: ColorInputValue; source: string}>>
 }
 
 const colorInputRuntime = new WeakMap<UiSurface, ColorInputRuntime>()
 const PICKER_WHEEL_SIZE = 112
 const PICKER_SLIDER_WIDTH = 14
+const PICKER_GAP = uiShapeMetrics.tightGap
+const PICKER_TOP_WIDTH = PICKER_WHEEL_SIZE + PICKER_GAP + PICKER_SLIDER_WIDTH
+const PICKER_BAR_HEIGHT = uiShapeMetrics.controlHeight
+const PICKER_EXPANDED_HEIGHT = PICKER_WHEEL_SIZE + PICKER_GAP + PICKER_BAR_HEIGHT
 const PICKER_PADDING = 6
-const PICKER_TOP_WIDTH = PICKER_WHEEL_SIZE + uiShapeMetrics.tightGap * 2 + PICKER_SLIDER_WIDTH * 2
-const PICKER_WIDTH = PICKER_TOP_WIDTH + PICKER_PADDING * 2
-const PICKER_FOOTER_HEIGHT = uiShapeMetrics.controlHeight
-const PICKER_HEIGHT = PICKER_PADDING * 2 + PICKER_WHEEL_SIZE + uiShapeMetrics.tightGap + PICKER_FOOTER_HEIGHT
+const PICKER_POPUP_WIDTH = PICKER_TOP_WIDTH + PICKER_PADDING * 2
+const PICKER_POPUP_HEIGHT = PICKER_EXPANDED_HEIGHT + PICKER_PADDING * 2
 
-/** Draws one controlled RGBA swatch, hexadecimal editor and retained analytical picker. */
+/** Draws a compact disclosure swatch or the exact expanded Blender color template. */
 export function ColorInput(
   host: UiSurface,
   x: number,
@@ -62,17 +68,20 @@ export function ColorInput(
   const value = normalizeColorInputValue(props.value)
   const key = props.key ?? `color-input:${x}:${y}:${width}:${height}`
   const runtime = runtimeFor(host)
-  if (disabled) runtime.openKeys.delete(key)
-  const open = !disabled && (props.open ?? runtime.openKeys.has(key))
-  const draft = pickerDraft(runtime, key, value, open)
-  host.registerRenderKey(key)
-  drawClosedColorInput(host, x, y, width, height, key, value, open, disabled, props, runtime)
-  if (open) {
-    drawColorPickerPopup(host, x, y + height + uiShapeMetrics.separatorWidth, key, draft, disabled, props, runtime)
+  const presentation = props.presentation ?? "compact"
+  if (presentation === "expanded") {
+    drawExpandedColor(host, x, y, width, height, key, value, disabled, props.onChange, runtime, props.value)
+    return
   }
+  drawCompactColor(host, x, y, width, height, key, value, disabled, props, runtime)
 }
 
-function drawClosedColorInput(
+/** Exact intrinsic expanded height at the shared control scale. */
+export function measureColorInputHeight(presentation: ColorInputPresentation = "compact"): number {
+  return presentation === "expanded" ? PICKER_EXPANDED_HEIGHT : uiShapeMetrics.controlHeight
+}
+
+function drawCompactColor(
   host: UiSurface,
   x: number,
   y: number,
@@ -80,99 +89,98 @@ function drawClosedColorInput(
   height: number,
   key: string,
   value: ColorInputValue,
-  open: boolean,
   disabled: boolean,
   props: ColorInputProps,
   runtime: ColorInputRuntime,
 ): void {
-  const textFieldProps: Parameters<typeof TextField>[5] = {
+  const popoverProps: PopoverProps = {
     key,
-    value: formatColorInputValue(value),
-    disabled,
-    submitOnEnter: true,
+    ...(props.open === undefined ? {} : {open: disabled ? false : props.open}),
+    contentSize: {width: Math.max(width, PICKER_POPUP_WIDTH), height: PICKER_POPUP_HEIGHT},
+    onOpenChange(open) {
+      if (!open) setPickerDraft(runtime, key, value, value)
+      props.onOpenChange?.(open)
+    },
+    trigger(context) {
+      drawColorBarButton(host, x, y, width, height, `${key}:swatch`, value, context.open, disabled, context.toggle)
+    },
+    content(rect) {
+      const menu = resolveWidgetColors("menuBack")
+      div(host, rect.x, rect.y, rect.w, rect.h, {
+        style: {
+          background: blenderRgba8ToColor(menu.inner),
+          borderColor: blenderRgba8ToColor(menu.outline),
+          borderRadius: uiShapeMetrics.lowRadius,
+          borderWidth: uiShapeMetrics.borderWidth,
+          zIndex: Z.ELEMENT + 0.2,
+        },
+      })
+      const padding = Math.min(PICKER_PADDING, rect.w / 2, rect.h / 2)
+      drawExpandedColor(
+        host,
+        rect.x + padding,
+        rect.y + padding,
+        Math.max(0, rect.w - padding * 2),
+        Math.max(0, rect.h - padding * 2),
+        key,
+        pickerDraft(runtime, key, value),
+        disabled,
+        props.onChange,
+        runtime,
+        props.value,
+      )
+    },
   }
-  if (!disabled && props.onChange !== undefined) {
-    textFieldProps.onSubmit = (text) => {
-      const next = parseColorInputValue(text)
-      if (next === null) return
-      setPickerDraft(runtime, key, next, value)
-      props.onChange?.(next)
-      host.requestKeyedRender(key)
-    }
+  popover(host, x, y, width, height, popoverProps)
+}
+
+function drawExpandedColor(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  key: string,
+  value: ColorInputValue,
+  disabled: boolean,
+  onChange: ((value: ColorInputValue) => void) | undefined,
+  runtime: ColorInputRuntime,
+  sourceValue: ColorInputValue,
+): void {
+  if (width <= 0 || height <= 0) return
+  const pickerValue = colorInputValueToPicker(value)
+  const topHeight = Math.max(0, height - PICKER_GAP - PICKER_BAR_HEIGHT)
+  const wheelSize = Math.max(0, Math.min(PICKER_WHEEL_SIZE, topHeight, width - PICKER_GAP - PICKER_SLIDER_WIDTH))
+  const topWidth = wheelSize + PICKER_GAP + PICKER_SLIDER_WIDTH
+  const publish = (next: ColorPickerValue): void => {
+    const rgba = colorPickerValueToInput(next)
+    setPickerDraft(runtime, key, rgba, sourceValue)
+    onChange?.(rgba)
+    host.requestKeyedRender(key)
   }
-  flexRow({
+  flexColumn({
     x,
     y,
     w: width,
     h: height,
-    gap: uiShapeMetrics.tightGap,
-    alignItems: "stretch",
+    gap: PICKER_GAP,
+    alignItems: "center",
     items: [
-      {width: uiShapeMetrics.iconActionSlot, height, draw: (slotX, slotY, slotW, slotH) => {
-        drawSwatchButton(host, slotX, slotY, slotW, slotH, `${key}:swatch`, value, open, disabled, () => {
-          const nextOpen = !open
-          if (props.open === undefined) {
-            if (nextOpen) runtime.openKeys.add(key)
-            else runtime.openKeys.delete(key)
-          }
-          if (nextOpen) setPickerDraft(runtime, key, value, value)
-          props.onOpenChange?.(nextOpen)
-          host.requestKeyedRender(key)
-        })
-      }},
-      {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
-        TextField(host, slotX, slotY, slotW, slotH, textFieldProps)
-      }},
-    ],
-  })
-}
-
-function drawColorPickerPopup(
-  host: UiSurface,
-  x: number,
-  y: number,
-  key: string,
-  value: ColorInputValue,
-  disabled: boolean,
-  props: ColorInputProps,
-  runtime: ColorInputRuntime,
-): void {
-  host.drawRoundedRect(x, y, PICKER_WIDTH, PICKER_HEIGHT, {
-    radius: uiShapeMetrics.lowRadius,
-    fill: palette.bgPanel,
-    border: palette.borderRule,
-    borderWidth: uiShapeMetrics.borderWidth,
-    z: Z.ELEMENT + 0.2,
-  })
-  const pickerValue = colorInputValueToPicker(value)
-  const publish = (next: ColorPickerValue): void => {
-    const rgba = colorPickerValueToInput(next)
-    setPickerDraft(runtime, key, rgba, props.value)
-    props.onChange?.(rgba)
-    host.requestKeyedRender(key)
-  }
-  flexColumn({
-    x: x + PICKER_PADDING,
-    y: y + PICKER_PADDING,
-    w: PICKER_TOP_WIDTH,
-    h: PICKER_HEIGHT - PICKER_PADDING * 2,
-    gap: uiShapeMetrics.tightGap,
-    items: [
-      {height: PICKER_WHEEL_SIZE, draw: (topX, topY, topW, topH) => {
+      {height: topHeight, width: topWidth, draw: (topX, topY, topW, topH) => {
         flexRow({
           x: topX,
           y: topY,
           w: topW,
           h: topH,
-          gap: uiShapeMetrics.tightGap,
+          gap: PICKER_GAP,
           alignItems: "stretch",
           items: [
-            {width: PICKER_WHEEL_SIZE, height: topH, draw: (slotX, slotY, slotW, slotH) => {
+            {width: wheelSize, height: topH, draw: (slotX, slotY, slotW, slotH) => {
               colorPickerPlane(host, slotX, slotY, slotW, slotH, {
                 key: `${key}:wheel`,
                 mode: "wheel",
                 value: pickerValue,
-                disabled: disabled || props.onChange === undefined,
+                disabled: disabled || onChange === undefined,
                 onChange: publish,
               })
             }},
@@ -181,79 +189,21 @@ function drawColorPickerPopup(
                 key: `${key}:value`,
                 mode: "value",
                 value: pickerValue,
-                disabled: disabled || props.onChange === undefined,
-                onChange: publish,
-              })
-            }},
-            {width: PICKER_SLIDER_WIDTH, height: topH, draw: (slotX, slotY, slotW, slotH) => {
-              colorPickerPlane(host, slotX, slotY, slotW, slotH, {
-                key: `${key}:alpha`,
-                mode: "alpha",
-                value: pickerValue,
-                disabled: disabled || props.onChange === undefined,
+                disabled: disabled || onChange === undefined,
                 onChange: publish,
               })
             }},
           ],
         })
       }},
-      {height: PICKER_FOOTER_HEIGHT, draw: (footerX, footerY, footerW, footerH) => {
-        drawPickerFooter(host, footerX, footerY, footerW, footerH, key, value, disabled, props, runtime)
+      {height: PICKER_BAR_HEIGHT, width, draw: (barX, barY, barW, barH) => {
+        drawCurrentColorBar(host, barX, barY, barW, barH, pickerValue)
       }},
     ],
   })
 }
 
-function drawPickerFooter(
-  host: UiSurface,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  key: string,
-  value: ColorInputValue,
-  disabled: boolean,
-  props: ColorInputProps,
-  runtime: ColorInputRuntime,
-): void {
-  const hexProps: Parameters<typeof TextField>[5] = {
-    key: `${key}:picker-hex`,
-    value: formatColorInputValue(value),
-    disabled,
-    submitOnEnter: true,
-  }
-  if (!disabled && props.onChange !== undefined) {
-    hexProps.onSubmit = (text) => {
-      const next = parseColorInputValue(text)
-      if (next === null) return
-      setPickerDraft(runtime, key, next, props.value)
-      props.onChange?.(next)
-      host.requestKeyedRender(key)
-    }
-  }
-  flexRow({
-    x,
-    y,
-    w: width,
-    h: height,
-    gap: uiShapeMetrics.tightGap,
-    alignItems: "stretch",
-    items: [
-      {width: uiShapeMetrics.iconActionSlot, height, draw: (slotX, slotY, slotW, slotH) => {
-        drawSwatchButton(host, slotX, slotY, slotW, slotH, `${key}:picker-swatch`, value, true, disabled, () => {
-          if (props.open === undefined) runtime.openKeys.delete(key)
-          props.onOpenChange?.(false)
-          host.requestKeyedRender(key)
-        })
-      }},
-      {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
-        TextField(host, slotX, slotY, slotW, slotH, hexProps)
-      }},
-    ],
-  })
-}
-
-function drawSwatchButton(
+function drawColorBarButton(
   host: UiSurface,
   x: number,
   y: number,
@@ -265,35 +215,63 @@ function drawSwatchButton(
   disabled: boolean,
   onClick: () => void,
 ): void {
+  const regular = resolveWidgetColors("regular", {
+    ...(selected ? {pressed: true} : {}),
+    ...(disabled ? {disabled: true} : {}),
+  })
   const buttonProps: ButtonElementProps = {
     key,
-    children: false,
+    children: (_state, layout) => {
+      drawCurrentColorBar(host, layout.chrome.x, layout.chrome.y, layout.chrome.width, layout.chrome.height, colorInputValueToPicker(value))
+    },
     disabled,
     onClick,
-    style: (state) => ({
-      background: new Color(value.r, value.g, value.b, value.a),
-      borderColor: selected || state === "active" || state === "hover" ? "cyan" : "borderDim",
+    style: {
+      background: null,
+      borderColor: blenderRgba8ToColor(regular.outline),
       borderRadius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
-      zIndex: Z.ELEMENT + (selected ? 0.24 : 0),
-    }),
+      zIndex: Z.ELEMENT + 0.24,
+    },
   }
   button(host, x, y, width, height, buttonProps)
+}
+
+function drawCurrentColorBar(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  value: ColorPickerValue,
+): void {
+  const inset = Math.min(uiShapeMetrics.borderWidth, width / 2, height / 2)
+  colorPickerSwatch(host, x + inset, y + inset, Math.max(0, width - inset * 2), Math.max(0, height - inset * 2), value)
+  const regular = resolveWidgetColors("regular")
+  div(host, x, y, width, height, {
+    style: {
+      background: null,
+      borderColor: blenderRgba8ToColor(regular.outline),
+      borderRadius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
+      zIndex: Z.ELEMENT_RULE + 0.22,
+    },
+  })
 }
 
 function runtimeFor(host: UiSurface): ColorInputRuntime {
   let runtime = colorInputRuntime.get(host)
   if (runtime === undefined) {
-    runtime = {openKeys: new Set<string>(), drafts: new Map()}
+    runtime = {drafts: new Map()}
     colorInputRuntime.set(host, runtime)
   }
   return runtime
 }
 
-function pickerDraft(runtime: ColorInputRuntime, key: string, value: ColorInputValue, open: boolean): ColorInputValue {
+function pickerDraft(runtime: ColorInputRuntime, key: string, value: ColorInputValue): ColorInputValue {
   const source = formatColorInputValue(value)
   const current = runtime.drafts.get(key)
-  if (!open || current === undefined || current.source !== source) {
+  if (current === undefined || current.source !== source) {
     runtime.drafts.set(key, Object.freeze({value, source}))
     return value
   }

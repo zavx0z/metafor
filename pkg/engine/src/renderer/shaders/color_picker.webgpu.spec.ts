@@ -11,8 +11,14 @@ describe("color picker shader WebGPU pipeline", () => {
 
   test("keeps wheel and both sliders analytical and texture-free", () => {
     expect(colorPickerShader).toContain("atan2(point.y, point.x)")
-    expect(colorPickerShader).toContain("let level = clamp(1.0 - uv.y")
+    expect(colorPickerShader).toContain("clamp(1.0 - uv.y")
     expect(colorPickerShader).toContain("let checkerIndex = floor")
+    expect(colorPickerShader).toContain("perObject.checkerPrimary")
+    expect(colorPickerShader).toContain("perObject.checkerSecondary")
+    expect(colorPickerShader).toContain("perObject.checkerParams.x")
+    expect(colorPickerShader).not.toContain("0.32")
+    expect(colorPickerShader).not.toContain("0.54")
+    expect(colorPickerShader).not.toContain("0.004")
     expect(colorPickerShader.match(/@binding\(/g)).toHaveLength(2)
     expect(colorPickerShader).not.toContain("texture_2d")
     expect(colorPickerShader).not.toContain("textureSample")

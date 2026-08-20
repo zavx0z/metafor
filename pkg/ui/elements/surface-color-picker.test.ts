@@ -1,6 +1,7 @@
 import {beforeAll, describe, expect, test} from "bun:test"
 import {
   BufferGeometry,
+  Color,
   ColorPickerMaterial,
   Mesh,
   Object3D,
@@ -65,6 +66,9 @@ describe("UiSurface color picker plane", () => {
       saturation: 0.4,
       value: 0.8,
       alpha: 0.6,
+      checkerPrimary: new Color(0.2, 0.2, 0.2, 1),
+      checkerSecondary: new Color(0.15, 0.15, 0.15, 1),
+      checkerSize: 8,
     })
 
     surface.materialize(parent, draw)
@@ -72,6 +76,7 @@ describe("UiSurface color picker plane", () => {
     const first = parent.children[0] as Mesh
     const firstGeometry = first.geometry
     expect(first.material).toBeInstanceOf(ColorPickerMaterial)
+    expect((first.material as ColorPickerMaterial).checkerSize).toBe(0.008)
 
     surface.transform(parent, (target) => target.position.set(0.04, -0.03, 0))
     expect(parent.children).toEqual([first])

@@ -43,6 +43,13 @@ const loadEventStory = (
   return createEventStory(variant)
 }
 
+const loadPopoverStory = (
+  variant: "closed" | "open",
+) => async (): Promise<PlaygroundStoryModule> => {
+  const {createPopoverStory} = await import("./stories/popover.ts")
+  return createPopoverStory(variant)
+}
+
 export const ELEMENT_STORIES = definePlaygroundStories({
   groups: [
     {
@@ -133,6 +140,20 @@ export const ELEMENT_STORIES = definePlaygroundStories({
               {id: "active", label: "Активный", title: "select · Активный", load: loadPrimitiveStory("select", "state", "active")},
               {id: "open", label: "Раскрытый", title: "select · Раскрытый", load: loadPrimitiveStory("select", "state", "open")},
               {id: "disabled", label: "Недоступный", title: "select · Недоступный", load: loadPrimitiveStory("select", "state", "disabled")},
+            ],
+          }],
+        },
+        {
+          id: "popover",
+          label: "Всплывающий слой",
+          apiName: "popover",
+          tags: ["popup", "overlay", "outside", "escape", "flip"],
+          sections: [{
+            id: "state",
+            label: "Состояние",
+            variants: [
+              {id: "closed", label: "Закрыт", title: "popover · Закрыт", load: loadPopoverStory("closed")},
+              {id: "open", label: "Открыт", title: "popover · Открыт", load: loadPopoverStory("open")},
             ],
           }],
         },

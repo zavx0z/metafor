@@ -70,6 +70,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
       "button",
       "input",
       "select",
+      "popover",
       "img",
       "list",
       "flex",
@@ -84,6 +85,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
       "Кнопка",
       "Текстовый ввод",
       "Выбор значения",
+      "Всплывающий слой",
       "Изображение",
       "Список",
       "Flex",
@@ -93,6 +95,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
       "Указатель",
     ])
     expect(catalog.map(({group}) => group?.label)).toEqual([
+      "Примитивы",
       "Примитивы",
       "Примитивы",
       "Примитивы",
@@ -127,6 +130,9 @@ describe("@ui/elements package-owned Workbench stories", () => {
     expect(select.source(select.defaultArgs)).toContain('from "@ui/elements/select"')
     expect(select.defaultArgs).toMatchObject({label: "Умножение", open: true, radius: uiShapeMetrics.lowRadius})
     expect(select.source(select.defaultArgs)).toContain("options")
+    const popover = await ELEMENT_STORIES.load("popover/state/open")
+    expect(popover.source(popover.defaultArgs)).toContain('from "@ui/elements/popover"')
+    expect(popover.defaultArgs).toMatchObject({open: true})
     for (const route of ["button/state/default", "input/state/inactive", "select/state/inactive"] as const) {
       const control = await ELEMENT_STORIES.load(route)
       expect(control.source(control.defaultArgs)).not.toContain("borderColor")
@@ -146,7 +152,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
   })
 
   test("loads every published detail story with non-empty exact code", async () => {
-    expect(ELEMENT_STORY_ROUTES).toHaveLength(46)
+    expect(ELEMENT_STORY_ROUTES).toHaveLength(48)
     for (const route of ELEMENT_STORY_ROUTES) {
       const module = await ELEMENT_STORIES.load(route)
       const source = module.source(module.defaultArgs)
@@ -194,7 +200,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
   })
 
   test("story modules import production Elements only through exact public leaves", async () => {
-    const storyFiles = ["primitives.ts", "layout.ts", "style.ts", "events.ts"]
+    const storyFiles = ["primitives.ts", "popover.ts", "layout.ts", "style.ts", "events.ts"]
     const sources = await Promise.all(storyFiles.map((name) => Bun.file(join(playgroundRoot, "stories", name)).text()))
     for (const source of sources) {
       expect(source).not.toMatch(/from ["']@ui\/elements["']/)
@@ -207,10 +213,11 @@ describe("@ui/elements package-owned Workbench stories", () => {
     expect(sources[0]!.match(/uiShapeMetrics\.controlHeight/g)?.length).toBe(6)
     expect(sources[0]).not.toContain("240, 52")
     expect(sources[0]).not.toContain("460, 50")
-    expect(sources[1]).toContain('from "@ui/elements/flex"')
-    expect(sources[1]).toContain('from "@ui/elements/flex-css"')
-    expect(sources[2]).toContain('from "@ui/elements/theme"')
-    expect(sources[3]).toContain('from "@ui/elements/button"')
+    expect(sources[1]).toContain('from "@ui/elements/popover"')
+    expect(sources[2]).toContain('from "@ui/elements/flex"')
+    expect(sources[2]).toContain('from "@ui/elements/flex-css"')
+    expect(sources[3]).toContain('from "@ui/elements/theme"')
+    expect(sources[4]).toContain('from "@ui/elements/button"')
   })
 
   test("keeps story implementations out of the initial split entry", async () => {
@@ -235,10 +242,12 @@ describe("@ui/elements package-owned Workbench stories", () => {
     expect(entry!.source).not.toContain("function createLayoutStory")
     expect(entry!.source).not.toContain("function createStyleStory")
     expect(entry!.source).not.toContain("function createEventStory")
+    expect(entry!.source).not.toContain("function createPopoverStory")
     expect(outputs.some(({source}) => source.includes("function createPrimitiveStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createLayoutStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createStyleStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createEventStory"))).toBeTrue()
+    expect(outputs.some(({source}) => source.includes("function createPopoverStory"))).toBeTrue()
   })
 
   test("serves detail paths through the package no-HMR server and full desktop shell", async () => {

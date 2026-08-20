@@ -1,11 +1,10 @@
 import {describe, expect, test} from "bun:test"
 import {
-  createInputEditState,
-  focusInput,
-  handleActiveInputKey,
-  palette,
+  select,
   uiShapeMetrics,
   type ColorPickerPlaneDrawOptions,
+  type DismissableLayerOptions,
+  type UiSurfaceRect,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -41,10 +40,19 @@ class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
   readonly hits: HitCall[] = []
   readonly pickerPlanes: PickerPlaneCall[] = []
+  readonly dismissables: DismissableLayerOptions[] = []
+  readonly scope: object
+
+  constructor(scope: object = {}) {
+    super({bgColor: null, borderColor: null})
+    this.scope = scope
+  }
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
   }
+
+  override drawRoundedShadow(): void {}
 
   override hit(...args: HitCall): void {
     this.hits.push(args)
@@ -60,24 +68,23 @@ class RecordingSurface extends BaseUiSurface {
     this.pickerPlanes.push({x, y, w, h, options})
   }
 
+  override interactionViewport(): UiSurfaceRect {
+    return {x: 0, y: 0, w: 320, h: 240}
+  }
+
+  override interactionScope(): object {
+    return this.scope
+  }
+
+  override dismissableLayer(options: DismissableLayerOptions): void {
+    this.dismissables.push(options)
+  }
+
   override pushClip(): void {}
 
   override popClip(): void {}
 
   protected render(): void {}
-}
-
-const enter = (): KeyboardEvent => ({
-  key: "Enter",
-  ctrlKey: false,
-  metaKey: false,
-  shiftKey: false,
-  preventDefault() {},
-} as KeyboardEvent)
-
-const submit = (surface: UiSurface, key: string, value: string): void => {
-  focusInput(surface, key, createInputEditState(value))
-  expect(handleActiveInputKey(surface, enter())).toBeTrue()
 }
 
 const initialColor: ColorInputValue = {r: 1, g: 0, b: 0.5, a: 0.25}
@@ -138,11 +145,6 @@ describe("public ColorInput", () => {
     for (const text of ["", "#123", "#GG6699", "#3366998000", "rgba(1, 2, 3, 1)"]) {
       expect(parseColorInputValue(text)).toBeNull()
     }
-    const values: ColorInputValue[] = []
-    const surface = new RecordingSurface()
-    ColorInput(surface, 0, 0, 120, 28, colorProps((value) => values.push(value)))
-    submit(surface, "color", "not-a-color")
-    expect(values).toEqual([])
   })
 
   test("suppresses mutating input for disabled and read-only states", () => {
@@ -151,7 +153,6 @@ describe("public ColorInput", () => {
       const surface = new RecordingSurface()
       ColorInput(surface, 0, 0, 120, 28, colorProps((value) => values.push(value), state))
       expect(surface.hits).toHaveLength(0)
-      submit(surface, "color", "#33669980")
     }
     expect(values).toEqual([])
   })
@@ -165,12 +166,12 @@ describe("public ColorInput", () => {
     })
 
     ColorInput(surface, 0, 0, 146, 22, props)
-    expect(surface.pickerPlanes).toHaveLength(0)
+    expect(surface.pickerPlanes.map(({options}) => options.mode)).toEqual(["swatch"])
     surface.hits[0]?.[4]()
     expect(openStates).toEqual([true])
 
     ColorInput(surface, 0, 0, 146, 22, props)
-    expect(surface.pickerPlanes.map(({options}) => options.mode)).toEqual(["wheel", "value", "alpha"])
+    expect(surface.pickerPlanes.map(({options}) => options.mode)).toEqual(["swatch", "swatch", "wheel", "value", "swatch"])
     const wheelHit = surface.hits.find((hit) => {
       const options = hit[5]
       return typeof options === "object" && options.key === "color:wheel"
@@ -189,7 +190,7 @@ describe("public ColorInput", () => {
 
     const planesBeforePersistentRender = surface.pickerPlanes.length
     ColorInput(surface, 0, 0, 146, 22, props)
-    expect(surface.pickerPlanes).toHaveLength(planesBeforePersistentRender + 3)
+    expect(surface.pickerPlanes).toHaveLength(planesBeforePersistentRender + 4)
     expect(openStates).toEqual([true])
 
     const latestSwatchHit = surface.hits.filter((hit) => {
@@ -202,7 +203,7 @@ describe("public ColorInput", () => {
 
     const planesBeforeClosedRender = surface.pickerPlanes.length
     ColorInput(surface, 0, 0, 146, 22, props)
-    expect(surface.pickerPlanes).toHaveLength(planesBeforeClosedRender)
+    expect(surface.pickerPlanes).toHaveLength(planesBeforeClosedRender + 1)
   })
 
   test("supports deterministic controlled open and blocks it while disabled or read-only", () => {
@@ -212,52 +213,68 @@ describe("public ColorInput", () => {
       open: true,
       onOpenChange: (value) => states.push(value),
     }))
-    expect(open.pickerPlanes.map(({options}) => options.mode)).toEqual(["wheel", "value", "alpha"])
+    expect(open.pickerPlanes.map(({options}) => options.mode)).toEqual(["swatch", "wheel", "value", "swatch"])
 
     for (const state of [{disabled: true}, {readOnly: true}] as const) {
       const surface = new RecordingSurface()
       ColorInput(surface, 0, 0, 146, 22, colorProps(() => {}, {...state, open: true}))
-      expect(surface.pickerPlanes).toHaveLength(0)
+      expect(surface.pickerPlanes.map(({options}) => options.mode)).toEqual(["swatch"])
     }
     expect(states).toEqual([])
   })
 
-  test("draws the normalized swatch through one Elements-owned geometry", () => {
+  test("separates compact popover from expanded inline composition without unproven alpha or hex UI", () => {
+    const compact = new RecordingSurface()
+    ColorInput(compact, 10, 12, 146, 22, colorProps(() => {}, {presentation: "compact", open: true}))
+    expect(compact.pickerPlanes.map(({options}) => options.mode)).toEqual(["swatch", "wheel", "value", "swatch"])
+    expect(compact.dismissables).toHaveLength(1)
+
+    const expanded = new RecordingSurface()
+    ColorInput(expanded, 10, 12, 146, 137, colorProps(() => {}, {presentation: "expanded"}))
+    expect(expanded.pickerPlanes.map(({options}) => options.mode)).toEqual(["wheel", "value", "swatch"])
+    expect(expanded.dismissables).toHaveLength(0)
+    expect(expanded.hits.some((hit) => {
+      const options = hit[5]
+      return typeof options === "object" && String(options.key).includes("picker-hex")
+    })).toBeFalse()
+  })
+
+  test("shares one active popover root chain with Elements Select", () => {
+    const scope = {}
+    const selectSurface = new RecordingSurface(scope)
+    const colorSurface = new RecordingSurface(scope)
+    const selectOpen: boolean[] = []
+    const colorOpen: boolean[] = []
+    const selectProps = {
+      key: "shared-select",
+      value: "one",
+      options: [{value: "one", label: "One"}],
+      onOpenChange: (open: boolean) => selectOpen.push(open),
+    }
+    select(selectSurface, 0, 0, 120, 22, selectProps)
+    selectSurface.hits[0]?.[4]()
+    select(selectSurface, 0, 0, 120, 22, selectProps)
+    expect(selectOpen).toEqual([true])
+
+    const colorPropsWithScope = colorProps(() => {}, {onOpenChange: (open) => colorOpen.push(open)})
+    ColorInput(colorSurface, 0, 0, 120, 22, colorPropsWithScope)
+    colorSurface.hits[0]?.[4]()
+    expect(selectOpen).toEqual([true, false])
+    expect(colorOpen).toEqual([true])
+  })
+
+  test("draws the normalized current color through the exact checker shader", () => {
     const regular = new RecordingSurface()
     ColorInput(regular, 4, 6, 120, 28, colorProps(() => {}))
-    const [regularX, regularY, regularWidth, regularHeight, regularStyle] = regular.roundedRects[0]!
-    expect({regularX, regularY, regularWidth, regularHeight}).toEqual({
-      regularX: 4,
-      regularY: 9,
-      regularWidth: uiShapeMetrics.iconActionSlot,
-      regularHeight: uiShapeMetrics.controlHeight,
-    })
-    expect({radius: regularStyle.radius, borderWidth: regularStyle.borderWidth}).toEqual({
-      radius: uiShapeMetrics.lowRadius,
-      borderWidth: uiShapeMetrics.borderWidth,
-    })
-    expect(regularStyle.fill).toMatchObject(initialColor)
-    expect(regularStyle.border).toEqual(palette.borderDim)
-    expect(regular.roundedRects[1]?.[0]).toBe(29)
-    expect(regular.roundedRects[1]?.[2]).toBe(95)
+    expect(regular.pickerPlanes.map(({x, y, w, h, options}) => ({x, y, w, h, mode: options.mode}))).toEqual([
+      {x: 5, y: 10, w: 118, h: 20, mode: "swatch"},
+    ])
 
     const compact = new RecordingSurface()
     ColorInput(compact, 4, 6, 120, 22, colorProps(() => {}, {density: "compact"}))
-    const [compactX, compactY, compactWidth, compactHeight, compactStyle] = compact.roundedRects[0]!
-    expect({compactX, compactY, compactWidth, compactHeight}).toEqual({
-      compactX: 4,
-      compactY: 6,
-      compactWidth: uiShapeMetrics.iconActionSlot,
-      compactHeight: uiShapeMetrics.controlHeight,
-    })
-    expect({radius: compactStyle.radius, borderWidth: compactStyle.borderWidth}).toEqual({
-      radius: uiShapeMetrics.lowRadius,
-      borderWidth: uiShapeMetrics.borderWidth,
-    })
-    expect(compactStyle.fill).toMatchObject(initialColor)
-    expect(compact.roundedRects[1]?.[0]).toBe(29)
-    expect(compact.roundedRects[1]?.[2]).toBe(95)
-    expect(compact.roundedRects[1]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
+    expect(compact.pickerPlanes.map(({x, y, w, h, options}) => ({x, y, w, h, mode: options.mode}))).toEqual([
+      {x: 5, y: 7, w: 118, h: 20, mode: "swatch"},
+    ])
   })
 
   test("returns the same controlled value standalone and through regular and compact Field", () => {
@@ -265,11 +282,28 @@ describe("public ColorInput", () => {
     const regularFieldValues: ColorInputValue[] = []
     const compactFieldValues: ColorInputValue[] = []
 
+    const publishWheel = (surface: RecordingSurface, draw: () => void): void => {
+      draw()
+      const trigger = surface.hits.find((hit) => {
+        const options = hit[5]
+        return typeof options === "object" && String(options.key).endsWith(":swatch")
+      })
+      trigger?.[4]()
+      draw()
+      const wheel = surface.hits.find((hit) => {
+        const options = hit[5]
+        return typeof options === "object" && String(options.key).endsWith(":wheel")
+      })
+      const options = wheel?.[5]
+      if (wheel !== undefined && typeof options === "object") {
+        options.onPointerDown?.(wheel[0] + wheel[2], wheel[1] + wheel[3] / 2, {} as MouseEvent)
+      }
+    }
+
     const standalone = new RecordingSurface()
-    ColorInput(standalone, 0, 0, 120, 28, colorProps((value) => standaloneValues.push(value), {
+    publishWheel(standalone, () => ColorInput(standalone, 0, 0, 120, 22, colorProps((value) => standaloneValues.push(value), {
       key: "standalone",
-    }))
-    submit(standalone, "standalone", "#33669980")
+    })))
 
     const definition = (onChange: (value: ColorInputValue) => void): ColorFieldDefinition => ({
       id: "field",
@@ -280,14 +314,12 @@ describe("public ColorInput", () => {
     })
 
     const regularField = new RecordingSurface()
-    Field(regularField, 0, 0, 120, definition((value) => regularFieldValues.push(value)))
-    submit(regularField, "field:field", "#33669980")
+    publishWheel(regularField, () => Field(regularField, 0, 0, 120, definition((value) => regularFieldValues.push(value))))
 
     const compactField = new RecordingSurface()
-    Field(compactField, 0, 0, 120, definition((value) => compactFieldValues.push(value)), {density: "compact"})
-    submit(compactField, "field:field", "#33669980")
+    publishWheel(compactField, () => Field(compactField, 0, 0, 120, definition((value) => compactFieldValues.push(value)), {density: "compact"}))
 
-    expect(standaloneValues).toEqual([{r: 0.2, g: 0.4, b: 0.6, a: 128 / 255}])
+    expect(standaloneValues).toEqual([{r: 1, g: 0, b: 0, a: 0.25}])
     expect(regularFieldValues).toEqual(standaloneValues)
     expect(compactFieldValues).toEqual(standaloneValues)
   })

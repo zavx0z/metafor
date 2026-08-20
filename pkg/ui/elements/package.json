@@ -18,6 +18,7 @@
     "./img": "./img.ts",
     "./input": "./input.ts",
     "./select": "./select.ts",
+    "./popover": "./popover.ts",
     "./list": "./list.ts",
     "./scrollbar": "./scrollbar.ts",
     "./style": "./style.ts",

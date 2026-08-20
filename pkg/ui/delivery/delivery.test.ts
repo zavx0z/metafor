@@ -25,6 +25,7 @@ const productionExports = Object.freeze({
     "./img": "./img.ts",
     "./input": "./input.ts",
     "./select": "./select.ts",
+    "./popover": "./popover.ts",
     "./list": "./list.ts",
     "./scrollbar": "./scrollbar.ts",
     "./style": "./style.ts",
@@ -137,6 +138,7 @@ describe("production UI delivery baseline", () => {
     for (const fixture of [
       "exact-elements-button.fixture.ts",
       "exact-elements-select.fixture.ts",
+      "exact-elements-popover.fixture.ts",
       "exact-components-field.fixture.ts",
       "exact-components-control-group.fixture.ts",
       "exact-components-number-input.fixture.ts",
@@ -174,6 +176,18 @@ describe("production UI delivery baseline", () => {
     expect(graph).not.toContain("NodeEditor")
     expect(graph).not.toContain("@ui/playground")
     expect(graph).not.toContain("definePlaygroundRoutes")
+  })
+
+  test("keeps the exact popover leaf generic and independent from Components", async () => {
+    const fixture = join(uiRoot, "delivery/fixtures/exact-elements-popover.fixture.ts")
+    const graph = (await outputSources(await buildBrowser([fixture], false)))
+      .map(({source}) => source)
+      .join("\n")
+    expect(graph).toContain("function popover")
+    expect(graph).toContain("function planPopoverPlacement")
+    expect(graph).not.toContain("ColorInput")
+    expect(graph).not.toContain("@ui/components")
+    expect(graph).not.toContain("@nodes/ui")
   })
 
   test("keeps the exact ControlGroup leaf on HTML-like Elements and independent from consumers", async () => {
