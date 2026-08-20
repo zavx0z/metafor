@@ -2,7 +2,6 @@ import {Color} from "@metafor/engine"
 import {
   Field,
   Typography,
-  measureFieldHeight,
   measureFieldLayout,
   type FieldColor,
   type FieldDefinition,
@@ -110,6 +109,7 @@ export type BlenderLink = Link & Readonly<{
 }>
 
 export type BlenderNodePlan = Readonly<{
+  rect: NodeRect
   header: NodeRect
   body: NodeRect
   fields: readonly Readonly<{field: FieldDefinition; rect: NodeRect; parameterId?: string; editorVisible: boolean}>[]
@@ -200,7 +200,10 @@ export function blenderSocketPreset(kind: BlenderSocketKind): BlenderSocketPrese
   return BLENDER_SOCKET_PRESETS[kind]
 }
 
-export function measureBlenderNode(node: BlenderNode): Readonly<{width: number; height: number}> {
+export function measureBlenderNode(
+  node: BlenderNode,
+  connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
+): Readonly<{width: number; height: number}> {
   if (node.collapsed) {
     const sockets = node.sockets ?? []
     const maxSideCount = Math.max(
@@ -209,7 +212,7 @@ export function measureBlenderNode(node: BlenderNode): Readonly<{width: number; 
     )
     return {width: NODE_MIN_WIDTH, height: Math.max(NODE_HEADER_HEIGHT, maxSideCount * 8 + 10)}
   }
-  const rows = blenderNodeRows(node)
+  const rows = blenderNodeRows(node, connectedSocketIds)
   const rowsHeight = rows.reduce((height, row) => height + rowHeight(row), 0)
     + Math.max(0, rows.length - 1) * NODE_GAP
   return {
@@ -225,11 +228,13 @@ export function planBlenderNode(
   connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
 ): BlenderNodePlan {
   if (node.collapsed) return planCollapsedBlenderNode(node, frame)
-  const regions = blenderNodeRegions(frame)
+  const measurement = measureBlenderNode(node, connectedSocketIds)
+  const rect = {...frame, h: measurement.height}
+  const regions = blenderNodeRegions(rect)
   const fields: Array<{field: FieldDefinition; rect: NodeRect; parameterId?: string; editorVisible: boolean}> = []
   const parameters: Array<{parameter: BlenderParameter; rect: NodeRect}> = []
   const sockets: PositionedSocket<BlenderSocket>[] = []
-  const rows = blenderNodeRows(node)
+  const rows = blenderNodeRows(node, connectedSocketIds)
   flexColumn({
     x: regions.body.x,
     y: regions.body.y,
@@ -248,7 +253,7 @@ export function planBlenderNode(
         const labelRect = layout !== null && layout.labelRowHeight > 0
           ? {x: fieldRect.x, y: fieldRect.y, w: fieldRect.w, h: layout.labelRowHeight}
           : fieldRect
-        const editorVisible = rowFieldEditorVisible(row, connectedSocketIds)
+        const editorVisible = row.editorVisible
         if (row.field !== undefined) fields.push({
           field: row.field,
           rect: fieldRect,
@@ -259,12 +264,12 @@ export function planBlenderNode(
         for (const socket of row.sockets) sockets.push({
           socket,
           side: socketSide(socket),
-          center: socketCenter(frame, labelRect, socket),
+          center: socketCenter(rect, labelRect, socket),
         })
       },
     })),
   })
-  return {header: regions.header, body: regions.body, fields, parameters, sockets}
+  return {rect, header: regions.header, body: regions.body, fields, parameters, sockets}
 }
 
 function planCollapsedBlenderNode(node: BlenderNode, frame: NodeRect): BlenderNodePlan {
@@ -280,7 +285,7 @@ function planCollapsedBlenderNode(node: BlenderNode, frame: NodeRect): BlenderNo
       },
     }))
   }
-  return {header: frame, body: {...frame, h: 0}, fields: [], parameters: [], sockets}
+  return {rect: frame, header: frame, body: {...frame, h: 0}, fields: [], parameters: [], sockets}
 }
 
 export function positionBlenderNode(node: BlenderNode, rect: NodeRect): PositionedNode<BlenderNode, BlenderSocket> {
@@ -337,8 +342,12 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
   plan({entry, connectedSocketIds}) {
     return planBlenderNode(entry.node, entry.rect, connectedSocketIds)
   },
+  presentation({entry}, plan) {
+    return {...entry, rect: plan.rect, sockets: plan.sockets}
+  },
   render({host, entry, selected, plan}) {
-    const {rect, node} = entry
+    const {node} = entry
+    const rect = plan.rect
     const header = nodeHeaderColor(node)
     host.drawRoundedShadow(rect.x, rect.y, rect.w, rect.h, {
       radius: BLENDER_NODE_RADIUS,
@@ -406,7 +415,7 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
         })
       }
     }
-    for (const positioned of entry.sockets) {
+    for (const positioned of plan.sockets) {
       if (node.collapsed) continue
       const {socket, center, side} = positioned
       if (socket.parameterId !== undefined) continue
@@ -446,14 +455,19 @@ export const blenderLinkRenderer: LinkRenderer<BlenderLink> = Object.freeze({
   },
 })
 
-type BlenderNodeRow = Readonly<{
+type BlenderNodeRowBase = Readonly<{
   field?: FieldDefinition
   parameter?: BlenderParameter
   sockets: readonly BlenderSocket[]
 }>
 
-function blenderNodeRows(node: BlenderNode): readonly BlenderNodeRow[] {
-  const rows: BlenderNodeRow[] = []
+type BlenderNodeRow = BlenderNodeRowBase & Readonly<{editorVisible: boolean}>
+
+function blenderNodeRows(
+  node: BlenderNode,
+  connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
+): readonly BlenderNodeRow[] {
+  const rows: BlenderNodeRowBase[] = []
   const looseSockets = (node.sockets ?? []).filter((socket) => socket.parameterId === undefined)
   for (const socket of looseSockets.filter((socket) => socketSide(socket) === "right")) {
     rows.push({sockets: [socket]})
@@ -467,15 +481,20 @@ function blenderNodeRows(node: BlenderNode): readonly BlenderNodeRow[] {
   for (const socket of looseSockets.filter((socket) => socketSide(socket) === "left")) {
     rows.push({sockets: [socket]})
   }
-  return rows
+  return rows.map((row) => ({
+    ...row,
+    editorVisible: rowFieldEditorVisible(row, connectedSocketIds),
+  }))
 }
 
 function rowHeight(row: BlenderNodeRow): number {
-  return row.field === undefined ? 22 : measureFieldHeight(row.field, {density: "compact"})
+  if (row.field === undefined) return 22
+  const layout = measureFieldLayout(row.field, {density: "compact"})
+  return row.editorVisible ? layout.height : Math.max(22, layout.labelRowHeight)
 }
 
 function rowFieldEditorVisible(
-  row: BlenderNodeRow,
+  row: BlenderNodeRowBase,
   connectedSocketIds: ReadonlySet<string>,
 ): boolean {
   if (row.field === undefined || row.parameter === undefined || row.sockets.length === 0) return true

@@ -150,6 +150,10 @@ export type LinkRendererContext<TLink extends Link> = Readonly<{
 export type NodeRenderer<TNode extends Node, TSocket extends Socket, TPlan = unknown> = Readonly<{
   measure?(node: TNode): Readonly<{width: number; height: number}>
   plan(context: NodeRendererPlanContext<TNode, TSocket>): TPlan
+  presentation?(
+    context: NodeRendererPlanContext<TNode, TSocket>,
+    plan: TPlan,
+  ): PositionedNode<TNode, TSocket>
   render(context: NodeRendererContext<TNode, TSocket, TPlan>): void
 }>
 
@@ -241,6 +245,7 @@ const EMPTY_IDS: ReadonlySet<string> = new Set()
 type RetainedComponent<TEntry> = {
   parent: Object3D
   entry: TEntry | null
+  presentation: TEntry | null
   selected: boolean | null
   stateKey: string
 }
@@ -609,18 +614,24 @@ export class NodeCanvas<
         const planContext: NodeRendererPlanContext<TNode, TSocket> = {entry, connectedSocketIds, selected}
         this.#diagnostics.localLayoutPlans += 1
         const plan = this.#renderers.node.plan(planContext)
+        const presentation = this.#renderers.node.presentation?.(planContext, plan) ?? entry
+        const presentationContext: NodeRendererPlanContext<TNode, TSocket> = {
+          entry: presentation,
+          connectedSocketIds,
+          selected,
+        }
         this.#materializeComponent(retained.component.parent, () => {
           if (this.interactive()) this.retainedHit(
             retained.component.parent,
-            entry.rect.x,
-            entry.rect.y,
-            entry.rect.w,
-            entry.rect.h,
+            presentation.rect.x,
+            presentation.rect.y,
+            presentation.rect.w,
+            presentation.rect.h,
             () => this.select({kind: "node", id: entry.node.id}),
             {key: `node-editor:node:${entry.node.id}`},
           )
-          this.#renderers.node.render({host: this, ...planContext, plan})
-          for (const socket of entry.sockets) this.#renderers.socket.render({
+          this.#renderers.node.render({host: this, ...presentationContext, plan})
+          for (const socket of presentation.sockets) this.#renderers.socket.render({
             host: this,
             entry: socket,
             selected,
@@ -628,6 +639,7 @@ export class NodeCanvas<
           })
         })
         retained.component.entry = entry
+        retained.component.presentation = presentation
         retained.component.selected = selected
         retained.component.stateKey = stateKey
         changed = true
@@ -666,7 +678,7 @@ export class NodeCanvas<
     if (current !== undefined) return {component: current, created: false}
     const parent = this.createRetainedParent(this.#contentRoot)
     parent.name = name
-    const component = {parent, entry: null, selected: null, stateKey: ""}
+    const component = {parent, entry: null, presentation: null, selected: null, stateKey: ""}
     components.set(id, component)
     return {component, created: true}
   }
@@ -757,8 +769,9 @@ export class NodeCanvas<
     const viewport = this.surfaceToRetainedRect(this.#contentRoot, content)
     const visibleNodeIds = new Set<string>()
     for (const entry of this.#tree.nodes) {
-      const visible = intersects(entry.rect, viewport)
       const component = this.#nodes.get(entry.node.id)
+      const presentation = component?.presentation ?? entry
+      const visible = intersects(presentation.rect, viewport)
       if (component !== undefined) this.updateRetainedVisibility(component.parent, visible)
       if (visible) visibleNodeIds.add(entry.node.id)
     }

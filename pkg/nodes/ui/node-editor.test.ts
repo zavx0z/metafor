@@ -28,6 +28,7 @@ import {
   type Node,
   type NodeRect,
   type NodeEditorRenderers,
+  type PositionedNode,
   type PositionedNodeTree,
   type Socket,
 } from "./node-editor.ts"
@@ -529,6 +530,54 @@ describe("generic Blender-like Node Editor contracts", () => {
     canvas.flushPendingRender()
     expect(canvas.diagnostics.localLayoutPlans).toBe(beforeOffscreenClick.localLayoutPlans)
     expect(selectedLinkMaterial.clipBounds).toEqual([0, 38, 640, 360])
+    canvas.dispose()
+  })
+
+  test("uses renderer presentation rect and sockets for retained Node bounds", async () => {
+    const renderedRects: NodeRect[] = []
+    const renderedSocketCenters: Array<Readonly<{x: number; y: number}>> = []
+    type PresentationPlan = {rect: NodeRect; sockets: PositionedNode<TestNode, TestSocket>["sockets"]}
+    const renderers: NodeEditorRenderers<TestNode, TestSocket, TestLink, TestFrame, PresentationPlan> = {
+      frame: {renderBackground() {}, renderForeground() {}},
+      node: {
+        plan({entry}) {
+          return {
+            rect: {...entry.rect, h: 40},
+            sockets: entry.sockets.map((socket) => ({...socket, center: {...socket.center, y: entry.rect.y + 20}})),
+          }
+        },
+        presentation({entry}, plan) {
+          return {...entry, rect: plan.rect, sockets: plan.sockets}
+        },
+        render({entry}) {
+          renderedRects.push(entry.rect)
+        },
+      },
+      socket: {render({entry}) { renderedSocketCenters.push(entry.center) }},
+      link: {render() {}},
+    }
+    const entry = tree.nodes[0]!
+    const presentationTree: PositionedNodeTree<TestNode, TestSocket, TestLink, TestFrame> = {
+      bounds: {x: 0, y: 0, w: 240, h: 180},
+      frames: [],
+      nodes: [{...entry, node: {id: entry.node.id, title: entry.node.title}, rect: {x: 40, y: 70, w: 140, h: 100}}],
+      links: [],
+    }
+    const canvas = new NodeEditor<TestNode, TestSocket, TestLink, TestFrame, PresentationPlan>({
+      renderers,
+      toolbar: false,
+    })
+    attachPointerRuntime(canvas)
+    canvas.setTree(presentationTree)
+    const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    canvas.setRect({x: 0, y: 0, w: 320, h: 220}, 0.001, new TrueTypeFont(fontBytes))
+
+    expect(renderedRects).toEqual([{x: 40, y: 70, w: 140, h: 40}])
+    expect(renderedSocketCenters).toEqual([{x: 180, y: 90}])
+    clickSurface(canvas, 80, 150)
+    expect(canvas.selection).toBeNull()
+    clickSurface(canvas, 80, 90)
+    expect(canvas.selection).toEqual({kind: "node", id: "source"})
     canvas.dispose()
   })
 

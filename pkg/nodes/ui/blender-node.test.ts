@@ -87,6 +87,7 @@ describe("Blender-like Node presets", () => {
     expect(typeof renderers.frame.renderForeground).toBe("function")
     expect(typeof renderers.node.measure).toBe("function")
     expect(typeof renderers.node.plan).toBe("function")
+    expect(typeof renderers.node.presentation).toBe("function")
     expect(typeof renderers.node.render).toBe("function")
     expect("renderBackground" in renderers.node).toBeFalse()
     expect("renderForeground" in renderers.node).toBeFalse()
@@ -390,7 +391,12 @@ describe("Blender-like Node presets", () => {
         const label = plan.parameters[0]!.rect
         const positioned = plan.sockets[0]!
 
-        expect(field.rect).toEqual({x: 37, y: 62, w: 146, h: 91})
+        expect(field.rect).toEqual({
+          x: 37,
+          y: 62,
+          w: 146,
+          h: state === "input" || state === "output" ? 91 : 22,
+        })
         expect(label).toEqual({x: 37, y: 62, w: 146, h: 22})
         expect(field.editorVisible).toBe(state === "input" || state === "output")
         expect(positioned.center).toEqual({x: state === "output" ? 200 : 20, y: 73})
@@ -419,6 +425,90 @@ describe("Blender-like Node presets", () => {
           }
         }
       }
+    }
+  })
+
+  test("removes only the hidden editor height while preserving label Socket anchor", () => {
+    const node: BlenderNode = {
+      id: "transform-linked-height",
+      title: "Transform",
+      parameters: [
+        {
+          id: "translation",
+          label: "Translation",
+          field: {id: "translation", label: "Translation", kind: "vector", value: [1, 2, 3]},
+        },
+        {
+          id: "rotation",
+          label: "Rotation",
+          field: {id: "rotation", label: "Rotation", kind: "rotation", value: [0, 45, 90]},
+        },
+      ],
+      sockets: [
+        {id: "translation", label: "Translation", direction: "input", socketType: "vector", parameterId: "translation", side: "left"},
+        {id: "rotation", label: "Rotation", direction: "input", socketType: "rotation", parameterId: "rotation", side: "left"},
+      ],
+    }
+    const unlinkedMeasurement = measureBlenderNode(node)
+    const frame = {x: 20, y: 30, w: 180, h: unlinkedMeasurement.height}
+    const entry = positionBlenderNode(node, frame)
+    const unlinked = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(), selected: false})
+    const linked = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(["translation"]), selected: false})
+    const hiddenNode: BlenderNode = {
+      ...node,
+      sockets: node.sockets!.map((socket) => socket.id === "translation" ? {...socket, hideValue: true} : socket),
+    }
+    const hiddenEntry = positionBlenderNode(hiddenNode, frame)
+    const hidden = blenderNodeRenderer.plan({entry: hiddenEntry, connectedSocketIds: new Set(), selected: false})
+
+    expect(unlinkedMeasurement.height).toBe(225)
+    expect(measureBlenderNode(node, new Set(["translation"])).height).toBe(156)
+    expect(unlinked.rect).toEqual(frame)
+    expect(linked.rect).toEqual({...frame, h: 156})
+    expect(hidden.rect).toEqual(linked.rect)
+    expect(unlinked.rect.h - linked.rect.h).toBe(69)
+
+    const unlinkedTranslation = unlinked.sockets.find(({socket}) => socket.id === "translation")!
+    const linkedTranslation = linked.sockets.find(({socket}) => socket.id === "translation")!
+    expect(unlinkedTranslation.center.y).toBe(73)
+    expect(linkedTranslation.center.y).toBe(unlinkedTranslation.center.y)
+
+    const unlinkedRotation = unlinked.sockets.find(({socket}) => socket.id === "rotation")!
+    const linkedRotation = linked.sockets.find(({socket}) => socket.id === "rotation")!
+    expect(unlinkedRotation.center.y).toBe(167)
+    expect(linkedRotation.center.y).toBe(98)
+    expect(unlinkedRotation.center.y - linkedRotation.center.y).toBe(69)
+    expect(linked.fields.find(({field}) => field.id === "translation")?.rect.h).toBe(22)
+    expect(linked.fields.find(({field}) => field.id === "rotation")?.rect.y).toBe(87)
+
+    const restored = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(), selected: false})
+    expect(restored.rect).toEqual(unlinked.rect)
+    expect(blenderNodeRenderer.presentation?.({entry, connectedSocketIds: new Set(["translation"]), selected: false}, linked)).toEqual({
+      ...entry,
+      rect: linked.rect,
+      sockets: linked.sockets,
+    })
+
+    const surface = new RecordingShadowSurface()
+    try {
+      surface.setRect({x: 0, y: 0, w: 260, h: 260}, HEADER_PIXEL_SCALE, projectFont)
+      const parent = surface.createParent()
+      const presentation = blenderNodeRenderer.presentation!({
+        entry,
+        connectedSocketIds: new Set(["translation"]),
+        selected: false,
+      }, linked)
+      surface.materialize(parent, () => blenderNodeRenderer.render({
+        host: surface,
+        entry: presentation,
+        connectedSocketIds: new Set(["translation"]),
+        selected: false,
+        plan: linked,
+      }))
+      expect(surface.shadows[0]?.slice(0, 4)).toEqual([20, 30, 180, 156])
+      expect(surface.nodeRects[0]?.slice(0, 4)).toEqual([20, 30, 180, 156])
+    } finally {
+      surface.dispose()
     }
   })
 })
@@ -690,6 +780,24 @@ class RetainedHeaderSurface extends UiSurface {
   }
 
   protected render(): void {}
+}
+
+type ShadowCall = Parameters<UiSurface["drawRoundedShadow"]>
+type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+
+class RecordingShadowSurface extends RetainedHeaderSurface {
+  readonly shadows: ShadowCall[] = []
+  readonly nodeRects: RoundedRectCall[] = []
+
+  override drawRoundedShadow(...args: ShadowCall): void {
+    this.shadows.push(args)
+    super.drawRoundedShadow(...args)
+  }
+
+  override drawRoundedRect(...args: RoundedRectCall): void {
+    this.nodeRects.push(args)
+    super.drawRoundedRect(...args)
+  }
 }
 
 function findCachedText(parent: Object3D, value: string): CachedText {
