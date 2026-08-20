@@ -16,6 +16,7 @@
     "./typography": "./Typography.ts",
     "./text-field": "./TextField.ts",
     "./number-input": "./NumberInput.ts",
+    "./color-input": "./ColorInput.ts",
     "./switcher": "./Switcher.ts",
     "./progress-checkbox": "./ProgressCheckbox.ts",
     "./slider-control": "./SliderControl.ts",

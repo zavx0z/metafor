@@ -1,7 +1,13 @@
 import {Color} from "@metafor/engine"
-import {Z, flexColumn, flexRow, palette, type UiSurface} from "@ui/elements"
+import {flexColumn, flexRow, type UiSurface} from "@ui/elements"
 import {Button} from "./Button.ts"
 import {Checkbox} from "./Checkbox.ts"
+import {
+  ColorInput,
+  type ColorInputDensity,
+  type ColorInputProps,
+  type ColorInputValue,
+} from "./ColorInput.ts"
 import {
   NumberInput,
   normalizeNumberInputValue,
@@ -13,7 +19,7 @@ import {Switcher} from "./Switcher.ts"
 import {TextField} from "./TextField.ts"
 import {Typography} from "./Typography.ts"
 
-export type FieldColor = Readonly<{r: number; g: number; b: number; a: number}>
+export type FieldColor = ColorInputValue
 export type FieldOption = Readonly<{value: string; label: string; description?: string}>
 export type FieldReference = Readonly<{id: string; label: string; kind?: string}>
 
@@ -363,39 +369,7 @@ function drawCompactControl(
     return
   }
   if (field.kind === "color") {
-    const value = normalizeFieldColor(field.value)
-    flexRow({
-      x,
-      y,
-      w: width,
-      h: height,
-      gap: metrics.gap,
-      alignItems: "stretch",
-      items: [
-        {width: height, height, draw: (slotX, slotY, slotW, slotH) => host.drawRoundedRect(slotX, slotY, slotW, slotH, {
-          radius: metrics.radius,
-          fill: new Color(value.r, value.g, value.b, value.a),
-          border: new Color(0.11, 0.11, 0.11, 1),
-          borderWidth: 1,
-          z: Z.ELEMENT,
-        })},
-        {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
-          const props: Parameters<typeof TextField>[5] = {
-            key: fieldKey(field),
-            value: fieldColorToHex(value),
-            disabled,
-            submitOnEnter: true,
-            fontPx: metrics.font,
-            sx: compactTextStyle(metrics),
-          }
-          if (!disabled) props.onSubmit = (text) => {
-            const parsed = parseFieldColor(text)
-            if (parsed !== null) field.onChange?.(parsed)
-          }
-          TextField(host, slotX, slotY, slotW, slotH, props)
-        }},
-      ],
-    })
+    ColorInput(host, x, y, width, height, colorInputProps(field, "compact"))
     return
   }
   if (field.kind === "reference") {
@@ -552,32 +526,11 @@ export function nextEnumFieldValue(
   return options[index]!.value
 }
 
-export function normalizeFieldColor(value: Partial<FieldColor>): FieldColor {
-  return {
-    r: clampUnit(value.r ?? 0),
-    g: clampUnit(value.g ?? 0),
-    b: clampUnit(value.b ?? 0),
-    a: clampUnit(value.a ?? 1),
-  }
-}
-
-export function fieldColorToHex(value: Partial<FieldColor>, includeAlpha = true): string {
-  const color = normalizeFieldColor(value)
-  const channel = (entry: number): string => Math.round(entry * 255).toString(16).padStart(2, "0").toUpperCase()
-  return `#${channel(color.r)}${channel(color.g)}${channel(color.b)}${includeAlpha ? channel(color.a) : ""}`
-}
-
-export function parseFieldColor(value: string): FieldColor | null {
-  const hex = value.trim().replace(/^#/, "")
-  if (!/^[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?$/.test(hex)) return null
-  const channel = (offset: number): number => Number.parseInt(hex.slice(offset, offset + 2), 16) / 255
-  return normalizeFieldColor({
-    r: channel(0),
-    g: channel(2),
-    b: channel(4),
-    a: hex.length === 8 ? channel(6) : 1,
-  })
-}
+export {
+  formatColorInputValue as fieldColorToHex,
+  normalizeColorInputValue as normalizeFieldColor,
+  parseColorInputValue as parseFieldColor,
+} from "./ColorInput.ts"
 
 export function normalizeVectorFieldValue(
   value: readonly number[],
@@ -702,37 +655,19 @@ function drawEnumField(host: UiSurface, x: number, y: number, width: number, hei
 }
 
 function drawColorField(host: UiSurface, x: number, y: number, width: number, height: number, field: ColorFieldDefinition): void {
-  const value = normalizeFieldColor(field.value)
-  flexRow({
-    x,
-    y,
-    w: width,
-    h: height,
-    gap: 7,
-    alignItems: "stretch",
-    items: [
-      {width: height, height, draw: (slotX, slotY, slotW, slotH) => host.drawRoundedRect(slotX, slotY, slotW, slotH, {
-        radius: 6,
-        fill: new Color(value.r, value.g, value.b, value.a),
-        border: palette.border,
-        borderWidth: 1,
-        z: Z.ELEMENT,
-      })},
-      {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
-        const props: Parameters<typeof TextField>[5] = {
-          key: fieldKey(field),
-          value: fieldColorToHex(value),
-          disabled: isFieldDisabled(field),
-          submitOnEnter: true,
-        }
-        if (!isFieldDisabled(field)) props.onSubmit = (text) => {
-          const parsed = parseFieldColor(text)
-          if (parsed !== null) field.onChange?.(parsed)
-        }
-        TextField(host, slotX, slotY, slotW, slotH, props)
-      }},
-    ],
-  })
+  ColorInput(host, x, y, width, height, colorInputProps(field, "regular"))
+}
+
+function colorInputProps(field: ColorFieldDefinition, density: ColorInputDensity): ColorInputProps {
+  const props: ColorInputProps = {
+    key: fieldKey(field),
+    value: field.value,
+    density,
+  }
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onChange !== undefined) props.onChange = field.onChange
+  return props
 }
 
 function drawVectorField(
@@ -860,10 +795,6 @@ function isFieldDisabled(field: FieldBase): boolean {
 
 function fieldKey(field: FieldBase): string {
   return `field:${field.key ?? field.id}`
-}
-
-function clampUnit(value: number): number {
-  return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0))
 }
 
 function rounded(value: number): number {
