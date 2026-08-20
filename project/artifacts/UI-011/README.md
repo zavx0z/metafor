@@ -302,3 +302,54 @@
 * Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `5805fe6e281c1d7d3931e163f3f90aeaf5f53d836e0ef876329a1dde3a96e943`.
+
+## localization-node-selected.png
+
+* Источник: `$ui-dev` renderer-activity capture
+  `node-editor/scene/selected`, target `809BF08D88E4582CA819EFE847FE1450`.
+* Дата: 2026-08-20; localization checkpoint `5f690acd6`, PID `27047`.
+* Ожидание: human-facing Node fixture labels по-русски; API/import/routes и
+  копируемый TypeScript остаются exact.
+* Фактическое наблюдение: система/frames/sample Node/parameter labels переведены,
+  selected production Node и code/copy сохранены; console `0`, native restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `60dcdfa215193ebfc8b7ea4edbab1aaec7ad91464fa34381d052b2ff0c0b6db4`.
+
+## localization-components-enum.png
+
+* Источник: `$ui-dev` renderer-activity capture
+  `enum-input/presentation/expanded`, target
+  `D0775AE44CFF0E299A0C28EECB3872D2`.
+* Дата: 2026-08-20; localization checkpoint `5f690acd6`, PID `27053`.
+* Ожидание: preview prose и events labels русские, exact EnumInput TypeScript не
+  переводится.
+* Фактическое наблюдение: видимая prose использует `Рабочий компонент` и
+  `сценарий`, tabs `Параметры/События`; console `0`, native restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `4a5688e90036a6654b18b9fd46b89a5f8cd47f85a8e1bb26c2e68863f10967b8`.
+
+## localization-elements-pointer.png
+
+* Источник: `$ui-dev` renderer-activity capture `pointer/state/click`, target
+  `E2087390E08913DD8CA4142D5D9E8C48`.
+* Дата: 2026-08-20; localization checkpoint `5f690acd6`, PID `27068`.
+* Ожидание: preview prose/events human-facing labels русские при exact API code.
+* Фактическое наблюдение: `Рабочий элемент`, `сценарий`, `Параметры/События` и
+  state labels русские; console `0`, native restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `11cba969e79158eb3f23e380bed83db4ae7e6533de5ee860288f51cea0e0f3ea`.
+
+## localization-workbench-overview.png
+
+* Источник: `$ui-dev` renderer-activity capture `4192/overview`, target
+  `1AFE2E4404B88E32A4CBA6C26AF4C633`.
+* Дата: 2026-08-20; localization checkpoint `5f690acd6`, PID `27078`.
+* Ожидание: shared fixture preview prose полностью русская, TypeScript exact.
+* Фактическое наблюдение: `Рабочий компонент`, `текущие параметры` и
+  `копируемый TypeScript` видимы; console `0`, native restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `54cbc20396326bec1db05c48d7f0795a05d26425c7556e1bc5692a2e2564ffe4`.

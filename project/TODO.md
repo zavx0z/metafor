@@ -90,7 +90,8 @@ cycle/expanded и exceptional states без ложного dropdown/popup contra
 VectorInput/MatrixInput/ReferenceInput/EnumInput представлены отдельными stories.
 Independent closing review подтвердила runtime/matrix, но вернула два findings:
 оставшиеся английские human-facing labels и неполную metadata семи artifacts.
-Два отдельных correction-среза выполняются перед повторным verdict.
+Оба correction-среза зафиксированы и live-проверены; идёт повторный read-only
+verdict.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
