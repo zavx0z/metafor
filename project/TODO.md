@@ -125,6 +125,8 @@ commit `c754dc40e` получил source/state-mapping PASS, но не interacti
 acceptance. UI-015.8.3 после popup correction добавляет отсутствующие Blender
 step/scrub/text-transition gestures числовым полям; UI-015.9 ждёт и popup owner,
 и numeric interaction, затем проверяет те же controls внутри expanded Node.
+Popup correction готова commit-ом `7eb779e23`; UI-015.8.3 теперь IN_PROGRESS
+на exact `interface_handlers.cc` gesture law.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
