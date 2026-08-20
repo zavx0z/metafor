@@ -101,6 +101,9 @@ UI-015.3/.4 завершили dense scalar rows и настоящий Elements 
 `813f48994`, `ea1af7aa5`, `9365d9af0`: единый radius `4`, тихий idle border и
 повторный material-only Button press. UI-015.6 commit `cd85f9614` удалил exact
 Workbench overrides `999/12/34/36`; live before/after и Node regression зелёные.
+Новый owner screenshot `workbench-hierarchy-before.png` показал незакрытый
+UI-015.6.1: expanded branch ошибочно равен selected toggle, rows остаются
+centered rounded islands без disclosure slot/indent и keyboard tree law.
 Следующий UI-015.5 переводит Vector/Rotation/Matrix/Collection grouped editors.
 Baseline на current Components Workbench подтвердил horizontal Vector,
 раздельную Matrix и oversized Collection; UI-015.5 уже IN_PROGRESS.

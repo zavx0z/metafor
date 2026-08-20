@@ -70,4 +70,23 @@
   under compact shell. `node-workbench-final.png` — `450640` bytes, SHA-256
   `1877f9ddcdd9ed401bf29df411bc64c2e9efb12675a07b3358a742f296abd316`.
 
+## UI-015.6.1 — Workbench hierarchy RED baseline
+
+* Источник: owner live screenshot, 2026-08-20; исходный temporary path перенесён
+  в устойчивый artifact до очистки.
+* Файл: `workbench-hierarchy-before.png`, `430×994`, `46926` bytes, SHA-256
+  `c7f1a4dc5d16b108f90e270dc2723d4c2aaddd1bad78d8d5743866d2fde52132`.
+* Наблюдение: expanded branches получают selected blue fill; branch/leaf labels
+  centered, disclosure встроен в text, indent отсутствует, каждая row является
+  отдельным rounded island. Это RED baseline, не acceptance UI-015.6.
+
+## UI-015.7.5 — Node Select overlay RED baseline
+
+* Источник: owner live screenshot, 2026-08-20.
+* Файл: `node-select-overlay-before.png`, `712×786`, `58541` bytes, SHA-256
+  `94f9696d1148ba8e156a421f40394d82f0250867abdb50e7531e0ea3c741903c`.
+* Наблюдение: раскрытый Select menu остаётся ordinary retained sibling;
+  последующие Parameter labels/controls рисуются поверх popup. Это layering RED,
+  а не palette defect; acceptance ждёт generic overlay portal UI-015.7.5.
+
 Automated captures prove exact canvas state, not explicit owner acceptance.
