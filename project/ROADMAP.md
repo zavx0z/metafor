@@ -211,11 +211,11 @@ controls, копируемого TypeScript и проверок, а metadata ind
 initial bundle. Внешний Blender catalog остаётся только reference и не
 переносит свои ноды, изображения или examples в MetaFor.
 
-Shared Workbench foundation и эталон `4192` уже существуют, но package
-consumers ещё не считаются мигрированными: Components, Elements и Node UI
-сохраняют прежние ручные routes и статическую info panel. UI-011 владеет
-миграцией всех трёх consumers и execution/closing UI-001; только после общей
-acceptance matrix этот Workbench считается действующим для всех playground.
+Shared Workbench foundation и эталон `4192` уже существуют. Node UI и Components
+уже используют package-owned stories, concrete sections, production preview и
+постоянную code/copy panel; Elements остаётся последним consumer slice UI-011.
+После его checkpoint общая acceptance matrix подтверждает один действующий
+Workbench contract для всех playground.
 
 Действующий `@nodes/layout` пока получает минимальный ELK-like `LayoutGraph` с уже измеренными
 node sizes и port offsets, единолично вычисляет node/compound/gateway/edge

@@ -28,15 +28,21 @@
 
 ## Dev playground boundary
 
-1. Standalone Components playground собирает catalog, sections, dock, info и
-   backdrop только через public `@ui/playground`; package владеет route IDs,
-   demo data и preview renderer, но не копирует общий shell.
+1. Standalone Components playground является desktop consumer общего Workbench
+   `@ui/playground`. Package-owned typed stories владеют metadata, concrete
+   component/section/variant routes, lazy exact production imports, preview,
+   source и controls; package не копирует общий shell.
 2. Consumer preview владеет одним устойчивым retained root. Каждый независимо
    изменяемый controlled Field материализуется под устойчивым parent с ключом
    его `id`; изменение одного value не перестраивает shell или соседние Fields.
 3. Одноразовые Button и Pane fragments могут оставаться flat внутри exact
    preview parent: у них нет отдельного transform или recurring local dirty
-   lifecycle. Mobile shell показывает только тот же consumer preview.
+   lifecycle. Справа постоянно видны exact TypeScript/copy и controls/events,
+   dock показывает variants; статический Info не заменяет code panel.
+4. Catalog и controls пишутся по-русски; API identifiers, exact public subpaths,
+   pathname routes и копируемый TypeScript не переводятся. Все действующие
+   Components и universal Field kinds представлены явно; отсутствующий
+   production export показывается честным status, а не ложным import.
 
 ## Универсальные поля
 
