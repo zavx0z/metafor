@@ -195,7 +195,7 @@ number/slider, boolean, enum, color, vector/rotation, matrix и resource referen
 используются одинаково внутри Node properties/socket defaults и в обычных
 панелях. `@nodes/ui` владеет только их размещением внутри Node preset.
 
-Общая dev-среда `@ui/playground` развивается в масштабируемый WebGPU Workbench
+Общая dev-среда `@ui/playground` является масштабируемым WebGPU Workbench
 для собственных Elements, Components, Node UI и Widgets MetaFor. Существующий
 пятипанельный FlexBox shell и Engine/UiRuntime сохраняются; desktop занимает
 весь canvas. Package-owned stories дают единый источник preview, variants,

@@ -27,7 +27,6 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
-    UI007["UI-007 · масштабируемый каталог WebGPU UI"]
     UI001["UI-001 · playground универсальных UI Components"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -51,7 +50,6 @@ flowchart LR
     MF424 --> HAM006
     MF425 --> MF426
     MF426 --> MF427
-    UI007 --> UI001
 ```
 
 ## P1 — ближайшая работа
@@ -79,15 +77,8 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 [`UI-001 — Создать playground универсальных UI Components`](tasks/UI-001.md)
 сохраняет historical visual geometry, universal Field routes и уже использует
-public retained shell. Он ждёт общий Workbench UI-007, после чего перенесёт
-Components stories и завершит полную русскую локализацию catalog.
-
-[`UI-007 — Создать масштабируемый каталог WebGPU UI`](tasks/UI-007.md) сохраняет
-действующий Engine и пятипанельный shell, заполняет весь desktop, вводит typed
-stories, большой поисковый index, variants снизу и постоянный TypeScript с
-копированием справа. Closing blocker со сворачиваемыми groups устранён
-checkpoint-ом `3ccb67f8c`; результат готов к повторной независимой проверке.
-Production delivery-контракт закреплён в `pkg/ui/DELIVERY.md`.
+public retained Workbench. Shared dependency завершена; следующий срез переносит
+Components stories и завершает полную русскую локализацию catalog.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
@@ -101,8 +92,7 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-007 | REVIEW      | нет         | [Открыть](tasks/UI-007.md) |
-| UI-001 | WAITING     | UI-007      | [Открыть](tasks/UI-001.md) |
+| UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
