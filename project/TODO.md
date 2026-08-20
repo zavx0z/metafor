@@ -27,7 +27,6 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
-    UI006["UI-006 · route меняет content и package title"]
     UI001["UI-001 · playground универсальных UI Components"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -81,12 +80,6 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 public retained shell. Desktop/mobile proof завершён; отдельным незавершённым
 результатом остаётся полная русская локализация catalog.
 
-[`UI-006 — Обновлять содержимое маршрута и показывать имя пакета`](tasks/UI-006.md)
-исправляет stale Node canvas после client-side route transition, затем приводит
-HTML titles всех package playground-ов к точным package names. Владелец
-подтвердил живое переключение content без reload; результат ожидает независимой
-closing review.
-
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
 Socket/header/shadow/LOD/alignment corrections; physical mobile и явная visual
@@ -99,7 +92,6 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-006 | REVIEW      | нет         | [Открыть](tasks/UI-006.md) |
 | UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
