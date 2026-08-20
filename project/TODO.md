@@ -84,8 +84,8 @@ Components stories и завершает полную русскую локал�
 
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 параллельно развивает production Components, пока UI-011 владеет всеми
-playground. Она разложит единый Field facade на переиспользуемые public controls
-и добавит отсутствующие сложные редакторы без Node-копий.
+playground. NumberInput уже вынесен в public leaf; текущий срез создаёт
+ColorInput без преждевременного popup/picker и Node-копий.
 
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: `4192` уже является эталоном, но
@@ -95,8 +95,9 @@ detail story завершена checkpoint-ом `348453120`; текущий ср
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
-Socket/header/shadow/LOD/alignment corrections; physical mobile и явная visual
-owner acceptance остаются отдельными gates.
+geometric collapse chevron и title alignment после принятой Socket calibration;
+shadow/LOD/alignment, physical mobile и явная visual owner acceptance остаются
+следующими gates.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |

@@ -258,7 +258,7 @@ reference rows. После NODES-017.8.2 измерить исправленны
 результатом своей Parameter либо loose Socket Flex row и лежит на border Node,
 чтобы половина shape находилась снаружи. Fixture-specific offsets запрещены.
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель текущей задачи.
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель текущей задачи.
 
 Классификация: отдельное уже зарегистрированное visual-расхождение того же
 родителя. Срез изменяет только общую Socket presentation policy; Field controls,
@@ -287,6 +287,30 @@ left/right Parameter и loose Socket centers остаются exact row centers,
 Подготовительный commit: записывается до production patch. NODES-017.8.8 уже
 завершена и больше не блокирует calibration.
 
+Фактические действия и результат: Blender source закрепляет
+`NODE_SOCKSIZE = 0.25 × widget_unit`, то есть ordinary diameter равен половине
+widget unit. Commit `574de1db6` ввёл единую intrinsic policy: diameter `10`,
+outline/corner `1`, stroke `2`, inner dot `3`; diamond учитывает фактический
+miter, line использует полный envelope. Все восемь shapes ограничены одной
+bounding policy. Flex row centers, точные left/right Node borders и независимый
+`direction` не менялись.
+
+Regression и проверки: focused Node tests `20/20` (`1133` assertions), Node
+package boundary `4/4`, UI delivery `8/8`, `pkg/nodes/ui` typecheck и diff-check
+прошли повторно руководителем. Restricted sandbox не использовался для
+Bun.build verdict.
+
+Live evidence: UI-011 через `$ui-dev` перезапустила exact Node selector на PID
+`24430`, сохранила target `809BF08D88E4582CA819EFE847FE1450` и explicit reload
+`/socket/boolean/input`. DOM ready, `19` concrete sections, `3` variants,
+console `0`, native `1920×1088 @2`, backing canvas `3840×2176`. Exact capture
+[`node-socket-boolean-input.png`](../artifacts/UI-011/node-socket-boolean-input.png)
+имеет `619169` bytes и SHA-256
+`0dc325a31a98eae001e31b11439417cc762d64e83f24103f089653e14c8c723f`.
+Outer Socket около `20` physical px против примерно `19` reference px; center
+не смещён, нового visual defect не обнаружено. Это automated evidence, не
+owner acceptance.
+
 #### NODES-017.8.4 — Согласовать collapse chevron и title в header
 
 Сохранить выбранный владельцем rounded header со всеми четырьмя скруглёнными
@@ -295,8 +319,32 @@ left/right Parameter и loose Socket centers остаются exact row centers,
 Blender reference, а title выровнять с ним в одной Flex row. Изменение действует
 для expanded и collapsed Node и не вводит fixture-specific offsets.
 
-`READY`: выполнять после renderer correction NODES-017.8.2 и Socket correction
-NODES-017.8.3, затем проверить на той же representative Node и collapsed Mapping.
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель текущей задачи.
+
+Классификация: следующее самостоятельное visual-расхождение того же parent.
+Socket policy уже завершена; новый механизм ограничен геометрией collapse
+chevron и header-row alignment.
+
+Причина: production header рисует текстовые glyph `⌄`/`›` через Typography.
+Их форма, baseline и оптический центр зависят от шрифта и не совпадают с
+Blender geometric arrow; title получает соседний slot без измеренного общего
+icon/padding law.
+
+Разрешённое изменение одного механизма: заменить glyph на geometric chevron
+через существующий low-level polyline primitive, зафиксировать один размер,
+stroke, left padding, gap и optical center для expanded/collapsed Node. Rounded
+header, body, Socket, shadow и playground не меняются.
+
+Regression: expanded/down и collapsed/right chevron имеют одинаковый envelope
+и stroke, title начинается после одного общего icon slot, обе части центрированы
+в той же Flex row, per-fixture offsets отсутствуют. Project font и четыре
+rounded header corner сохраняются.
+
+Среда и приёмка: focused production tests/typecheck, затем representative Node
+и collapsed Mapping на exact route UI-011.2. Automated capture не является
+owner acceptance.
+
+Подготовительный commit: записывается до production patch.
 
 #### NODES-017.8.5 — Сделать четырёхстороннюю Node shadow носителем selection
 
