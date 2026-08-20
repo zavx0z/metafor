@@ -18,6 +18,7 @@
     "./number-input": "./NumberInput.ts",
     "./color-input": "./ColorInput.ts",
     "./vector-input": "./VectorInput.ts",
+    "./matrix-input": "./MatrixInput.ts",
     "./switcher": "./Switcher.ts",
     "./progress-checkbox": "./ProgressCheckbox.ts",
     "./slider-control": "./SliderControl.ts",

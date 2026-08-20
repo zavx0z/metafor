@@ -14,6 +14,12 @@ import {
   type NumberInputDensity,
   type NumberInputProps,
 } from "./NumberInput.ts"
+import {
+  MatrixInput,
+  measureMatrixInputHeight,
+  type MatrixInputDensity,
+  type MatrixInputProps,
+} from "./MatrixInput.ts"
 import {SliderControl} from "./SliderControl.ts"
 import {Switcher} from "./Switcher.ts"
 import {TextField} from "./TextField.ts"
@@ -205,7 +211,9 @@ export function measureFieldHeight(definition: FieldDefinition, options: FieldRe
   if (options.density === "compact") return compactFieldHeight(definition)
   if (definition.kind === "boolean") return CONTROL_HEIGHT
   if (definition.kind === "number" && definition.presentation === "slider") return 66
-  if (definition.kind === "matrix") return LABEL_HEIGHT + FIELD_GAP + matrixRows(definition.value).length * 28
+  if (definition.kind === "matrix") {
+    return LABEL_HEIGHT + FIELD_GAP + measureMatrixInputHeight(matrixInputProps(definition, "regular"))
+  }
   return LABEL_HEIGHT + FIELD_GAP + CONTROL_HEIGHT
 }
 
@@ -215,8 +223,7 @@ function compactFieldHeight(definition: FieldDefinition): number {
     return metrics.control + metrics.gap + measureVectorInputHeight(vectorInputProps(definition, "compact"))
   }
   if (definition.kind === "matrix") {
-    const rows = matrixRows(definition.value).length
-    return metrics.control * (rows + 1) + metrics.gap * rows
+    return metrics.control + metrics.gap + measureMatrixInputHeight(matrixInputProps(definition, "compact"))
   }
   return metrics.control
 }
@@ -440,7 +447,8 @@ function drawCompactMatrixField(
   field: MatrixFieldDefinition,
   metrics: CompactMetrics,
 ): void {
-  const matrix = normalizeMatrixFieldValue(field.value)
+  const props = matrixInputProps(field, "compact")
+  const controlHeight = measureMatrixInputHeight(props)
   flexColumn({
     x,
     y,
@@ -449,38 +457,9 @@ function drawCompactMatrixField(
     gap: metrics.gap,
     items: [
       {height: metrics.control, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, fontPx: metrics.font})},
-      ...matrix.map((values, row) => ({
-        height: metrics.control,
-        draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
-          x: rowX,
-          y: rowY,
-          w: rowW,
-          h: rowH,
-          gap: metrics.gap,
-          items: values.map((value, column) => ({
-            width: "1fr" as const,
-            height: rowH,
-            draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
-              const props: Parameters<typeof TextField>[5] = {
-                key: `${fieldKey(field)}:${row}:${column}`,
-                value: value.toFixed(2),
-                disabled: isFieldDisabled(field),
-                submitOnEnter: true,
-                fontPx: metrics.font,
-                sx: compactTextStyle(metrics),
-              }
-              if (!isFieldDisabled(field)) props.onSubmit = (text) => {
-                const parsed = Number(text)
-                if (!Number.isFinite(parsed)) return
-                const next = matrix.map((entries) => [...entries])
-                next[row]![column] = rounded(parsed)
-                field.onChange?.(next)
-              }
-              TextField(host, cellX, cellY, cellW, cellH, props)
-            },
-          })),
-        }),
-      })),
+      {height: controlHeight, draw: (slotX, slotY, slotW, slotH) => {
+        MatrixInput(host, slotX, slotY, slotW, slotH, props)
+      }},
     ],
   })
 }
@@ -512,15 +491,7 @@ export {
 
 export {normalizeVectorInputValue as normalizeVectorFieldValue} from "./VectorInput.ts"
 
-export function normalizeMatrixFieldValue(
-  value: readonly (readonly number[])[],
-): readonly (readonly number[])[] {
-  const size = Math.min(4, Math.max(2, value.length || 2))
-  return Array.from({length: size}, (_, row) => Array.from({length: size}, (_, column) => {
-    const entry = value[row]?.[column]
-    return Number.isFinite(entry) ? rounded(entry!) : row === column ? 1 : 0
-  }))
-}
+export {normalizeMatrixInputValue as normalizeMatrixFieldValue} from "./MatrixInput.ts"
 
 function drawFieldLabel(host: UiSurface, x: number, y: number, width: number, height: number, field: FieldBase): void {
   Typography(host, x, y, width, height, {
@@ -677,46 +648,19 @@ function vectorInputProps(
 }
 
 function drawMatrixField(host: UiSurface, x: number, y: number, width: number, height: number, field: MatrixFieldDefinition): void {
-  const matrix = normalizeMatrixFieldValue(field.value)
-  flexColumn({
-    x,
-    y,
-    w: width,
-    h: height,
-    gap: 4,
-    items: matrix.map((values, row) => ({
-      height: "1fr" as const,
-      draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
-        x: rowX,
-        y: rowY,
-        w: rowW,
-        h: rowH,
-        gap: 4,
-        alignItems: "stretch",
-        items: values.map((value, column) => ({
-          width: "1fr" as const,
-          height: rowH,
-          draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
-            const props: Parameters<typeof TextField>[5] = {
-              key: `${fieldKey(field)}:${row}:${column}`,
-              value: value.toFixed(2),
-              disabled: isFieldDisabled(field),
-              submitOnEnter: true,
-              fontPx: 9,
-            }
-            if (!isFieldDisabled(field)) props.onSubmit = (text) => {
-              const parsed = Number(text)
-              if (!Number.isFinite(parsed)) return
-              const next = matrix.map((entries) => [...entries])
-              next[row]![column] = rounded(parsed)
-              field.onChange?.(next)
-            }
-            TextField(host, cellX, cellY, cellW, cellH, props)
-          },
-        })),
-      }),
-    })),
-  })
+  MatrixInput(host, x, y, width, height, matrixInputProps(field, "regular"))
+}
+
+function matrixInputProps(field: MatrixFieldDefinition, density: MatrixInputDensity): MatrixInputProps {
+  const props: MatrixInputProps = {
+    key: fieldKey(field),
+    value: field.value,
+    density,
+  }
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onChange !== undefined) props.onChange = field.onChange
+  return props
 }
 
 function drawReferenceField(host: UiSurface, x: number, y: number, width: number, height: number, field: ReferenceFieldDefinition): void {
@@ -739,18 +683,10 @@ function drawReadonlyField(host: UiSurface, x: number, y: number, width: number,
   })
 }
 
-function matrixRows(value: readonly (readonly number[])[]): readonly (readonly number[])[] {
-  return normalizeMatrixFieldValue(value)
-}
-
 function isFieldDisabled(field: FieldBase): boolean {
   return field.disabled === true || field.readOnly === true
 }
 
 function fieldKey(field: FieldBase): string {
   return `field:${field.key ?? field.id}`
-}
-
-function rounded(value: number): number {
-  return Math.round(value * 1_000_000) / 1_000_000
 }
