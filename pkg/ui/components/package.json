@@ -20,6 +20,7 @@
     "./vector-input": "./VectorInput.ts",
     "./matrix-input": "./MatrixInput.ts",
     "./reference-input": "./ReferenceInput.ts",
+    "./enum-input": "./EnumInput.ts",
     "./switcher": "./Switcher.ts",
     "./progress-checkbox": "./ProgressCheckbox.ts",
     "./slider-control": "./SliderControl.ts",

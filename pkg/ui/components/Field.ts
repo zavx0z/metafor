@@ -15,6 +15,12 @@ import {
   type NumberInputProps,
 } from "./NumberInput.ts"
 import {
+  EnumInput,
+  type EnumInputDensity,
+  type EnumInputOption,
+  type EnumInputProps,
+} from "./EnumInput.ts"
+import {
   MatrixInput,
   measureMatrixInputHeight,
   type MatrixInputDensity,
@@ -39,7 +45,7 @@ import {
 } from "./VectorInput.ts"
 
 export type FieldColor = ColorInputValue
-export type FieldOption = Readonly<{value: string; label: string; description?: string}>
+export type FieldOption = EnumInputOption
 export type FieldReference = ReferenceInputValue
 
 export type FieldBase = Readonly<{
@@ -375,17 +381,7 @@ function drawCompactControl(
     return
   }
   if (field.kind === "enum") {
-    const selected = field.options.find((option) => option.value === field.value)
-    Button(host, x, y, width, height, {
-      children: selected?.label ?? field.value,
-      variant: "contained",
-      fill: new Color(0.235, 0.235, 0.235, 1),
-      border: new Color(0.11, 0.11, 0.11, 1),
-      radius: metrics.radius,
-      fontPx: metrics.font,
-      disabled: disabled || field.options.length === 0,
-      action: () => field.onChange?.(nextEnumFieldValue(field.value, field.options)),
-    })
+    EnumInput(host, x, y, width, height, enumInputProps(field, "compact"))
     return
   }
   if (field.kind === "color") {
@@ -468,17 +464,7 @@ export function normalizeNumberFieldValue(
   return normalizeNumberInputValue(value, options)
 }
 
-export function nextEnumFieldValue(
-  value: string,
-  options: readonly FieldOption[],
-  step = 1,
-): string {
-  if (options.length === 0) return value
-  const current = options.findIndex((option) => option.value === value)
-  const start = current < 0 ? 0 : current
-  const index = ((start + step) % options.length + options.length) % options.length
-  return options[index]!.value
-}
+export {nextEnumInputValue as nextEnumFieldValue} from "./EnumInput.ts"
 
 export {
   formatColorInputValue as fieldColorToHex,
@@ -582,16 +568,20 @@ function drawBooleanField(host: UiSurface, x: number, y: number, width: number, 
 }
 
 function drawEnumField(host: UiSurface, x: number, y: number, width: number, height: number, field: EnumFieldDefinition): void {
-  const selected = field.options.find((option) => option.value === field.value)
-  const props: Parameters<typeof Button>[5] = {
-    children: selected?.label ?? field.value,
-    variant: "outlined",
-    disabled: isFieldDisabled(field) || field.options.length === 0,
-    action: () => field.onChange?.(nextEnumFieldValue(field.value, field.options)),
+  EnumInput(host, x, y, width, height, enumInputProps(field, "regular"))
+}
+
+function enumInputProps(field: EnumFieldDefinition, density: EnumInputDensity): EnumInputProps {
+  const props: EnumInputProps = {
+    value: field.value,
+    options: field.options,
+    density,
   }
-  const tooltip = selected?.description ?? field.description
-  if (tooltip !== undefined) props.tooltip = tooltip
-  Button(host, x, y, width, height, props)
+  if (field.description !== undefined) props.tooltip = field.description
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onChange !== undefined) props.onChange = field.onChange
+  return props
 }
 
 function drawColorField(host: UiSurface, x: number, y: number, width: number, height: number, field: ColorFieldDefinition): void {
