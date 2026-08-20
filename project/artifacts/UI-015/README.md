@@ -249,5 +249,18 @@
   полный grouped Vector editor. Дополнительно input labels центрированы и без
   двоеточия, а default body чрезмерно шире intrinsic editor. Это общий owner RED
   baseline для трёх раздельных corrections UI-015.5.3/.4/.5, не acceptance.
+* Source-fresh results commits `9af766cec` + `914dabd7b`, Node PID `55428`,
+  target `809…`, native `1920×1088 @2`, console `0`:
+  * `node-transform-linked-height-after.png` — `400099` bytes, SHA-256
+    `b0ca20dc7fab65fd143e93657170fddf8e98be3a1eb21be76237ff8230f3dc4b`;
+  * `node-transform-rotation-linked-after.png` — `402585` bytes, SHA-256
+    `c5a6f77cb1784d0ca332eb018d7e331bc7631098d34b55a12c0c13ff10e60d6e`;
+  * `node-transform-translation-unlinked-after.png` — `406390` bytes,
+    SHA-256
+    `b12e4db6a3f1fa08f83bdbc3987df1327472222fa5d8f7a4235ef465eb4a8ce9`.
+  Факт: linked editor height исчезает, более поздний purple Link заканчивается
+  ровно в поднятом Rotation diamond без old-Y tail; unlinked возвращает оба
+  editors/body. Independent SOURCE/INTEGRATION/STATIC VISUAL PASS; pointer hit
+  moved corridor остаётся live gate, labels/default width — .5.4/.5.
 
 Automated captures prove exact canvas state, not explicit owner acceptance.

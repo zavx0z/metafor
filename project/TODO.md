@@ -140,6 +140,11 @@ visibility plan и снять скрытую editor height без fixture litera
 output справа, property label с двоеточием при неизменном Socket anchor; и
 UI-015.5.5 source-backed default Node width вокруг intrinsic editor вместо
 story literal `310`. Эти mechanisms выполняются последовательными slices.
+UI-015.5.3 закрыта source/integration/static commits `9af766cec` + `914dabd7b`:
+linked height `225→156`, later Link endpoint/hit re-anchor-ится к поднятому
+Socket без изменения ортогональной topology, unlink восстанавливает editor;
+source-fresh routes console0 и independent PASS. UI-015.5.4 теперь IN_PROGRESS;
+live pointer corridor .5.3 остаётся parent interaction gate.
 UI-015.7 source checkpoint `13ac398d1` правильно разделил Engine low-level
 picker plane и Components HSVA/popup owner, но independent Blender review
 оставил composition/interaction незавершёнными. UI-015.7.1 после текущего
