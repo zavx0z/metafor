@@ -51,6 +51,16 @@ export type SimpleComponentStory =
   | "noti"
 
 export type StandaloneInputStory = "vector-input" | "matrix-input"
+export type EnumInputStoryVariant =
+  | "cycle"
+  | "expanded"
+  | "selected-description"
+  | "invalid-legacy"
+  | "no-items"
+  | "menu-undefined"
+  | "menu-error"
+  | "disabled"
+  | "readonly"
 
 const loadButtonStory = (
   section: ButtonStorySection,
@@ -93,6 +103,13 @@ const loadStandaloneInputStory = (
 const loadReferenceInputStory = async (): Promise<PlaygroundStoryModule> => {
   const {createReferenceInputStory} = await import("./stories/reference-input.ts")
   return createReferenceInputStory()
+}
+
+const loadEnumInputStory = (
+  variant: EnumInputStoryVariant,
+) => async (): Promise<PlaygroundStoryModule> => {
+  const {createEnumInputStory} = await import("./stories/enum-input.ts")
+  return createEnumInputStory(variant)
 }
 
 const singleVariant = (
@@ -259,6 +276,41 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             load: loadReferenceInputStory,
           }],
         }]},
+        {id: "enum-input", label: "Выбор значения", apiName: "EnumInput", tags: ["input", "enum", "выбор", "цикл", "варианты"], sections: [
+          {
+            id: "presentation",
+            label: "Представление",
+            variants: [
+              {id: "cycle", label: "Цикл", title: "EnumInput · Циклический выбор", load: loadEnumInputStory("cycle")},
+              {id: "expanded", label: "Развёрнуто", title: "EnumInput · Варианты в строке", load: loadEnumInputStory("expanded")},
+            ],
+          },
+          {
+            id: "value",
+            label: "Значение",
+            variants: [
+              {id: "selected-description", label: "С описанием", title: "EnumInput · Описание выбранного значения", load: loadEnumInputStory("selected-description")},
+              {id: "invalid-legacy", label: "Неизвестное", title: "EnumInput · Неизвестное legacy-значение", load: loadEnumInputStory("invalid-legacy")},
+            ],
+          },
+          {
+            id: "exception",
+            label: "Исключения",
+            variants: [
+              {id: "no-items", label: "Нет вариантов", title: "EnumInput · No Items", load: loadEnumInputStory("no-items")},
+              {id: "menu-undefined", label: "Не определено", title: "EnumInput · Menu Undefined", load: loadEnumInputStory("menu-undefined")},
+              {id: "menu-error", label: "Ошибка", title: "EnumInput · Menu Error", load: loadEnumInputStory("menu-error")},
+            ],
+          },
+          {
+            id: "state",
+            label: "Состояние",
+            variants: [
+              {id: "disabled", label: "Недоступно", title: "EnumInput · Недоступно", load: loadEnumInputStory("disabled")},
+              {id: "readonly", label: "Только чтение", title: "EnumInput · Только чтение", load: loadEnumInputStory("readonly")},
+            ],
+          },
+        ]},
         {id: "checkbox", label: "Флажок", apiName: "Checkbox", sections: [{id: "state", label: "Состояние", variants: [
           {id: "unchecked", label: "Выключен", title: "Checkbox · Выключен", load: loadSimpleStory("checkbox", "unchecked")},
           {id: "checked", label: "Включён", title: "Checkbox · Включён", load: loadSimpleStory("checkbox", "checked")},

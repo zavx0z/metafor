@@ -70,6 +70,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "vector-input",
       "matrix-input",
       "reference-input",
+      "enum-input",
       "checkbox",
       "switcher",
       "progress-checkbox",
@@ -92,6 +93,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Ввод вектора",
       "Ввод матрицы",
       "Выбор ссылки",
+      "Выбор значения",
       "Флажок",
       "Переключатель",
       "Флажок прогресса",
@@ -118,6 +120,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       .sort()
     expect(publicInputLeaves).toEqual([
       "color-input",
+      "enum-input",
       "matrix-input",
       "number-input",
       "reference-input",
@@ -178,6 +181,78 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("value", null)')
     expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onActivate")')
     expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onClear")')
+
+    expect(componentSectionItems("enum-input/presentation/cycle").map(({id}) => id)).toEqual([
+      "presentation", "value", "exception", "state",
+    ])
+    expect(componentVariantItems("enum-input/presentation/cycle").map(({id}) => id)).toEqual([
+      "cycle", "expanded",
+    ])
+    expect(componentVariantItems("enum-input/value/selected-description").map(({id}) => id)).toEqual([
+      "selected-description", "invalid-legacy",
+    ])
+    expect(componentVariantItems("enum-input/exception/no-items").map(({id}) => id)).toEqual([
+      "no-items", "menu-undefined", "menu-error",
+    ])
+    expect(componentVariantItems("enum-input/state/disabled").map(({id}) => id)).toEqual([
+      "disabled", "readonly",
+    ])
+    const enumCycle = await COMPONENT_STORIES.load("enum-input/presentation/cycle")
+    expect(enumCycle.defaultArgs).toMatchObject({
+      value: "multiply",
+      presentation: "cycle",
+      options: "ready",
+      state: "ready",
+      disabled: false,
+      readonly: false,
+    })
+    expect(enumCycle.controls.map(({key, label}) => [key, label])).toEqual([
+      ["value", "Значение"],
+      ["presentation", "Представление"],
+      ["options", "Варианты"],
+      ["state", "Состояние меню"],
+      ["density", "Плотность"],
+      ["disabled", "Недоступно"],
+      ["readonly", "Только чтение"],
+      ["event", "Последнее событие"],
+    ])
+    const cycleSource = enumCycle.source(enumCycle.defaultArgs)
+    expect(cycleSource).toContain('from "@ui/components/enum-input"')
+    expect(cycleSource).toContain('description":"Умножить входные значения"')
+    expect(cycleSource).toContain('presentation: "cycle"')
+
+    const enumSelected = await COMPONENT_STORIES.load("enum-input/value/selected-description")
+    expect(enumSelected.defaultArgs).toMatchObject({value: "multiply", presentation: "cycle"})
+    expect(enumSelected.source(enumSelected.defaultArgs)).toContain('description":"Умножить входные значения"')
+
+    const enumExpanded = await COMPONENT_STORIES.load("enum-input/presentation/expanded")
+    expect(enumExpanded.defaultArgs).toMatchObject({presentation: "expanded", value: "multiply"})
+    expect(enumExpanded.source(enumExpanded.defaultArgs)).toContain('presentation: "expanded"')
+
+    const enumInvalid = await COMPONENT_STORIES.load("enum-input/value/invalid-legacy")
+    expect(enumInvalid.defaultArgs).toMatchObject({value: "missing", presentation: "cycle"})
+    expect(enumInvalid.source(enumInvalid.defaultArgs)).toContain('value: "missing"')
+
+    const enumNoItems = await COMPONENT_STORIES.load("enum-input/exception/no-items")
+    expect(enumNoItems.defaultArgs).toMatchObject({options: "empty"})
+    expect(enumNoItems.source(enumNoItems.defaultArgs)).toContain("const options: readonly EnumInputOption[] = []")
+    const enumUndefined = await COMPONENT_STORIES.load("enum-input/exception/menu-undefined")
+    expect(enumUndefined.defaultArgs).toMatchObject({options: "undefined"})
+    expect(enumUndefined.source(enumUndefined.defaultArgs)).not.toContain("  options,")
+    const enumError = await COMPONENT_STORIES.load("enum-input/exception/menu-error")
+    expect(enumError.defaultArgs).toMatchObject({state: "error"})
+    expect(enumError.source(enumError.defaultArgs)).toContain('state: "error"')
+    const enumDisabled = await COMPONENT_STORIES.load("enum-input/state/disabled")
+    expect(enumDisabled.defaultArgs).toMatchObject({disabled: true})
+    expect(enumDisabled.source(enumDisabled.defaultArgs)).toContain("disabled: true")
+    const enumReadonly = await COMPONENT_STORIES.load("enum-input/state/readonly")
+    expect(enumReadonly.defaultArgs).toMatchObject({readonly: true})
+    expect(enumReadonly.source(enumReadonly.defaultArgs)).toContain("readOnly: true")
+
+    const enumImplementation = await Bun.file(join(playgroundRoot, "stories", "enum-input.ts")).text()
+    expect(enumImplementation).toContain('from "@ui/components/enum-input"')
+    expect(enumImplementation).toContain('globalThis.__componentsStoryControlBridge?.("value", value)')
+    expect(enumImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onChange: ${value}`)')
 
     const referenceField = await COMPONENT_STORIES.load("field/reference/default")
     expect(referenceField.source(referenceField.defaultArgs)).toContain('from "@ui/components/field"')
@@ -266,9 +341,11 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(entry!.source).not.toContain("function createSimpleComponentStory")
     expect(entry!.source).not.toContain("function createStandaloneInputStory")
     expect(entry!.source).not.toContain("function createReferenceInputStory")
+    expect(entry!.source).not.toContain("function createEnumInputStory")
     expect(entry!.source).not.toContain('@ui/components/vector-input')
     expect(entry!.source).not.toContain('@ui/components/matrix-input')
     expect(entry!.source).not.toContain('@ui/components/reference-input')
+    expect(entry!.source).not.toContain('@ui/components/enum-input')
     expect(outputs.some(({source}) => source.includes("function createButtonStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createFieldStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createSimpleComponentStory"))).toBeTrue()
@@ -279,6 +356,9 @@ describe("@ui/components package-owned Workbench stories", () => {
     const referenceInputChunk = outputs.find(({source}) => source.includes("function createReferenceInputStory"))
     expect(referenceInputChunk).toBeDefined()
     expect(referenceInputChunk!.source).toContain('@ui/components/reference-input')
+    const enumInputChunk = outputs.find(({source}) => source.includes("function createEnumInputStory"))
+    expect(enumInputChunk).toBeDefined()
+    expect(enumInputChunk!.source).toContain('@ui/components/enum-input')
   })
 
   test("uses public full-viewport Workbench geometry and the package server", async () => {
