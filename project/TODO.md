@@ -30,6 +30,7 @@ flowchart LR
     UI001["UI-001 · playground универсальных UI Components"]
     UI010["UI-010 · полный набор универсальных полей"]
     UI011["UI-011 · package playgrounds на Workbench"]
+    UI012["UI-012 · мягкая производительная SDF-тень"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
@@ -93,6 +94,11 @@ Node UI, Components и Elements сохраняют старые route/info scree
 detail story завершена checkpoint-ом `348453120`; текущий срез переводит
 остальные Node UI routes. UI-001 execution/closing переданы тому же руководителю.
 
+[`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
+создаёт общий Engine/Elements primitive: один rounded SDF quad со spread/blur
+в local units, без texture pass. NODES-017 применит его отдельным следующим
+срезом после завершения header geometry.
+
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
 geometric collapse chevron и title alignment после принятой Socket calibration;
@@ -109,6 +115,7 @@ shadow/LOD/alignment, physical mobile и явная visual owner acceptance ос
 | UI-001 | IN_PROGRESS | нет         | [Открыть](tasks/UI-001.md) |
 | UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
 | UI-011 | IN_PROGRESS | нет         | [Открыть](tasks/UI-011.md) |
+| UI-012 | IN_PROGRESS | нет         | [Открыть](tasks/UI-012.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |

@@ -269,6 +269,11 @@ Three.js-like engine `Object3D`. FlexBox один раз вычисляет loca
 parent transform, а children наследуют `matrixWorld` без повторного layout и
 materialization. Visual text, icon, Socket, stroke и chrome масштабируются с
 parent; отдельный screen-space minimum допустим только невидимой hit area.
+Общая мягкая rounded shadow принадлежит Engine/Elements и вычисляется одним
+SDF-quad без texture blur/offscreen pass. Её local blur/spread наследуют тот же
+parent transform; Node selection только выбирает presentation color этой тени.
+Этим срезом владеет
+[`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md).
 
 Production UI поставляется независимыми ESM subpath modules поверх одного
 `@metafor/engine` и одного product-owned `UiRuntime`. Product/release build

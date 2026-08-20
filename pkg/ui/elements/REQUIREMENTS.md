@@ -68,6 +68,17 @@ FlexBox единолично вычисляет local child slots, а child то
     decorative helpers остаются flat: у них нет собственного
     transform, dirty lifecycle или пользы от partial rematerialization.
 
+## Мягкая rounded shadow
+
+1. `UiSurface` предоставляет один low-level rounded shadow primitive поверх
+   Engine SDF material. Он принимает local rect/radius, blur, spread, color,
+   opacity и z, но не знает Node, selection либо Component vocabulary.
+2. Shadow рисуется одним quad/draw без texture blur, offscreen pass и набора
+   отдельных полос. Его fade одинаково окружает все четыре стороны и углы.
+3. В retained materialization shadow становится обычным visual child exact
+   parent. Transform-only изменение наследуется через `matrixWorld` без новой
+   materialization; screen-space blur floor запрещён.
+
 ## Обязательный Flex-закон
 
 1. Любая композиция двух и более дочерних UI slots строится только через

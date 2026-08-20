@@ -35,6 +35,19 @@ parent может обновить clip следующего кадра без �
 и rounded mesh; отсутствие собственного material adapter не разрешает ему
 выходить за viewport.
 
+## Мягкая SDF-тень
+
+Rounded UI shadow является аналитическим presentation того же локального
+прямоугольника, а не отдельной текстурой или геометрическим blur-ring. Один
+расширенный quad вычисляет rounded distance и плавное затухание во фрагментном
+шейдере за один проход. Offscreen framebuffer, blur texture, несколько полос и
+post-processing для обычной UI-тени запрещены.
+
+Размер исходной формы, corner radii, spread и blur задаются в её локальных
+единицах и непрерывно наследуют `matrixWorld` parent. Чистый pan/zoom не меняет
+materialization и не пересобирает shadow geometry. Цвет и opacity являются
+presentation input consumer и не вводят hidden selection state в Engine.
+
 ## Обычные и скелетные mesh
 
 Каждый видимый объект передаёт renderer только собственные данные модели и
