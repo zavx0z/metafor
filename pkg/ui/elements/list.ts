@@ -119,9 +119,13 @@ export function li(surface: UiSurface, x: number, y: number, width: number, heig
     props.onPointerUp !== undefined ||
     props.tooltip !== undefined
   if (!interactive) return
+  const hasPointerAction = props.onClick !== undefined
+    || props.onPointerDown !== undefined
+    || props.onPointerMove !== undefined
+    || props.onPointerUp !== undefined
   const hitOptions: HitOptions = {
     key,
-    cursor: "pointer",
+    cursor: hasPointerAction ? "pointer" : "default",
     ...(props.onPointerEnter === undefined ? {} : {onPointerEnter: props.onPointerEnter}),
     ...(props.onPointerLeave === undefined ? {} : {onPointerLeave: props.onPointerLeave}),
     ...(props.onPointerDown === undefined ? {} : {onPointerDown: props.onPointerDown}),

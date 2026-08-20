@@ -92,7 +92,7 @@ function drawVectorInputAxis(
   group: ControlGroupContext,
 ): void {
   const numberProps = vectorAxisNumberProps(props, values, index)
-  numberProps.appearance = group.inputAppearance
+  numberProps.appearance = group.cell(index, 0, {left: false}).inputAppearance
   numberProps.sx = group.cellStyle
   flexRow({
     x,

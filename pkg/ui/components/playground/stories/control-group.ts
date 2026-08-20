@@ -38,7 +38,7 @@ export function createControlGroupStory(): PlaygroundStoryModule {
               draw: (cellX, cellY, cellW, cellH) => input(surface, cellX, cellY, cellW, cellH, {
                 key: `components-story-control-group:${index}`,
                 value: String(index + 1),
-                appearance: group.inputAppearance,
+                appearance: group.cell(index, 0).inputAppearance,
                 style: group.cellStyle,
               }),
             })),

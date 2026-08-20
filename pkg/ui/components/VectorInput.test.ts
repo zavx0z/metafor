@@ -168,6 +168,15 @@ describe("public VectorInput", () => {
     expect(compact.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
   })
 
+  test("rounds only the active numeric edge that touches the group", () => {
+    const surface = new RecordingSurface()
+    focusInput(surface, "vector:0", createInputEditState("1m"))
+    VectorInput(surface, 4, 6, 146, 66, vectorProps(() => {}))
+
+    const cornerPatches = surface.roundedRects.filter((call) => call[2] === 8 && call[3] === 8 && call[4].radius === 4)
+    expect(cornerPatches.map((call) => call.slice(0, 4))).toEqual([[142, 6, 8, 8]])
+  })
+
   test("returns the same value standalone and through vector and rotation Field densities", () => {
     const standaloneValues: (readonly number[])[] = []
     const vectorRegularValues: (readonly number[])[] = []

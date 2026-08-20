@@ -4,7 +4,7 @@ import {
   uiShapeMetrics,
   type UiSurface,
 } from "@ui/elements"
-import {ControlGroup, type ControlGroupContext} from "./ControlGroup.ts"
+import {ControlGroup, type ControlGroupCellContext} from "./ControlGroup.ts"
 import {
   NumberInput,
   normalizeNumberInputValue,
@@ -58,7 +58,7 @@ export function MatrixInput(
               width: "1fr" as const,
               height: rowH,
               draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
-                NumberInput(host, cellX, cellY, cellW, cellH, matrixCellProps(props, matrix, row, column, group))
+                NumberInput(host, cellX, cellY, cellW, cellH, matrixCellProps(props, matrix, row, column, group.cell(row, column)))
               },
             })),
           }),
@@ -92,15 +92,15 @@ function matrixCellProps(
   matrix: readonly (readonly number[])[],
   row: number,
   column: number,
-  group: ControlGroupContext,
+  cell: ControlGroupCellContext,
 ): NumberInputProps {
   const numberProps: NumberInputProps = {
     value: matrix[row]![column]!,
     density: (props.density ?? "regular") as NumberInputDensity,
     precision: 2,
     fontPx: uiShapeMetrics.compactFontPx,
-    appearance: group.inputAppearance,
-    sx: group.cellStyle,
+    appearance: cell.inputAppearance,
+    sx: cell.cellStyle,
   }
   if (props.key !== undefined) numberProps.key = `${props.key}:${row}:${column}`
   if (props.disabled !== undefined) numberProps.disabled = props.disabled

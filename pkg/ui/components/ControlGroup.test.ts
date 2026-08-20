@@ -42,7 +42,10 @@ describe("public ControlGroup", () => {
       fontSize: uiShapeMetrics.compactFontPx,
     } satisfies StyleProps)
     expect(Object.isFrozen(contexts[0]?.cellStyle)).toBeTrue()
-    expect(contexts[0]?.inputAppearance).toBe("grouped-cell")
+    expect(contexts[0]?.cell(0, 0).inputAppearance).toEqual({
+      kind: "grouped-cell",
+      corners: {topLeft: true, topRight: true, bottomLeft: true, bottomRight: true},
+    })
   })
 
   test("owns one low-radius outer chrome and exact row and column separators", () => {
@@ -78,7 +81,27 @@ describe("public ControlGroup", () => {
     expect(source).not.toContain("surface.drawRect")
   })
 
-  test("keeps active corner cells inset from the rounded outer silhouette", () => {
+  test("fills a middle active cell exactly to shared separators", () => {
+    const surface = new RecordingSurface()
+    ControlGroup(surface, 0, 0, 100, 66, {
+      rows: 3,
+      children(group) {
+        input(surface, 0, 22, 100, 22, {
+          key: "middle",
+          value: "1",
+          appearance: group.cell(1, 0).inputAppearance,
+          style: group.cellStyle,
+          active: true,
+          cursorVisible: false,
+        })
+      },
+    })
+
+    expect(surface.roundedRects[1]?.slice(0, 4)).toEqual([0, 22, 100, 22])
+    expect(surface.roundedRects[1]?.[4]).toMatchObject({radius: 0, borderWidth: 0})
+  })
+
+  test("rounds only true outer corners without shrinking active corner cells", () => {
     const surface = new RecordingSurface()
     ControlGroup(surface, 0, 0, 120, 44, {
       rows: 2,
@@ -87,7 +110,7 @@ describe("public ControlGroup", () => {
         input(surface, 0, 0, 60, 22, {
           key: "top-left",
           value: "1",
-          appearance: group.inputAppearance,
+          appearance: group.cell(0, 0).inputAppearance,
           style: group.cellStyle,
           active: true,
           cursorVisible: false,
@@ -95,7 +118,7 @@ describe("public ControlGroup", () => {
         input(surface, 60, 22, 60, 22, {
           key: "bottom-right",
           value: "1",
-          appearance: group.inputAppearance,
+          appearance: group.cell(1, 1).inputAppearance,
           style: group.cellStyle,
           active: true,
           cursorVisible: false,
@@ -103,11 +126,17 @@ describe("public ControlGroup", () => {
       },
     })
 
-    const active = surface.roundedRects.filter((call) => call[0] === 2 || call[0] === 62)
-    expect(active.map((call) => call.slice(0, 4))).toEqual([
-      [2, 2, 56, 18],
-      [62, 24, 56, 18],
+    expect(surface.roundedRects.some((call) => call.slice(0, 4).toString() === [2, 2, 56, 18].toString())).toBeFalse()
+    const cornerPatches = surface.roundedRects.filter((call) => call[2] === 8 && call[3] === 8 && call[4].radius === 4)
+    expect(cornerPatches.map((call) => call.slice(0, 4))).toEqual([
+      [0, 0, 8, 8],
+      [112, 36, 8, 8],
     ])
-    expect(active.every((call) => call[4].radius === 0 && call[4].borderWidth === 0)).toBeTrue()
+
+    const topLeftActive = surface.roundedRects.slice(1, 7)
+    expect(Math.min(...topLeftActive.map((call) => call[0]))).toBe(0)
+    expect(Math.min(...topLeftActive.map((call) => call[1]))).toBe(0)
+    expect(Math.max(...topLeftActive.map((call) => call[0] + call[2]))).toBe(60)
+    expect(Math.max(...topLeftActive.map((call) => call[1] + call[3]))).toBe(22)
   })
 })

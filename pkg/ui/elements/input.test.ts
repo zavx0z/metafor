@@ -102,11 +102,15 @@ describe("input visible geometry", () => {
   })
 
   test("keeps grouped cells borderless while active material remains visible", () => {
+    const appearance = {
+      kind: "grouped-cell",
+      corners: {topLeft: false, topRight: false, bottomLeft: false, bottomRight: false},
+    } as const
     const idle = new RecordingSurface()
     input(idle, 0, 0, 100, 22, {
       key: "grouped-idle",
       value: "Text",
-      appearance: "grouped-cell",
+      appearance,
     })
     expect(idle.roundedRects).toHaveLength(0)
 
@@ -114,12 +118,12 @@ describe("input visible geometry", () => {
     input(active, 0, 0, 100, 22, {
       key: "grouped-active",
       value: "Text",
-      appearance: "grouped-cell",
+      appearance,
       active: true,
       cursorVisible: false,
     })
     expect(active.roundedRects).toHaveLength(1)
-    expect(active.roundedRects[0]?.slice(0, 4)).toEqual([2, 2, 96, 18])
+    expect(active.roundedRects[0]?.slice(0, 4)).toEqual([0, 0, 100, 22])
     expect(active.roundedRects[0]?.[4]).toMatchObject({
       radius: 0,
       border: null,

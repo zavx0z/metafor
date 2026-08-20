@@ -222,6 +222,8 @@ describe("public CollectionInput", () => {
     expect(regularText).toContainEqual({text: "Position", fontPx: 11})
     expect(regularText.map(({text}) => text)).not.toContain("Vector attribute")
     expect(regular.hits[0]?.[5]).toMatchObject({tooltip: {label: "Vector attribute"}})
+    expect(regular.hits[0]?.[5]).toMatchObject({cursor: "pointer"})
+    expect(regular.hits[1]?.[5]).toMatchObject({cursor: "default", tooltip: {label: "Disabled attribute"}})
     expectTextInsideRows(regular, 24)
     expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
 

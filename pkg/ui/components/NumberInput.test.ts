@@ -18,16 +18,22 @@ import {
 } from "./NumberInput.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type RectCall = Parameters<UiSurface["drawRect"]>
 type TextCall = Parameters<UiSurface["drawText"]>
 type HitCall = Parameters<UiSurface["hit"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
+  readonly rects: RectCall[] = []
   readonly texts: TextCall[] = []
   readonly hits: HitCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
+  }
+
+  override drawRect(...args: RectCall): void {
+    this.rects.push(args)
   }
 
   override drawText(...args: TextCall): number {
@@ -147,6 +153,23 @@ describe("public NumberInput", () => {
       submit(surface, "number", "4.75kg")
     }
     expect(values).toEqual([])
+  })
+
+  test("passes edge-aware grouped appearance through TextField without inset", () => {
+    const surface = new RecordingSurface()
+    focusInput(surface, "grouped-number", createInputEditState("1"))
+    NumberInput(surface, 0, 0, 100, 22, {
+      key: "grouped-number",
+      value: 1,
+      appearance: {
+        kind: "grouped-cell",
+        corners: {topLeft: false, topRight: false, bottomLeft: false, bottomRight: false},
+      },
+      sx: {borderRadius: 0, borderWidth: 0},
+    })
+
+    expect(surface.roundedRects[0]?.slice(0, 4)).toEqual([0, 0, 100, 22])
+    expect(surface.roundedRects[0]?.[4]).toMatchObject({radius: 0, borderWidth: 0})
   })
 
   test("returns the same controlled value standalone and through regular and compact Field", () => {

@@ -12,6 +12,18 @@ import {
 
 export type ControlGroupContext = Readonly<{
   cellStyle: Readonly<StyleProps>
+  cell(row: number, column: number, contact?: ControlGroupCellContact): ControlGroupCellContext
+}>
+
+export type ControlGroupCellContact = Readonly<{
+  top?: boolean
+  right?: boolean
+  bottom?: boolean
+  left?: boolean
+}>
+
+export type ControlGroupCellContext = Readonly<{
+  cellStyle: Readonly<StyleProps>
   inputAppearance: InputAppearance
 }>
 
@@ -25,11 +37,6 @@ const controlGroupCellStyle: Readonly<StyleProps> = Object.freeze({
   borderRadius: 0,
   borderWidth: 0,
   fontSize: uiShapeMetrics.compactFontPx,
-})
-
-const controlGroupContext: ControlGroupContext = Object.freeze({
-  cellStyle: controlGroupCellStyle,
-  inputAppearance: "grouped-cell",
 })
 
 /** Composes one joined control chrome from generic Elements and shared rules. */
@@ -55,7 +62,7 @@ export function ControlGroup(
     },
   })
 
-  props.children?.(controlGroupContext)
+  props.children?.(controlGroupContext(rows, columns))
 
   drawControlGroupRowRules(surface, x, y, width, height, rows)
   drawControlGroupColumnRules(surface, x, y, width, height, columns)
@@ -67,6 +74,30 @@ export function ControlGroup(
       borderRadius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
       zIndex: Z.ELEMENT_RULE,
+    },
+  })
+}
+
+function controlGroupContext(rows: number, columns: number): ControlGroupContext {
+  return Object.freeze({
+    cellStyle: controlGroupCellStyle,
+    cell(row, column, contact = {}) {
+      const top = contact.top ?? true
+      const right = contact.right ?? true
+      const bottom = contact.bottom ?? true
+      const left = contact.left ?? true
+      return Object.freeze({
+        cellStyle: controlGroupCellStyle,
+        inputAppearance: Object.freeze({
+          kind: "grouped-cell" as const,
+          corners: Object.freeze({
+            topLeft: top && left && row === 0 && column === 0,
+            topRight: top && right && row === 0 && column === columns - 1,
+            bottomLeft: bottom && left && row === rows - 1 && column === 0,
+            bottomRight: bottom && right && row === rows - 1 && column === columns - 1,
+          }),
+        }),
+      })
     },
   })
 }

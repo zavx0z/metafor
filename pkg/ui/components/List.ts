@@ -259,8 +259,7 @@ function renderListItem(host: UiSurface, x: number, y: number, width: number, he
   if (props.tooltip !== undefined) itemProps.tooltip = props.tooltip
   if (props.tooltipDelayMs !== undefined) itemProps.tooltipDelayMs = props.tooltipDelayMs
   if (props.disabled !== true) {
-    if (props.button === true) itemProps.onClick = props.onClick ?? (() => {})
-    else if (props.onClick !== undefined) itemProps.onClick = props.onClick
+    if (props.onClick !== undefined) itemProps.onClick = props.onClick
   }
   elementLi(host, x, y, width, rowH, itemProps)
 }

@@ -26,7 +26,19 @@ export type InputKeyOptions = {
   allowTab?: boolean
 }
 
-export type InputAppearance = "standalone" | "grouped-cell"
+export type InputGroupedCellCorners = Readonly<{
+  topLeft: boolean
+  topRight: boolean
+  bottomLeft: boolean
+  bottomRight: boolean
+}>
+
+export type InputGroupedCellAppearance = Readonly<{
+  kind: "grouped-cell"
+  corners: InputGroupedCellCorners
+}>
+
+export type InputAppearance = "standalone" | InputGroupedCellAppearance
 
 export type InputProps = DivProps & {
   value?: string
@@ -169,7 +181,10 @@ export function focusInput(surface: UiSurface, key: string, state?: InputEditSta
 export function input(surface: UiSurface, x: number, y: number, width: number, height: number, props: InputProps): void {
   const style = mergeStyle(props)
   const disabled = props.disabled === true
-  const groupedCell = props.appearance === "grouped-cell"
+  const groupedAppearance = typeof props.appearance === "object" && props.appearance.kind === "grouped-cell"
+    ? props.appearance
+    : null
+  const groupedCell = groupedAppearance !== null
   const fontPx = props.fontPx ?? px(style.fontSize, uiShapeMetrics.compactFontPx)
   const chrome = controlChromeRect(x, y, width, height, style)
   const padding = controlChromePadding(style)
@@ -204,10 +219,10 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   if (style.background === undefined && style.backgroundColor === undefined) {
     chromeStyle.background = groupedCell ? active ? "bgHot" : null : active ? "bgHot" : "bgInput"
   }
-  const visualChrome = groupedCell && active ? insetGroupedCellChrome(chrome) : chrome
   const chromeProps: DivProps = {style: chromeStyle}
   chromeProps.key = key
-  div(surface, visualChrome.x, visualChrome.y, visualChrome.width, visualChrome.height, chromeProps)
+  if (groupedAppearance !== null && active) drawGroupedInputChrome(surface, chrome, chromeStyle, groupedAppearance.corners)
+  else div(surface, chrome.x, chrome.y, chrome.width, chrome.height, chromeProps)
   if (!disabled) {
     const hit: HitOptions = {
       key,
@@ -268,16 +283,56 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   surface.popClip()
 }
 
-function insetGroupedCellChrome(
+function drawGroupedInputChrome(
+  surface: UiSurface,
   chrome: Readonly<{x: number; y: number; width: number; height: number}>,
-): Readonly<{x: number; y: number; width: number; height: number}> {
-  const inset = Math.ceil(uiShapeMetrics.lowRadius / 2)
-  return {
-    x: chrome.x + inset,
-    y: chrome.y + inset,
-    width: Math.max(1, chrome.width - inset * 2),
-    height: Math.max(1, chrome.height - inset * 2),
+  style: StyleProps,
+  corners: InputGroupedCellCorners,
+): void {
+  if (!corners.topLeft && !corners.topRight && !corners.bottomLeft && !corners.bottomRight) {
+    div(surface, chrome.x, chrome.y, chrome.width, chrome.height, {style: {...style, borderRadius: 0}})
+    return
   }
+
+  const radius = Math.min(uiShapeMetrics.lowRadius, chrome.width / 2, chrome.height / 2)
+  if (radius <= 0) return
+  drawGroupedInputChromePart(surface, chrome.x + radius, chrome.y, chrome.width - radius * 2, chrome.height, 0, style)
+  drawGroupedInputChromePart(surface, chrome.x, chrome.y + radius, chrome.width, chrome.height - radius * 2, 0, style)
+  drawGroupedInputCorner(surface, chrome.x, chrome.y, radius, corners.topLeft, style)
+  drawGroupedInputCorner(surface, chrome.x + chrome.width - radius, chrome.y, radius, corners.topRight, style, "top-right")
+  drawGroupedInputCorner(surface, chrome.x, chrome.y + chrome.height - radius, radius, corners.bottomLeft, style, "bottom-left")
+  drawGroupedInputCorner(surface, chrome.x + chrome.width - radius, chrome.y + chrome.height - radius, radius, corners.bottomRight, style, "bottom-right")
+}
+
+function drawGroupedInputCorner(
+  surface: UiSurface,
+  x: number,
+  y: number,
+  radius: number,
+  rounded: boolean,
+  style: StyleProps,
+  corner: "top-left" | "top-right" | "bottom-left" | "bottom-right" = "top-left",
+): void {
+  if (!rounded) {
+    drawGroupedInputChromePart(surface, x, y, radius, radius, 0, style)
+    return
+  }
+  const patchX = corner === "top-right" || corner === "bottom-right" ? x - radius : x
+  const patchY = corner === "bottom-left" || corner === "bottom-right" ? y - radius : y
+  drawGroupedInputChromePart(surface, patchX, patchY, radius * 2, radius * 2, radius, style)
+}
+
+function drawGroupedInputChromePart(
+  surface: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  style: StyleProps,
+): void {
+  if (width <= 0 || height <= 0) return
+  div(surface, x, y, width, height, {style: {...style, borderRadius: radius}})
 }
 
 async function pasteIntoActiveInput(surface: UiSurface): Promise<void> {
