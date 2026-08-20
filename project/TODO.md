@@ -102,6 +102,8 @@ UI-015.3 зафиксировал dense scalar rows commit `813f48994`; live п�
 Текущий UI-015.4 добавляет настоящий dropdown, единый radius `4`, снижает
 чрезмерный idle border contrast и убирает геометрический/timer button press на
 Elements owner до grouped editors.
+Параллельный UI-015.6 удаляет exact Workbench overrides `999/12/34/36`, которые
+на owner screenshot превращают navigation, tabs и panels в отдельную pill-тему.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
