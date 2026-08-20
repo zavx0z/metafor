@@ -1,4 +1,5 @@
 export const playgroundTheme = Object.freeze({
+  stagePadding: 16,
   stageGap: 18,
   catalogWidth: 210,
   sectionWidth: 160,

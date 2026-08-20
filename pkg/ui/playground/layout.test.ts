@@ -2,24 +2,40 @@ import {describe, expect, test} from "bun:test"
 import {planPlaygroundShell} from "./layout.ts"
 
 describe("shared Playground FlexBox shell", () => {
-  test("plans historical five-panel desktop geometry", () => {
+  test("fills the available desktop with historical five-panel geometry", () => {
     const frames = planPlaygroundShell(1920, 1080)
     expect(frames.compact).toBeFalse()
-    expect(frames.stage).toEqual({x: 130, y: 110, w: 1660, h: 860})
-    expect(frames.catalog).toEqual({x: 130, y: 110, w: 210, h: 860})
-    expect(frames.section).toEqual({x: 358, y: 110, w: 160, h: 860})
-    expect(frames.info).toEqual({x: 1490, y: 110, w: 300, h: 860})
-    expect(frames.preview.x).toBe(536)
-    expect(frames.preview.y).toBe(110)
-    expect(frames.preview.w).toBe(936)
-    expect(frames.preview.h).toBe(742)
-    expect(frames.dock).toEqual({x: 536, y: 870, w: 936, h: 100})
+    expect(frames.stage).toEqual({x: 16, y: 16, w: 1888, h: 1048})
+    expect(frames.catalog).toEqual({x: 16, y: 16, w: 210, h: 1048})
+    expect(frames.section).toEqual({x: 244, y: 16, w: 160, h: 1048})
+    expect(frames.info).toEqual({x: 1604, y: 16, w: 300, h: 1048})
+    expect(frames.preview).toEqual({x: 422, y: 16, w: 1164, h: 930})
+    expect(frames.dock).toEqual({x: 422, y: 964, w: 1164, h: 100})
   })
 
-  test("gives mobile viewport only to consumer preview", () => {
-    const frames = planPlaygroundShell(390, 844)
-    expect(frames.compact).toBeTrue()
-    expect(frames.preview).toEqual({x: 8, y: 8, w: 374, h: 828})
-    for (const frame of [frames.catalog, frames.section, frames.dock, frames.info]) expect(frame.visible).toBeFalse()
+  test("keeps desktop panel sizing configurable without restoring max caps", () => {
+    const frames = planPlaygroundShell(1920, 1080, {
+      padding: 12,
+      gap: 12,
+      catalogWidth: 260,
+      sectionWidth: 210,
+      infoWidth: 420,
+      dockHeight: 104,
+    })
+    expect(frames.stage).toEqual({x: 12, y: 12, w: 1896, h: 1056})
+    expect(frames.catalog).toEqual({x: 12, y: 12, w: 260, h: 1056})
+    expect(frames.section).toEqual({x: 284, y: 12, w: 210, h: 1056})
+    expect(frames.preview).toEqual({x: 506, y: 12, w: 970, h: 940})
+    expect(frames.dock).toEqual({x: 506, y: 964, w: 970, h: 104})
+    expect(frames.info).toEqual({x: 1488, y: 12, w: 420, h: 1056})
+  })
+
+  test("collapses optional desktop panels and gives their space to preview", () => {
+    const frames = planPlaygroundShell(1920, 1080, {collapsed: ["catalog", "info"]})
+    expect(frames.catalog.visible).toBeFalse()
+    expect(frames.info.visible).toBeFalse()
+    expect(frames.section).toEqual({x: 16, y: 16, w: 160, h: 1048})
+    expect(frames.preview).toEqual({x: 194, y: 16, w: 1710, h: 930})
+    expect(frames.dock).toEqual({x: 194, y: 964, w: 1710, h: 100})
   })
 })

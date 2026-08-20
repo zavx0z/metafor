@@ -107,18 +107,13 @@ describe("restored @ui/components playground", () => {
     }
   })
 
-  test("preserves public desktop geometry and mobile preview-only boundary", () => {
+  test("uses the public full-viewport desktop geometry", () => {
     const desktop = planPlaygroundShell(1920, 1080)
-    expect(desktop.catalog).toEqual({x: 130, y: 110, w: 210, h: 860})
-    expect(desktop.section).toEqual({x: 358, y: 110, w: 160, h: 860})
-    expect(desktop.preview).toEqual({x: 536, y: 110, w: 936, h: 742})
-    expect(desktop.dock).toEqual({x: 536, y: 870, w: 936, h: 100})
-    expect(desktop.info).toEqual({x: 1490, y: 110, w: 300, h: 860})
-
-    const mobile = planPlaygroundShell(390, 844)
-    expect(mobile.compact).toBeTrue()
-    expect(mobile.preview).toEqual({x: 8, y: 8, w: 374, h: 828})
-    for (const frame of [mobile.catalog, mobile.section, mobile.dock, mobile.info]) expect(frame.visible).toBeFalse()
+    expect(desktop.catalog).toEqual({x: 16, y: 16, w: 210, h: 1048})
+    expect(desktop.section).toEqual({x: 244, y: 16, w: 160, h: 1048})
+    expect(desktop.preview).toEqual({x: 422, y: 16, w: 1164, h: 930})
+    expect(desktop.dock).toEqual({x: 422, y: 964, w: 1164, h: 100})
+    expect(desktop.info).toEqual({x: 1604, y: 16, w: 300, h: 1048})
   })
 
   test("keeps retained preview identities on transform and dirties only one controlled Field", () => {

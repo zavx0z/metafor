@@ -3,11 +3,29 @@ import {Button, Pane, Typography, type ButtonProps} from "@ui/components"
 import {UiSurface, flexColumn, flexRow, palette, type UiSurfaceRect} from "@ui/elements"
 import {playgroundTheme} from "./theme.ts"
 
+export type PlaygroundNavigationGroup = Readonly<{
+  id: string
+  label: string
+}>
+
 export type PlaygroundNavigationItem<Route extends string> = Readonly<{
   id: string
   label: string
   route: Route
   disabled?: boolean
+  group?: PlaygroundNavigationGroup
+  searchText?: string
+}>
+
+export type PlaygroundNavigationWindow = Readonly<{
+  offset: number
+  limit: number
+}>
+
+export type PlaygroundNavigationView<Route extends string> = Readonly<{
+  total: number
+  offset: number
+  items: readonly PlaygroundNavigationItem<Route>[]
 }>
 
 export type PlaygroundNavigationOptions<Route extends string> = Readonly<{
@@ -15,6 +33,8 @@ export type PlaygroundNavigationOptions<Route extends string> = Readonly<{
   items: readonly PlaygroundNavigationItem<Route>[]
   route: Route
   onNavigate(route: Route): void
+  query?: string
+  window?: PlaygroundNavigationWindow
 }>
 
 export type PlaygroundInfoLine = string | Readonly<{
@@ -51,6 +71,8 @@ type NormalizedNavigationItem<Route extends string> = Readonly<{
   label: string
   route: Route
   disabled: boolean
+  group: PlaygroundNavigationGroup | undefined
+  searchText: string
 }>
 
 type NormalizedNavigationOptions<Route extends string> = Readonly<{
@@ -58,6 +80,8 @@ type NormalizedNavigationOptions<Route extends string> = Readonly<{
   items: readonly NormalizedNavigationItem<Route>[]
   route: Route
   onNavigate(route: Route): void
+  query: string
+  window: PlaygroundNavigationWindow | undefined
 }>
 
 type NormalizedInfoLine = Readonly<{
@@ -192,7 +216,7 @@ abstract class RetainedPlaygroundSurface extends UiSurface {
 
 abstract class PlaygroundNavigationBaseSurface<Route extends string> extends RetainedPlaygroundSurface {
   #options: NormalizedNavigationOptions<Route>
-  #layout: Readonly<{w: number; h: number; pixelScale: number; font: unknown; itemIds: readonly string[]}> | null = null
+  #layout: Readonly<{w: number; h: number; pixelScale: number; font: unknown; ownerKeys: readonly string[]}> | null = null
   #focusedItemId: string | null
   #focusVisible = false
   readonly #dock: boolean
@@ -201,7 +225,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
     const normalized = normalizeNavigationOptions(options)
     super(dock ? "PlaygroundDockSurface" : `PlaygroundNavigationSurface.${normalized.title}`)
     this.#options = normalized
-    this.#focusedItemId = preferredNavigationFocus(normalized, null)
+    this.#focusedItemId = preferredNavigationFocus(this.#visibleItems(normalized), normalized.route, null)
     this.#dock = dock
   }
 
@@ -213,7 +237,10 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
   setOptions(options: PlaygroundNavigationOptions<Route>): void {
     const next = normalizeNavigationOptions(options)
     const previous = this.#options
-    let changed = !sameIds(previous.items, next.items)
+    let changed = !sameIds(previous.items, next.items) ||
+      previous.query !== next.query ||
+      !sameNavigationWindow(previous.window, next.window) ||
+      !sameStrings(navigationOwnerKeys(previous, this.#dock), navigationOwnerKeys(next, this.#dock))
 
     if (!this.#dock && previous.title !== next.title) {
       this.markOwnerDirty(TITLE_OWNER)
@@ -226,14 +253,15 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       if (before === undefined) continue
       const beforeActive = before.route === previous.route
       const nextActive = item.route === next.route
-      if (before.label !== item.label || before.route !== item.route || before.disabled !== item.disabled || beforeActive !== nextActive) {
+      if (before.label !== item.label || before.route !== item.route || before.disabled !== item.disabled ||
+        before.searchText !== item.searchText || !sameNavigationGroup(before.group, item.group) || beforeActive !== nextActive) {
         this.markOwnerDirty(itemOwnerKey(item.id))
         changed = true
       }
     }
 
     this.#options = next
-    const nextFocus = preferredNavigationFocus(next, this.#focusedItemId)
+    const nextFocus = preferredNavigationFocus(this.#visibleItems(next), next.route, this.#focusedItemId)
     if (this.#setFocus(nextFocus, this.#focusVisible)) changed = true
     if (changed) this.requestRender()
   }
@@ -251,7 +279,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
     const direction = navigationDirection(event.key)
     if (direction !== null) {
       event.preventDefault()
-      const enabled = this.#options.items.filter((item) => !item.disabled)
+      const enabled = this.#visibleItems().filter((item) => !item.disabled)
       let nextFocus: string | null = null
       if (enabled.length > 0) {
         if (direction === "home") nextFocus = enabled[0]!.id
@@ -268,7 +296,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
     }
     if (!isNavigationActivationKey(event.key)) return
     event.preventDefault()
-    if (this.#setFocus(preferredNavigationFocus(this.#options, this.#focusedItemId), true)) this.requestRender()
+    if (this.#setFocus(preferredNavigationFocus(this.#visibleItems(), this.#options.route, this.#focusedItemId), true)) this.requestRender()
     this.#activateFocusedItem()
   }
 
@@ -278,9 +306,10 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
   }
 
   #layoutChanged(): boolean {
+    const ownerKeys = navigationOwnerKeys(this.#options, this.#dock)
     return this.#layout === null || this.#layout.w !== this.rectW || this.#layout.h !== this.rectH ||
       this.#layout.pixelScale !== this.pixelScale || this.#layout.font !== this.font ||
-      !sameStrings(this.#layout.itemIds, this.#options.items.map(({id}) => id))
+      !sameStrings(this.#layout.ownerKeys, ownerKeys)
   }
 
   #reconcileLayout(): void {
@@ -303,7 +332,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       h: this.rectH,
       pixelScale: this.pixelScale,
       font: this.font,
-      itemIds: this.#options.items.map(({id}) => id),
+      ownerKeys: [...frames.keys()],
     }
   }
 
@@ -321,12 +350,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       items: [
         {height: 34, draw: (x, y, w, h) => { frames.set(TITLE_OWNER, {x, y, w, h}) }},
         {height: 16, draw: () => {}},
-        ...this.#options.items.map((item) => ({
-          height: 38,
-          draw: (x: number, y: number, w: number, h: number) => {
-            frames.set(itemOwnerKey(item.id), {x, y, w, h})
-          },
-        })),
+        ...navigationRows(this.#visibleItems(), frames),
       ],
     })
     return frames
@@ -343,7 +367,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       paddingY: 24,
       gap: 10,
       alignItems: "stretch",
-      items: this.#options.items.map((item) => ({
+      items: this.#visibleItems().map((item) => ({
         width: "1fr" as const,
         height: 42,
         draw: (x: number, y: number, w: number, h: number) => {
@@ -365,6 +389,12 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
         variant: "title",
         sx: {textAlign: "center"},
       })
+      return
+    }
+    if (key.startsWith("group:")) {
+      const groupId = groupIdForOwnerKey(key)
+      const group = this.#visibleItems().find((item) => item.group?.id === groupId)?.group
+      if (group !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: group.label, variant: "caption", color: "muted"})
       return
     }
     const id = itemIdForOwnerKey(key)
@@ -390,7 +420,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
   }
 
   #setFocus(id: string | null, visible: boolean): boolean {
-    const nextId = id === null || this.#options.items.some((item) => item.id === id && !item.disabled) ? id : null
+    const nextId = id === null || this.#visibleItems().some((item) => item.id === id && !item.disabled) ? id : null
     const previousId = this.#focusedItemId
     const previousVisual = this.#focusVisible ? previousId : null
     const nextVisual = visible ? nextId : null
@@ -404,8 +434,12 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
   }
 
   #activateFocusedItem(): void {
-    const item = this.#options.items.find(({id, disabled}) => id === this.#focusedItemId && !disabled)
+    const item = this.#visibleItems().find(({id, disabled}) => id === this.#focusedItemId && !disabled)
     if (item !== undefined) this.#options.onNavigate(item.route)
+  }
+
+  #visibleItems(options: NormalizedNavigationOptions<Route> = this.#options): readonly NormalizedNavigationItem<Route>[] {
+    return selectNormalizedNavigationItems(options).items
   }
 }
 
@@ -564,13 +598,65 @@ function normalizeNavigationOptions<Route extends string>(
   options: PlaygroundNavigationOptions<Route>,
 ): NormalizedNavigationOptions<Route> {
   const ids = new Set<string>()
+  const groups = new Map<string, string>()
   const items = options.items.map((item) => {
     if (item.id.length === 0) throw new Error("Playground navigation item id must not be empty")
     if (ids.has(item.id)) throw new Error(`Duplicate playground navigation item id: ${item.id}`)
     ids.add(item.id)
-    return {id: item.id, label: item.label, route: item.route, disabled: item.disabled === true}
+    let group: PlaygroundNavigationGroup | undefined
+    if (item.group !== undefined) {
+      if (item.group.id.length === 0) throw new Error("Playground navigation group id must not be empty")
+      if (item.group.label.trim().length === 0) throw new Error("Playground navigation group label must not be empty")
+      const previous = groups.get(item.group.id)
+      if (previous !== undefined && previous !== item.group.label) {
+        throw new Error(`Playground navigation group label changed for id: ${item.group.id}`)
+      }
+      groups.set(item.group.id, item.group.label)
+      group = Object.freeze({id: item.group.id, label: item.group.label})
+    }
+    return Object.freeze({
+      id: item.id,
+      label: item.label,
+      route: item.route,
+      disabled: item.disabled === true,
+      group,
+      searchText: item.searchText?.trim() ?? "",
+    })
   })
-  return {title: options.title, items, route: options.route, onNavigate: options.onNavigate}
+  let window: PlaygroundNavigationWindow | undefined
+  if (options.window !== undefined) {
+    if (!Number.isInteger(options.window.offset) || options.window.offset < 0) {
+      throw new Error("Playground navigation window offset must be a non-negative integer")
+    }
+    if (!Number.isInteger(options.window.limit) || options.window.limit < 1) {
+      throw new Error("Playground navigation window limit must be a positive integer")
+    }
+    window = Object.freeze({offset: options.window.offset, limit: options.window.limit})
+  }
+  return Object.freeze({
+    title: options.title,
+    items: Object.freeze(items),
+    route: options.route,
+    onNavigate: options.onNavigate,
+    query: normalizeNavigationSearch(options.query ?? ""),
+    window,
+  })
+}
+
+/** Pure filtered and bounded navigation view used by large package catalogs. */
+export function selectPlaygroundNavigationItems<Route extends string>(
+  options: PlaygroundNavigationOptions<Route>,
+): PlaygroundNavigationView<Route> {
+  const view = selectNormalizedNavigationItems(normalizeNavigationOptions(options))
+  const items: PlaygroundNavigationItem<Route>[] = view.items.map((item) => Object.freeze({
+    id: item.id,
+    label: item.label,
+    route: item.route,
+    ...(item.disabled ? {disabled: true} : {}),
+    ...(item.group === undefined ? {} : {group: item.group}),
+    ...(item.searchText.length === 0 ? {} : {searchText: item.searchText}),
+  }))
+  return Object.freeze({total: view.total, offset: view.offset, items: Object.freeze(items)})
 }
 
 function normalizeInfoOptions(options: PlaygroundInfoOptions): NormalizedInfoOptions {
@@ -594,6 +680,14 @@ function itemOwnerKey(id: string): string {
   return `item:${id}`
 }
 
+function groupOwnerKey(id: string): string {
+  return `group:${id}`
+}
+
+function groupIdForOwnerKey(key: string): string {
+  return key.slice("group:".length)
+}
+
 function itemIdForOwnerKey(key: string): string {
   return key.slice("item:".length)
 }
@@ -610,12 +704,74 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 }
 
 function preferredNavigationFocus<Route extends string>(
-  options: NormalizedNavigationOptions<Route>,
+  items: readonly NormalizedNavigationItem<Route>[],
+  route: Route,
   current: string | null,
 ): string | null {
-  if (current !== null && options.items.some(({id, disabled}) => id === current && !disabled)) return current
-  return options.items.find(({route, disabled}) => route === options.route && !disabled)?.id ??
-    options.items.find(({disabled}) => !disabled)?.id ?? null
+  if (current !== null && items.some(({id, disabled}) => id === current && !disabled)) return current
+  return items.find((item) => item.route === route && !item.disabled)?.id ??
+    items.find(({disabled}) => !disabled)?.id ?? null
+}
+
+function selectNormalizedNavigationItems<Route extends string>(
+  options: NormalizedNavigationOptions<Route>,
+): Readonly<{total: number; offset: number; items: readonly NormalizedNavigationItem<Route>[]}> {
+  const filtered = options.query.length === 0
+    ? options.items
+    : options.items.filter((item) => normalizeNavigationSearch([
+      item.label,
+      item.searchText,
+      item.group?.label ?? "",
+    ].join(" ")).includes(options.query))
+  const offset = Math.min(options.window?.offset ?? 0, filtered.length)
+  const limit = options.window?.limit ?? filtered.length
+  return Object.freeze({total: filtered.length, offset, items: Object.freeze(filtered.slice(offset, offset + limit))})
+}
+
+function navigationOwnerKeys<Route extends string>(
+  options: NormalizedNavigationOptions<Route>,
+  dock: boolean,
+): string[] {
+  const keys: string[] = dock ? [] : [TITLE_OWNER]
+  const seenGroupIds = new Set<string>()
+  for (const item of selectNormalizedNavigationItems(options).items) {
+    if (!dock && item.group !== undefined && !seenGroupIds.has(item.group.id)) {
+      seenGroupIds.add(item.group.id)
+      keys.push(groupOwnerKey(item.group.id))
+    }
+    keys.push(itemOwnerKey(item.id))
+  }
+  return keys
+}
+
+function navigationRows<Route extends string>(
+  items: readonly NormalizedNavigationItem<Route>[],
+  frames: Map<string, UiSurfaceRect>,
+): Array<{height: number; draw: (x: number, y: number, w: number, h: number) => void}> {
+  const rows: Array<{height: number; draw: (x: number, y: number, w: number, h: number) => void}> = []
+  const seenGroupIds = new Set<string>()
+  for (const item of items) {
+    if (item.group !== undefined && !seenGroupIds.has(item.group.id)) {
+      seenGroupIds.add(item.group.id)
+      const key = groupOwnerKey(item.group.id)
+      rows.push({height: 20, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
+    }
+    const key = itemOwnerKey(item.id)
+    rows.push({height: 38, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
+  }
+  return rows
+}
+
+function normalizeNavigationSearch(value: string): string {
+  return value.trim().toLocaleLowerCase("ru-RU")
+}
+
+function sameNavigationWindow(left: PlaygroundNavigationWindow | undefined, right: PlaygroundNavigationWindow | undefined): boolean {
+  return left?.offset === right?.offset && left?.limit === right?.limit
+}
+
+function sameNavigationGroup(left: PlaygroundNavigationGroup | undefined, right: PlaygroundNavigationGroup | undefined): boolean {
+  return left?.id === right?.id && left?.label === right?.label
 }
 
 function navigationDirection(key: string): "previous" | "next" | "home" | "end" | null {

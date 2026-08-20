@@ -30,7 +30,6 @@ export function planNodeComponentPlaygroundFrames(
   const group = nodePlaygroundGroup(route)
   if (group === "editor") editor = shell.preview
   else if (group === "socket") sockets = shell.preview
-  else if (shell.compact) detail = shell.preview
   else flexRowCss({
     x: shell.preview.x,
     y: shell.preview.y,

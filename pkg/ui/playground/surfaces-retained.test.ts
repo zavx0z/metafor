@@ -5,6 +5,7 @@ import {
   PlaygroundDockSurface,
   PlaygroundInfoSurface,
   PlaygroundNavigationSurface,
+  selectPlaygroundNavigationItems,
   type PlaygroundNavigationItem,
   type PlaygroundRetainedDiagnostics,
 } from "./surfaces.ts"
@@ -172,6 +173,44 @@ describe("retained @ui/playground surfaces", () => {
       onNavigate: navigate,
     })).toThrow("Duplicate playground navigation item id")
     expect(surface.diagnostics.materializations).toBe(14)
+    surface.dispose()
+  })
+
+  test("filters and bounds a large grouped navigation without materializing the whole catalog", () => {
+    const largeItems: readonly PlaygroundNavigationItem<Route>[] = Array.from({length: 1000}, (_, index) => ({
+      id: `item-${index}`,
+      label: index === 777 ? "Needle component" : `Component ${index}`,
+      route: index % 2 === 0 ? "first" : "second",
+      group: {id: "values", label: "Поля значений"},
+      searchText: index === 777 ? "needle search alias" : "common",
+    }))
+    const view = selectPlaygroundNavigationItems({
+      title: "Каталог",
+      items: largeItems,
+      route: "first",
+      query: "needle",
+      window: {offset: 0, limit: 20},
+      onNavigate() {},
+    })
+    expect(view.total).toBe(1)
+    expect(view.items.map(({id}) => id)).toEqual(["item-777"])
+
+    const surface = new PlaygroundNavigationSurface<Route>({
+      title: "Каталог",
+      items: largeItems,
+      route: "first",
+      window: {offset: 490, limit: 10},
+      onNavigate() {},
+    })
+    surface.attachCanvas(createFakeRuntime())
+    surface.setRect({x: 0, y: 0, w: 260, h: 700}, 0.001, font)
+    expect(surface.diagnostics.owners.map(({key}) => key)).toEqual([
+      "panel",
+      "title",
+      "group:values",
+      ...Array.from({length: 10}, (_, index) => `item:item-${490 + index}`),
+    ])
+    expect(surface.diagnostics.materializations).toBe(13)
     surface.dispose()
   })
 
