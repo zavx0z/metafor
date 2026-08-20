@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settleMs": 150,
+  "steps": [
+    {"kind": "pointer-move", "x": 860, "y": 595},
+    {"kind": "pointer-down", "x": 860, "y": 595, "button": "left"},
+    {"kind": "pointer-up", "x": 860, "y": 595, "button": "left"},
+    {"kind": "settle", "ms": 150},
+    {"kind": "checkpoint", "name": "after-left-step", "dom": true}
+  ]
+}

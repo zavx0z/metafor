@@ -215,6 +215,11 @@ keyboard evidence, а direct CDP/macOS input запрещены. Новый skil
 добавляет fail-closed data-only interaction plan на existing exact target,
 после чего выполняет обязательную IntegerInput standalone+Node live matrix,
 Color drag/marker и moved-Link pointer corridor.
+Skill chain `99514eedc` + live corrections `9079df23d/b3234b8cd/ac0a65e1b`
+теперь реально dispatch-ит background input: Integer left step `3→2`, route
+preserved, console0. Hover checkpoints выявили новый production UI-015.8.6:
+retained hover state меняется, но exact owner не rematerialize-ится, поэтому
+arrows отсутствуют. UI-015.8.6 IN_PROGRESS до продолжения interaction matrix.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

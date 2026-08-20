@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "settleMs": 120,
+  "steps": [
+    {"kind": "pointer-move", "x": 860, "y": 590},
+    {"kind": "settle", "ms": 120},
+    {"kind": "checkpoint", "name": "hover-left", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-hover-left.png"},
+    {"kind": "pointer-move", "x": 925, "y": 590},
+    {"kind": "settle", "ms": 120},
+    {"kind": "checkpoint", "name": "hover-center", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-hover-center.png"},
+    {"kind": "pointer-move", "x": 991, "y": 590},
+    {"kind": "settle", "ms": 120},
+    {"kind": "checkpoint", "name": "hover-right", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-hover-right.png"},
+    {"kind": "pointer-move", "x": 1100, "y": 590},
+    {"kind": "checkpoint", "name": "final", "dom": true}
+  ]
+}

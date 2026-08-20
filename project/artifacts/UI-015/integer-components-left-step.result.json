@@ -1,0 +1,18 @@
+{
+  "sourceCommit": "d300a77197f1cab505e08045e36e0eac0aa10ed5",
+  "interactionSkillCommit": "b3234b8cde36e200efc810d3a119fc47001e8b15",
+  "selector": "components",
+  "pid": 45132,
+  "targetId": "D0775AE44CFF0E299A0C28EECB3872D2",
+  "route": "integer-input/basic/labeled",
+  "viewport": [1920, 1088, 2],
+  "controlRectCss": {"x": 852.5, "y": 582.92, "width": 146, "height": 24},
+  "scenario": "left-side click",
+  "initialValue": 3,
+  "finalValue": 2,
+  "routePreserved": true,
+  "consoleErrors": [],
+  "focusEmulation": {"requested": true, "enabledDuringPlan": true, "restored": true},
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}

@@ -235,6 +235,24 @@
   Scalar Node показывает тот же public IntegerInput через Field. Static reviewer
   PASS; idle кадр не доказывает hover arrows/interaction matrix.
 
+## UI-015.8.6 — Retained Integer hover RED
+
+* Source: Components `d300a7719`, PID `45132`, target `D0775…`, route
+  `/integer-input/basic/labeled`, native `1920×1088 @2`; interaction skill
+  `b3234b8cd`/barrier `ac0a65e1b`.
+* `integer-components-hover.plan.json` — data-only left/center/right hover plan.
+* `integer-components-hover-red.png` — `267259` bytes, SHA-256
+  `c93e5529e111211aaa2154b6b4a2bc6fe94720818a7db445ae3b99137131c398`.
+* Ожидание: обе arrows видимы при hover; только active left/center/right zone
+  меняет fill; value остаётся `3`.
+* Факт: accepted PNG byte-identical idle capture, arrows отсутствуют. Exact
+  encoded control bbox подтверждает pointer внутри control; это retained redraw
+  RED, не coordinate/tooling failure.
+* `integer-components-left-step.plan.json` и
+  `integer-components-left-step.result.json` доказывают тот же hit path:
+  left click `3→2`, route preserved, console `0`, focus emulation restored.
+  Synthetic evidence не является owner acceptance.
+
 ## UI-015.5.3 — Linked Node measurement RED
 
 * Источник: owner live screenshot, 2026-08-20, перенесён из temporary path до
