@@ -79,6 +79,11 @@
 * Наблюдение: expanded branches получают selected blue fill; branch/leaf labels
   centered, disclosure встроен в text, indent отсутствует, каждая row является
   отдельным rounded island. Это RED baseline, не acceptance UI-015.6.
+* Primary owner reference: `workbench-accordion-reference.png`, `598×1100`,
+  `293480` bytes, SHA-256
+  `4bc3c4bde84a06c178ccc6a4ece645dc793309afab90af61900c1c31e5755e45`.
+  Кадр задаёт Blender Properties/Preferences accordion: disclosure header и
+  expanded section content. Outliner не является visual owner этого sidebar.
 
 ## UI-015.7.5 — Node Select overlay RED baseline
 
@@ -98,5 +103,14 @@
 * Наблюдение: preview показывает сплошную белую plane без X/Y/Z/value; blue
   `XYZ` снизу является variant dock, не control. Кадр предшествует clean reload
   final commit `f1a6a75c1` и поэтому является RED baseline, а не verdict commit.
+
+## UI-015.2.1 — Button size RED baseline
+
+* Источник: owner live screenshot, route `/button/sizes/large`, 2026-08-20.
+* Файл: `components-button-size-red.png`, `3840×2400`, `461848` bytes,
+  SHA-256 `7b6ad529b6bd1d61b5ff2a26df7e327c3a0e02ff2b513965de272eef8685dd08`.
+* Наблюдение: `size:"large"` увеличивает text, но visible Button остаётся
+  fixed `22h`; small/medium/large не образуют разные silhouettes. Это public
+  geometry RED, не допустимая Blender divergence.
 
 Automated captures prove exact canvas state, not explicit owner acceptance.
