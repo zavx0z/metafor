@@ -84,7 +84,8 @@ package/live evidence. Текущий срез UI-010.7 добавляет publi
 UI-010.8 story/live `5df1327c5` завершила completeness `7/7`. Следующий public
 leaf ещё не зарегистрирован. Текущий UI-010.9 добавляет owner-controlled
 CollectionInput reorder commit-ом `2404e88ac`; зависимая UI-010.10 story/live
-сейчас обновляет exact source/events без изменения completeness `7/7`.
+source `7cae3d28c`, DOM/console готовы, но current non-black capture заблокирован
+hidden WebGPU target; guard сохранил прежний artifact без перезаписи.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один

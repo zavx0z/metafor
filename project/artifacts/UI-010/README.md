@@ -57,3 +57,9 @@
 * Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `254ea221ee3040a40a0fe82c47b1b77bd83b360466fd69991bd356cd78872277`.
+
+UI-010.10 reorder follow-up не заменяет этот кадр: на loaded PID `31537` exact
+hidden target после двух bounded probes вернул `starting-or-idle-black`,
+`written:false`, nonBlackPixels `0`. Guard не перезаписал файл; SHA выше остался
+тем же. Поэтому PNG доказывает UI-010.8 add/remove presentation, но не выдаётся
+за current visual evidence operators `↑/↓`.
