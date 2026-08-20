@@ -108,8 +108,9 @@ lifecycle ownership of that origin.
 RGB/alpha probe. A first `starting-or-idle-black` snapshot is rejected, then the
 same target receives exactly one same-route `Page.navigate` plus ready wait to
 create renderer activity. During that retry only, background focus emulation
-removes renderer throttling; two animation frames and one final task are awaited
-within a two-second bound, then emulation is restored to `false` in `finally`.
+removes renderer throttling; a generic `resize` event requests the package
+renderer, then two animation frames and a fixed 250 ms settle are awaited within
+a two-second bound. Emulation is restored to `false` in `finally`.
 A non-black second snapshot is written atomically and reports `attempts:2`, the
 rejected first probe, and
 `rendererActivity:"same-route-navigation"`. A second black snapshot returns

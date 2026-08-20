@@ -522,6 +522,7 @@ async function awaitCanvasRendererActivity(cdp: CdpConnection, config: TargetCon
   try {
     await navigateAndWait(cdp, config.targetUrl, config.ready)
     const activity = await evaluate<{frames: number; timedOut: boolean}>(cdp, `new Promise((resolve) => {
+      window.dispatchEvent(new Event("resize"))
       let settled = false
       let frames = 0
       const finish = (timedOut) => {
@@ -534,7 +535,7 @@ async function awaitCanvasRendererActivity(cdp: CdpConnection, config: TargetCon
       const step = () => {
         frames++
         if (frames < 2) requestAnimationFrame(step)
-        else setTimeout(() => finish(false), 0)
+        else setTimeout(() => finish(false), 250)
       }
       requestAnimationFrame(step)
     })`, true)
