@@ -20,7 +20,9 @@
   "dependencies": {
     "@metafor/engine": "workspace:*",
     "@ui/components": "workspace:*",
-    "@ui/elements": "workspace:*",
+    "@ui/elements": "workspace:*"
+  },
+  "devDependencies": {
     "@ui/playground": "workspace:*"
   }
 }

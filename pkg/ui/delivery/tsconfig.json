@@ -1,0 +1,7 @@
+{
+  "extends": "../../../tsconfig.json",
+  "include": [
+    "fixtures/**/*.ts",
+    "../elements/wgsl-shim.d.ts"
+  ]
+}

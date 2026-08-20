@@ -7,7 +7,20 @@
   "main": "index.ts",
   "types": "index.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./button": "./Button.ts",
+    "./field": "./Field.ts",
+    "./pane": "./Pane.ts",
+    "./checkbox": "./Checkbox.ts",
+    "./badge": "./Badge.ts",
+    "./typography": "./Typography.ts",
+    "./text-field": "./TextField.ts",
+    "./switcher": "./Switcher.ts",
+    "./progress-checkbox": "./ProgressCheckbox.ts",
+    "./slider-control": "./SliderControl.ts",
+    "./divider": "./Divider.ts",
+    "./list": "./List.ts",
+    "./table": "./Table.ts"
   },
   "scripts": {
     "playground": "bun playground/server.ts",
