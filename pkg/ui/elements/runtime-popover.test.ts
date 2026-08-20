@@ -37,4 +37,10 @@ describe("UiRuntime popover dispatch", () => {
 
     expect(events).toEqual(["first:outside", "second:outside"])
   })
+
+  test("routes mouse and touch Surface targets through the same chain-aware helper", async () => {
+    const source = await Bun.file(new URL("./runtime.ts", import.meta.url)).text()
+    expect(source.match(/dismissOtherSurfaceLayers\(this\.#surfaces, slot\.surface\)/g)).toHaveLength(2)
+    expect(source.match(/dismissOtherSurfaceLayers\(this\.#surfaces\)/g)?.length).toBeGreaterThanOrEqual(2)
+  })
 })

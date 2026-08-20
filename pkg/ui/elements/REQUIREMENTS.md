@@ -48,6 +48,9 @@ FlexBox единолично вычисляет local child slots, а child то
 10. `popover` владеет только generic disclosure lifecycle: controlled либо
     uncontrolled open, stable key, одна active root chain на `UiRuntime`,
     outside/Escape dismissal и viewport-bounded bottom-to-top placement.
+    `parentKey` может продолжить ту же chain на другой Surface: pointer target
+    любой её Surface сохраняет root/descendants, а target вне chain закрывает
+    descendants и root ровно по одному разу до передачи собственного hit.
     Trigger/content рисуются caller-ом из обычных Elements; Component semantics
     в `popover` запрещены. Detached Surface остаётся отдельным safe scope.
 11. Low-level `UiSurface`/Engine drawing capability может иметь не-HTML имя,

@@ -1,5 +1,12 @@
 import type {UiSurfaceRect} from "./runtime.ts"
 import type {DismissReason, UiSurface} from "./surface.ts"
+import {
+  activatePopover,
+  deactivatePopover,
+  dismissPopoverChain,
+  popoverChainRegions,
+  type ActivePopover,
+} from "./popover-owner.ts"
 
 export type PopoverSize = Readonly<{width: number; height: number}>
 
@@ -24,21 +31,7 @@ export type PopoverProps = Readonly<{
   content(rect: PopoverPlacement, context: PopoverContext): void
 }>
 
-type ActivePopover = {
-  surface: UiSurface
-  key: string
-  parentKey?: string
-  regions: readonly UiSurfaceRect[]
-  dismiss(reason: DismissReason): void
-}
-
-type ActivePopoverChain = {
-  rootKey: string
-  entries: Map<string, ActivePopover>
-}
-
 const internalOpenKeys = new WeakMap<UiSurface, Set<string>>()
-const activeChains = new WeakMap<object, ActivePopoverChain>()
 
 /** HTML-like disclosure owner with one active popup chain per attached runtime. */
 export function popover(
@@ -98,10 +91,7 @@ export function popover(
   )
   regions = [anchor, placement]
   activatePopover(scope, activeRecord())
-  const chain = activeChains.get(scope)
-  const chainRegions = chain === undefined
-    ? regions
-    : [...chain.entries.values()].filter((entry) => entry.surface === surface).flatMap((entry) => entry.regions)
+  const chainRegions = popoverChainRegions(scope, surface, regions)
   surface.dismissableLayer({
     key,
     regions: chainRegions,
@@ -146,45 +136,6 @@ function internalOpenKeysFor(surface: UiSurface): Set<string> {
     internalOpenKeys.set(surface, keys)
   }
   return keys
-}
-
-function activatePopover(scope: object, next: ActivePopover): void {
-  let chain = activeChains.get(scope)
-  const parentInChain = next.parentKey !== undefined && chain?.entries.has(next.parentKey) === true
-  if (chain === undefined || (!parentInChain && chain.rootKey !== next.key)) {
-    if (chain !== undefined) dismissPopoverChain(scope, "replaced")
-    chain = {rootKey: next.key, entries: new Map()}
-    activeChains.set(scope, chain)
-  }
-  chain.entries.set(next.key, next)
-}
-
-function deactivatePopover(scope: object, key: string): void {
-  const chain = activeChains.get(scope)
-  if (chain === undefined || !chain.entries.has(key)) return
-  if (chain.rootKey === key) {
-    activeChains.delete(scope)
-    return
-  }
-  const remove = new Set([key])
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const entry of chain.entries.values()) {
-      if (entry.parentKey !== undefined && remove.has(entry.parentKey) && !remove.has(entry.key)) {
-        remove.add(entry.key)
-        changed = true
-      }
-    }
-  }
-  for (const entryKey of remove) chain.entries.delete(entryKey)
-}
-
-function dismissPopoverChain(scope: object, reason: DismissReason): void {
-  const chain = activeChains.get(scope)
-  if (chain === undefined) return
-  activeChains.delete(scope)
-  for (const entry of [...chain.entries.values()].reverse()) entry.dismiss(reason)
 }
 
 function finiteNonNegative(value: number): number {

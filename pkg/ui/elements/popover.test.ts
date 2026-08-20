@@ -9,6 +9,8 @@ import {
   type DismissableLayerOptions,
 } from "./surface.ts"
 import type {UiSurfaceRect} from "./runtime.ts"
+import {dismissOtherSurfaceLayers} from "./runtime.ts"
+import {surfacesShareActivePopoverChain} from "./popover-owner.ts"
 
 class RecordingSurface extends BaseUiSurface {
   readonly scope: object
@@ -37,6 +39,22 @@ class RecordingSurface extends BaseUiSurface {
     this.keyedRenders.push(key)
   }
 
+  protected render(): void {}
+}
+
+class ChainSurface extends BaseUiSurface {
+  readonly scope: object
+  readonly keyedRenders: string[] = []
+
+  constructor(scope: object) {
+    super({bgColor: null, borderColor: null})
+    this.scope = scope
+  }
+
+  override interactionScope(): object { return this.scope }
+  override interactionViewport(): UiSurfaceRect { return {x: 0, y: 0, w: 300, h: 220} }
+  override requestKeyedRender(key: string): void { this.keyedRenders.push(key) }
+  override requestRender(): void {}
   protected render(): void {}
 }
 
@@ -71,6 +89,106 @@ function drawPopover(
 }
 
 describe("Elements popover", () => {
+  test("preserves a root A plus child B chain across Surfaces and dismisses it from C exactly once", () => {
+    const scope = {}
+    const root = new ChainSurface(scope)
+    const child = new ChainSurface(scope)
+    const outside = new ChainSurface(scope)
+    const rootEvents: boolean[] = []
+    const childEvents: boolean[] = []
+    let childTarget = 0
+    let outsideTarget = 0
+    popover(root, 10, 10, 80, 22, {
+      key: "root-a",
+      open: true,
+      contentSize: {width: 120, height: 80},
+      onOpenChange: (open) => rootEvents.push(open),
+      trigger() {},
+      content() {},
+    })
+    popover(child, 20, 20, 70, 22, {
+      key: "child-b",
+      parentKey: "root-a",
+      open: true,
+      contentSize: {width: 100, height: 60},
+      onOpenChange: (open) => childEvents.push(open),
+      trigger() {},
+      content(rect) {
+        child.hit(rect.x, rect.y, rect.w, rect.h, () => { childTarget += 1 })
+      },
+    })
+    outside.hit(0, 0, 100, 100, () => { outsideTarget += 1 })
+
+    expect(surfacesShareActivePopoverChain(root, child)).toBeTrue()
+    dismissOtherSurfaceLayers([{surface: root}, {surface: child}, {surface: outside}], child)
+    const pointer = {button: 0, preventDefault() {}} as MouseEvent
+    child.onPointerDown(pointer, 30, 50)
+    child.onPointerUp(pointer, 30, 50)
+    expect(childTarget).toBe(1)
+    expect(rootEvents).toEqual([])
+    expect(childEvents).toEqual([])
+
+    dismissOtherSurfaceLayers([{surface: root}, {surface: child}, {surface: outside}], outside)
+    outside.onPointerDown(pointer, 10, 10)
+    outside.onPointerUp(pointer, 10, 10)
+    expect(outsideTarget).toBe(1)
+    expect(childEvents).toEqual([false])
+    expect(rootEvents).toEqual([false])
+  })
+
+  test("dismisses a cross-Surface controlled chain by Escape and preserves same-Surface nesting", () => {
+    const scope = {}
+    const root = new ChainSurface(scope)
+    const child = new ChainSurface(scope)
+    const rootEvents: boolean[] = []
+    const childEvents: boolean[] = []
+    popover(root, 10, 10, 80, 22, {
+      key: "escape-root",
+      open: true,
+      contentSize: {width: 120, height: 80},
+      onOpenChange: (open) => rootEvents.push(open),
+      trigger() {},
+      content() {},
+    })
+    popover(child, 20, 20, 70, 22, {
+      key: "escape-child",
+      parentKey: "escape-root",
+      open: true,
+      contentSize: {width: 100, height: 60},
+      onOpenChange: (open) => childEvents.push(open),
+      trigger() {},
+      content() {},
+    })
+    expect(child.dismissTopLayer("escape")).toBeTrue()
+    expect(childEvents).toEqual([false])
+    expect(rootEvents).toEqual([false])
+
+    const same = new ChainSurface({})
+    const sameEvents: string[] = []
+    popover(same, 10, 10, 80, 22, {
+      key: "same-root",
+      open: true,
+      contentSize: {width: 140, height: 90},
+      onOpenChange: (open) => sameEvents.push(`root:${open}`),
+      trigger() {},
+      content() {},
+    })
+    popover(same, 30, 40, 70, 22, {
+      key: "same-child",
+      parentKey: "same-root",
+      open: true,
+      contentSize: {width: 100, height: 60},
+      onOpenChange: (open) => sameEvents.push(`child:${open}`),
+      trigger() {},
+      content() {},
+    })
+    const pointer = {button: 0, preventDefault() {}} as MouseEvent
+    same.onPointerDown(pointer, 15, 15)
+    expect(sameEvents).toEqual([])
+    same.onPointerDown(pointer, 260, 200)
+    expect(sameEvents).toEqual(["child:false", "root:false"])
+  })
+
   test("owns uncontrolled open/reclick/outside/Escape without duplicate close callbacks", () => {
     const surface = new RecordingSurface()
     const events: boolean[] = []

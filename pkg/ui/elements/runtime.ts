@@ -15,6 +15,7 @@ import {Color, GridHelper, Matrix4, Object3D, Quaternion, Raycaster, Renderer, S
 import {HUD} from "./targets/HUD.ts"
 import {UIDisplay} from "./targets/UIDisplay.ts"
 import {VirtualInput, type VirtualInputSoftKeyboardMode} from "./virtual-input.ts"
+import {surfacesShareActivePopoverChain, type PopoverChainSurface} from "./popover-owner.ts"
 import {handleActiveInputKey, insertActiveInputText, surfaceHasActiveInput} from "./input.ts"
 
 export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
@@ -96,6 +97,7 @@ export interface UiSurfaceNode {
   setFramebufferClipSpace?(space: "display" | "screen"): void
   setFramebufferDisplayId?(displayId: UiDisplayId): void
   onPointerLeave?(): void
+  interactionScope?(): object
   dismissTopLayer?(reason: "outside" | "escape"): boolean
   setActive?(active: boolean): void
   onActivate?(): void
@@ -2280,9 +2282,15 @@ export function dismissOtherSurfaceLayers(
   const visited = new Set<UiSurfaceNode>()
   for (const {surface} of slots) {
     if (surface === target || visited.has(surface)) continue
+    if (target !== undefined && hasPopoverInteractionScope(target) && hasPopoverInteractionScope(surface) &&
+      surfacesShareActivePopoverChain(surface, target)) continue
     visited.add(surface)
     surface.dismissTopLayer?.("outside")
   }
+}
+
+function hasPopoverInteractionScope(surface: UiSurfaceNode): surface is UiSurfaceNode & PopoverChainSurface {
+  return surface.interactionScope !== undefined
 }
 
 type UiSurfaceForInput = Parameters<typeof handleActiveInputKey>[0]
