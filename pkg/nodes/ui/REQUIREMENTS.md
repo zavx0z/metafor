@@ -54,6 +54,9 @@ format и автоматическое размещение принадлежа
    HTML-подобные `@ui/elements` используются для layout/chrome, а Node-specific
    direct drawing разрешён Socket, Link и внешней scene geometry; Node не
    реализует собственные IconButton, ControlGroup, picker или Field input.
+9. Link сохраняет утверждённую ортогональную route geometry вместо Blender
+   Bezier. Это исключение не меняет Blender-law для thickness, colors,
+   hover/selected/invalid states, exact Socket attachment и interaction.
 
 ## Blender presets
 
@@ -78,6 +81,8 @@ format и автоматическое размещение принадлежа
    нейтральна; selection не меняет border, а окрашивает тень в прозрачный
    оттенок фактического header. Тень непрерывно наследует scale retained Node
    parent и не запускает отдельный blur-pass при pan/zoom.
+8. Node header radius/collapse/selection не являются project divergence и
+   сверяются с exact Blender 4.5.5 capture/source.
 
 ## View и compositing
 

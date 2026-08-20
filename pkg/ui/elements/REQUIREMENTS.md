@@ -30,9 +30,10 @@ FlexBox единолично вычисляет local child slots, а child то
 5. Control height/radius/gap/border, row rhythm, panel/header metrics и
    separators имеют одного shared Elements owner. Components и Workbench не
    вводят собственные несовместимые regular/compact shape tokens.
-6. Ранее явно принятые project divergences сохраняются: общий Switcher вместо
-   checkbox, округлённая Node header, ортогональные Links и project font. Они не
-   разрешают переносить pill/card форму на остальные controls и panels.
+6. Заранее разрешены ровно два project divergence: project font и
+   ортогональная route geometry Links. Switcher, округлённая Node header и иные
+   прежние отличия автоматически не сохраняются. Link thickness/colors,
+   hover/selected/invalid, socket attachment и interaction следуют Blender.
 7. Каждый visual migration slice сравнивается side-by-side с exact local
    Blender catalog/reference при сопоставимом масштабе. Unit tests и isolated
    PNG не заменяют это сравнение или owner acceptance.

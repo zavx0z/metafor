@@ -114,8 +114,8 @@ control нельзя опустить в Elements только ради повт
 3. Blender задаёт проверяемое поведение, состав, форму, группировку, состояния,
    пропорции, base palette и material states controls в обеих density. Project
    font остаётся MetaFor; semantic type/status colors получают явное
-   Blender-role mapping. Boolean сохраняет принятый `Switcher` вместо Blender
-   checkbox.
+   Blender-role mapping. Boolean и прочие controls не сохраняют прежнее
+   отличие без отдельного нового owner decision.
 4. Размеры, padding, row rhythm и положение частей сверяются по точному Blender
    4.5.5 reference при сопоставимом масштабе, а не подбираются по fixture.
 5. Context search, external picker actions и изменение collection передаются
