@@ -96,7 +96,8 @@ controls ждут UI-015 shape foundation, чтобы не продолжать 
 сохраняет palette/font MetaFor, но переводит Elements, Components, Fields и
 Workbench на Blender 4.5.5 composition/form/rhythm. Текущий срез измеряет exact
 reference и уже ввёл Elements shape owner `af5ae43a8`; UI-015.2 подключает его
-к Input/Button primitive chrome и equal-scale stories.
+к Input/Button primitive chrome commit-ом `e6f7669bf` с before/after evidence.
+Текущий UI-015.3 переводит scalar Components и regular Field rows.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
