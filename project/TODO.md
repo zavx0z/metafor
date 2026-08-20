@@ -83,7 +83,8 @@ public retained shell. Desktop/mobile proof завершён; отдельным
 
 [`UI-006 — Обновлять содержимое маршрута и показывать имя пакета`](tasks/UI-006.md)
 исправляет stale Node canvas после client-side route transition, затем приводит
-HTML titles всех package playground-ов к точным package names.
+HTML titles всех package playground-ов к точным package names. Implementation
+готова; остаётся owner-visible клик по трём Node sections без reload.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
