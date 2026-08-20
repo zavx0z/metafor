@@ -107,9 +107,12 @@ Baseline на current Components Workbench подтвердил horizontal Vecto
 Grouped source commit `14f440899` получил ownership PASS, но UI-015.5.1
 исправляет active-cell inset, tooltip cursor и завышенные Matrix/Collection
 reference claims до visual acceptance.
-Параллельный live audit Path/Reference/Color выявил текстовый `…`, missing
-resource/picker actions и closed-only ColorInput; UI-015.7 доводит их до exact
-catalog composition перед общей matrix.
+UI-015.7 source checkpoint `13ac398d1` правильно разделил Engine low-level
+picker plane и Components HSVA/popup owner, но independent Blender review
+оставил composition/interaction незавершёнными. UI-015.7.1 после текущего
+UI-015.8.2 source checkpoint соединяет Path/Reference в один ControlGroup,
+разделяет compact и expanded ColorInput, исправляет exact checker material и
+добавляет общий single-chain popup lifecycle с outside/Escape/viewport flip.
 Owner отменил сохранение MetaFor palette: UI-015.8 переводит base colors и
 material states на Blender 4.5.5 по mapping от направленного Blender UI
 помощника. UI-015.5/.7 source сохранён на pause до этого mapping.
