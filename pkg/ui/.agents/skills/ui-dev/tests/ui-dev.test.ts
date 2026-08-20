@@ -150,6 +150,31 @@ describe("ui-dev registry", () => {
     expect(source).toContain('("Performance.getMetrics")')
     expect(source).toContain('("Runtime.getHeapUsage")')
   })
+
+  test("keeps interaction plans data-only, exact-target and evidence fail-closed", async () => {
+    const source = await readFile(browser, "utf8")
+    const interaction = await readFile(join(skillRoot, "scripts/interaction-plan.ts"), "utf8")
+    expect(source).toContain('"profile", "interact"')
+    expect(source).toContain('selectTarget(config, action === "open", options.targetId, cdpPort)')
+    expect(source.indexOf("interactionPlan = await loadInteractionPlan"))
+      .toBeLessThan(source.indexOf("const selected = await selectTarget"))
+    expect(source).toContain("validateInteractionInvocation({")
+    expect(source).toMatch(/async function runInteraction[\s\S]*createConsoleCollector\(cdp\)[\s\S]*executeInteractionPlan\(plan[\s\S]*captureCanvas\(cdp, config, step.canvas, false\)/)
+    expect(source).toContain("const errors = consoleErrors(collector.entries)")
+    expect(source).toContain('outcome: failure === null ? "passed" : "failed"')
+    expect(source).toContain('if (result.outcome !== "passed") process.exitCode = 1')
+    for (const forbidden of [
+      "Runtime.evaluate",
+      "Page.navigate",
+      "Target.createTarget",
+      "Page.bringToFront",
+      "new Function",
+      "eval(",
+    ]) expect(interaction).not.toContain(forbidden)
+    expect(interaction).toContain('host.send("Input.dispatchMouseEvent"')
+    expect(interaction).toContain('host.send("Input.dispatchKeyEvent"')
+    expect(interaction).toContain('host.send("Input.insertText"')
+  })
 })
 
 describe("ui-dev lifecycle dispatcher", () => {

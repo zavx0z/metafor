@@ -74,7 +74,7 @@ restored public-shell playground on its package contour.
 ## Route detail only when needed
 
 - For lifecycle, route-specific target selection, DOM/console/canvas evidence,
-  mobile restore, or Node touch checks, read
+  live pointer/keyboard plans, mobile restore, or Node touch checks, read
   [references/playgrounds.md](references/playgrounds.md).
 - For CPU/frame/heap evidence or external WebGPU Inspector routing, read
   [references/profiling.md](references/profiling.md).
@@ -96,6 +96,11 @@ origin has no page target. Multiple existing targets are an explicit ambiguity:
 the helper does not choose or close them silently. `targets` lists candidates,
 `--target-id` selects one explicitly, and `close --target-id` is permitted only
 for an exact duplicate known to have been created by the current task.
+
+Run `interact` only after the required source-fresh restart and explicit reload
+of an existing exact target. Supply a versioned JSON data plan, explicit route
+and target ID; never encode JavaScript in the plan. Treat its mouse/keyboard
+events as synthetic background evidence, not physical-device or owner proof.
 
 ## Evidence boundary
 

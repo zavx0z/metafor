@@ -1,11 +1,18 @@
 #!/usr/bin/env bun
 
-import {join, resolve} from "node:path"
+import {isAbsolute, join, resolve} from "node:path"
 import {
   acceptCanvasEvidence,
   type CanvasEvidence,
   type RawCanvasSnapshot,
 } from "./canvas-evidence.ts"
+import {
+  assertInteractionEvidence,
+  executeInteractionPlan,
+  parseInteractionPlan,
+  validateInteractionInvocation,
+  type InteractionPlan,
+} from "./interaction-plan.ts"
 import {playgroundTargetUrl} from "./target-url.ts"
 
 type JsonObject = Record<string, unknown>
@@ -64,6 +71,7 @@ type Options = Readonly<{
   output?: string
   outputDir?: string
   canvasSelector?: string
+  plan?: string
   durationMs: number
   frames: number
 }>
@@ -77,10 +85,10 @@ type ConsoleEntry = Readonly<{
 }>
 
 const [action, checkoutInput, selectorOrUrl, ...optionArgs] = Bun.argv.slice(2)
-const actions = new Set(["targets", "target", "open", "close", "reload", "dom", "console", "canvas", "viewports", "touch", "profile"])
+const actions = new Set(["targets", "target", "open", "close", "reload", "dom", "console", "canvas", "viewports", "touch", "profile", "interact"])
 
 if (!actions.has(action) || !checkoutInput || !selectorOrUrl) {
-  fail("usage: ui-browser.ts {targets|target|open|close|reload|dom|console|canvas|viewports|touch|profile} <checkout> <selector|exact-url> [options]")
+  fail("usage: ui-browser.ts {targets|target|open|close|reload|dom|console|canvas|viewports|touch|profile|interact} <checkout> <selector|exact-url> [options]")
 }
 
 const checkout = resolve(checkoutInput)
@@ -90,6 +98,16 @@ const registry = await Bun.file(join(import.meta.dir, "playgrounds.json")).json(
 const config = resolveTargetConfig(registry, checkout, selectorOrUrl, options)
 const cdpPort = Number(Bun.env.UI_DEV_CDP_PORT ?? 9222)
 if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65535) fail("UI_DEV_CDP_PORT must be 1..65535")
+let interactionPlan: InteractionPlan | null = null
+if (action === "interact") {
+  if (config.selector === null) fail("interact requires a registry selector")
+  if (options.route === undefined) fail("interact requires --route")
+  if (options.targetId === undefined) fail("interact requires --target-id")
+  interactionPlan = await loadInteractionPlan(
+    options.plan ?? fail("interact requires --plan <absolute-or-checkout-relative-json>"),
+    checkout,
+  )
+}
 
 if (action === "targets") {
   output({action, checkout, selector: config.selector, origin: config.origin, targets: await candidateTargets(config, cdpPort)})
@@ -103,6 +121,15 @@ if (action === "close") {
 
 const selected = await selectTarget(config, action === "open", options.targetId, cdpPort)
 const target = selected.target
+if (action === "interact") {
+  validateInteractionInvocation({
+    selector: config.selector,
+    route: options.route,
+    targetId: options.targetId,
+    targetUrl: config.targetUrl,
+    currentUrl: target.url,
+  })
+}
 if (action === "target") output({action, ...targetResult(config, target), currentUrl: target.url})
 else await withPage(target, async (cdp) => {
   await setFocusEmulation(cdp, false)
@@ -138,6 +165,11 @@ else await withPage(target, async (cdp) => {
     output(await runTouch(cdp, config, target))
   } else if (action === "profile") {
     output(await runProfile(cdp, config, target, options.frames))
+  } else if (action === "interact") {
+    await waitReady(cdp, config.ready)
+    const result = await runInteraction(cdp, config, target, interactionPlan ?? fail("interaction plan was not loaded"))
+    output(result)
+    if (result.outcome !== "passed") process.exitCode = 1
   }
 })
 
@@ -147,6 +179,7 @@ function parseOptions(args: readonly string[]): Options {
   let outputPath: string | undefined
   let outputDir: string | undefined
   let canvasSelector: string | undefined
+  let plan: string | undefined
   let durationMs = 1000
   let frames = 60
   for (let index = 0; index < args.length; index++) {
@@ -158,12 +191,27 @@ function parseOptions(args: readonly string[]): Options {
     else if (key === "--output") outputPath = value
     else if (key === "--output-dir") outputDir = value
     else if (key === "--canvas-selector") canvasSelector = value
+    else if (key === "--plan") plan = value
     else if (key === "--duration-ms") durationMs = positiveInteger(value, key)
     else if (key === "--frames") frames = positiveInteger(value, key)
     else fail(`unknown option: ${key}`)
     index++
   }
-  return {route, targetId, output: outputPath, outputDir, canvasSelector, durationMs, frames}
+  return {route, targetId, output: outputPath, outputDir, canvasSelector, plan, durationMs, frames}
+}
+
+async function loadInteractionPlan(path: string, checkoutRoot: string): Promise<InteractionPlan> {
+  const planPath = isAbsolute(path) ? path : resolve(checkoutRoot, path)
+  const file = Bun.file(planPath)
+  if (!await file.exists()) throw new Error(`interaction plan does not exist: ${planPath}`)
+  if (file.size < 1 || file.size > 65_536) throw new Error(`interaction plan must contain 1..65536 bytes: ${planPath}`)
+  let value: unknown
+  try {
+    value = JSON.parse(await file.text())
+  } catch (error) {
+    throw new Error(`interaction plan is not valid JSON: ${errorText(error)}`)
+  }
+  return parseInteractionPlan(value)
 }
 
 function positiveInteger(value: string, label: string): number {
@@ -746,6 +794,91 @@ async function runTouch(cdp: CdpConnection, config: TargetConfig, target: Target
   }
   if (failure !== null) throw failure
   return result
+}
+
+async function runInteraction(
+  cdp: CdpConnection,
+  config: TargetConfig,
+  target: Target,
+  plan: InteractionPlan,
+): Promise<JsonObject> {
+  const initial = await readDom(cdp, config.canvas.selector)
+  const inner = initial.inner as number[] | undefined
+  if (!inner || !Number.isFinite(inner[0]) || !Number.isFinite(inner[1])) {
+    throw new Error("interaction target is missing viewport metrics")
+  }
+  const collector = await createConsoleCollector(cdp)
+  const captures: CanvasEvidence[] = []
+  let failure: unknown = null
+  let checkpoints: readonly unknown[] = []
+  try {
+    const execution = await executeInteractionPlan(plan, {
+      viewport: {width: inner[0]!, height: inner[1]!},
+      async send(method, params) {
+        await cdp.send(method, params)
+      },
+      async settle(ms) {
+        await Bun.sleep(ms)
+      },
+      async checkpoint(step) {
+        const checkpoint: JsonObject = {name: step.name}
+        if (step.dom) checkpoint.dom = await readDom(cdp, config.canvas.selector)
+        if (step.canvas !== undefined) {
+          const capture = await captureCanvas(cdp, config, step.canvas, false)
+          captures.push(capture)
+          checkpoint.canvas = capture
+          if (!capture.written) throw new CanvasEvidenceRejected(capture)
+        }
+        return checkpoint
+      },
+    })
+    checkpoints = execution.checkpoints
+  } catch (error) {
+    failure = error
+  }
+
+  let final: JsonObject | null = null
+  try {
+    final = await readDom(cdp, config.canvas.selector)
+  } catch (error) {
+    failure = failure ?? error
+  } finally {
+    collector.stop()
+  }
+  const errors = consoleErrors(collector.entries)
+  const routePreserved = initial.url === config.targetUrl && final?.url === config.targetUrl
+  if (failure === null) {
+    try {
+      assertInteractionEvidence({
+        targetUrl: config.targetUrl,
+        initialUrl: initial.url,
+        finalUrl: final?.url,
+        console: collector.entries,
+        captures,
+      })
+    } catch (error) {
+      failure = error
+    }
+  }
+  return {
+    action: "interact",
+    ...targetResult(config, target),
+    outcome: failure === null ? "passed" : "failed",
+    plan: {version: plan.version, steps: plan.steps.length, settleMs: plan.settleMs},
+    initial,
+    final,
+    routePreserved,
+    checkpoints,
+    console: collector.entries,
+    consoleErrors: errors,
+    ...(failure === null ? {} : {
+      error: errorText(failure),
+      ...(failure instanceof CanvasEvidenceRejected ? {rejectedCanvas: failure.evidence} : {}),
+    }),
+    syntheticInput: true,
+    backgroundOnly: true,
+    ownerAcceptance: false,
+  }
 }
 
 async function runProfile(cdp: CdpConnection, config: TargetConfig, target: Target, frames: number): Promise<JsonObject> {

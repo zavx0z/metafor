@@ -127,9 +127,9 @@ to `http://127.0.0.1:4016/editor/scene`; selector registry cannot override the
 pathname behavior.
 
 Route is page state, not a reason to create another tab. `open`, `dom`,
-`console`, `canvas`, `viewports`, `touch` and `profile` attach to the same
-selector target and navigate it when necessary. Zero origin targets fail unless
-`open` was requested; multiple origin targets are ambiguous and fail. Use
+`console`, `canvas`, `interact`, `viewports`, `touch` and `profile` attach to the
+same selector target and navigate it when necessary. Zero origin targets fail
+unless `open` was requested; multiple origin targets are ambiguous and fail. Use
 `targets` to list exact IDs and `--target-id` to name an existing one. Close only
 an exact task-created duplicate with `close --target-id`; never reconcile by
 closing an unknown owner tab. The helper never selects the active tab and never
@@ -138,6 +138,57 @@ exposes a focus action.
 For an exact URL outside the registry, pass the URL in place of a selector and
 provide `--canvas-selector` when canvas capture is needed. This does not grant
 lifecycle ownership of that origin.
+
+## Background pointer and keyboard plans
+
+Use `interact` after the source-fresh restart and explicit `reload` gate. Unlike
+ordinary route commands it requires a registry selector, explicit route,
+explicit existing target ID and a target already loaded at that exact URL. It
+does not create or navigate a target:
+
+```bash
+bun "$SKILL/scripts/ui-browser.ts" reload "$PWD" components \
+  --route /integer-input/basic/labeled --target-id "$target_id"
+bun "$SKILL/scripts/ui-browser.ts" interact "$PWD" components \
+  --route /integer-input/basic/labeled --target-id "$target_id" \
+  --plan /tmp/integer-pointer.json
+```
+
+The plan is JSON data only. Version `1` accepts at most 256 ordered steps, each
+settle is `0..2000` ms, total settle is at most 10 seconds, drag segments are
+`1..60`, and pointer coordinates must be inside the current CSS viewport.
+Unknown keys, unsupported kinds, incomplete mouse/key pairs and duplicate
+modifiers fail closed. Modifiers are `alt | ctrl | meta | shift`; mouse buttons
+are `left | middle | right`.
+
+```json
+{
+  "version": 1,
+  "settleMs": 100,
+  "steps": [
+    {"kind":"pointer-move", "x":310, "y":228},
+    {"kind":"checkpoint", "name":"hover", "dom":true},
+    {"kind":"pointer-drag", "from":{"x":310,"y":228}, "to":{"x":390,"y":228}, "button":"left", "modifiers":["shift"], "segments":8},
+    {"kind":"key-down", "key":"Escape", "code":"Escape"},
+    {"kind":"key-up", "key":"Escape", "code":"Escape"},
+    {"kind":"text", "text":"12"},
+    {"kind":"settle", "ms":120},
+    {"kind":"checkpoint", "name":"after", "dom":true, "canvas":"/tmp/integer-after.png"}
+  ]
+}
+```
+
+Pointer steps are `pointer-move`, `pointer-down`, `pointer-up` and
+`pointer-drag`. Move/down/up use CSS `x/y`, down/up add `button`, and drag uses
+`from/to/button/segments`; every pointer step accepts `modifiers`. Keyboard
+down/up use `key`, optional `code` and modifiers; `text` inserts bounded text.
+Every run returns initial/final DOM, all collected console entries and
+checkpoint results.
+An exact-route change, console error or rejected black canvas makes the command
+nonzero. A checkpoint capture never performs the canvas command's same-route
+activity retry because navigation would reset the interaction scenario. Reload
+between independent scenarios explicitly. Background CDP input remains
+synthetic evidence and never implies physical-device or owner acceptance.
 
 `canvas` validates the exact encoded artifact: it obtains `toDataURL`, decodes
 that PNG through browser-native ImageBitmap/Blob, then copies the decoded image
