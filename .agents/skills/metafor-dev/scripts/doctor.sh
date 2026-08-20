@@ -12,6 +12,33 @@ ok() { printf 'ok    %s\n' "$1"; }
 warn() { printf 'warn  %s\n' "$1"; }
 fail() { printf 'fail  %s\n' "$1"; failures=$((failures + 1)); }
 
+resolve_iterm_app() {
+  local candidate configured=${METAFOR_DEV_ITERM_APP:-}
+  if [[ -n $configured ]]; then
+    [[ -d $configured ]] || return 1
+    printf '%s\n' "$configured"
+    return
+  fi
+  for candidate in \
+    /Applications/iTerm.app \
+    /Applications/iTerm2.app \
+    /Applications/MacPorts/iTerm2.app \
+    "$HOME/Applications/iTerm.app" \
+    "$HOME/Applications/iTerm2.app"; do
+    if [[ -d $candidate ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+  while IFS= read -r candidate; do
+    if [[ -d $candidate ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done < <(/usr/bin/mdfind "kMDItemCFBundleIdentifier == 'com.googlecode.iterm2'" 2>/dev/null)
+  return 1
+}
+
 [[ $(uname -s) == Darwin ]] && ok "platform Darwin" || fail "this workflow requires macOS"
 
 for command_name in bun curl git jq lsof open osascript pgrep ps shasum; do
@@ -37,7 +64,11 @@ else
   fail "invalid MetaFor checkout: $repo"
 fi
 
-[[ -d /Applications/iTerm.app ]] && ok "iTerm /Applications/iTerm.app" || fail "iTerm is missing"
+if iterm_app=$(resolve_iterm_app); then
+  ok "iTerm $iterm_app"
+else
+  fail "iTerm is missing"
+fi
 [[ -x /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome ]] \
   && ok "Google Chrome" || fail "Google Chrome is missing"
 

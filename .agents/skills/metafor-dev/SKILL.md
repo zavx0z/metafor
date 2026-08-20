@@ -21,6 +21,8 @@ scripts/metafor-dev.sh stop <checkout>
 The dispatcher owns one iTerm session marked for the exact checkout, runs
 `bun run dev` from `hamiltonian/`, and preserves the window after the process
 stops. It also owns one Chrome CDP process on port 9222 with a stable profile.
+It discovers iTerm in common application directories and by its macOS bundle
+identifier; use `METAFOR_DEV_ITERM_APP` only for a nonstandard installation.
 
 ## Lifecycle
 

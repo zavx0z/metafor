@@ -7,7 +7,7 @@ script_dir=$(cd "$(dirname "$0")" && pwd)
 default_repo=$(cd "$script_dir/../../../.." && pwd)
 repo=${2:-$default_repo}
 hamiltonian="$repo/hamiltonian"
-iterm_app=/Applications/iTerm.app
+iterm_app=${METAFOR_DEV_ITERM_APP:-}
 chrome_app=/Applications/Google\ Chrome.app
 chrome_executable="$chrome_app/Contents/MacOS/Google Chrome"
 chrome_port=${METAFOR_DEV_CDP_PORT:-9222}
@@ -15,6 +15,33 @@ chrome_profile=${METAFOR_DEV_CHROME_PROFILE:-$HOME/Library/Application Support/G
 chrome_log=${METAFOR_DEV_CHROME_LOG:-$HOME/Library/Logs/MetaFor/chrome-cdp.log}
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
+
+resolve_iterm_app() {
+  local candidate
+  if [[ -n $iterm_app ]]; then
+    [[ -d $iterm_app ]] || return 1
+    printf '%s\n' "$iterm_app"
+    return
+  fi
+  for candidate in \
+    /Applications/iTerm.app \
+    /Applications/iTerm2.app \
+    /Applications/MacPorts/iTerm2.app \
+    "$HOME/Applications/iTerm.app" \
+    "$HOME/Applications/iTerm2.app"; do
+    if [[ -d $candidate ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+  while IFS= read -r candidate; do
+    if [[ -d $candidate ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done < <(/usr/bin/mdfind "kMDItemCFBundleIdentifier == 'com.googlecode.iterm2'" 2>/dev/null)
+  return 1
+}
 
 validate_repo() {
   [[ -d $repo ]] || die "checkout does not exist: $repo"
@@ -295,10 +322,11 @@ start_contour() {
     iterm_query write "$command_text" >/dev/null
     printf 'iterm: reused %s\n' "${state#*$'\t'}"
   else
-    [[ -d $iterm_app ]] || die "iTerm is missing: $iterm_app"
+    iterm_app=$(resolve_iterm_app) \
+      || die "iTerm is missing; checked common application directories and bundle id com.googlecode.iterm2"
     window_count=$(iterm_window_count)
     if [[ $window_count == 0 ]]; then
-      /usr/bin/open -a iTerm
+      /usr/bin/open -a "$iterm_app"
       for _ in $(seq 1 50); do
         [[ $(iterm_window_count) -gt 0 ]] && break
         sleep 0.1
