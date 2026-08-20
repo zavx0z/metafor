@@ -83,6 +83,15 @@
 11. Semantic `label` Field остаётся обязательным независимо от presentation.
     Compact presentation может явно скрыть visual label и отдать control всю
     строку; это универсальная возможность Field, а не специальная Node-имитация.
+12. Regular и compact используют одну Blender-compatible control silhouette и
+    shared Elements shape metrics. Regular может добавить semantic label или
+    доступное пространство, но не превращает rectangular control в pill, не
+    увеличивает radius пропорционально height и не меняет stacked multi-axis
+    composition на несопоставимый horizontal editor.
+13. Standalone Component, Field и тот же control внутри Node Parameter обязаны
+    визуально совпадать по visible height/radius/border/gap/icon/text rhythm при
+    одинаковом available size. Node compact implementation не является
+    отдельной удачной темой, которой может расходиться Components playground.
 
 ## Целевой состав control library
 
@@ -95,14 +104,18 @@
 2. Один и тот же public control используется standalone, внутри Field и внутри
    Node Parameter. `@nodes/ui` не копирует control, не меняет его value contract
    и не вводит Node-specific вариант.
-3. Blender задаёт проверяемое поведение, состояния и compact-пропорции controls.
-   Материалы, проектный шрифт и общая тема остаются MetaFor. Boolean сохраняет
-   принятый `Switcher` вместо Blender checkbox.
+3. Blender задаёт проверяемое поведение, состав, форму, группировку, состояния и
+   пропорции controls в обеих density. Материалы, palette, project font и tone
+   semantics остаются MetaFor. Boolean сохраняет принятый `Switcher` вместо
+   Blender checkbox.
 4. Размеры, padding, row rhythm и положение частей сверяются по точному Blender
    4.5.5 reference при сопоставимом масштабе, а не подбираются по fixture.
 5. Context search, external picker actions и изменение collection передаются
    immutable callbacks владельцу данных. Перестройка Socket и Node topology
    остаётся ответственностью Node consumer, а не универсального Component.
+6. Public input stories показывают production control в сопоставимом с Blender
+   масштабе. Oversized centered preview и pill geometry не могут считаться
+   visual acceptance только потому, что callbacks и type contract проходят.
 
 ## Источник терминов
 

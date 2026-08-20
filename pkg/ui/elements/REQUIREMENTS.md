@@ -9,6 +9,32 @@ FlexBox единолично вычисляет local child slots, а child то
 и `auto` являются привычной декларативной формой описания того же FlexBox, а не
 отдельной системой layout.
 
+## Глобальная визуальная форма
+
+1. Blender 4.5.5 LTS является обязательным reference для состава, формы,
+   плотности, группировки и положения visible UI всего проекта: Elements,
+   Components, Fields, dev Workbench и Node consumers. Это не ограничивается
+   Node Editor и не является свободной стилизацией по терминологии Blender.
+2. MetaFor сохраняет собственную палитру, project font и semantic tone colors.
+   Цвета Blender не копируются; reference определяет geometry/composition, а не
+   theme identity.
+3. Visible controls по умолчанию компактные прямоугольные low-radius элементы,
+   собранные в плотные rows/groups с тонкими borders/separators. Pill silhouette,
+   oversized rounded card и большие пустые интервалы запрещены, если exact
+   Blender reference не показывает такую форму.
+4. Screen-space hit target может быть больше visible geometry, но не увеличивает
+   control radius, row height, gap, icon или text. Accessibility не является
+   основанием менять видимую Blender-пропорцию.
+5. Control height/radius/gap/border, row rhythm, panel/header metrics и
+   separators имеют одного shared Elements owner. Components и Workbench не
+   вводят собственные несовместимые regular/compact shape tokens.
+6. Ранее явно принятые project divergences сохраняются: общий Switcher вместо
+   checkbox, округлённая Node header, ортогональные Links и project font. Они не
+   разрешают переносить pill/card форму на остальные controls и panels.
+7. Каждый visual migration slice сравнивается side-by-side с exact local
+   Blender catalog/reference при сопоставимом масштабе. Unit tests и isolated
+   PNG не заменяют это сравнение или owner acceptance.
+
 ## Retained UI-закон
 
 1. FlexBox заново планирует local child slots только при dirty-изменении

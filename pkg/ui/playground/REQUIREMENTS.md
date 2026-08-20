@@ -63,3 +63,12 @@ playground. Он не владеет production semantics UI Components либо
     контракта, а не обычной подписью. Внешний Blender catalog используется
     только как reference при выборе собственных Elements, Components и Node UI;
     его ноды, assets и примеры не импортируются в playground.
+16. Workbench сам следует глобальной Blender composition/form law: компактные
+    editor headers, row navigation, thin separators и low-radius panels вместо
+    oversized pill stacks и больших rounded islands. Five-panel semantic regions
+    сохраняются, но их visible chrome не является исключением из UI shape law.
+    Palette и project font остаются MetaFor.
+17. Preview выбирает available size, позволяющий equal-scale сравнение control с
+    local Blender reference. Он не растягивает input на большую часть desktop
+    только ради заполнения центральной панели; свободное место остаётся рабочей
+    областью editor, а не причиной менять форму control.
