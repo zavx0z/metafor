@@ -113,6 +113,9 @@ picker plane и Components HSVA/popup owner, но independent Blender review
 UI-015.8.2 source checkpoint соединяет Path/Reference в один ControlGroup,
 разделяет compact и expanded ColorInput, исправляет exact checker material и
 добавляет общий single-chain popup lifecycle с outside/Escape/viewport flip.
+Source commit `7eb779e23` закрыл root lifecycle/basic composition, но review
+открыл последовательные UI-015.7.2 cross-Surface nested chain, UI-015.7.3 joined
+Button corners + group material roles и UI-015.7.4 Color marker/shadow material.
 Owner отменил сохранение MetaFor palette: UI-015.8 переводит base colors и
 material states на Blender 4.5.5 по mapping от направленного Blender UI
 помощника. UI-015.5/.7 source сохранён на pause до этого mapping.
@@ -125,8 +128,8 @@ commit `c754dc40e` получил source/state-mapping PASS, но не interacti
 acceptance. UI-015.8.3 после popup correction добавляет отсутствующие Blender
 step/scrub/text-transition gestures числовым полям; UI-015.9 ждёт и popup owner,
 и numeric interaction, затем проверяет те же controls внутри expanded Node.
-Popup correction готова commit-ом `7eb779e23`; UI-015.8.3 теперь IN_PROGRESS
-на exact `interface_handlers.cc` gesture law.
+Numeric UI-015.8.3 идёт независимо correction chain на exact
+`interface_handlers.cc` gesture law; Node gate ждёт оба направления.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
