@@ -104,8 +104,11 @@ For an exact URL outside the registry, pass the URL in place of a selector and
 provide `--canvas-selector` when canvas capture is needed. This does not grant
 lifecycle ownership of that origin.
 
-`canvas` validates real pixels by copying the WebGPU canvas into a bounded 2D
-RGB/alpha probe. A first `starting-or-idle-black` snapshot is rejected, then the
+`canvas` validates the exact encoded artifact: it obtains `toDataURL`, decodes
+that PNG through browser-native ImageBitmap/Blob, then copies the decoded image
+into a bounded 2D RGB/alpha probe. Direct WebGPU-canvas drawImage is not evidence
+because a hidden canvas can return an empty 2D copy while its encoded PNG is
+valid. A first `starting-or-idle-black` snapshot is rejected, then the
 same target receives exactly one same-route `Page.navigate` plus ready wait to
 create renderer activity. During that retry only, background focus emulation
 removes renderer throttling; a generic `resize` event requests the package

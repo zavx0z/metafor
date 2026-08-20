@@ -56,10 +56,11 @@ restored public-shell playground on its package contour.
 
 Automated browser operations are background-only. The helper resolves one exact
 selector-owned target ID and never calls `Page.bringToFront`, focus/activate/window
-endpoints, AI macOS, or a screenshot service. Exact canvas evidence pairs
-`toDataURL` with an RGB/alpha pixel probe on that target; starting or idle black
-pixels are rejected and never written as successful evidence. Intentional
-emulation is always cleared in a `finally` path before handoff.
+endpoints, AI macOS, or a screenshot service. Exact canvas evidence decodes the
+`toDataURL` PNG into an RGB/alpha pixel probe on that target; it never probes a
+hidden WebGPU canvas through direct 2D drawImage. Starting or idle black pixels
+are rejected and never written as successful evidence. Intentional emulation is
+always cleared in a `finally` path before handoff.
 
 Each registry selector owns at most one stable browser target for its origin.
 Route operations attach to that existing target and navigate it in place; they

@@ -477,26 +477,32 @@ async function readDom(cdp: CdpConnection, canvasSelector: string): Promise<Json
 }
 
 async function readCanvasSnapshot(cdp: CdpConnection, selector: string): Promise<RawCanvasSnapshot> {
-  return evaluate<RawCanvasSnapshot>(cdp, `(() => {
+  return evaluate<RawCanvasSnapshot>(cdp, `(async () => {
     const canvas = document.querySelector(${JSON.stringify(selector)})
     if (!(canvas instanceof HTMLCanvasElement) || canvas.width < 1 || canvas.height < 1) {
       return {dataUrl:null, probe:null}
     }
+    const dataUrl = canvas.toDataURL("image/png")
+    const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob())
     const probe = document.createElement("canvas")
-    probe.width = Math.min(128, canvas.width)
-    probe.height = Math.min(128, canvas.height)
+    probe.width = Math.min(128, bitmap.width)
+    probe.height = Math.min(128, bitmap.height)
     const context = probe.getContext("2d", {willReadFrequently:true})
-    if (context === null) return {dataUrl:null, probe:null}
-    context.drawImage(canvas, 0, 0, probe.width, probe.height)
+    if (context === null) {
+      bitmap.close()
+      return {dataUrl, probe:null}
+    }
+    context.drawImage(bitmap, 0, 0, probe.width, probe.height)
+    bitmap.close()
     return {
-      dataUrl:canvas.toDataURL("image/png"),
+      dataUrl,
       probe:{
         width:probe.width,
         height:probe.height,
         rgba:Array.from(context.getImageData(0, 0, probe.width, probe.height).data),
       },
     }
-  })()`)
+  })()`, true)
 }
 
 async function captureCanvas(
