@@ -26,6 +26,7 @@ export type ButtonElementProps = Omit<InteractiveElementProps, "children" | "sty
 
 export function button(surface: UiSurface, x: number, y: number, width: number, height: number, props: ButtonElementProps = {}): void {
   const key = props.key ?? `button:${x}:${y}:${width}:${height}`
+  surface.registerRenderKey(key)
   const hit = surface.hitState(x, y, width, height, key)
   const state: ButtonElementState = props.disabled === true ? "disabled" : hit.pressed ? "active" : hit.hovered ? "hover" : "idle"
   const rawStyle = typeof props.style === "function" ? props.style(state) : props.style

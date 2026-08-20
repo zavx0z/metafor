@@ -14,6 +14,7 @@ class RecordingSurface extends BaseUiSurface {
   readonly centeredTexts: CenteredTextCall[] = []
   readonly hits: HitCall[] = []
   readonly hitRenders: string[] = []
+  readonly renderKeys: string[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
@@ -30,6 +31,10 @@ class RecordingSurface extends BaseUiSurface {
 
   override requestKeyedRender(key: string): void {
     this.hitRenders.push(key)
+  }
+
+  override registerRenderKey(key: string): void {
+    this.renderKeys.push(key)
   }
 
   protected render(): void {}
@@ -52,6 +57,7 @@ describe("button visible geometry", () => {
       maxWidthPx: 100 - uiShapeMetrics.tightGap * 4,
     })
     expect(surface.hits[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
+    expect(new Set(surface.renderKeys)).toEqual(new Set(["button:10:20:100:40"]))
   })
 
   test("uses subtle idle border while hover keeps the cyan interaction border", () => {
@@ -125,6 +131,7 @@ describe("button visible geometry", () => {
     expect(surface.roundedRects[0]?.[4].border).toEqual(palette.borderRule)
     expect({presses, releases}).toEqual({presses: 2, releases: 2})
     expect(surface.hitRenders).toEqual(["repeat", "repeat", "repeat", "repeat"])
+    expect(new Set(surface.renderKeys)).toEqual(new Set(["repeat"]))
   })
 
   test("preserves explicit height, radius, border, font and padding", () => {

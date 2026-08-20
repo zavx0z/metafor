@@ -38,6 +38,7 @@ class RetainedComponentsSurface extends UiSurface {
   readonly owners = {} as Record<OwnerName, Object3D>
   readonly counters = {} as Record<OwnerName, OwnerCounter>
   surfaceRenderPasses = 0
+  surfaceRenderRequests = 0
   buttonClicks = 0
   regularText = "seed"
   regularCheckbox = false
@@ -63,6 +64,11 @@ class RetainedComponentsSurface extends UiSurface {
 
   transformRoot(update: (parent: Object3D) => void): void {
     this.updateRetainedTransform(this.root, update)
+  }
+
+  override requestRender(): void {
+    this.surfaceRenderRequests += 1
+    super.requestRender()
   }
 
   protected override onRetainedInteractionChange(parent: Object3D): void {
@@ -295,22 +301,28 @@ describe("retained UI Components boundary", () => {
       const pointer = {button: 0, preventDefault() {}} as MouseEvent
       let beforeCounters = copyCounters(surface)
       let beforeOwners = snapshotOwners(surface)
+      let beforeRenderRequests = surface.surfaceRenderRequests
       surface.onPointerMove(pointer, 80, 36)
       surface.flushPendingRender()
+      expect(surface.surfaceRenderRequests).toBe(beforeRenderRequests + 1)
       expectOnlyOwnerAdvanced(surface, beforeCounters, "button")
       expectOwnersStable(surface, beforeOwners, "button")
 
       beforeCounters = copyCounters(surface)
       beforeOwners = snapshotOwners(surface)
+      beforeRenderRequests = surface.surfaceRenderRequests
       surface.onPointerDown(pointer, 80, 36)
       surface.flushPendingRender()
+      expect(surface.surfaceRenderRequests).toBe(beforeRenderRequests + 1)
       expectOnlyOwnerAdvanced(surface, beforeCounters, "button")
       expectOwnersStable(surface, beforeOwners, "button")
 
       beforeCounters = copyCounters(surface)
       beforeOwners = snapshotOwners(surface)
+      beforeRenderRequests = surface.surfaceRenderRequests
       surface.onPointerUp(pointer, 80, 36)
       surface.flushPendingRender()
+      expect(surface.surfaceRenderRequests).toBe(beforeRenderRequests + 1)
       expect(surface.buttonClicks).toBe(1)
       expectOnlyOwnerAdvanced(surface, beforeCounters, "button")
       expectOwnersStable(surface, beforeOwners, "button")
@@ -319,10 +331,12 @@ describe("retained UI Components boundary", () => {
 
       beforeCounters = copyCounters(surface)
       beforeOwners = snapshotOwners(surface)
+      beforeRenderRequests = surface.surfaceRenderRequests
       surface.onPointerDown(pointer, 80, 36)
       surface.flushPendingRender()
       surface.onPointerUp(pointer, 80, 36)
       surface.flushPendingRender()
+      expect(surface.surfaceRenderRequests).toBe(beforeRenderRequests + 2)
       expect(surface.buttonClicks).toBe(2)
       expectOnlyOwnerAdvanced(surface, beforeCounters, "button", 2)
       expectOwnersStable(surface, beforeOwners, "button")
