@@ -87,7 +87,7 @@ CollectionInput reorder commit-ом `2404e88ac`; зависимая UI-010.10 st
 `7cae3d28c` завершена: encoded-PNG guard дал current non-black capture, exact
 source/console и completeness `7/7`. Текущий UI-010.11 добавляет public
 PathInput commit-ом `9aeb7f70c`; зависимая UI-010.12 story сейчас закрывает
-completeness/live gate.
+completeness/live `8/8` source-ом `c998dd212` и current non-black capture.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один

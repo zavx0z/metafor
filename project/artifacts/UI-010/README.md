@@ -58,3 +58,20 @@
 * Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `b0e7acd14f0f08237d371bb4170f5184f58a04011b87ed4c4d62aee83ee97de1`.
+
+## components-path-input.png
+
+* Источник: `$ui-dev` exact background canvas capture `path-input/value/path`,
+  target `D0775AE44CFF0E299A0C28EECB3872D2`.
+* Дата: 2026-08-20; production `9aeb7f70c`, story `c998dd212`, loaded
+  Components PID `49355`.
+* Ожидание: public PathInput со значением `/textures/source.exr`, отдельным `…`
+  browse affordance, exact onChange/onBrowse TypeScript, controls/events;
+  console `0`, native metrics восстановлены.
+* Фактическое наблюдение: ожидание совпало. Encoded-PNG guard отклонил первый
+  idle-black probe и после одного bounded same-route retry atomically записал
+  non-black canvas `630277` bytes, attempts `2`, nonBlackPixels `16384/16384`,
+  backing `3840×2176`, native `1920×1088 @2`.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `9ff435d0fb0e889fc261b1a1188c0d9e39765ad5886408fe54d46f838b13f5ba`.
