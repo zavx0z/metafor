@@ -89,10 +89,9 @@ playground. Она разложит единый Field facade на переис�
 
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: `4192` уже является эталоном, но
-Node UI, Components и Elements сохраняют старые route/info screens. Первый срез
-по owner screenshot переводит Node Socket на конкретные sections, detail
-preview, variants и постоянный code/copy; UI-001 execution/closing переданы
-тому же руководителю.
+Node UI, Components и Elements сохраняют старые route/info screens. Node Socket
+detail story завершена checkpoint-ом `348453120`; текущий срез переводит
+остальные Node UI routes. UI-001 execution/closing переданы тому же руководителю.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —

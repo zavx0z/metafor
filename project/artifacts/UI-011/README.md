@@ -17,3 +17,18 @@
   текущей задаче Codex.
 * Контрольная сумма: SHA-256
   `8c8294a872e9177171a56c84b8dc6c3bb60c71df55dcf570f95cc973b90c469f`.
+
+## node-socket-boolean-input.png
+
+* Источник: `$ui-dev` exact canvas capture target
+  `809BF08D88E4582CA819EFE847FE1450`, route `socket/boolean/input`.
+* Дата: 2026-08-20 06:18:29 +0300.
+* Версия проекта: UI-011.1 `348453120`, Node requirements `778889c4a`,
+  production Socket calibration `574de1db6`.
+* Ожидание: 19 concrete Socket types находятся во второй панели, один Boolean
+  Socket — в detail preview, direction variants — снизу, TypeScript/copy и
+  controls — справа.
+* Фактическое наблюдение: ожидание совпало; DOM ready, console `0`, canvas
+  `3840×2176`, outer Socket diameter около `20` physical px.
+* Контрольная сумма: SHA-256
+  `0dc325a31a98eae001e31b11439417cc762d64e83f24103f089653e14c8c723f`.
