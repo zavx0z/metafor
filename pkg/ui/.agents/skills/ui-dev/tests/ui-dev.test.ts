@@ -161,6 +161,8 @@ describe("ui-dev registry", () => {
     expect(source).toContain("validateInteractionInvocation({")
     expect(source).toMatch(/async function runInteraction[\s\S]*createConsoleCollector\(cdp\)[\s\S]*executeInteractionPlan\(plan[\s\S]*captureCanvas\(cdp, config, step.canvas, false\)/)
     expect(source).toContain("const errors = consoleErrors(collector.entries)")
+    expect(source).toContain("const backgroundInput = await runBackgroundInputMode({")
+    expect(source).toContain("focusEmulation: backgroundInput.focusEmulation")
     expect(source).toContain("const outcome = interactionOutcome(failure)")
     expect(source).toContain("process.exitCode = interactionExitCode(result)")
     expect(source).not.toContain("class CanvasEvidenceRejected")

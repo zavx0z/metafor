@@ -187,8 +187,11 @@ checkpoint results.
 An exact-route change, console error or rejected black canvas makes the command
 nonzero. A checkpoint capture never performs the canvas command's same-route
 activity retry because navigation would reset the interaction scenario. Reload
-between independent scenarios explicitly. Background CDP input remains
-synthetic evidence and never implies physical-device or owner acceptance.
+between independent scenarios explicitly. `interact` enables background focus
+emulation only around the atomic plan, restores it to false in `finally`, and
+reports both states even when input fails. This does not focus an OS window.
+Background CDP input remains synthetic evidence and never implies
+physical-device or owner acceptance.
 
 `canvas` validates the exact encoded artifact: it obtains `toDataURL`, decodes
 that PNG through browser-native ImageBitmap/Blob, then copies the decoded image

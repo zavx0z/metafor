@@ -51,6 +51,16 @@ export type InteractionEvidence = Readonly<{
 export type InteractionOutcome =
   | Readonly<{outcome: "passed"}>
   | Readonly<{outcome: "failed"; error: string; rejectedCanvas?: CanvasEvidence}>
+export type BackgroundInputFocusState = Readonly<{
+  requested: true
+  enabledDuringPlan: boolean
+  restored: boolean
+}>
+export type BackgroundInputModeResult<T> = Readonly<{
+  value: T | null
+  failure: unknown
+  focusEmulation: BackgroundInputFocusState
+}>
 
 const MAX_STEPS = 256
 const MAX_SETTLE_MS = 2_000
@@ -117,6 +127,42 @@ export function interactionOutcome(failure: unknown): InteractionOutcome {
 
 export function interactionExitCode(result: Readonly<Record<string, unknown>>): 0 | 1 {
   return result.outcome === "passed" ? 0 : 1
+}
+
+/** Enable background renderer input only for one plan and always restore it. */
+export async function runBackgroundInputMode<T>(
+  host: Readonly<{setFocusEmulation(enabled: boolean): Promise<void>}>,
+  operation: () => Promise<T>,
+): Promise<BackgroundInputModeResult<T>> {
+  let enabledDuringPlan = false
+  let restored = false
+  let value: T | null = null
+  let failure: unknown = null
+  try {
+    await host.setFocusEmulation(true)
+    enabledDuringPlan = true
+    try {
+      value = await operation()
+    } catch (error) {
+      failure = error
+    }
+  } catch (error) {
+    failure = error
+  } finally {
+    try {
+      await host.setFocusEmulation(false)
+      restored = true
+    } catch (restoreError) {
+      failure = failure === null
+        ? restoreError
+        : new Error(`${errorText(failure)}; focus emulation restore failed: ${errorText(restoreError)}`)
+    }
+  }
+  return Object.freeze({
+    value,
+    failure,
+    focusEmulation: Object.freeze({requested: true, enabledDuringPlan, restored}),
+  })
 }
 
 /** Dispatch validated synthetic input in order and release held input on failure. */

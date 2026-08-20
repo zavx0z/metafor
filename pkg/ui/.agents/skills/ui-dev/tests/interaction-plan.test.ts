@@ -9,6 +9,7 @@ import {
   interactionExitCode,
   interactionOutcome,
   parseInteractionPlan,
+  runBackgroundInputMode,
   validateInteractionInvocation,
   type InteractionCommandHost,
 } from "../scripts/interaction-plan.ts"
@@ -191,5 +192,55 @@ describe("ui-dev data-only interaction plans", () => {
     const passed = interactionOutcome(null)
     expect(passed).toEqual({outcome: "passed"})
     expect(interactionExitCode(passed)).toBe(0)
+  })
+
+  test("enables and restores background input atomically on success and timeout cleanup", async () => {
+    const successOrder: string[] = []
+    const success = await runBackgroundInputMode({
+      async setFocusEmulation(enabled) { successOrder.push(`focus:${enabled}`) },
+    }, async () => {
+      successOrder.push("dispatch")
+      return "done"
+    })
+    expect(successOrder).toEqual(["focus:true", "dispatch", "focus:false"])
+    expect(success).toEqual({
+      value: "done",
+      failure: null,
+      focusEmulation: {requested: true, enabledDuringPlan: true, restored: true},
+    })
+
+    const failureOrder: string[] = []
+    let sends = 0
+    const timedOut = await runBackgroundInputMode({
+      async setFocusEmulation(enabled) { failureOrder.push(`focus:${enabled}`) },
+    }, () => executeInteractionPlan(parseInteractionPlan({
+      version: 1,
+      steps: [
+        {kind: "pointer-down", x: 20, y: 20, button: "left"},
+        {kind: "pointer-move", x: 30, y: 20},
+        {kind: "pointer-up", x: 30, y: 20, button: "left"},
+      ],
+    }), {
+      viewport: {width: 100, height: 80},
+      async send(_method, params) {
+        const type = String(params.type)
+        failureOrder.push(type)
+        sends++
+        if (sends === 2) throw new Error("CDP command timeout: Input.dispatchMouseEvent")
+      },
+      async settle() {},
+      async checkpoint() { return {} },
+    }))
+    expect(failureOrder).toEqual([
+      "focus:true",
+      "mousePressed",
+      "mouseMoved",
+      "mouseReleased",
+      "focus:false",
+    ])
+    expect(timedOut.value).toBeNull()
+    expect(timedOut.failure).toBeInstanceOf(Error)
+    expect((timedOut.failure as Error).message).toBe("CDP command timeout: Input.dispatchMouseEvent")
+    expect(timedOut.focusEmulation).toEqual({requested: true, enabledDuringPlan: true, restored: true})
   })
 })

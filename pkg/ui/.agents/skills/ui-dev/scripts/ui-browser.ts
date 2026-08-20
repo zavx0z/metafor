@@ -13,6 +13,7 @@ import {
   interactionExitCode,
   interactionOutcome,
   parseInteractionPlan,
+  runBackgroundInputMode,
   validateInteractionInvocation,
   type InteractionPlan,
 } from "./interaction-plan.ts"
@@ -803,33 +804,30 @@ async function runInteraction(
   }
   const collector = await createConsoleCollector(cdp)
   const captures: CanvasEvidence[] = []
-  let failure: unknown = null
-  let checkpoints: readonly unknown[] = []
-  try {
-    const execution = await executeInteractionPlan(plan, {
-      viewport: {width: inner[0]!, height: inner[1]!},
-      async send(method, params) {
-        await cdp.send(method, params)
-      },
-      async settle(ms) {
-        await Bun.sleep(ms)
-      },
-      async checkpoint(step) {
-        const checkpoint: JsonObject = {name: step.name}
-        if (step.dom) checkpoint.dom = await readDom(cdp, config.canvas.selector)
-        if (step.canvas !== undefined) {
-          const capture = await captureCanvas(cdp, config, step.canvas, false)
-          captures.push(capture)
-          checkpoint.canvas = capture
-          if (!capture.written) throw new CanvasEvidenceRejected(capture)
-        }
-        return checkpoint
-      },
-    })
-    checkpoints = execution.checkpoints
-  } catch (error) {
-    failure = error
-  }
+  const backgroundInput = await runBackgroundInputMode({
+    setFocusEmulation: (enabled) => setFocusEmulation(cdp, enabled),
+  }, () => executeInteractionPlan(plan, {
+    viewport: {width: inner[0]!, height: inner[1]!},
+    async send(method, params) {
+      await cdp.send(method, params)
+    },
+    async settle(ms) {
+      await Bun.sleep(ms)
+    },
+    async checkpoint(step) {
+      const checkpoint: JsonObject = {name: step.name}
+      if (step.dom) checkpoint.dom = await readDom(cdp, config.canvas.selector)
+      if (step.canvas !== undefined) {
+        const capture = await captureCanvas(cdp, config, step.canvas, false)
+        captures.push(capture)
+        checkpoint.canvas = capture
+        if (!capture.written) throw new CanvasEvidenceRejected(capture)
+      }
+      return checkpoint
+    },
+  }))
+  const checkpoints = backgroundInput.value?.checkpoints ?? []
+  let failure = backgroundInput.failure
 
   let final: JsonObject | null = null
   try {
@@ -866,6 +864,7 @@ async function runInteraction(
     checkpoints,
     console: collector.entries,
     consoleErrors: errors,
+    focusEmulation: backgroundInput.focusEmulation,
     syntheticInput: true,
     backgroundOnly: true,
     ownerAcceptance: false,
