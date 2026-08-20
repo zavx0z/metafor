@@ -85,7 +85,8 @@ UI-010.8 story/live `5df1327c5` завершила completeness `7/7`. След�
 leaf ещё не зарегистрирован. Текущий UI-010.9 добавляет owner-controlled
 CollectionInput reorder commit-ом `2404e88ac`; зависимая UI-010.10 story/live
 `7cae3d28c` завершена: encoded-PNG guard дал current non-black capture, exact
-source/console и completeness `7/7`.
+source/console и completeness `7/7`. Текущий UI-010.11 добавляет public
+PathInput; зависимая UI-010.12 story зарегистрирована заранее.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
