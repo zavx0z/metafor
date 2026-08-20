@@ -1,6 +1,6 @@
-import {describe, expect, test} from "bun:test"
-import type {Color} from "@metafor/engine"
-import {Z, createUiPolylineStrokeGeometry} from "@ui/elements"
+import {beforeAll, describe, expect, test} from "bun:test"
+import {CachedText, Object3D, TrueTypeFont, Vector3, type Color} from "@metafor/engine"
+import {UiSurface, Z, createUiPolylineStrokeGeometry} from "@ui/elements"
 import {
   BLENDER_SOCKET_KINDS,
   BLENDER_SOCKET_PRESETS,
@@ -23,6 +23,14 @@ type PaintCall =
   | Readonly<{kind: "rect"; x: number; y: number; w: number; h: number}>
   | Readonly<{kind: "line"; x1: number; y1: number; x2: number; y2: number; width: number}>
   | Readonly<{kind: "polyline"; points: readonly Readonly<{x: number; y: number}>[]; width: number}>
+
+const HEADER_PIXEL_SCALE = 0.001
+let projectFont: TrueTypeFont
+
+beforeAll(async () => {
+  const bytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+  projectFont = new TrueTypeFont(bytes)
+})
 
 describe("Blender-like Node presets", () => {
   test("publishes the complete first socket catalog and eight source shapes", () => {
@@ -182,6 +190,42 @@ describe("Blender-like Node presets", () => {
     expect(collapsedStroke.centerY).toBeCloseTo(42)
     expect(expandedStroke.w).toBeCloseTo(collapsedStroke.h)
     expect(expandedStroke.h).toBeCloseTo(collapsedStroke.w)
+  })
+
+  test("centers actual project-font title bounds with the chevron through retained scale", () => {
+    for (const label of ["Mapping", "Noise Texture", "gy"]) {
+      for (const collapsed of [false, true]) {
+        const surface = new RetainedHeaderSurface()
+        try {
+          surface.setRect({x: 0, y: 0, w: 240, h: 120}, HEADER_PIXEL_SCALE, projectFont)
+          const parent = surface.createParent()
+          const node: BlenderNode = {id: `${label}:${collapsed}`, title: label, collapsed}
+          const rect = {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height}
+          const entry = positionBlenderNode(node, rect)
+          const plan = planBlenderNode(node, rect)
+          surface.materialize(parent, () => blenderNodeRenderer.render({
+            host: surface,
+            entry,
+            plan,
+            connectedSocketIds: new Set(),
+            selected: false,
+          }))
+
+          const title = findCachedText(parent, label)
+          const geometry = title.stencilGeometry
+          expect(title.position.x / HEADER_PIXEL_SCALE).toBeCloseTo(44, 5)
+          expect(cachedTextWorldCenterY(surface, title)).toBeCloseTo(42, 5)
+
+          for (const scale of [0.16, 0.5, 1, 2]) {
+            surface.scaleParent(parent, scale)
+            expect(title.stencilGeometry).toBe(geometry)
+            expect(cachedTextWorldCenterY(surface, title)).toBeCloseTo(42 * scale, 5)
+          }
+        } finally {
+          surface.dispose()
+        }
+      }
+    }
   })
 
   test("places loose right sockets above properties and loose left sockets below parameters", () => {
@@ -450,6 +494,9 @@ function paintedNodeShadow(collapsed: boolean, selected: boolean): Readonly<{
       })
     },
     drawPolyline() {},
+    textTopForVisualCenter(_value: string, centerY: number, fontPx: number) {
+      return centerY - fontPx / 2
+    },
     drawText() {
       return 0
     },
@@ -501,6 +548,9 @@ function paintedNodeHeader(collapsed: boolean): PaintedNodeHeader {
     drawPolyline(points: readonly Readonly<{x: number; y: number}>[], _color: unknown, width: number) {
       polylines.push({points, width})
     },
+    textTopForVisualCenter(_value: string, centerY: number, fontPx: number) {
+      return centerY - fontPx / 2
+    },
     drawText(value: string, x: number, y: number, opts: {fontPx: number; maxWidthPx: number}) {
       texts.push({value, x, y, fontPx: opts.fontPx, maxWidthPx: opts.maxWidthPx})
       return 0
@@ -520,6 +570,47 @@ function paintedNodeHeader(collapsed: boolean): PaintedNodeHeader {
     chevron: polylines[0]!,
     title: texts.find(({value}) => value === node.title)!,
   }
+}
+
+class RetainedHeaderSurface extends UiSurface {
+  createParent(): Object3D {
+    return this.createRetainedParent()
+  }
+
+  materialize(parent: Object3D, draw: () => void): void {
+    this.materializeRetainedParent(parent, draw)
+  }
+
+  scaleParent(parent: Object3D, scale: number): void {
+    this.updateRetainedTransform(parent, (target) => target.scale.set(scale, scale, 1))
+  }
+
+  protected render(): void {}
+}
+
+function findCachedText(parent: Object3D, value: string): CachedText {
+  let result: CachedText | undefined
+  parent.traverse((object) => {
+    if (object instanceof CachedText && object.text === value) result = object
+  })
+  if (result === undefined) throw new Error(`Missing materialized title: ${value}`)
+  return result
+}
+
+function cachedTextWorldCenterY(surface: UiSurface, text: CachedText): number {
+  const positions = text.stencilGeometry.attributes.position?.array
+  if (positions === undefined) throw new Error(`Missing stencil geometry for ${text.text}`)
+  surface.node.updateWorldMatrix(true)
+  const ys: number[] = []
+  for (let index = 0; index < positions.length; index += 3) {
+    const world = new Vector3(
+      Number(positions[index]),
+      Number(positions[index + 1]),
+      Number(positions[index + 2]),
+    ).applyMatrix4(text.matrixWorld)
+    ys.push(-world.y / HEADER_PIXEL_SCALE)
+  }
+  return (Math.min(...ys) + Math.max(...ys)) / 2
 }
 
 function paintedPolylineBounds(

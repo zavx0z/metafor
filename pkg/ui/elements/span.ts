@@ -13,7 +13,7 @@ export function span(surface: UiSurface, x: number, y: number, width: number, he
   const text = String(props.children)
   const fontSize = px(style.fontSize, 12)
   const material = textMaterial(surface, style.color)
-  const textY = y + Math.max(0, (height - fontSize) / 2)
+  const textY = surface.textTopForVisualCenter(text, y + height / 2, fontSize)
   const maxWidthPx = width
   if (style.textAlign === "center") {
     surface.drawTextCentered(text, x + width / 2, y + height / 2, {

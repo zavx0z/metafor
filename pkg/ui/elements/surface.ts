@@ -1173,6 +1173,31 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   /**
+   * Resolves the `drawText` top so the union of actual project-font glyph
+   * bounds is vertically centered at `centerY`. Empty text and a surface that
+   * has not received its font retain the deterministic cap-box fallback.
+   */
+  textTopForVisualCenter(value: string, centerY: number, fontPx: number): number {
+    const fontPxCanvas = fontPx * this.pageScaleFactor
+    if (this.font === null) return centerY - fontPxCanvas / 2
+    const scale = fontPxCanvas / this.font.unitsPerEm
+    let yMin = Infinity
+    let yMax = -Infinity
+    for (const ch of value) {
+      if (ch === " ") continue
+      const gid = this.font.mapCharToGlyph(ch.codePointAt(0)!)
+      const bounds = this.font.getGlyphBounds(gid)
+      if (bounds.yMin === 0 && bounds.yMax === 0) continue
+      if (bounds.yMin < yMin) yMin = bounds.yMin
+      if (bounds.yMax > yMax) yMax = bounds.yMax
+    }
+    const visualCenter = Number.isFinite(yMin) && Number.isFinite(yMax)
+      ? ((yMax + yMin) / 2) * scale
+      : fontPxCanvas / 2
+    return centerY + visualCenter - fontPxCanvas
+  }
+
+  /**
    * Рисует текст так, чтобы его **визуальный** bounding-box (по реальным
    * yMin/yMax глифа, а не cap-box) был отцентрирован относительно (cx, cy).
    *
@@ -1186,31 +1211,10 @@ export abstract class UiSurface implements UiSurfaceNode {
    */
   drawTextCentered(value: string, cx: number, cy: number, opts: DrawTextOpts): number {
     if (this.font === null) return 0
-    const f = this.font
     const fontPx = opts.fontPx
-    // fontPxCanvas — реальный размер в canvas-px (учёт pageScaleFactor).
-    const fontPxCanvas = fontPx * this.pageScaleFactor
-    const scale = fontPxCanvas / f.unitsPerEm
-
-    // Объединённый bbox строки в font-units (Y вверх от baseline).
-    let yMin = Infinity
-    let yMax = -Infinity
-    for (const ch of value) {
-      if (ch === " ") continue
-      const gid = f.mapCharToGlyph(ch.codePointAt(0)!)
-      const b = f.getGlyphBounds(gid)
-      if (b.yMin === 0 && b.yMax === 0) continue
-      if (b.yMin < yMin) yMin = b.yMin
-      if (b.yMax > yMax) yMax = b.yMax
-    }
-    // Если все глифы пустые (пробелы) — fallback на cap-box центр (canvas-px).
-    const visualCenter = isFinite(yMin) && isFinite(yMax) ? ((yMax + yMin) / 2) * scale : fontPxCanvas / 2
-
     const labelW = this.measureText(value, fontPx)
-    // baseline должен быть на cy + visualCenter (visualCenter — высота над baseline).
-    // drawText: y = baseline - fontPxCanvas → y = cy + visualCenter - fontPxCanvas.
     const drawX = cx - labelW / 2
-    const drawY = cy + visualCenter - fontPxCanvas
+    const drawY = this.textTopForVisualCenter(value, cy, fontPx)
     return this.drawText(value, drawX, drawY, opts)
   }
 
