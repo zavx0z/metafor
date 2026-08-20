@@ -5,6 +5,7 @@ import {input} from "@ui/elements/input"
 import {li, liY, ul, ulContentHeight, type LiElementProps} from "@ui/elements/list"
 import {span} from "@ui/elements/span"
 import type {CssColor, CssTextAlign} from "@ui/elements/style"
+import {uiShapeMetrics} from "../../shape.ts"
 import {
   definePlaygroundStoryModule,
   type PlaygroundStoryArgs,
@@ -96,7 +97,8 @@ function renderPrimitiveStory(
   }
   if (options.component === "button") {
     const clicks = options.variant === "clickable" ? ` · ${args.clicks}` : ""
-    button(surface, frame.x + frame.w / 2 - 120, centerY - 26, 240, 52, {
+    const controlWidth = 146
+    button(surface, frame.x + (frame.w - controlWidth) / 2, centerY - uiShapeMetrics.controlHeight / 2, controlWidth, uiShapeMetrics.controlHeight, {
       key: "elements-story-button",
       children: `${args.label}${clicks}`,
       disabled: args.disabled,
@@ -109,7 +111,8 @@ function renderPrimitiveStory(
     return
   }
   if (options.component === "input") {
-    input(surface, frame.x + frame.w / 2 - 230, centerY - 25, 460, 50, {
+    const controlWidth = 146
+    input(surface, frame.x + (frame.w - controlWidth) / 2, centerY - uiShapeMetrics.controlHeight / 2, controlWidth, uiShapeMetrics.controlHeight, {
       key: "elements-story-input",
       value: args.label,
       placeholder: "Введите значение",
@@ -303,7 +306,7 @@ function primitiveArgs(options: Readonly<{
     label: options.component === "span" ? "Текстовый элемент" : options.component === "input" ? "Значение" : "Элемент UI",
     tone: "cyan",
     density: "regular",
-    radius: 28,
+    radius: options.component === "button" || options.component === "input" ? uiShapeMetrics.lowRadius : 28,
     disabled: options.variant === "disabled",
     active: options.variant === "active",
     fit: options.variant === "contain" ? "contain" : "cover",

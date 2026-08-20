@@ -1,6 +1,8 @@
 import type {HitOptions, UiSurface} from "./surface.ts"
 import {div, type DivProps} from "./div.ts"
-import {mergeStyle, px, textMaterial} from "./style.ts"
+import {controlChromePadding, controlChromeRect} from "./control-shape.ts"
+import {mergeStyle, px, textMaterial, type StyleProps} from "./style.ts"
+import {uiShapeMetrics} from "./shape.ts"
 import {Z} from "./surface.ts"
 import {palette} from "./theme.ts"
 
@@ -164,8 +166,9 @@ export function focusInput(surface: UiSurface, key: string, state?: InputEditSta
 export function input(surface: UiSurface, x: number, y: number, width: number, height: number, props: InputProps): void {
   const style = mergeStyle(props)
   const disabled = props.disabled === true
-  const fontPx = props.fontPx ?? px(style.fontSize, 12)
-  const paddingX = px(style.paddingX, 10)
+  const fontPx = props.fontPx ?? px(style.fontSize, uiShapeMetrics.compactFontPx)
+  const chrome = controlChromeRect(x, y, width, height, style)
+  const padding = controlChromePadding(style)
   const runtime = inputRuntimeFor(surface)
   const key = props.key ?? inputKeyFor(x, y, width, height)
   surface.registerRenderKey(key)
@@ -176,9 +179,8 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   const value = state.value
   const cursor = state.cursor
   const selectionAnchor = state.selectionAnchor
-  const contentX = x + paddingX
-  const contentY = y
-  const contentW = Math.max(1, width - paddingX * 2)
+  const contentX = chrome.x + padding.left
+  const contentW = Math.max(1, chrome.width - padding.left - padding.right)
   const view = inputTextView(surface, value, cursor, fontPx, contentW)
   if (active && props.cursorVisible !== false) ensureInputBlink(surface, runtime, key)
   runtime.configs.set(key, {
@@ -189,17 +191,18 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
     allowTab: props.allowTab === true,
   })
 
-  const chromeProps: DivProps = {
-    style: {
-      ...style,
-      background: active ? "bgHot" : "bgInput",
-      borderColor: active ? "cyan" : "borderDim",
-      borderRadius: style.borderRadius ?? 999,
-      padding: 0,
-    },
+  const chromeStyle: StyleProps = {
+    ...style,
+    borderColor: style.borderColor === undefined ? active ? "cyan" : "borderDim" : style.borderColor,
+    borderRadius: style.borderRadius ?? uiShapeMetrics.lowRadius,
+    borderWidth: style.borderWidth ?? uiShapeMetrics.borderWidth,
   }
+  if (style.background === undefined && style.backgroundColor === undefined) {
+    chromeStyle.background = active ? "bgHot" : "bgInput"
+  }
+  const chromeProps: DivProps = {style: chromeStyle}
   chromeProps.key = key
-  div(surface, x, y, width, height, chromeProps)
+  div(surface, chrome.x, chrome.y, chrome.width, chrome.height, chromeProps)
   if (!disabled) {
     const hit: HitOptions = {
       key,
@@ -239,13 +242,13 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
     surface.hit(x, y, width, height, () => props.onClick?.(), hit)
   }
 
-  surface.pushClip(contentX, contentY, contentW, height)
-  if (active) drawInputSelection(surface, value, selectionAnchor, cursor, view.start, contentX, y, height, fontPx)
+  surface.pushClip(contentX, chrome.y, contentW, chrome.height)
+  if (active) drawInputSelection(surface, value, selectionAnchor, cursor, view.start, contentX, chrome.y, chrome.height, fontPx)
 
   const hasValue = value.length > 0
   const text = hasValue ? view.text : props.placeholder ?? ""
   if (text.length > 0) {
-    surface.drawText(text, contentX, y + (height - fontPx) / 2, {
+    surface.drawText(text, contentX, chrome.y + (chrome.height - fontPx) / 2, {
       fontPx,
       material: hasValue ? textMaterial(surface, active ? style.color ?? "text" : style.color ?? "muted") : surface.materials.muted,
       maxWidthPx: contentW,
@@ -255,7 +258,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
 
   if (active && props.cursorVisible !== false && runtime.caretVisible) {
     const cursorX = contentX + surface.measureText(value.slice(view.start, cursor), fontPx)
-    surface.drawRect(Math.round(cursorX), Math.round(y + (height - fontPx) / 2), 2, Math.max(1, fontPx + 2), palette.cyan, Z.TEXT + 0.02)
+    surface.drawRect(Math.round(cursorX), Math.round(chrome.y + (chrome.height - fontPx) / 2), 2, Math.max(1, fontPx + 2), palette.cyan, Z.TEXT + 0.02)
   }
   surface.popClip()
 }

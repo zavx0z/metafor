@@ -14,6 +14,7 @@ import {
   normalizeElementsPlaygroundPath,
 } from "./stories.ts"
 import {ElementsStoryPreviewSurface} from "./story-preview.ts"
+import {uiShapeMetrics} from "../shape.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 let font: TrueTypeFont
@@ -114,6 +115,10 @@ describe("@ui/elements package-owned Workbench stories", () => {
     expect(primitive.defaultArgs).toMatchObject({disabled: false, state: "clickable", clicks: 0})
     expect(primitive.source({...primitive.defaultArgs, label: "Запуск", disabled: true})).toContain('children: "Запуск"')
     expect(primitive.source({...primitive.defaultArgs, label: "Запуск", disabled: true})).toContain("disabled: true")
+    expect(primitive.defaultArgs).toMatchObject({radius: uiShapeMetrics.lowRadius})
+
+    const input = await ELEMENT_STORIES.load("input/state/inactive")
+    expect(input.defaultArgs).toMatchObject({radius: uiShapeMetrics.lowRadius})
 
     const layout = await ELEMENT_STORIES.load("flex-css/sizes/fraction")
     expect(layout.source(layout.defaultArgs)).toContain('from "@ui/elements/flex-css"')
@@ -185,6 +190,10 @@ describe("@ui/elements package-owned Workbench stories", () => {
     }
     expect(sources[0]).toContain('from "@ui/elements/div"')
     expect(sources[0]).toContain('from "@ui/elements/list"')
+    expect(sources[0]).toContain('import {uiShapeMetrics} from "../../shape.ts"')
+    expect(sources[0]!.match(/uiShapeMetrics\.controlHeight/g)?.length).toBe(4)
+    expect(sources[0]).not.toContain("240, 52")
+    expect(sources[0]).not.toContain("460, 50")
     expect(sources[1]).toContain('from "@ui/elements/flex"')
     expect(sources[1]).toContain('from "@ui/elements/flex-css"')
     expect(sources[2]).toContain('from "@ui/elements/theme"')

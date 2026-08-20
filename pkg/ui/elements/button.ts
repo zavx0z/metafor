@@ -1,7 +1,9 @@
 import type {HitOptions, UiSurface} from "./surface.ts"
 import {Z} from "./surface.ts"
 import {div} from "./div.ts"
-import {boxPadding, mergeStyle, px, textMaterial, type ElementChildren, type InteractiveElementProps, type StyleProps} from "./style.ts"
+import {controlChromePadding, controlChromeRect} from "./control-shape.ts"
+import {mergeStyle, px, textMaterial, type ElementChildren, type InteractiveElementProps, type StyleProps} from "./style.ts"
+import {uiShapeMetrics} from "./shape.ts"
 
 export type ButtonElementState = "idle" | "hover" | "active" | "disabled"
 export type ButtonElementChildren = ElementChildren | ((state: ButtonElementState) => void)
@@ -30,9 +32,10 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
   const fill = state === "disabled" ? "bgPanelDim" : "glass"
   const active = state === "active"
   const pressOffsetY = active ? 1 : 0
-  const pad = boxPadding(style)
+  const chrome = controlChromeRect(x, y, width, height, style)
+  const pad = controlChromePadding(style)
 
-  div(surface, x, y + pressOffsetY, width, height - pressOffsetY, {
+  div(surface, chrome.x, chrome.y + pressOffsetY, chrome.width, chrome.height - pressOffsetY, {
     children: typeof props.children === "function" ? () => {
       const render = props.children
       if (typeof render === "function") render(state)
@@ -42,9 +45,10 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
       ...style,
       background: style.background === undefined ? fill : style.background,
       borderColor: style.borderColor === undefined ? border : style.borderColor,
-      borderRadius: style.borderRadius ?? 999,
+      borderRadius: style.borderRadius ?? uiShapeMetrics.lowRadius,
+      borderWidth: style.borderWidth ?? uiShapeMetrics.borderWidth,
       color: style.color ?? (state === "disabled" ? "muted" : "text"),
-      fontSize: style.fontSize ?? 12,
+      fontSize: style.fontSize ?? uiShapeMetrics.compactFontPx,
       zIndex: style.zIndex ?? Z.ELEMENT,
     },
   })
@@ -82,9 +86,9 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
   }
 
   if (props.children !== false && props.children !== null && props.children !== undefined && typeof props.children !== "function") {
-    const fontSize = px(style.fontSize, 12)
-    const maxWidth = Math.max(1, width - pad.left - pad.right)
-    surface.drawTextCentered(String(props.children), x + width / 2, y + pressOffsetY + height / 2, {
+    const fontSize = px(style.fontSize, uiShapeMetrics.compactFontPx)
+    const maxWidth = Math.max(1, chrome.width - pad.left - pad.right)
+    surface.drawTextCentered(String(props.children), chrome.x + chrome.width / 2, chrome.y + pressOffsetY + chrome.height / 2, {
       fontPx: fontSize,
       material: textMaterial(surface, style.color ?? (state === "disabled" ? "muted" : "text")),
       maxWidthPx: maxWidth,
