@@ -88,8 +88,9 @@ cycle/expanded и exceptional states без ложного dropdown/popup contra
 исправляет незавершённую consumer migration: Node UI, Components и Elements уже
 используют package-owned stories и общий Workbench; selected Node и новые public
 VectorInput/MatrixInput/ReferenceInput/EnumInput представлены отдельными stories.
-Готовый result и общая matrix четырёх contours переданы на independent closing
-review.
+Independent closing review подтвердила runtime/matrix, но вернула два findings:
+оставшиеся английские human-facing labels и неполную metadata семи artifacts.
+Два отдельных correction-среза выполняются перед повторным verdict.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
