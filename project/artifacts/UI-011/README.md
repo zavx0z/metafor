@@ -30,6 +30,7 @@
   controls — справа.
 * Фактическое наблюдение: ожидание совпало; DOM ready, console `0`, canvas
   `3840×2176`, outer Socket diameter около `20` physical px.
+* Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `0dc325a31a98eae001e31b11439417cc762d64e83f24103f089653e14c8c723f`.
 
@@ -43,6 +44,7 @@
   TypeScript/copy справа.
 * Фактическое наблюдение: ожидание совпало; expanded Nodes и collapsed
   `Compact Mix` видны, console `0`, canvas `3840×2176`. Mapping fixture нет.
+* Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `20b49ef06dc095b59cc3f3a09312cde0a1c7127ecd5ab3a9a817512256441a08`.
 
@@ -55,6 +57,7 @@
   справа появляется exact story TypeScript/copy.
 * Фактическое наблюдение: ожидание совпало; visual scale difference
   reference/live остаётся owner acceptance gate.
+* Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `458e0f54f78cd75abf10c313631074f21a4730053478adb67a36fcb4a6469d54`.
 
@@ -62,18 +65,26 @@
 
 * Источник: `$ui-dev` renderer-activity desktop capture `field/number/input`,
   target `D0775AE44CFF0E299A0C28EECB3872D2`.
+* Дата: 2026-08-20.
 * Версия проекта: UI-011.3 `b1a113491`, NumberInput `99f80c0e2`.
+* Ожидание: production `Field → NumberInput`, TypeScript/copy и controls видны;
+  route ready, console `0`, native metrics восстановлены.
 * Фактическое наблюдение: production `Field → NumberInput`, TypeScript/copy и
   controls видны; console `0`, native metrics restored.
+* Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `212ddf69bdbe67bb7215740e3560a75cb178ed741777bf8af8105207b13d73fe`.
 
 ## components-field-color.png
 
 * Источник: `$ui-dev` ready desktop capture `field/color/input`, тот же target.
+* Дата: 2026-08-20.
 * Версия проекта: UI-011.3 `b1a113491`, ColorInput `c935de436`.
+* Ожидание: production `Field → ColorInput`, swatch/RGBA и TypeScript/copy
+  видны; route ready, console `0`, сохранён ready non-black кадр.
 * Фактическое наблюдение: production `Field → ColorInput`, swatch/RGBA и
   TypeScript/copy видны. Первый `starting` кадр отклонён; сохранён ready кадр.
+* Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `ed1610346a91630c1df48a0e822db09f7f1eb977b5c783b2b4ce0b3de842361d`.
 
@@ -81,9 +92,13 @@
 
 * Источник: `$ui-dev` renderer-activity desktop capture `field/vector/default`,
   тот же target.
+* Дата: 2026-08-20.
 * Версия проекта: UI-011.3 `b1a113491`, VectorInput `b926baf00`.
+* Ожидание: production `Field → VectorInput`, XYZ и TypeScript/copy видны;
+  route ready, console `0`, native metrics восстановлены.
 * Фактическое наблюдение: production `Field → VectorInput`, XYZ и
   TypeScript/copy видны; console `0`, native metrics restored.
+* Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `e7ddf87392c982d683c952f2b685ca5263ae524155f66b0054db0a4603d2b838`.
 
@@ -277,9 +292,12 @@
 
 * Источник: `$ui-dev` renderer-activity desktop capture `4192/overview`, target
   `1AFE2E4404B88E32A4CBA6C26AF4C633`, PID `87410`.
-* Дата: 2026-08-20; current shared Workbench contract.
-* Ожидание и факт: эталонная пятизонная desktop-композиция, Button preview,
-  variants, TypeScript/copy и controls/events; ready, console `0`, non-black,
+* Дата: 2026-08-20.
+* Версия проекта: UI-007 shared Workbench source `bf024f899`, result
+  `378f5aaff`.
+* Ожидание: эталонная пятизонная desktop-композиция, Button preview, variants,
+  TypeScript/copy и controls/events.
+* Фактическое наблюдение: ожидание совпало; ready, console `0`, non-black,
   native `1920×1088 @2` восстановлен.
 * Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
