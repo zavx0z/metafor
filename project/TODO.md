@@ -29,7 +29,6 @@ flowchart LR
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     UI010["UI-010 · полный набор универсальных полей"]
     UI012["UI-012 · мягкая производительная SDF-тень"]
-    UI013["UI-013 · восстановление UI playground после Codex restart"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
@@ -92,13 +91,6 @@ rounded SDF quad со spread/blur в local units, без texture pass. Node cons
 `b9f9419fb` и exact ordinary/selected live evidence `8ef8ed959` завершены;
 задача в `REVIEW` перед independent closing.
 
-[`UI-013 — Восстанавливать UI playground после перезапуска Codex`](tasks/UI-013.md)
-добавила session-resume audit и exact-selector `ensure` commit-ом `ed06fbc57`:
-после потери foreground PTY skill сам сообщает stopped contour и восстанавливает
-его без скрытого launchd/iTerm daemon. Canvas guard `9b3663b1b` + corrections
-`983ea4fb2`/`a11c979be` отклоняет idle-black evidence без записи и OS focus;
-задача в `REVIEW`.
-
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
 LOD owner GATE: старый `<0.38` skip уже удалён retained foundation, поэтому
@@ -116,7 +108,6 @@ mobile и явная visual owner acceptance остаются следующим
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
 | UI-012 | REVIEW      | нет         | [Открыть](tasks/UI-012.md) |
-| UI-013 | REVIEW      | нет         | [Открыть](tasks/UI-013.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
