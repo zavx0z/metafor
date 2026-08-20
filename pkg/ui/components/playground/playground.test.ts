@@ -224,13 +224,23 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(referenceSource).toContain("let value: ReferenceInputValue | null = null")
     expect(referenceSource).toContain("readOnly: true")
     expect(referenceSource).toContain("onActivate: openReferencePicker")
+    expect(referenceSource).toContain("onPick: pickReference")
     expect(referenceSource).toContain("onClear: () => setValue(null)")
 
     const referenceImplementation = await Bun.file(join(playgroundRoot, "stories", "reference-input.ts")).text()
     expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("value", SAMPLE_REFERENCE)')
     expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("value", null)')
     expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onActivate")')
+    expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onPick")')
     expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onClear")')
+
+    const closedColor = await COMPONENT_STORIES.load("color-input/basic/color-input")
+    const openColor = await COMPONENT_STORIES.load("color-input/state/open")
+    expect(closedColor.defaultArgs).toMatchObject({open: false, disabled: false, readonly: false})
+    expect(openColor.defaultArgs).toMatchObject({open: true, disabled: false, readonly: false})
+    expect(openColor.source(openColor.defaultArgs)).toContain('from "@ui/components/color-input"')
+    expect(openColor.source(openColor.defaultArgs)).toContain("let open = true")
+    expect(openColor.source(openColor.defaultArgs)).toContain("  open,")
 
     expect(componentSectionItems("enum-input/presentation/cycle").map(({id}) => id)).toEqual([
       "presentation", "value", "exception", "state",
@@ -604,6 +614,7 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(entry!.source).not.toContain("function createSimpleComponentStory")
     expect(entry!.source).not.toContain("function createStandaloneInputStory")
     expect(entry!.source).not.toContain("function createReferenceInputStory")
+    expect(entry!.source).not.toContain("function createColorInputStory")
     expect(entry!.source).not.toContain("function createEnumInputStory")
     expect(entry!.source).not.toContain("function createCollectionInputStory")
     expect(entry!.source).not.toContain("function createPathInputStory")
@@ -623,6 +634,9 @@ describe("@ui/components package-owned Workbench stories", () => {
     const referenceInputChunk = outputs.find(({source}) => source.includes("function createReferenceInputStory"))
     expect(referenceInputChunk).toBeDefined()
     expect(referenceInputChunk!.source).toContain('@ui/components/reference-input')
+    const colorInputChunk = outputs.find(({source}) => source.includes("function createColorInputStory"))
+    expect(colorInputChunk).toBeDefined()
+    expect(colorInputChunk!.source).toContain('@ui/components/color-input')
     const enumInputChunk = outputs.find(({source}) => source.includes("function createEnumInputStory"))
     expect(enumInputChunk).toBeDefined()
     expect(enumInputChunk!.source).toContain('@ui/components/enum-input')

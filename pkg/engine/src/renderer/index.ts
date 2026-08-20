@@ -5,7 +5,7 @@ import {InstancedMesh} from "../core/InstancedMesh"
 import {SkinnedMesh} from "../core/SkinnedMesh"
 import {BufferGeometry} from "../core/BufferGeometry"
 import {WireframeInstancedMesh} from "../core/WireframeInstancedMesh"
-import {HolographicMaterial, ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial, ThinFilmMaterial} from "../materials"
+import {ColorPickerMaterial, HolographicMaterial, ImageMaterial, LineBasicMaterial, LineGlowMaterial, MeshBasicMaterial, MeshLambertMaterial, RadialBackdropMaterial, RoundedRectMaterial, TextMaterial, ThinFilmMaterial} from "../materials"
 import {Matrix4, Vector3, Frustum} from "../math"
 import {LineSegments} from "../objects/LineSegments"
 import {Text} from "../objects/Text"
@@ -23,6 +23,7 @@ import imageShaderCode from "./shaders/image.wgsl"
 import imageExternalShaderCode from "./shaders/image_external.wgsl"
 import roundedShaderCode from "./shaders/rounded.wgsl"
 import radialBackdropShaderCode from "./shaders/radial_backdrop.ts"
+import colorPickerShaderCode from "./shaders/color_picker.wgsl"
 import {TEXT_COVER_FACE_STATE, TEXT_STENCIL_BACK_FACE_STATE, TEXT_STENCIL_FACE_STATE} from "./text-stencil"
 import {
   LINE_OVERLAY_BLEND_STATE,
@@ -62,6 +63,7 @@ if (import.meta.hot) {
     "./shaders/image.wgsl",
     "./shaders/image_external.wgsl",
     "./shaders/rounded.wgsl",
+    "./shaders/color_picker.wgsl",
   ], () => {
     if (typeof location !== "undefined") location.reload()
   })
@@ -139,6 +141,8 @@ export class Renderer {
   private uiRoundedPipeline: GPURenderPipeline | null = null
   private radialBackdropPipeline: GPURenderPipeline | null = null
   private uiRadialBackdropPipeline: GPURenderPipeline | null = null
+  private colorPickerPipeline: GPURenderPipeline | null = null
+  private uiColorPickerPipeline: GPURenderPipeline | null = null
   private imageBindGroupLayout: GPUBindGroupLayout | null = null
   private externalImageBindGroupLayout: GPUBindGroupLayout | null = null
   private imageSampler: GPUSampler | null = null
@@ -367,6 +371,10 @@ export class Renderer {
     const radialBackdropShaderModule = this.device.createShaderModule({
       label: "radialBackdropShader",
       code: radialBackdropShaderCode,
+    })
+    const colorPickerShaderModule = this.device.createShaderModule({
+      label: "colorPickerShader",
+      code: colorPickerShaderCode,
     })
 
     // --- Pipeline для MeshBasicMaterial: без освещения, цвет как задан в material.color ---
@@ -717,6 +725,60 @@ export class Renderer {
               dstFactor: "one-minus-src-alpha",
               operation: "add",
             },
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil: uiDepthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.colorPickerPipeline = await this.device.createRenderPipelineAsync({
+      label: "ColorPickerMaterial",
+      layout: pipelineLayout,
+      vertex: {
+        module: colorPickerShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
+      },
+      fragment: {
+        module: colorPickerShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add"},
+            alpha: {srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add"},
+          },
+        }],
+      },
+      primitive: {topology: "triangle-list", cullMode: "none"},
+      depthStencil,
+      multisample: {count: this.sampleCount},
+    })
+
+    this.uiColorPickerPipeline = await this.device.createRenderPipelineAsync({
+      label: "ColorPickerMaterial.ui",
+      layout: pipelineLayout,
+      vertex: {
+        module: colorPickerShaderModule,
+        entryPoint: "vs_main",
+        buffers: [
+          {arrayStride: 12, attributes: [{shaderLocation: 0, offset: 0, format: "float32x3"}]},
+          {arrayStride: 12, attributes: [{shaderLocation: 1, offset: 0, format: "float32x3"}]},
+        ],
+      },
+      fragment: {
+        module: colorPickerShaderModule,
+        entryPoint: "fs_main",
+        targets: [{
+          format: this.presentationFormat,
+          blend: {
+            color: {srcFactor: "src-alpha", dstFactor: "one-minus-src-alpha", operation: "add"},
+            alpha: {srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add"},
           },
         }],
       },
@@ -1246,6 +1308,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       this.uiRoundedPipeline &&
       this.radialBackdropPipeline &&
       this.uiRadialBackdropPipeline &&
+      this.colorPickerPipeline &&
+      this.uiColorPickerPipeline &&
       this.imageBindGroupLayout &&
       this.externalImageBindGroupLayout &&
       this.imageSampler &&
@@ -1698,6 +1762,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         material.bandRadius,
         material.bandHalfWidth,
       )
+    } else if (material instanceof ColorPickerMaterial) {
+      this.writePerObjectVec4(
+        offsetFloats + 32,
+        material.hue,
+        material.saturation,
+        material.value,
+        material.alpha,
+      )
+      this.writePerObjectVec4(
+        offsetFloats + 36,
+        material.width,
+        material.height,
+        colorPickerModeCode(material.mode),
+        material.opacity,
+      )
+      if (material.clipBounds !== null) {
+        this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 40)
+      }
     } else if (isRadialBackdropMaterial(material)) {
       this.writePerObjectRgba(offsetFloats + 32, material.base)
       this.writePerObjectRgba(offsetFloats + 36, material.glowA)
@@ -1865,6 +1947,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                   ? this.thinFilmMeshPipeline
                   : material instanceof HolographicMaterial
                     ? this.holographicMeshPipeline
+                  : material instanceof ColorPickerMaterial
+                    ? (isUiLayer ? this.uiColorPickerPipeline : this.colorPickerPipeline)
                   : isRadialBackdropMaterial(material)
                     ? (isUiLayer ? this.uiRadialBackdropPipeline : this.radialBackdropPipeline)
                     : material instanceof RoundedRectMaterial
@@ -2434,6 +2518,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 1
   return Math.min(1, Math.max(0, value))
+}
+
+function colorPickerModeCode(mode: ColorPickerMaterial["mode"]): number {
+  if (mode === "value") return 1
+  if (mode === "alpha") return 2
+  return 0
 }
 
 async function withWebGpuInitTimeout<T>(promise: Promise<T>, label: string): Promise<T> {

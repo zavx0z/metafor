@@ -1,5 +1,5 @@
-import {flexRow, palette, uiShapeMetrics, type UiSurface} from "@ui/elements"
-import {Button, type ButtonProps} from "./Button.ts"
+import {flexRow, palette, uiIcons, uiShapeMetrics, type UiSurface} from "@ui/elements"
+import {IconButton, type IconButtonProps} from "./Button.ts"
 import {TextField} from "./TextField.ts"
 
 export type PathInputDensity = "regular" | "compact"
@@ -35,9 +35,9 @@ export function PathInput(
   if (props.placeholder !== undefined) textFieldProps.placeholder = props.placeholder
   if (!disabled && props.onChange !== undefined) textFieldProps.onChange = (value) => props.onChange!(value)
 
-  const browseProps: ButtonProps = {
-    children: "…",
-    tooltip: "Выбрать путь",
+  const browseProps: IconButtonProps = {
+    label: "Выбрать путь",
+    iconSrc: uiIcons.folder,
     color: "neutral",
     variant: "contained",
     fill: palette.bgInput,
@@ -57,7 +57,7 @@ export function PathInput(
         TextField(host, slotX, slotY, slotW, slotH, textFieldProps)
       }},
       {width: browseWidth, height, draw: (slotX, slotY, slotW, slotH) => {
-        Button(host, slotX, slotY, slotW, slotH, browseProps)
+        IconButton(host, slotX, slotY, slotW, slotH, browseProps)
       }},
     ],
   })

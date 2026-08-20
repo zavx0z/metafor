@@ -56,6 +56,9 @@ const expertSvg = iconSvg("<path d=\"M12 3h4.2L21 10l-9 11-9-11 4.8-7H12Z\"/><pa
 const recognitionSvg = imageSvg
 const zoomInSvg = iconSvg("<circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-4.5-4.5\"/><path d=\"M11 8v6\"/><path d=\"M8 11h6\"/>", "#5cf0ff")
 const zoomOutSvg = iconSvg("<circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"M20 20l-4.5-4.5\"/><path d=\"M8 11h6\"/>", "#5cf0ff")
+const folderSvg = iconSvg("<path d=\"M3 7h7l2 2h9v10H3z\"/><path d=\"M3 7V5h7l2 2\"/>")
+const resourceSvg = iconSvg("<path d=\"M7 4H4v3\"/><path d=\"M17 4h3v3\"/><path d=\"M20 17v3h-3\"/><path d=\"M7 20H4v-3\"/><rect x=\"7\" y=\"7\" width=\"10\" height=\"10\" rx=\"1\"/>")
+const pickerSvg = iconSvg("<path d=\"m19 3 2 2-10.5 10.5-3.5 1 1-3.5Z\"/><path d=\"m15.5 6.5 2 2\"/><path d=\"M5 19h5\"/>")
 
 export const uiIcons = {
   run: runSvg,
@@ -108,6 +111,9 @@ export const uiIcons = {
   eval: runSvg,
   zoomIn: zoomInSvg,
   zoomOut: zoomOutSvg,
+  folder: folderSvg,
+  resource: resourceSvg,
+  picker: pickerSvg,
 } as const
 
 export type UiIcon = (typeof uiIcons)[keyof typeof uiIcons]

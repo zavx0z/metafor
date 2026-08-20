@@ -140,6 +140,7 @@ export type ReferenceFieldDefinition = FieldBase & Readonly<{
   value: FieldReference | null
   placeholder?: string
   onActivate?(): void
+  onPick?(): void
   onClear?(): void
 }>
 
@@ -604,6 +605,7 @@ function referenceInputProps(
   if (field.disabled !== undefined) props.disabled = field.disabled
   if (field.readOnly !== undefined) props.readOnly = field.readOnly
   if (field.onActivate !== undefined) props.onActivate = field.onActivate
+  if (field.onPick !== undefined) props.onPick = field.onPick
   if (field.onClear !== undefined) props.onClear = field.onClear
   return props
 }

@@ -17,6 +17,7 @@ export type ReferenceInputProps = {
   readOnly?: boolean
   density?: ReferenceInputDensity
   onActivate?(): void
+  onPick?(): void
   onClear?(): void
 }
 
@@ -32,9 +33,11 @@ export function ReferenceInput(
   const disabled = props.disabled === true || props.readOnly === true
   const showClear = props.value !== null && props.onClear !== undefined
   const gap = uiShapeMetrics.tightGap
+  const pickerWidth = uiShapeMetrics.iconActionSlot
   const clearWidth = showClear ? uiShapeMetrics.iconActionSlot : 0
   const mainProps: ButtonProps = {
     children: props.value?.label ?? props.placeholder ?? "Не выбрано",
+    startIcon: uiIcons.resource,
     variant: "contained",
     fill: palette.bgInput,
     disabled,
@@ -42,17 +45,29 @@ export function ReferenceInput(
   }
   const tooltip = props.value?.kind ?? props.tooltip
   if (tooltip !== undefined) mainProps.tooltip = tooltip
+  const pickerAction = props.onPick ?? props.onActivate
+  const pickerProps: Parameters<typeof IconButton>[5] = {
+    label: "Выбрать ресурс",
+    iconSrc: uiIcons.picker,
+    variant: "contained",
+    fill: palette.bgInput,
+    disabled: disabled || pickerAction === undefined,
+    action: () => pickerAction?.(),
+  }
 
   flexRow({
     x,
     y,
     w: width,
     h: height,
-    gap: showClear ? gap : 0,
+    gap,
     alignItems: "stretch",
     items: [
       {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
         Button(host, slotX, slotY, slotW, slotH, mainProps)
+      }},
+      {width: pickerWidth, height, draw: (slotX, slotY, slotW, slotH) => {
+        IconButton(host, slotX, slotY, slotW, slotH, pickerProps)
       }},
       ...(showClear ? [{
         width: clearWidth,

@@ -65,6 +65,7 @@ export type EnumInputStoryVariant =
   | "readonly"
 export type CollectionInputStoryVariant = "selected" | "empty" | "disabled" | "readonly" | "compact"
 export type PathInputStoryVariant = "path" | "empty" | "disabled" | "readonly" | "compact"
+export type ColorInputStoryVariant = "closed" | "open"
 
 const loadButtonStory = (
   section: ButtonStorySection,
@@ -112,6 +113,13 @@ const loadControlGroupStory = async (): Promise<PlaygroundStoryModule> => {
 const loadReferenceInputStory = async (): Promise<PlaygroundStoryModule> => {
   const {createReferenceInputStory} = await import("./stories/reference-input.ts")
   return createReferenceInputStory()
+}
+
+const loadColorInputStory = (
+  variant: ColorInputStoryVariant,
+) => async (): Promise<PlaygroundStoryModule> => {
+  const {createColorInputStory} = await import("./stories/color-input.ts")
+  return createColorInputStory(variant)
 }
 
 const loadEnumInputStory = (
@@ -286,7 +294,20 @@ export const COMPONENT_STORIES = definePlaygroundStories({
         },
         {id: "text-field", label: "Текстовый ввод", apiName: "TextField", sections: [{id: "basic", label: "Основной", variants: singleVariant("text-field", "TextField · Основной")} ]},
         {id: "number-input", label: "Числовой ввод", apiName: "NumberInput", sections: [{id: "basic", label: "Основной", variants: singleVariant("number-input", "NumberInput · Основной")} ]},
-        {id: "color-input", label: "Ввод цвета", apiName: "ColorInput", sections: [{id: "basic", label: "Основной", variants: singleVariant("color-input", "ColorInput · Основной")} ]},
+        {id: "color-input", label: "Ввод цвета", apiName: "ColorInput", sections: [
+          {id: "basic", label: "Основной", variants: [{
+            id: "color-input",
+            label: "Закрыт",
+            title: "ColorInput · Закрытый picker",
+            load: loadColorInputStory("closed"),
+          }]},
+          {id: "state", label: "Состояние", variants: [{
+            id: "open",
+            label: "Открыт",
+            title: "ColorInput · Открытый picker",
+            load: loadColorInputStory("open"),
+          }]},
+        ]},
         {id: "vector-input", label: "Ввод вектора", apiName: "VectorInput", tags: ["input", "vector", "2D", "3D", "4D"], sections: [{
           id: "basic",
           label: "Основной",

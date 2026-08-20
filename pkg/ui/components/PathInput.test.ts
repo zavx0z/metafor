@@ -5,6 +5,7 @@ import {
   handleActiveInputKey,
   insertActiveInputText,
   palette,
+  uiIcons,
   uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
@@ -21,12 +22,14 @@ import {
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
 type TextCall = Parameters<UiSurface["drawText"]>
 type CenteredTextCall = Parameters<UiSurface["drawTextCentered"]>
+type ImageCall = Parameters<UiSurface["drawImage"]>
 type HitCall = Parameters<UiSurface["hit"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
   readonly texts: TextCall[] = []
   readonly centeredTexts: CenteredTextCall[] = []
+  readonly images: ImageCall[] = []
   readonly hits: HitCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
@@ -41,6 +44,10 @@ class RecordingSurface extends BaseUiSurface {
   override drawTextCentered(...args: CenteredTextCall): number {
     this.centeredTexts.push(args)
     return 0
+  }
+
+  override drawImage(...args: ImageCall): void {
+    this.images.push(args)
   }
 
   override hit(...args: HitCall): void {
@@ -101,14 +108,15 @@ describe("public PathInput", () => {
     expect(typeof browseOptions === "object" ? browseOptions.tooltip?.label : undefined).toBe("Выбрать путь")
   })
 
-  test("shows an empty placeholder without inventing a path", () => {
+  test("shows an empty placeholder and a folder affordance without inventing a path", () => {
     const events: string[] = []
     const surface = new RecordingSurface()
     const props = pathProps(events, {value: "", placeholder: "Выберите файл"})
     PathInput(surface, 0, 0, 120, 28, props)
 
     expect(surface.texts.map(([text]) => text)).toContain("Выберите файл")
-    expect(surface.centeredTexts.map(([text]) => text)).toContain("…")
+    expect(surface.centeredTexts.map(([text]) => text)).not.toContain("…")
+    expect(surface.images.map(([src]) => src)).toContain(uiIcons.folder)
     expect(props.value).toBe("")
     expect(events).toEqual([])
   })

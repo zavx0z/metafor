@@ -73,6 +73,9 @@ export function createReferenceInputStory(): PlaygroundStoryModule {
             if (value === null) globalThis.__componentsStoryControlBridge?.("value", SAMPLE_REFERENCE)
             globalThis.__componentsStoryControlBridge?.("event", "onActivate")
           },
+          onPick() {
+            globalThis.__componentsStoryControlBridge?.("event", "onPick")
+          },
           onClear() {
             globalThis.__componentsStoryControlBridge?.("value", null)
             globalThis.__componentsStoryControlBridge?.("event", "onClear")
@@ -96,6 +99,7 @@ function referenceInputSource(args: ReferenceInputStoryArgs): string {
   if (args.readonly) properties.push("  readOnly: true,")
   properties.push(
     "  onActivate: openReferencePicker,",
+    "  onPick: pickReference,",
     "  onClear: () => setValue(null),",
   )
   return [

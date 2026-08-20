@@ -5,6 +5,7 @@ import {
   handleActiveInputKey,
   palette,
   uiShapeMetrics,
+  type ColorPickerPlaneDrawOptions,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -17,6 +18,8 @@ import {
 } from "./Field.ts"
 import {
   ColorInput,
+  colorInputValueToPicker,
+  colorPickerValueToInput,
   formatColorInputValue,
   normalizeColorInputValue,
   parseColorInputValue,
@@ -26,10 +29,18 @@ import {
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
 type HitCall = Parameters<UiSurface["hit"]>
+type PickerPlaneCall = Readonly<{
+  x: number
+  y: number
+  w: number
+  h: number
+  options: ColorPickerPlaneDrawOptions
+}>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
   readonly hits: HitCall[] = []
+  readonly pickerPlanes: PickerPlaneCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
@@ -37,6 +48,16 @@ class RecordingSurface extends BaseUiSurface {
 
   override hit(...args: HitCall): void {
     this.hits.push(args)
+  }
+
+  override drawColorPickerPlane(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    options: ColorPickerPlaneDrawOptions,
+  ): void {
+    this.pickerPlanes.push({x, y, w, h, options})
   }
 
   override pushClip(): void {}
@@ -100,6 +121,19 @@ describe("public ColorInput", () => {
     expect(parseFieldColor).toBe(parseColorInputValue)
   })
 
+  test("round-trips immutable RGBA and HSVA without changing alpha", () => {
+    const rgba = Object.freeze({r: 0.2, g: 0.4, b: 0.8, a: 0.35})
+    const hsva = colorInputValueToPicker(rgba)
+    const roundTrip = colorPickerValueToInput(hsva)
+
+    expect(Object.isFrozen(hsva)).toBeTrue()
+    expect(Object.isFrozen(roundTrip)).toBeTrue()
+    expect(roundTrip.r).toBeCloseTo(rgba.r)
+    expect(roundTrip.g).toBeCloseTo(rgba.g)
+    expect(roundTrip.b).toBeCloseTo(rgba.b)
+    expect(roundTrip.a).toBe(rgba.a)
+  })
+
   test("rejects invalid text without publishing a color", () => {
     for (const text of ["", "#123", "#GG6699", "#3366998000", "rgba(1, 2, 3, 1)"]) {
       expect(parseColorInputValue(text)).toBeNull()
@@ -120,6 +154,72 @@ describe("public ColorInput", () => {
       submit(surface, "color", "#33669980")
     }
     expect(values).toEqual([])
+  })
+
+  test("opens one retained-style picker, publishes every drag step and closes only on swatch reclick", () => {
+    const values: ColorInputValue[] = []
+    const openStates: boolean[] = []
+    const surface = new RecordingSurface()
+    const props = colorProps((value) => values.push(value), {
+      onOpenChange: (open) => openStates.push(open),
+    })
+
+    ColorInput(surface, 0, 0, 146, 22, props)
+    expect(surface.pickerPlanes).toHaveLength(0)
+    surface.hits[0]?.[4]()
+    expect(openStates).toEqual([true])
+
+    ColorInput(surface, 0, 0, 146, 22, props)
+    expect(surface.pickerPlanes.map(({options}) => options.mode)).toEqual(["wheel", "value", "alpha"])
+    const wheelHit = surface.hits.find((hit) => {
+      const options = hit[5]
+      return typeof options === "object" && options.key === "color:wheel"
+    })
+    expect(wheelHit).toBeDefined()
+    const wheelOptions = wheelHit![5]
+    expect(typeof wheelOptions).toBe("object")
+    if (typeof wheelOptions !== "object") throw new Error("missing wheel pointer options")
+    const [wheelX, wheelY, wheelW, wheelH] = wheelHit!
+    wheelOptions.onPointerDown?.(wheelX + wheelW, wheelY + wheelH / 2, {} as MouseEvent)
+    wheelOptions.onPointerMove?.(wheelX + wheelW / 2, wheelY + wheelH, {} as MouseEvent)
+
+    expect(values).toHaveLength(2)
+    expect(values.every((value) => Object.isFrozen(value))).toBeTrue()
+    expect(props.value).toEqual(initialColor)
+
+    const planesBeforePersistentRender = surface.pickerPlanes.length
+    ColorInput(surface, 0, 0, 146, 22, props)
+    expect(surface.pickerPlanes).toHaveLength(planesBeforePersistentRender + 3)
+    expect(openStates).toEqual([true])
+
+    const latestSwatchHit = surface.hits.filter((hit) => {
+      const options = hit[5]
+      return typeof options === "object" && options.key === "color:swatch"
+    }).at(-1)
+    expect(latestSwatchHit).toBeDefined()
+    latestSwatchHit![4]()
+    expect(openStates).toEqual([true, false])
+
+    const planesBeforeClosedRender = surface.pickerPlanes.length
+    ColorInput(surface, 0, 0, 146, 22, props)
+    expect(surface.pickerPlanes).toHaveLength(planesBeforeClosedRender)
+  })
+
+  test("supports deterministic controlled open and blocks it while disabled or read-only", () => {
+    const states: boolean[] = []
+    const open = new RecordingSurface()
+    ColorInput(open, 0, 0, 146, 22, colorProps(() => {}, {
+      open: true,
+      onOpenChange: (value) => states.push(value),
+    }))
+    expect(open.pickerPlanes.map(({options}) => options.mode)).toEqual(["wheel", "value", "alpha"])
+
+    for (const state of [{disabled: true}, {readOnly: true}] as const) {
+      const surface = new RecordingSurface()
+      ColorInput(surface, 0, 0, 146, 22, colorProps(() => {}, {...state, open: true}))
+      expect(surface.pickerPlanes).toHaveLength(0)
+    }
+    expect(states).toEqual([])
   })
 
   test("draws the normalized swatch through one Elements-owned geometry", () => {

@@ -55,6 +55,8 @@
 
 import {
   Color,
+  ColorPickerMaterial,
+  type ColorPickerMaterialMode,
   ImageMaterial,
   Matrix4,
   Mesh,
@@ -217,6 +219,16 @@ export type DrawBackdropGradientOpts = {
   glowB: BackdropGlow
   z?: number
 }
+
+export type ColorPickerPlaneDrawOptions = Readonly<{
+  mode: ColorPickerMaterialMode
+  hue: number
+  saturation: number
+  value: number
+  alpha: number
+  opacity?: number
+  z?: number
+}>
 
 export type DrawTextOpts = {
   fontPx: number
@@ -1244,6 +1256,36 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#currentLayer().add(mesh)
   }
 
+  /** Draws one texture-free analytical quad for a color wheel or vertical slider. */
+  drawColorPickerPlane(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    opts: ColorPickerPlaneDrawOptions,
+  ): void {
+    if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return
+    const ps = this.pixelScale
+    const materialOptions: ConstructorParameters<typeof ColorPickerMaterial>[0] = {
+      width: w * ps,
+      height: h * ps,
+      mode: opts.mode,
+      hue: opts.hue,
+      saturation: opts.saturation,
+      value: opts.value,
+      alpha: opts.alpha,
+    }
+    if (opts.opacity !== undefined) materialOptions.opacity = opts.opacity
+    const material = new ColorPickerMaterial(materialOptions)
+    this.#applyColorPickerClipTo(material)
+    const mesh = new Mesh(new PlaneGeometry({width: w * ps, height: h * ps}), material)
+    mesh.position.x = (x + w / 2) * ps
+    mesh.position.y = -(y + h / 2) * ps
+    mesh.position.z = opts.z ?? Z.ELEMENT
+    mesh.updateMatrix()
+    this.#currentLayer().add(mesh)
+  }
+
   drawTooltipForHit(
     x: number,
     y: number,
@@ -1918,6 +1960,12 @@ export abstract class UiSurface implements UiSurfaceNode {
     // zeros — шейдер их детектит и skip'ает scissor (быстрее).
     if (this.#retainedMaterialization === null && this.#isCompleteSurfaceClip(clip)) return
     this.#tagClipBounds(material as RoundedRectMaterial & ClipBoundsHost, clip)
+  }
+
+  #applyColorPickerClipTo(material: ColorPickerMaterial): void {
+    const clip = this.#clipStack[this.#clipStack.length - 1]!
+    if (this.#retainedMaterialization === null && this.#isCompleteSurfaceClip(clip)) return
+    this.#tagClipBounds(material as ColorPickerMaterial & ClipBoundsHost, clip)
   }
 
   #tagClipBounds(host: ClipBoundsHost, clip: ClipLocalRect): void {

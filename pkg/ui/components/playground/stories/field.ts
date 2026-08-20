@@ -194,6 +194,7 @@ function createFieldDefinition(
     value: referenceValue(args.value),
     placeholder: "Не выбрано",
     onActivate: () => change(args.value === null ? initialFieldValue("reference") : null),
+    onPick: () => globalThis.__componentsStoryControlBridge?.("event", "onPick"),
   }
   if (options.kind === "collection") return {
     ...base,
@@ -252,6 +253,11 @@ function sourceFieldDefinition(
     "  onSelect: setSelectedId,",
     "  onAdd: addItem,",
     "  onRemove: removeItem,",
+  )
+  else if (options.kind === "reference") properties.push(
+    "  onActivate: openReferencePicker,",
+    "  onPick: pickReference,",
+    "  onClear: clearReference,",
   )
   else if (options.kind !== "readonly") properties.push("  onChange: setValue,")
   if (options.kind === "path") properties.push("  onBrowse: openPathPicker,")

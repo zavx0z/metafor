@@ -1,0 +1,36 @@
+import {describe, expect, test} from "bun:test"
+import {Mesh} from "../core/Mesh"
+import {PlaneGeometry} from "../geometries/PlaneGeometry"
+import {Matrix4} from "../math/Matrix4"
+import {ColorPickerMaterial} from "../materials/ColorPickerMaterial"
+import {Renderer} from "./index"
+
+type RendererProbe = {
+  perObjectDataCPU: Float32Array
+  updateMeshData(mesh: Mesh, worldMatrix: Matrix4, offsetFloats: number): void
+}
+
+describe("ColorPickerMaterial renderer packing", () => {
+  test("uploads HSVA, mode, opacity and clip into one per-object block", () => {
+    const material = new ColorPickerMaterial({
+      width: 0.12,
+      height: 0.014,
+      mode: "alpha",
+      hue: 0.75,
+      saturation: 0.5,
+      value: 0.25,
+      alpha: 0.6,
+      opacity: 0.8,
+    })
+    material.clipBounds = [2, 3, 40, 50]
+    const mesh = new Mesh(new PlaneGeometry({width: material.width, height: material.height}), material)
+    const renderer = new Renderer() as unknown as RendererProbe
+    renderer.perObjectDataCPU = new Float32Array(64)
+
+    renderer.updateMeshData(mesh, new Matrix4(), 0)
+
+    expect([...renderer.perObjectDataCPU.slice(32, 36)]).toEqual([0.75, 0.5, 0.25, 0.6000000238418579])
+    expect([...renderer.perObjectDataCPU.slice(36, 40)]).toEqual([0.11999999731779099, 0.014000000432133675, 2, 0.800000011920929])
+    expect([...renderer.perObjectDataCPU.slice(40, 44)]).toEqual(material.clipBounds)
+  })
+})
