@@ -85,8 +85,8 @@ public retained Workbench. Package-owned Components stories готовы checkpo
 
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 параллельно развивает production Components, пока UI-011 владеет всеми
-playground. NumberInput и ColorInput уже вынесены в public leaves; текущий срез
-создаёт общий VectorInput для vector/rotation без Node-копий.
+playground. NumberInput, ColorInput и VectorInput уже вынесены и доказаны на
+live Workbench; текущий срез создаёт public MatrixInput без Node-копии.
 
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: `4192` уже является эталоном, но
