@@ -163,6 +163,9 @@ Numeric UI-015.8.3 идёт независимо correction chain на exact
 delegation PASS, но исправляет threshold reset, frozen adaptive range и soft
 side clamp; новый UI-015.8.4 следом добавляет Ctrl/Ctrl+Shift linear snapping.
 Node gate ждёт оба направления.
+UI-015.11 параллельно исправляет `$ui-dev`: no-HMR является осознанным delivery/
+retained law, а stable source checkpoint требует exact selector restart и
+explicit reload прежнего singleton target до browser evidence.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
