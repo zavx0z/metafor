@@ -127,7 +127,8 @@ format и автоматическое размещение принадлежа
    desktop показывает maintained Blender screenshot и одну representative live
    Node в равных FlexBox slots; asset и Surface не экспортируются production
    package. На mobile остаётся только активный preview, а у comparison скрывается
-   reference и сохраняется live Node.
+   reference и сохраняется live Node. Client-side смена route повторно применяет
+   layout всех preview surfaces без fake resize или reload.
 
 ## Источник терминов
 

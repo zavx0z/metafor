@@ -137,7 +137,7 @@ try {
     document.documentElement.dataset.nodePlaygroundRoute = route
     document.documentElement.dataset.nodePlaygroundGroup = group
     document.documentElement.dataset.comparison = group === "comparison" ? "blender-reference-live-editor" : ""
-    runtime.handleResize()
+    runtime.relayout()
     retainedObserver?.publishAfterFrame()
   }
 
