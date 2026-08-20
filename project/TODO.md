@@ -92,10 +92,10 @@ rounded SDF quad со spread/blur в local units, без texture pass. Node cons
 задача в `REVIEW` перед independent closing.
 
 [`UI-013 — Восстанавливать UI playground после перезапуска Codex`](tasks/UI-013.md)
-добавляет обязательный session-resume audit и exact-selector `ensure`: после
-потери foreground PTY skill сам сообщает stopped contour и восстанавливает его
-перед browser evidence, не вводя скрытый launchd/iTerm daemon. Следующий
-отдельный срез отклонит idle-black canvas evidence.
+добавила session-resume audit и exact-selector `ensure` commit-ом `ed06fbc57`:
+после потери foreground PTY skill сам сообщает stopped contour и восстанавливает
+его без скрытого launchd/iTerm daemon. Текущий отдельный срез отклоняет
+idle-black canvas evidence.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
