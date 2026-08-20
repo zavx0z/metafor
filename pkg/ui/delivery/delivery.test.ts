@@ -10,6 +10,8 @@ const packageRoots = Object.freeze({
   nodeUi: join(uiRoot, "../nodes/ui"),
 })
 
+type BrowserBuildOutput = Awaited<ReturnType<typeof Bun.build>>["outputs"][number]
+
 const productionExports = Object.freeze({
   elements: Object.freeze({
     ".": "./index.ts",
@@ -74,6 +76,30 @@ const manifestTargets = (
     ? [target]
     : [...new Set([target.default, target.types].filter((entry): entry is string => entry !== undefined))]
 )
+
+const buildBrowser = async (entrypoints: readonly string[], splitting: boolean) => {
+  const result = await Bun.build({
+    entrypoints: [...entrypoints],
+    target: "browser",
+    format: "esm",
+    splitting,
+    minify: false,
+    sourcemap: "none",
+    loader: {".wgsl": "text"},
+  })
+  expect(result.success, result.logs.map(({message}) => message).join("\n")).toBeTrue()
+  return result.outputs
+}
+
+const outputSources = async (outputs: readonly BrowserBuildOutput[]) =>
+  await Promise.all(outputs.map(async (output) => Object.freeze({
+    kind: output.kind,
+    path: output.path,
+    size: output.size,
+    source: await output.text(),
+  })))
+
+const occurrences = (source: string, value: string): number => source.split(value).length - 1
 
 describe("production UI delivery baseline", () => {
   test("publishes the complete exact production subpath contract", async () => {
@@ -151,5 +177,43 @@ describe("production UI delivery baseline", () => {
     }
     expect(manifest.name).toBe("@metafor/engine")
     expect(Object.keys(manifest.exports)).toEqual(["."])
+  })
+
+  test("builds dynamic leaves around one shared Engine and UiRuntime implementation", async () => {
+    const fixtureRoot = join(uiRoot, "delivery/fixtures")
+    const dynamicFixture = join(fixtureRoot, "dynamic-product.fixture.ts")
+    const fixtureSource = await Bun.file(dynamicFixture).text()
+    expect(occurrences(fixtureSource, "UiRuntime.create")).toBe(1)
+    expect(occurrences(fixtureSource, "import(\"")).toBe(3)
+    expect(fixtureSource).toContain("runtime.addSurface(surface")
+
+    const splitOutputs = await outputSources(await buildBrowser([dynamicFixture], true))
+    const splitGraph = splitOutputs.map(({source}) => source).join("\n")
+    const bootstrap = splitOutputs.find(({path}) => path.endsWith("dynamic-product.fixture.js"))
+    expect(bootstrap).toBeDefined()
+    expect(splitOutputs.filter(({kind}) => kind === "chunk").length).toBeGreaterThanOrEqual(3)
+    expect(bootstrap!.source).toContain("import(")
+    expect(bootstrap!.source).not.toContain("class Renderer")
+    expect(bootstrap!.source).not.toContain("class UiRuntime")
+    expect(bootstrap!.source).not.toContain("function Button")
+    expect(bootstrap!.source).not.toContain("function Field")
+    expect(bootstrap!.source).not.toContain("class NodeEditor")
+    expect(occurrences(splitGraph, "class Renderer")).toBe(1)
+    expect(occurrences(splitGraph, "class UiRuntime")).toBe(1)
+    expect(occurrences(splitGraph, "function Button")).toBe(1)
+    expect(occurrences(splitGraph, "function Field")).toBe(1)
+    expect(occurrences(splitGraph, "class NodeEditor")).toBe(1)
+    expect(splitGraph).not.toContain("@ui/playground")
+
+    const independentEntries = [
+      join(fixtureRoot, "exact-components-field.fixture.ts"),
+      join(fixtureRoot, "exact-elements-button.fixture.ts"),
+      join(fixtureRoot, "exact-node-editor.fixture.ts"),
+    ]
+    const independentOutputs = await Promise.all(independentEntries.map(async (entry) =>
+      await buildBrowser([entry], false)))
+    const independentBytes = independentOutputs.flat().reduce((sum, output) => sum + output.size, 0)
+    const splitBytes = splitOutputs.reduce((sum, output) => sum + output.size, 0)
+    expect(splitBytes).toBeLessThan(independentBytes * 0.6)
   })
 })

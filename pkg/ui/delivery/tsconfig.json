@@ -2,6 +2,7 @@
   "extends": "../../../tsconfig.json",
   "include": [
     "fixtures/**/*.ts",
+    "./**/*.test.ts",
     "../elements/wgsl-shim.d.ts"
   ]
 }
