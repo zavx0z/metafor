@@ -97,7 +97,8 @@
   `350×446`, `111178` bytes, SHA-256
   `2ec224eb1bb3a9f946193eb01a45ed1942c867ec5a2082e42466fb96011f03ba`.
   Кадр доказывает non-interactive title `Mode`, separator, selected trigger icon
-  и shared option icon column; title не является fake option.
+  и shared option icon column; title не является fake option. Header belongs to
+  base text-only Select, icon composition/alignment — Components EnumInput.
 
 ## UI-015.7.3 — Vector grouped live RED
 

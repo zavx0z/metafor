@@ -134,7 +134,8 @@ UI-015.7.5 overlay portal теперь IN_PROGRESS до Color marker/shadow UI-0
 Clean restart подтвердил второй root cause: explicit `fill:null` у
 RoundedRectMaterial становится white alpha1. UI-015.7.6 исправляет Engine
 transparent fill до overlay portal. Select gate также расширен exact Blender
-header + separator + optional icon-column contract.
+header + separator contract; icon-column semantics принадлежат Components
+EnumInput через generic Select content hooks, не Elements Select.
 Owner отменил сохранение MetaFor palette: UI-015.8 переводит base colors и
 material states на Blender 4.5.5 по mapping от направленного Blender UI
 помощника. UI-015.5/.7 source сохранён на pause до этого mapping.
