@@ -102,9 +102,9 @@ detail story завершена checkpoint-ом `348453120`, остальные 
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
-geometric collapse chevron и title alignment после принятой Socket calibration;
-shadow/LOD/alignment, physical mobile и явная visual owner acceptance остаются
-следующими gates.
+четырёхсторонняя selection shadow после UI-012 SDF primitive; Socket и geometric
+header уже приняты package/live evidence. LOD/alignment, exact collapsed Mapping,
+physical mobile и явная visual owner acceptance остаются следующими gates.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |

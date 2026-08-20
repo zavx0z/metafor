@@ -319,7 +319,7 @@ owner acceptance.
 Blender reference, а title выровнять с ним в одной Flex row. Изменение действует
 для expanded и collapsed Node и не вводит fixture-specific offsets.
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель текущей задачи.
+Статус и исполнитель: `COMPLETE`, внутренний исполнитель текущей задачи.
 
 Классификация: следующее самостоятельное visual-расхождение того же parent.
 Socket policy уже завершена; новый механизм ограничен геометрией collapse
@@ -346,6 +346,35 @@ owner acceptance.
 
 Подготовительный commit: записывается до production patch.
 
+Фактические действия и результат: commit `860076720` заменил glyph одним
+geometric `drawPolyline`. Общий intrinsic envelope `8×8`, depth `5`, stroke
+`1.5`, left padding `8`, icon slot `12`, gap `4`; title начинается на `left+24`.
+Одна miter-компенсация удерживает painted optical center expanded/down и
+collapsed/right в центре header. Rounded radius `6`, body, Socket, shadow, LOD
+и project font не менялись.
+
+Source и regression: Blender 4.5 задаёт `NODE_DY = 1 × widget_unit`,
+`NODE_MARGIN_X = 1.2 × widget_unit`, icon start `0.4 × unit` и title start
+`1.2 × unit`. Production regression проверяет actual polyline geometry,
+Typography slot, одинаковый envelope/stroke двух orientation и intrinsic scale.
+Руководитель повторно получил focused `21/21` (`1179` assertions), Node
+typecheck, boundary `4/4`, delivery `9/9` и clean diff.
+
+Live evidence: UI-011 выполнила один `$ui-dev` restart, новый PID `38236`,
+сохранила target `809BF08D88E4582CA819EFE847FE1450`, native `1920×1088 @2`,
+backing `3840×2176`, console `0`. Expanded scene capture
+[`node-editor-story.png`](../artifacts/UI-011/node-editor-story.png) — `479576`
+bytes, SHA-256
+`20b49ef06dc095b59cc3f3a09312cde0a1c7127ecd5ab3a9a817512256441a08`;
+geometric headers/title выровнены. Та же scene содержит collapsed `Compact Mix`
+на общем renderer, но exact collapsed `Mapping` fixture отсутствует и не
+подменяется переименованием. Comparison capture
+[`node-comparison-story.png`](../artifacts/UI-011/node-comparison-story.png) —
+`1888116` bytes, SHA-256
+`458e0f54f78cd75abf10c313631074f21a4730053478adb67a36fcb4a6469d54`.
+Reference/live scale difference остаётся owner visual gate; automated capture
+не является owner acceptance.
+
 #### NODES-017.8.5 — Сделать четырёхстороннюю Node shadow носителем selection
 
 Заменить смещённую вправо-вниз Node shadow на общий симметричный shadow halo со
@@ -353,9 +382,11 @@ owner acceptance.
 Node не меняется, а halo получает прозрачный оттенок фактического header color.
 Одинаковый закон действует для expanded и collapsed Node и не зависит от fixture.
 
-`READY`: выполнять после NODES-017.8.4; primitive shadow geometry допустима как
-drawing policy renderer и не является UI child layout. Проверка различает
-ordinary/selected border и shadow colors.
+`WAITING`: зависит от
+[`UI-012.1 — Добавить rounded shadow material и UiSurface primitive`](UI-012.md).
+После её checkpoint этот срез меняет только Node renderer: один neutral shadow
+child в обычном состоянии, header-derived shadow при selection и неизменный
+border. Собственный Node blur/shader либо несколько shadow strips запрещены.
 
 #### NODES-017.8.6 — Убрать пустые Node при overview zoom
 
