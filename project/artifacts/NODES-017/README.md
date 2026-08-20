@@ -133,6 +133,15 @@
 * Контрольная сумма: SHA-256
   `20b49ef06dc095b59cc3f3a09312cde0a1c7127ecd5ab3a9a817512256441a08`.
 
+## node-header-title-vertical-red.png
+
+* Источник: owner Blender/MetaFor side-by-side, 2026-08-20.
+* Файл: `1660×172`, `126483` bytes, SHA-256
+  `fcebeed791055984f36e159ea2a4fa2e325f1813d63ceb5d8e0794897f5deac5`.
+* Наблюдение: geometric chevrons сопоставимы, но MetaFor project-font title
+  визуально поднят относительно центра header. Это RED NODES-017.8.4.1;
+  исправление должно использовать shared glyph-bounds owner, не local offset.
+
 ## node-comparison-story.png
 
 * Источник: `$ui-dev` exact capture `comparison/blender/default`, тот же target.

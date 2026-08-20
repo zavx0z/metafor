@@ -173,6 +173,9 @@ LOD owner GATE: старый `<0.38` skip уже удалён retained foundatio
 intrinsic scaling. Socket, geometric header и четырёхсторонняя selection shadow
 уже имеют package/live evidence. Alignment, exact collapsed Mapping, physical
 mobile и явная visual owner acceptance остаются следующими gates.
+Новый owner side-by-side открыл NODES-017.8.4.1: project-font title поднят
+относительно optical center header/chevron и требует shared text-bounds
+correction без fixture offset.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |

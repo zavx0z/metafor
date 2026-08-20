@@ -375,6 +375,31 @@ geometric headers/title выровнены. Та же scene содержит col
 Reference/live scale difference остаётся owner visual gate; automated capture
 не является owner acceptance.
 
+##### NODES-017.8.4.1 — Вертикально центрировать title в Node header
+
+Статус и исполнитель: `READY`, руководитель текущей UI-015 задачи по прямому
+owner finding; выполняется отдельным scoped Node correction.
+
+Owner side-by-side `node-header-title-vertical-red.png` показал, что MetaFor
+title визуально поднят относительно центра header, хотя geometric chevron
+центрирован. Project font является разрешённым asset divergence, но его actual
+glyph bounds/baseline не освобождают от Blender vertical composition.
+
+Исправление принадлежит shared Typography/text-bounds owner: header title и
+chevron получают один optical center по actual project font metrics. Запрещён
+fixture-specific `Noise Texture +N px`, отдельный Node font renderer или сдвиг
+всей header geometry. Expanded/collapsed, разные labels и scales используют
+один закон; horizontal start/slot из NODES-017.8.4 сохраняется.
+
+Regression materializes actual title glyph geometry и проверяет visual bounds
+center относительно header/chevron, несколько ascender/descender labels и
+retained scale. Acceptance: exact same-scale Blender/MetaFor side-by-side,
+expanded/collapsed Node, console `0`, owner visual verdict.
+
+Основание: NODES-017.8.4 `860076720` исправил geometric chevron и horizontal
+slot, но новый owner zoomed comparison доказал отдельный baseline/optical-center
+defect. Это тот же header parent, но другой shared text metric mechanism.
+
 #### NODES-017.8.5 — Сделать четырёхстороннюю Node shadow носителем selection
 
 Заменить смещённую вправо-вниз Node shadow на общий симметричный shadow halo со

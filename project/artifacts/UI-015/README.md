@@ -84,6 +84,11 @@
   `4bc3c4bde84a06c178ccc6a4ece645dc793309afab90af61900c1c31e5755e45`.
   Кадр задаёт Blender Properties/Preferences accordion: disclosure header и
   expanded section content. Outliner не является visual owner этого sidebar.
+* Rejected intermediate: `workbench-accordion-intermediate-red.png`, `752×554`,
+  `24623` bytes, SHA-256
+  `93999f8291ed237a8f110e1e0f1e65958e7b5460f56ca1e4cbc63176cd95f758`.
+  Незакоммиченный patch убрал cards, но оставил чрезмерно разреженный flat list
+  без читаемой section composition; это не source result.
 
 ## UI-015.7.5 — Node Select overlay RED baseline
 
