@@ -83,7 +83,8 @@ package/live evidence. Текущий срез UI-010.7 добавляет publi
 для rows/selection/add/remove commit-ами `059deffc8` + `03b2c252b`; зависимая
 UI-010.8 story/live `5df1327c5` завершила completeness `7/7`. Следующий public
 leaf ещё не зарегистрирован. Текущий UI-010.9 добавляет owner-controlled
-CollectionInput reorder; зависимая UI-010.10 story уже зарегистрирована.
+CollectionInput reorder commit-ом `2404e88ac`; зависимая UI-010.10 story/live
+сейчас обновляет exact source/events без изменения completeness `7/7`.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
