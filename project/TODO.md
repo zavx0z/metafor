@@ -79,9 +79,10 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 параллельно развивает production Components, пока UI-011 владеет всеми
-playground. NumberInput, ColorInput, VectorInput и MatrixInput уже вынесены и
-доказаны package/live evidence; текущий срез создаёт public ReferenceInput с
-owner-supplied browse/clear actions без Node-копии и скрытого popup lifecycle.
+playground. NumberInput, ColorInput, VectorInput и MatrixInput уже имеют
+package/live evidence; ReferenceInput production commit `663a81c0b` проходит
+отдельную UI-011.7 story. Текущий production-срез создаёт public EnumInput для
+cycle/expanded и exceptional states без ложного dropdown/popup contract.
 
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: Node UI, Components и Elements уже
