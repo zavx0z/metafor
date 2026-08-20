@@ -61,7 +61,7 @@ export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, Ble
 }
 
 export function createCatalogNodeTree(
-  options: Readonly<{openSelect?: boolean}> = {},
+  options: Readonly<{openSelect?: boolean; translationLinked?: boolean; rotationLinked?: boolean}> = {},
 ): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
   const frame: BlenderFrame = {id: "catalog-frame", label: "Система компонентов нод"}
   const nestedFrame: BlenderFrame = {
@@ -151,6 +151,20 @@ export function createCatalogNodeTree(
     positionCatalogNode(matrix, 590, 350, 390),
   ]
 
+  const links = [
+    link("scalar-transform", "scalar", "result", "transform", "vector", "float", nodes),
+    link("transform-shader", "transform", "matrix", "shader", "color", "matrix", nodes),
+    link("asset-matrix", "asset", "object", "matrix", "matrix-in", "object", nodes),
+    link("matrix-shader", "matrix", "closure", "shader", "material", "closure", nodes, "right-loop"),
+  ]
+  if (options.translationLinked === false) {
+    const index = links.findIndex(({link}) => link.id === "scalar-transform")
+    if (index >= 0) links.splice(index, 1)
+  }
+  if (options.rotationLinked === true) {
+    links.push(link("scalar-transform-rotation", "scalar", "result", "transform", "rotation", "rotation", nodes))
+  }
+
   return {
     bounds: {x: 0, y: 0, w: 1120, h: 650},
     frames: [
@@ -158,12 +172,7 @@ export function createCatalogNodeTree(
       {frame: nestedFrame, rect: {x: 80, y: 320, w: 950, h: 300}},
     ],
     nodes,
-    links: [
-      link("scalar-transform", "scalar", "result", "transform", "vector", "float", nodes),
-      link("transform-shader", "transform", "matrix", "shader", "color", "matrix", nodes),
-      link("asset-matrix", "asset", "object", "matrix", "matrix-in", "object", nodes),
-      link("matrix-shader", "matrix", "closure", "shader", "material", "closure", nodes, "right-loop"),
-    ],
+    links,
   }
 }
 

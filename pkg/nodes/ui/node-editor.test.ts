@@ -581,6 +581,63 @@ describe("generic Blender-like Node Editor contracts", () => {
     canvas.dispose()
   })
 
+  test("reanchors Link geometry and hit path before shifted Node presentations materialize", async () => {
+    type PresentationPlan = {rect: NodeRect; sockets: PositionedNode<TestNode, TestSocket>["sockets"]}
+    const renderedLinks: Array<readonly Readonly<{x: number; y: number}>[]> = []
+    const socketCenters: Array<Readonly<{nodeId: string; socketId: string; x: number; y: number}>> = []
+    const renderers: NodeEditorRenderers<TestNode, TestSocket, TestLink, TestFrame, PresentationPlan> = {
+      frame: {renderBackground() {}, renderForeground() {}},
+      node: {
+        plan({entry, connectedSocketIds}) {
+          const shiftTarget = entry.node.id === "target" && connectedSocketIds.has("value")
+          return {
+            rect: shiftTarget ? {...entry.rect, h: 40} : entry.rect,
+            sockets: shiftTarget
+              ? entry.sockets.map((socket) => ({...socket, center: {...socket.center, y: 90}}))
+              : entry.sockets,
+          }
+        },
+        presentation({entry}, plan) {
+          return {...entry, rect: plan.rect, sockets: plan.sockets}
+        },
+        render() {},
+      },
+      socket: {
+        render({entry, nodeId}) {
+          socketCenters.push({nodeId, socketId: entry.socket.id, ...entry.center})
+        },
+      },
+      link: {render({entry}) { renderedLinks.push(entry.points) }},
+    }
+    const canvas = new NodeEditor<TestNode, TestSocket, TestLink, TestFrame, PresentationPlan>({renderers, toolbar: false})
+    attachPointerRuntime(canvas)
+    canvas.setTree(tree)
+    const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    canvas.setRect({x: 0, y: 0, w: 520, h: 320}, 0.001, new TrueTypeFont(fontBytes))
+    canvas.setCanvasTransform({x: 0, y: 0, scale: 1})
+    canvas.flushPendingRender()
+
+    expect(socketCenters.find(({nodeId}) => nodeId === "source")).toMatchObject({x: 180, y: 120})
+    expect(socketCenters.find(({nodeId}) => nodeId === "target")).toMatchObject({x: 280, y: 90})
+    expect(renderedLinks.at(-1)).toEqual([
+      {x: 180, y: 120},
+      {x: 230, y: 120},
+      {x: 230, y: 90},
+      {x: 280, y: 90},
+    ])
+
+    clickSurface(canvas, 230, 130)
+    expect(canvas.selection).toBeNull()
+    clickSurface(canvas, 230, 90)
+    expect(canvas.selection).toEqual({kind: "link", id: "value-link"})
+
+    socketCenters.length = 0
+    canvas.setTree({...tree, revision: 2, links: []})
+    canvas.flushPendingRender()
+    expect(socketCenters.find(({nodeId}) => nodeId === "target")).toMatchObject({x: 280, y: 130})
+    canvas.dispose()
+  })
+
   test("lets an ordinary retained Node control beat its container after transform", async () => {
     let controlActions = 0
     let wheelActions = 0

@@ -101,14 +101,18 @@ describe("Blender-like Node component playground", () => {
   })
 
   test("publishes one controlled route, args and source state for expanded and collapsed Nodes", async () => {
-    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 4)).toEqual([
+    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 6)).toEqual([
       "node-editor/scene/default",
       "node-editor/scene/selected",
+      "node-editor/scene/rotation-linked",
+      "node-editor/scene/translation-unlinked",
       "node-editor/collapsed/default",
       "node-editor/collapsed/selected",
     ])
     expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "collapsed", "popup"])
-    expect(nodePlaygroundDockItems("node-editor/scene/default").map(({id}) => id)).toEqual(["default", "selected"])
+    expect(nodePlaygroundDockItems("node-editor/scene/default").map(({id}) => id)).toEqual([
+      "default", "selected", "rotation-linked", "translation-unlinked",
+    ])
     expect(nodePlaygroundDockItems("node-editor/collapsed/selected").map(({id}) => id)).toEqual(["default", "selected"])
     expect(nodePlaygroundDockItems("node-editor/popup/select-open").map(({id}) => id)).toEqual(["select-open"])
 
@@ -153,6 +157,28 @@ describe("Blender-like Node component playground", () => {
       .find(({node}) => node.id === "scalar")?.node.properties
       ?.find(({id}) => id === "operation")).toMatchObject({kind: "enum", open: true})
     expect(NODE_EDITOR_STORY_NODE_IDS).toEqual({expanded: "scalar", collapsed: "collapsed"})
+  })
+
+  test("publishes deterministic linked, shifted-link and unlinked Transform evidence variants", async () => {
+    expect(NODE_COMPONENT_STORY_ROUTES).toEqual(expect.arrayContaining([
+      "node-editor/scene/default",
+      "node-editor/scene/rotation-linked",
+      "node-editor/scene/translation-unlinked",
+    ]))
+    const linked = createCatalogNodeTree()
+    const unlinked = createCatalogNodeTree({translationLinked: false})
+    const shiftedLink = createCatalogNodeTree({rotationLinked: true})
+    expect(unlinked.links).toEqual(linked.links.filter(({link}) => link.id !== "scalar-transform"))
+    expect(unlinked.nodes).toEqual(linked.nodes)
+    expect(shiftedLink.links.map(({link}) => link.id)).toEqual(expect.arrayContaining([
+      "scalar-transform",
+      "scalar-transform-rotation",
+    ]))
+
+    for (const route of ["node-editor/scene/rotation-linked", "node-editor/scene/translation-unlinked"] as const) {
+      const story = await NODE_COMPONENT_STORIES.load(route)
+      expect(nodeEditorStoryState(story.defaultArgs).nodeId).toBe("scalar")
+    }
   })
 
   test("applies NodeEditor story args through one production selection and DOM adapter", () => {

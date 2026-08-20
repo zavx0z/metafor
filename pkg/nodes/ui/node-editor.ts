@@ -520,6 +520,34 @@ export class NodeCanvas<
     changed = this.#removeMissingComponents(this.#frameForegrounds, frameIds) || changed
     changed = this.#removeMissingComponents(this.#nodes, nodeIds) || changed
 
+    const nodePlans = new Map<string, TNodePlan>()
+    const nodePresentations = new Map<string, PositionedNode<TNode, TSocket>>()
+    const dirtyNodeIds = new Set<string>()
+    for (const entry of this.#tree.nodes) {
+      const connectedSocketIds = connectedByNode.get(entry.node.id) ?? EMPTY_IDS
+      const selected = isSelected(this.#selection, "node", entry.node.id)
+      const stateKey = [...connectedSocketIds].sort().join("\u0000")
+      const retained = this.#component(this.#nodes, entry.node.id, `NodeCanvas.node:${entry.node.id}`)
+      if (retained.created) changed = true
+      const dirty = forceAll || retained.component.entry !== entry || retained.component.selected !== selected ||
+        retained.component.stateKey !== stateKey || this.#interactionDirtyParents.has(retained.component.parent)
+      if (dirty) {
+        const context: NodeRendererPlanContext<TNode, TSocket> = {entry, connectedSocketIds, selected}
+        this.#diagnostics.localLayoutPlans += 1
+        const plan = this.#renderers.node.plan(context)
+        nodePlans.set(entry.node.id, plan)
+        nodePresentations.set(
+          entry.node.id,
+          this.#renderers.node.presentation?.(context, plan) ?? entry,
+        )
+        dirtyNodeIds.add(entry.node.id)
+      } else {
+        nodePresentations.set(entry.node.id, retained.component.presentation ?? entry)
+      }
+    }
+
+    const socketCenters = presentedSocketCenters(nodePresentations)
+
     const gridFrame = retainedNodeEditorGridFrame(this.#tree.bounds, content)
     const gridStateKey = rectStateKey(gridFrame)
     if (forceAll || gridStateKey !== this.#gridStateKey) {
@@ -576,11 +604,18 @@ export class NodeCanvas<
       const selected = isSelected(this.#selection, "link", entry.link.id)
       const retained = this.#component(this.#links, entry.link.id, `NodeCanvas.link:${entry.link.id}`)
       if (retained.created) changed = true
+      const presentation = reanchorNodeEditorLink(
+        entry,
+        socketCenters.get(endpointKey(entry.link.from)),
+        socketCenters.get(endpointKey(entry.link.to)),
+      )
+      const stateKey = pointsStateKey(presentation.points)
       if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected ||
+        retained.component.stateKey !== stateKey ||
         this.#interactionDirtyParents.has(retained.component.parent)) {
         this.#materializeComponent(retained.component.parent, () => {
           if (this.interactive()) {
-            for (const [index, rect] of planNodeEditorLinkHitRects(entry.points).entries()) {
+            for (const [index, rect] of planNodeEditorLinkHitRects(presentation.points).entries()) {
               this.retainedHit(
                 retained.component.parent,
                 rect.x,
@@ -595,10 +630,12 @@ export class NodeCanvas<
               )
             }
           }
-          this.#renderers.link.render({host: this, entry, selected})
+          this.#renderers.link.render({host: this, entry: presentation, selected})
         })
         retained.component.entry = entry
+        retained.component.presentation = presentation
         retained.component.selected = selected
+        retained.component.stateKey = stateKey
         changed = true
       }
     }
@@ -607,22 +644,18 @@ export class NodeCanvas<
       const connectedSocketIds = connectedByNode.get(entry.node.id) ?? EMPTY_IDS
       const selected = isSelected(this.#selection, "node", entry.node.id)
       const stateKey = [...connectedSocketIds].sort().join("\u0000")
-      const retained = this.#component(this.#nodes, entry.node.id, `NodeCanvas.node:${entry.node.id}`)
-      if (retained.created) changed = true
-      if (forceAll || retained.component.entry !== entry || retained.component.selected !== selected ||
-        retained.component.stateKey !== stateKey || this.#interactionDirtyParents.has(retained.component.parent)) {
-        const planContext: NodeRendererPlanContext<TNode, TSocket> = {entry, connectedSocketIds, selected}
-        this.#diagnostics.localLayoutPlans += 1
-        const plan = this.#renderers.node.plan(planContext)
-        const presentation = this.#renderers.node.presentation?.(planContext, plan) ?? entry
+      const retained = this.#nodes.get(entry.node.id)!
+      if (dirtyNodeIds.has(entry.node.id)) {
+        const plan = nodePlans.get(entry.node.id)!
+        const presentation = nodePresentations.get(entry.node.id)!
         const presentationContext: NodeRendererPlanContext<TNode, TSocket> = {
           entry: presentation,
           connectedSocketIds,
           selected,
         }
-        this.#materializeComponent(retained.component.parent, () => {
+        this.#materializeComponent(retained.parent, () => {
           if (this.interactive()) this.retainedHit(
-            retained.component.parent,
+            retained.parent,
             presentation.rect.x,
             presentation.rect.y,
             presentation.rect.w,
@@ -638,10 +671,10 @@ export class NodeCanvas<
             nodeId: entry.node.id,
           })
         })
-        retained.component.entry = entry
-        retained.component.presentation = presentation
-        retained.component.selected = selected
-        retained.component.stateKey = stateKey
+        retained.entry = entry
+        retained.presentation = presentation
+        retained.selected = selected
+        retained.stateKey = stateKey
         changed = true
       }
     }
@@ -783,10 +816,11 @@ export class NodeCanvas<
       if (foreground !== undefined) this.updateRetainedVisibility(foreground.parent, visible)
     }
     for (const entry of this.#tree.links) {
+      const component = this.#links.get(entry.link.id)
+      const presentation = component?.presentation ?? entry
       const visible = visibleNodeIds.has(entry.link.from.nodeId) ||
         visibleNodeIds.has(entry.link.to.nodeId) ||
-        intersects(pointsBounds(entry.points), viewport)
-      const component = this.#links.get(entry.link.id)
+        intersects(pointsBounds(presentation.points), viewport)
       if (component !== undefined) this.updateRetainedVisibility(component.parent, visible)
     }
   }
@@ -927,6 +961,67 @@ export function planNodeEditorLinkHitRects(points: readonly NodePoint[], radius 
     })
   }
   return rects
+}
+
+/** Reanchors only endpoint runs while preserving the supplied orthogonal route topology. */
+export function reanchorNodeEditorLink<TLink extends Link>(
+  entry: PositionedLink<TLink>,
+  from: NodePoint | undefined,
+  to: NodePoint | undefined,
+): PositionedLink<TLink> {
+  if (entry.points.length === 0 || (from === undefined && to === undefined)) return entry
+  if (entry.points.length === 2) {
+    const start = from ?? entry.points[0]!
+    const end = to ?? entry.points[1]!
+    if (start.x === end.x || start.y === end.y) return {...entry, points: [{...start}, {...end}]}
+    const originalStart = entry.points[0]!
+    const originalEnd = entry.points[1]!
+    const elbow = Math.abs(originalEnd.x - originalStart.x) >= Math.abs(originalEnd.y - originalStart.y)
+      ? {x: end.x, y: start.y}
+      : {x: start.x, y: end.y}
+    return {...entry, points: [{...start}, elbow, {...end}]}
+  }
+  const points = entry.points.map((point) => ({...point}))
+  const original = entry.points
+  if (from !== undefined) {
+    points[0] = {...from}
+    if (points.length > 1) points[1] = reanchorAdjacentPoint(from, original[0]!, original[1]!, points[1]!)
+  }
+  if (to !== undefined) {
+    const last = points.length - 1
+    points[last] = {...to}
+    if (last > 0) points[last - 1] = reanchorAdjacentPoint(to, original[last]!, original[last - 1]!, points[last - 1]!)
+  }
+  return {...entry, points}
+}
+
+function reanchorAdjacentPoint(
+  anchor: NodePoint,
+  originalAnchor: NodePoint,
+  originalAdjacent: NodePoint,
+  adjacent: NodePoint,
+): NodePoint {
+  return Math.abs(originalAdjacent.x - originalAnchor.x) >= Math.abs(originalAdjacent.y - originalAnchor.y)
+    ? {x: adjacent.x, y: anchor.y}
+    : {x: anchor.x, y: adjacent.y}
+}
+
+function presentedSocketCenters<TNode extends Node, TSocket extends Socket>(
+  nodes: ReadonlyMap<string, PositionedNode<TNode, TSocket>>,
+): ReadonlyMap<string, NodePoint> {
+  const centers = new Map<string, NodePoint>()
+  for (const [nodeId, entry] of nodes) {
+    for (const socket of entry.sockets) centers.set(endpointKey({nodeId, socketId: socket.socket.id}), socket.center)
+  }
+  return centers
+}
+
+function endpointKey(endpoint: SocketEndpoint): string {
+  return `${endpoint.nodeId}\u0000${endpoint.socketId}`
+}
+
+function pointsStateKey(points: readonly NodePoint[]): string {
+  return points.map(({x, y}) => `${x},${y}`).join(";")
 }
 
 export function orderNodeEditorLinksForPaint<TLink extends Link>(

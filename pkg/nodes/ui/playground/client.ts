@@ -301,6 +301,8 @@ try {
   function applyProductionStoryState(route: NodePlaygroundRoute): void {
     editor.setTree(createCatalogNodeTree({
       openSelect: isNodeEditorStoryRoute(route) && storyArgs["select-open"] === true,
+      translationLinked: storyArgs["translation-linked"] !== false,
+      rotationLinked: storyArgs["rotation-linked"] === true,
     }))
     if (isNodeSocketStoryRoute(route)) return
     if (isNodeEditorStoryRoute(route)) {

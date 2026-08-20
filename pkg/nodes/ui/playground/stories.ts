@@ -51,6 +51,8 @@ export type NodeEditorStoryTarget = typeof NODE_EDITOR_STORY_TARGETS[number]
 export type NodeEditorStoryRoute =
   | "node-editor/scene/default"
   | "node-editor/scene/selected"
+  | "node-editor/scene/rotation-linked"
+  | "node-editor/scene/translation-unlinked"
   | "node-editor/collapsed/default"
   | "node-editor/collapsed/selected"
   | "node-editor/popup/select-open"
@@ -110,7 +112,13 @@ const loadSocketStory = (
 
 const loadNodeComponentStory = (
   component: NodeComponentId,
-  state?: Readonly<{target: NodeEditorStoryTarget; selected: boolean; selectOpen?: boolean}>,
+  state?: Readonly<{
+    target: NodeEditorStoryTarget
+    selected: boolean
+    selectOpen?: boolean
+    translationLinked?: boolean
+    rotationLinked?: boolean
+  }>,
 ) => async (): Promise<PlaygroundStoryModule> => {
   await import("@nodes/ui/node-editor")
   await import("@nodes/ui/blender-node")
@@ -174,6 +182,28 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
               title: "Редактор нод · Развёрнутая · Выбранная",
               tags: ["expanded", "selected"],
               load: loadNodeComponentStory("node-editor", {target: "expanded", selected: true}),
+            },
+            {
+              id: "rotation-linked",
+              label: "Rotation linked",
+              title: "Редактор нод · Shifted Rotation Link",
+              tags: ["expanded", "linked", "rotation", "evidence"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                rotationLinked: true,
+              }),
+            },
+            {
+              id: "translation-unlinked",
+              label: "Translation unlinked",
+              title: "Редактор нод · Translation без связи",
+              tags: ["expanded", "unlinked", "translation", "evidence"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                translationLinked: false,
+              }),
             },
           ],
         }, {
