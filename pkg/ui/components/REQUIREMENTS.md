@@ -74,7 +74,9 @@ control нельзя опустить в Elements только ради повт
    selected/per-option icons и общей alignment column смешанного списка,
    передавая Field label как popup header через generic Select content hooks.
    `ColorInput` использует source-backed HSV cursor: current RGB fill, black/
-   white value-derived contrast outlines и black/white narrow-slider indicator.
+   white value-derived contrast outlines и black outer/gray value inner narrow-
+   slider indicator с white outline. Value strip остаётся achromatic
+   white-to-black независимо от текущих hue/saturation.
    Только compact popup получает общий Blender menu shadow; expanded inline
    presentation не рисует popup shadow.
 5. Field renderer вызывается одинаково на обычной Surface и внутри Node

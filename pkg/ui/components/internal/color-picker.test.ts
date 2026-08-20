@@ -98,7 +98,7 @@ describe("Component-internal color picker plane", () => {
     expect(source).toContain("value.v / 2")
   })
 
-  test("grows the active wheel cursor and uses the narrow black/white slider indicator", () => {
+  test("grows the active wheel cursor and uses the narrow black/gray/white slider indicator", () => {
     const pressed = new PressedRecordingSurface()
     colorPickerPlane(pressed, 10, 20, 100, 100, {key: "pressed-wheel", mode: "wheel", value})
     expect(pressed.markers.map((call) => call.slice(2, 4))).toEqual([[21, 21], [20, 20]])
@@ -112,7 +112,7 @@ describe("Component-internal color picker plane", () => {
       opacity: 1,
     })
     expect(slider.markers[1]?.[4]).toMatchObject({
-      fill: null,
+      fill: new Color(value.v, value.v, value.v, 1),
       border: new Color(1, 1, 1, 1),
       borderWidth: 1,
       opacity: 1,

@@ -182,7 +182,7 @@ function drawPickerMarker(
   })
   surface.drawRoundedRect(markerX, markerTop + 1, markerWidth, Math.max(0, markerHeight - 2), {
     radius: 0,
-    fill: null,
+    fill: new Color(level, level, level, 1),
     border: new Color(1, 1, 1, 1),
     borderWidth: 1,
     opacity,

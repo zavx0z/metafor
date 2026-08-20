@@ -40,4 +40,32 @@ describe("ColorPickerMaterial renderer packing", () => {
     expect(renderer.perObjectDataCPU[48]).toBeCloseTo(0.008)
     expect([...renderer.perObjectDataCPU.slice(52, 56)]).toEqual(material.clipBounds)
   })
+
+  test("packs value mode independently from retained hue and saturation inputs", () => {
+    const material = new ColorPickerMaterial({
+      width: 0.014,
+      height: 0.12,
+      mode: "value",
+      hue: 0.9,
+      saturation: 0.85,
+      value: 0.4,
+      alpha: 0.7,
+      checkerPrimary: new Color(0.2, 0.2, 0.2, 1),
+      checkerSecondary: new Color(0.15, 0.15, 0.15, 1),
+      checkerSize: 0.008,
+    })
+    const mesh = new Mesh(new PlaneGeometry({width: material.width, height: material.height}), material)
+    const renderer = new Renderer() as unknown as RendererProbe
+    renderer.perObjectDataCPU = new Float32Array(64)
+
+    renderer.updateMeshData(mesh, new Matrix4(), 0)
+
+    expect([...renderer.perObjectDataCPU.slice(32, 36)]).toEqual([
+      0.8999999761581421,
+      0.8500000238418579,
+      0.4000000059604645,
+      0.699999988079071,
+    ])
+    expect(renderer.perObjectDataCPU[38]).toBe(1)
+  })
 })

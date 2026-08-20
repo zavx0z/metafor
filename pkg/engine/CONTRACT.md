@@ -48,6 +48,14 @@ post-processing для обычной UI-тени запрещены.
 materialization и не пересобирает shadow geometry. Цвет и opacity являются
 presentation input consumer и не вводят hidden selection state в Engine.
 
+## Аналитический color picker
+
+`ColorPickerMaterial` рисует wheel, value, alpha и swatch одним texture-free
+quad на plane. Wheel использует hue/saturation и controlled value. Value strip
+является ахроматическим `white → black` и не зависит от hue/saturation. Alpha и
+swatch сохраняют controlled HSV color и checker composition; correction одного
+mode не меняет packing либо presentation остальных modes.
+
 ## Обычные и скелетные mesh
 
 Каждый видимый объект передаёт renderer только собственные данные модели и

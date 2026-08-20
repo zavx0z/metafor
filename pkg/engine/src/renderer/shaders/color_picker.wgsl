@@ -72,12 +72,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
 
     let level = select(perObject.hsva.w, clamp(1.0 - uv.y, 0.0, 1.0), mode < 2.5);
-    let selectedValue = select(perObject.hsva.z, level, mode < 1.5);
-    let rgb = hsvToRgb(vec3<f32>(perObject.hsva.x, perObject.hsva.y, selectedValue));
     if (mode < 1.5) {
-        return vec4<f32>(rgb, opacity);
+        return vec4<f32>(vec3<f32>(level), opacity);
     }
 
+    let rgb = hsvToRgb(vec3<f32>(perObject.hsva.x, perObject.hsva.y, perObject.hsva.z));
     let checkerCell = vec2<f32>(max(perObject.checkerParams.x, 0.0001));
     let checkerIndex = floor((uv * size) / checkerCell);
     let checker = select(perObject.checkerPrimary.rgb, perObject.checkerSecondary.rgb, i32(checkerIndex.x + checkerIndex.y) % 2 == 0);
