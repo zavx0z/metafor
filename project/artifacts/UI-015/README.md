@@ -102,6 +102,15 @@
   `49dee2c02273289a1adff2acf7ea97f73c09dca638adb87ebc52069c5ebcee70`.
   Ungrouped `Поле` ошибочно получил global left tree layout; он обязан остаться
   самостоятельным selection list без disclosure/indent.
+* Stable material target: `workbench-accordion-card-target.png`, `604×662`,
+  `150499` bytes, SHA-256
+  `86135f9914f74967afc1949b44bf09eb5da5558e88057d9bf7da48bebdf518c9`.
+* Stable current RED: `workbench-accordion-material-focus-red.png`, `422×192`,
+  `8688` bytes, SHA-256
+  `ac03bb67d9a1fe615bcbbdc99a4312c097bff0ad672edafbcf006213e7fb69e6`.
+  Outer region/card use one #3d role so cards disappear; `Данные` receives a
+  text-white focus outline. Workbench sections are non-reorderable, so no grip
+  is expected or rendered.
 
 ## UI-015.7.5 — Node Select overlay RED baseline
 
@@ -148,6 +157,15 @@
   `FunctionNodeCombineTransform.webp`, `FunctionNodeRotationToQuaternion.webp`
   и `FunctionNodeInputRotation.webp`. Закон: отдельная top label row, Socket
   center на её середине; X/Y/Z editor ниже.
+
+## UI-015.5.2 — Vector numeric alignment RED
+
+* Файл: `components-vector-alignment-red.png`, `468×318`, `11182` bytes,
+  SHA-256 `9232b23e3371de9827cfb5780a0108e0f1300b35dab9de9dba56fd30c204ed79`.
+* Exact reference: `node-types_FunctionNodeInputVector.webp`.
+* Наблюдение: axes/value pinned left, values `1/2/3` без Blender default three
+  decimals и общей правой кромки. Target: centered axis column + right-aligned
+  `1.000/2.000/3.000`, same numeric origin for caret/selection/pointer.
 
 ## UI-015.2.1 — Button size RED baseline
 

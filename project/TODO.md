@@ -114,6 +114,9 @@ list, не Outliner tree; Outliner остаётся только keyboard corrob
 toggle catalog; ungrouped `Поле` остаётся отдельным selection list и не
 наследует disclosure/left alignment. Current dark headers/gaps/bright outline
 отклонены до source checkpoint.
+Stable `c8f2cb854` сохраняет model direction, но material correction разделяет
+outer #303030 region и #3d cards, убирает white focus. Workbench sections по
+owner law не reorderable: grip отсутствует, fake dots запрещены.
 Следующий UI-015.5 переводит Vector/Rotation/Matrix/Collection grouped editors.
 Baseline на current Components Workbench подтвердил horizontal Vector,
 раздельную Matrix и oversized Collection; UI-015.5 уже IN_PROGRESS.
@@ -122,7 +125,9 @@ Grouped source commit `14f440899` получил ownership PASS, но UI-015.5.1
 reference claims до visual acceptance.
 Owner Rotation RED открыл UI-015.5.2: unit должен принадлежать value (`0°`),
 numeric column выравнивается справа с общим caret/selection origin, axis остаётся
-X/Y/Z и использует number text role; Node width/margins ждут exact proof.
+X/Y/Z и использует number text role. Shared Vector RED добавляет default
+precision3/right edge; Rotation precision0. Socket anchor доказан отдельной
+label row, Node width/margins ждут exact proof.
 UI-015.7 source checkpoint `13ac398d1` правильно разделил Engine low-level
 picker plane и Components HSVA/popup owner, но independent Blender review
 оставил composition/interaction незавершёнными. UI-015.7.1 после текущего
