@@ -131,6 +131,10 @@
 * Наблюдение: unit приклеен к axes `X°/Y°/Z°`, values left-aligned с большим
   пустым правым пространством. Target: axes X/Y/Z, values `0°/45°/90°` по общей
   правой кромке, source-backed number text и доказанные Node margins.
+* Socket placement references: `GeometryNodeTransform.webp`,
+  `FunctionNodeCombineTransform.webp`, `FunctionNodeRotationToQuaternion.webp`
+  и `FunctionNodeInputRotation.webp`. Закон: отдельная top label row, Socket
+  center на её середине; X/Y/Z editor ниже.
 
 ## UI-015.2.1 — Button size RED baseline
 
