@@ -123,6 +123,8 @@ Owner Node screenshot дополнительно открыл UI-015.7.5: Popove
 но retained popup content остаётся обычным sibling и перекрывается поздними
 Parameter rows. Новый generic overlay portal должен атомарно вынести visual/
 hits/dismiss owner в top Surface layer без Select/Node-specific z hack.
+Grouped corners/roles закрыты source commit-ом `f1a6a75c1`; по owner priority
+UI-015.7.5 overlay portal теперь IN_PROGRESS до Color marker/shadow UI-015.7.4.
 Owner отменил сохранение MetaFor palette: UI-015.8 переводит base colors и
 material states на Blender 4.5.5 по mapping от направленного Blender UI
 помощника. UI-015.5/.7 source сохранён на pause до этого mapping.

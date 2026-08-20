@@ -89,4 +89,14 @@
   последующие Parameter labels/controls рисуются поверх popup. Это layering RED,
   а не palette defect; acceptance ждёт generic overlay portal UI-015.7.5.
 
+## UI-015.7.3 — Vector grouped live RED
+
+* Источник: owner live screenshot во время grouped-cell patch, 2026-08-20.
+* Файл: `components-vector-grouped-red.png`, `3840×2400`, `473080` bytes,
+  SHA-256 `6823c8926f35ad10101d3211ea6b5c38f3bb9d69c78e85a6dfc7f9821e004464`.
+* Route: `/field/vector/default`; expected intrinsic control `146×66`.
+* Наблюдение: preview показывает сплошную белую plane без X/Y/Z/value; blue
+  `XYZ` снизу является variant dock, не control. Кадр предшествует clean reload
+  final commit `f1a6a75c1` и поэтому является RED baseline, а не verdict commit.
+
 Automated captures prove exact canvas state, not explicit owner acceptance.
