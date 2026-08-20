@@ -62,6 +62,8 @@ const enter = (): KeyboardEvent => ({
   preventDefault() {},
 } as KeyboardEvent)
 
+const pointer = (): MouseEvent => ({button: 0, preventDefault() {}} as MouseEvent)
+
 const submit = (surface: UiSurface, key: string, value: string): void => {
   focusInput(surface, key, createInputEditState(value))
   expect(handleActiveInputKey(surface, enter())).toBeTrue()
@@ -78,6 +80,25 @@ const matrixProps = (
 })
 
 describe("public MatrixInput", () => {
+  test("delegates pointer steps to public NumberInput without local matrix gesture logic", () => {
+    const initial = [[1, 0], [0, 1]] as const
+    const values: Array<readonly (readonly number[])[]> = []
+    const surface = new RecordingSurface()
+    MatrixInput(surface, 0, 0, 100, 44, {
+      key: "pointer-matrix",
+      value: initial,
+      onChange: (value) => values.push(value),
+    })
+    const hit = surface.hits[0]!
+    const options = hit[5]
+    if (typeof options === "object") {
+      options.onPointerDown?.(hit[0] + hit[2] - 2, hit[1] + hit[3] / 2, pointer())
+      options.onPointerUp?.(pointer())
+    }
+    expect(values).toEqual([[[1.01, 0], [0, 1]]])
+    expect(values[0]).not.toBe(initial)
+    expect(initial).toEqual([[1, 0], [0, 1]])
+  })
   test("normalizes square 2D, 3D and 4D values through the exact Field delegate", () => {
     expect(normalizeMatrixInputValue([[2]])).toEqual([[2, 0], [0, 1]])
     expect(normalizeMatrixInputValue([

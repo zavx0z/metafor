@@ -63,6 +63,8 @@ const enter = (): KeyboardEvent => ({
   preventDefault() {},
 } as KeyboardEvent)
 
+const pointer = (): MouseEvent => ({button: 0, preventDefault() {}} as MouseEvent)
+
 const submit = (surface: UiSurface, key: string, value: string): void => {
   focusInput(surface, key, createInputEditState(value))
   expect(handleActiveInputKey(surface, enter())).toBeTrue()
@@ -84,6 +86,29 @@ const vectorProps = (
 })
 
 describe("public VectorInput", () => {
+  test("delegates side pointer steps to public NumberInput without mutating the vector", () => {
+    const initial = [1, 2, 3] as const
+    const values: Array<readonly number[]> = []
+    const surface = new RecordingSurface()
+    VectorInput(surface, 0, 0, 150, 66, {
+      key: "pointer-vector",
+      value: initial,
+      dimensions: 3,
+      min: 0,
+      max: 10,
+      step: 0.25,
+      onChange: (value) => values.push(value),
+    })
+    const hit = surface.hits[0]!
+    const options = hit[5]
+    if (typeof options === "object") {
+      options.onPointerDown?.(hit[0] + hit[2] - 2, hit[1] + hit[3] / 2, pointer())
+      options.onPointerUp?.(pointer())
+    }
+    expect(values).toEqual([[1.25, 2, 3]])
+    expect(values[0]).not.toBe(initial)
+    expect(initial).toEqual([1, 2, 3])
+  })
   test("normalizes 2D, 3D and 4D values through the exact Field delegate", () => {
     expect(normalizeVectorInputValue([1, 2], 2)).toEqual([1, 2])
     expect(normalizeVectorInputValue([1, 2], 3)).toEqual([1, 2, 0])

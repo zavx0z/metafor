@@ -79,6 +79,11 @@ FlexBox единолично вычисляет local child slots, а child то
     chain. Numeric zone является отдельным secondary draw result поверх base.
     Raw и resolved tuples/namespaces deep-frozen; HSL/alpha math проверяется
     exact byte/clamp tests.
+16. `input type="number"` владеет только generic pointer gesture lifecycle и
+    zone dispatch: side/center hit, horizontal drag threshold, text transition,
+    Shift precision и Escape/right cancellation. Element не парсит число, не
+    выбирает step/range и не публикует новое numeric value; это делает
+    Component-владелец числового контракта.
 
 ## Retained UI-закон
 

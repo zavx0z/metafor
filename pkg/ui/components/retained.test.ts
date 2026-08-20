@@ -12,6 +12,7 @@ import {
 import {Button} from "./Button.ts"
 import {Field, type FieldDefinition} from "./Field.ts"
 import {List} from "./List.ts"
+import {NumberInput} from "./NumberInput.ts"
 import {Switcher} from "./Switcher.ts"
 import {Table, tableScrollTo} from "./Table.ts"
 
@@ -21,6 +22,7 @@ const OWNER_NAMES = [
   "regularCheckboxField",
   "compactSwitcherField",
   "switcher",
+  "numberField",
   "list",
   "table",
   "sibling",
@@ -44,6 +46,7 @@ class RetainedComponentsSurface extends UiSurface {
   regularCheckbox = false
   compactSwitcher = false
   standaloneSwitcher = false
+  numberValue = 1
 
   readonly #ownerByParent = new Map<Object3D, OwnerName>()
   readonly #interactionDirty = new Set<OwnerName>()
@@ -147,6 +150,17 @@ class RetainedComponentsSurface extends UiSurface {
         key: "standalone-switcher",
         checked: this.standaloneSwitcher,
         onChange: (value) => { this.standaloneSwitcher = value },
+      })
+      return
+    }
+    if (name === "numberField") {
+      NumberInput(this, 20, 290, 220, 22, {
+        key: "retained-number",
+        value: this.numberValue,
+        min: 0,
+        max: 10,
+        step: 0.25,
+        onChange: (value) => { this.numberValue = value },
       })
       return
     }
@@ -373,6 +387,16 @@ describe("retained UI Components boundary", () => {
 
       beforeCounters = copyCounters(surface)
       beforeOwners = snapshotOwners(surface)
+      surface.onPointerDown(pointer, 238, 301)
+      surface.flushPendingRender()
+      surface.onPointerUp(pointer, 238, 301)
+      surface.flushPendingRender()
+      expect(surface.numberValue).toBe(1.25)
+      expectOnlyOwnerAdvanced(surface, beforeCounters, "numberField", 2)
+      expectOwnersStable(surface, beforeOwners, "numberField")
+
+      beforeCounters = copyCounters(surface)
+      beforeOwners = snapshotOwners(surface)
       focusInput(surface, "field:regular-text", createInputEditState(surface.regularText, surface.regularText.length))
       surface.flushPendingRender()
       expectOnlyOwnerAdvanced(surface, beforeCounters, "regularTextField")
@@ -408,13 +432,14 @@ describe("retained UI Components boundary", () => {
       expectOnlyOwnerAdvanced(surface, beforeCounters, "table")
       expectOwnersStable(surface, beforeOwners, "table")
 
-      expect(surface.surfaceRenderPasses).toBe(12)
+      expect(surface.surfaceRenderPasses).toBe(14)
       expect(surface.counters).toEqual({
         button: {layoutPlans: 6, materializations: 6},
         regularTextField: {layoutPlans: 3, materializations: 3},
         regularCheckboxField: {layoutPlans: 3, materializations: 3},
         compactSwitcherField: {layoutPlans: 3, materializations: 3},
         switcher: {layoutPlans: 3, materializations: 3},
+        numberField: {layoutPlans: 3, materializations: 3},
         list: {layoutPlans: 2, materializations: 2},
         table: {layoutPlans: 2, materializations: 2},
         sibling: {layoutPlans: 1, materializations: 1},

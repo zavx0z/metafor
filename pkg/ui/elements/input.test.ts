@@ -1,7 +1,14 @@
 import {describe, expect, test} from "bun:test"
-import type {UiSurface} from "./surface.ts"
+import type {HitOptions, UiSurface} from "./surface.ts"
 import {UiSurface as BaseUiSurface} from "./surface.ts"
-import {createInputEditState, handleInputKey, input, insertInputText} from "./input.ts"
+import {
+  createInputEditState,
+  handleActiveInputKey,
+  handleInputKey,
+  input,
+  insertInputText,
+  surfaceHasActiveInput,
+} from "./input.ts"
 import {blenderRgba8ToColor, blenderTheme, resolveNumericZoneColors, resolveWidgetColors} from "./blender-theme.ts"
 import {uiShapeMetrics} from "./shape.ts"
 
@@ -53,6 +60,13 @@ function key(name: string, opts: Partial<KeyboardEvent> = {}): KeyboardEvent {
     preventDefault() {},
   } as KeyboardEvent
 }
+
+const pointer = (opts: Partial<MouseEvent> = {}): MouseEvent => ({
+  button: opts.button ?? 0,
+  ctrlKey: opts.ctrlKey === true,
+  shiftKey: opts.shiftKey === true,
+  preventDefault() {},
+} as MouseEvent)
 
 describe("input editing", () => {
   test("inserts text at the cursor", () => {
@@ -227,5 +241,108 @@ describe("input visible geometry", () => {
     })
     expect(surface.texts[0]?.slice(0, 3)).toEqual(["Text", 22, 33.5])
     expect(surface.texts[0]?.[3]).toMatchObject({fontPx: 13})
+  })
+})
+
+describe("number input pointer gesture dispatch", () => {
+  test("dispatches side steps and center text transition after a no-drag release", () => {
+    for (const [x, zone, action] of [
+      [4, "left", {kind: "step", direction: -1}],
+      [50, "center", {kind: "text"}],
+      [96, "right", {kind: "step", direction: 1}],
+    ] as const) {
+      const events: unknown[] = []
+      const surface = new RecordingSurface()
+      input(surface, 0, 0, 100, 22, {
+        key: zone,
+        type: "number",
+        value: "1",
+        onNumericGesture: (event) => events.push(event),
+      })
+      const options = surface.hits[0]![5] as HitOptions
+      options.onPointerDown?.(x, 11, pointer())
+      options.onPointerUp?.(pointer())
+      expect(events).toEqual([{kind: "start", zone}, action, {kind: "end"}])
+      expect(surfaceHasActiveInput(surface)).toBe(zone === "center")
+    }
+  })
+
+  test("waits for the horizontal threshold and reports scrub distance with Shift", () => {
+    const events: unknown[] = []
+    const surface = new RecordingSurface()
+    input(surface, 0, 0, 100, 22, {
+      key: "scrub",
+      type: "number",
+      value: "1",
+      onNumericGesture: (event) => events.push(event),
+    })
+    const options = surface.hits[0]![5] as HitOptions
+    options.onPointerDown?.(50, 11, pointer())
+    options.onPointerMove?.(53, 11, pointer())
+    options.onPointerMove?.(55, 11, pointer({shiftKey: true}))
+    options.onPointerMove?.(65, 11, pointer({shiftKey: true}))
+    options.onPointerUp?.(pointer())
+    expect(events).toEqual([
+      {kind: "start", zone: "center"},
+      {kind: "scrub", zone: "center", deltaX: 5, distanceX: 5, shiftKey: true},
+      {kind: "scrub", zone: "center", deltaX: 10, distanceX: 15, shiftKey: true},
+      {kind: "end"},
+    ])
+    expect(surfaceHasActiveInput(surface)).toBeFalse()
+  })
+
+  test("enters text immediately on Ctrl and cancels numeric edit on Escape or right press", () => {
+    const ctrlEvents: unknown[] = []
+    const ctrl = new RecordingSurface()
+    input(ctrl, 0, 0, 100, 22, {
+      key: "ctrl",
+      type: "number",
+      value: "1",
+      onNumericGesture: (event) => ctrlEvents.push(event),
+    })
+    const ctrlOptions = ctrl.hits[0]![5] as HitOptions
+    ctrlOptions.onPointerDown?.(50, 11, pointer({ctrlKey: true}))
+    expect(ctrlEvents).toEqual([{kind: "text"}])
+    expect(surfaceHasActiveInput(ctrl)).toBeTrue()
+
+    const cancelEvents: unknown[] = []
+    const cancel = new RecordingSurface()
+    input(cancel, 0, 0, 100, 22, {
+      key: "cancel",
+      type: "number",
+      value: "1",
+      onNumericGesture: (event) => cancelEvents.push(event),
+    })
+    const cancelOptions = cancel.hits[0]![5] as HitOptions
+    cancelOptions.onPointerDown?.(50, 11, pointer())
+    expect(handleActiveInputKey(cancel, key("Escape"))).toBeTrue()
+    expect(cancelEvents).toEqual([{kind: "start", zone: "center"}, {kind: "cancel"}])
+
+    cancelEvents.length = 0
+    cancelOptions.onPointerDown?.(50, 11, pointer())
+    cancelOptions.onPointerDown?.(50, 11, pointer({button: 2}))
+    expect(cancelEvents).toEqual([{kind: "start", zone: "center"}, {kind: "cancel"}])
+  })
+
+  test("publishes center move cursor and default side cursors", () => {
+    class ZoneSurface extends RecordingSurface {
+      constructor(readonly pointerX: number) { super() }
+      override hitState(): {hovered: boolean; pressed: boolean} { return {hovered: true, pressed: false} }
+      override hoveredPointer(): Readonly<{x: number; y: number}> { return {x: this.pointerX, y: 11} }
+    }
+    for (const [x, cursor] of [[4, "default"], [50, "ew-resize"], [96, "default"]] as const) {
+      const surface = new ZoneSurface(x)
+      input(surface, 0, 0, 100, 22, {key: String(x), type: "number", value: "1", onNumericGesture() {}})
+      expect(surface.hits[0]?.[5]).toMatchObject({cursor, activeCursor: cursor})
+    }
+    const editing = new ZoneSurface(50)
+    input(editing, 0, 0, 100, 22, {
+      key: "editing-cursor",
+      type: "number",
+      value: "1",
+      active: true,
+      onNumericGesture() {},
+    })
+    expect(editing.hits[0]?.[5]).toMatchObject({cursor: "text", activeCursor: "text"})
   })
 })

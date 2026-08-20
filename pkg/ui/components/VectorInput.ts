@@ -8,14 +8,14 @@ import {ControlGroup, type ControlGroupContext} from "./ControlGroup.ts"
 import {
   NumberInput,
   normalizeNumberInputValue,
+  type NumberInputFormatOptions,
   type NumberInputProps,
-  type NumberInputValueOptions,
 } from "./NumberInput.ts"
 import {Typography} from "./Typography.ts"
 
 export type VectorInputDimension = 2 | 3 | 4
 export type VectorInputDensity = "regular" | "compact"
-export type VectorInputValueOptions = NumberInputValueOptions
+export type VectorInputValueOptions = NumberInputFormatOptions
 
 export type VectorInputProps = VectorInputValueOptions & {
   key?: string
@@ -128,7 +128,10 @@ function vectorAxisNumberProps(
   if (props.numberKind !== undefined) numberProps.numberKind = props.numberKind
   if (props.min !== undefined) numberProps.min = props.min
   if (props.max !== undefined) numberProps.max = props.max
+  if (props.softMin !== undefined) numberProps.softMin = props.softMin
+  if (props.softMax !== undefined) numberProps.softMax = props.softMax
   if (props.step !== undefined) numberProps.step = props.step
+  if (props.precision !== undefined) numberProps.precision = props.precision
   if (props.unit !== undefined) numberProps.unit = props.unit
   if (props.disabled !== undefined) numberProps.disabled = props.disabled
   if (props.readOnly !== undefined) numberProps.readOnly = props.readOnly

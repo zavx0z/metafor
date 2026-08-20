@@ -87,7 +87,10 @@ export type NumberFieldDefinition = FieldBase & Readonly<{
   presentation?: "input" | "slider"
   min?: number
   max?: number
+  softMin?: number
+  softMax?: number
   step?: number
+  precision?: number
   unit?: string
   onChange?(value: number): void
 }>
@@ -470,7 +473,10 @@ function numberInputProps(field: NumberFieldDefinition, density: NumberInputDens
   if (field.numberKind !== undefined) props.numberKind = field.numberKind
   if (field.min !== undefined) props.min = field.min
   if (field.max !== undefined) props.max = field.max
+  if (field.softMin !== undefined) props.softMin = field.softMin
+  if (field.softMax !== undefined) props.softMax = field.softMax
   if (field.step !== undefined) props.step = field.step
+  if (field.precision !== undefined) props.precision = field.precision
   if (field.unit !== undefined) props.unit = field.unit
   if (field.disabled !== undefined) props.disabled = field.disabled
   if (field.readOnly !== undefined) props.readOnly = field.readOnly

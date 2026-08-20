@@ -171,6 +171,8 @@ describe("production UI delivery baseline", () => {
       .map(({source}) => source)
       .join("\n")
     expect(graph).toContain("function NumberInput")
+    expect(graph).toContain("function resolveNumberInputSoftRange")
+    expect(graph).toContain("onNumericGesture")
     expect(graph).toContain("function resolveWidgetColors")
     expect(graph).not.toContain("@nodes/ui")
     expect(graph).not.toContain("NodeEditor")

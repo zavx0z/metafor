@@ -49,6 +49,15 @@ export type InputGroupedCellAppearance = Readonly<{
 export type InputAppearance = "standalone" | InputGroupedCellAppearance
 export type InputType = "text" | "number" | "range"
 
+export type InputNumericZone = "left" | "center" | "right"
+export type InputNumericGesture =
+  | Readonly<{kind: "start"; zone: InputNumericZone}>
+  | Readonly<{kind: "scrub"; zone: InputNumericZone; deltaX: number; distanceX: number; shiftKey: boolean}>
+  | Readonly<{kind: "step"; direction: -1 | 1}>
+  | Readonly<{kind: "text"}>
+  | Readonly<{kind: "cancel"}>
+  | Readonly<{kind: "end"}>
+
 export type InputProps = DivProps & {
   value?: string
   placeholder?: string
@@ -61,6 +70,7 @@ export type InputProps = DivProps & {
   appearance?: InputAppearance
   type?: InputType
   onActivate?: () => void
+  onNumericGesture?: (gesture: InputNumericGesture) => void
   onChange?: (value: string, state: InputEditState) => void
   onSubmit?: (value: string, state: InputEditState) => void
   submitOnEnter?: boolean
@@ -73,11 +83,19 @@ type InputRuntimeConfig = {
   onSubmit: ((value: string, state: InputEditState) => void) | undefined
   submitOnEnter: boolean
   allowTab: boolean
+  onNumericGesture: ((gesture: InputNumericGesture) => void) | undefined
 }
 
 type InputRuntimeState = {
   activeKey: string | null
   drag: {key: string; anchor: number} | null
+  numericDrag: {
+    key: string
+    zone: InputNumericZone
+    startX: number
+    lastX: number
+    dragging: boolean
+  } | null
   blinkKey: string | null
   caretVisible: boolean
   blinkTimer: ReturnType<typeof setInterval> | null
@@ -87,6 +105,7 @@ type InputRuntimeState = {
 
 const inputRuntime = new WeakMap<UiSurface, InputRuntimeState>()
 const INPUT_CARET_BLINK_MS = 530
+const INPUT_NUMERIC_DRAG_THRESHOLD_PX = uiShapeMetrics.tightGap + uiShapeMetrics.borderWidth
 
 export function createInputEditState(value = "", cursor = value.length): InputEditState {
   return clampInputState({value, cursor, selectionAnchor: null})
@@ -142,7 +161,16 @@ export function handleInputKey(state: InputEditState, event: KeyboardEvent, opts
 
 export function handleActiveInputKey(surface: UiSurface, event: KeyboardEvent): boolean {
   const runtime = inputRuntime.get(surface)
-  if (runtime?.activeKey === null || runtime === undefined) return false
+  if (runtime === undefined) return false
+  if (runtime.numericDrag !== null && event.key === "Escape") {
+    const key = runtime.numericDrag.key
+    runtime.configs.get(key)?.onNumericGesture?.({kind: "cancel"})
+    runtime.numericDrag = null
+    event.preventDefault()
+    surface.requestKeyedRender(key)
+    return true
+  }
+  if (runtime.activeKey === null) return false
   const key = runtime.activeKey
   const current = runtime.values.get(key)
   if (current === undefined) return false
@@ -229,6 +257,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
     onSubmit: props.onSubmit,
     submitOnEnter: props.submitOnEnter === true,
     allowTab: props.allowTab === true,
+    onNumericGesture: props.onNumericGesture,
   })
 
   const chromeStyle: StyleProps = {
@@ -246,24 +275,59 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   else div(surface, chrome.x, chrome.y, chrome.width, chrome.height, chromeProps)
   drawNumericInputZone(surface, chrome, widgetClass, widgetState)
   if (!disabled) {
+    const numericPointer = props.type === "number" && props.onNumericGesture !== undefined && !active
+    const pointerZone = widgetState.numericZone
+    const pointerCursor = numericPointer && pointerZone === "center" ? "ew-resize" : numericPointer ? "default" : "text"
     const hit: HitOptions = {
       key,
-      cursor: "text",
+      cursor: pointerCursor,
+      activeCursor: pointerCursor,
       onPointerDown: (localX, _localY, event) => {
-        const next = {...inputStateFor(runtime, key, initialValue, controlled, props)}
-        const nextCursor = inputIndexFromX(surface, next.value, inputTextView(surface, next.value, next.cursor, fontPx, contentW).start, fontPx, localX - contentX)
-        const anchor = event?.shiftKey === true ? next.selectionAnchor ?? next.cursor : null
-        runtime.activeKey = key
-        runtime.drag = {key, anchor: anchor ?? nextCursor}
-        next.cursor = nextCursor
-        next.selectionAnchor = anchor
-        applyInputResult(surface, key, clampInputState(next), runtime.configs.get(key))
-        resetInputBlink(surface, runtime, key)
-        props.onActivate?.()
-        props.onPointerDown?.(localX, _localY, event)
-        surface.requestKeyedRender(key)
+        if (numericPointer) {
+          if (event?.button === 2) {
+            event.preventDefault()
+            cancelNumericInputGesture(surface, runtime)
+            return
+          }
+          if (event?.button !== undefined && event.button !== 0) return
+          if (event?.ctrlKey === true) {
+            cancelNumericInputGesture(surface, runtime)
+            runtime.configs.get(key)?.onNumericGesture?.({kind: "text"})
+            activateInputText(surface, runtime, key, initialValue, controlled, props, localX, _localY, contentX, contentW, fontPx, event)
+            return
+          }
+          if (runtime.numericDrag !== null) cancelNumericInputGesture(surface, runtime)
+          const zone = inputNumericZoneFromX(chrome, localX)
+          runtime.activeKey = null
+          runtime.drag = null
+          runtime.numericDrag = {key, zone, startX: localX, lastX: localX, dragging: false}
+          runtime.configs.get(key)?.onNumericGesture?.({kind: "start", zone})
+          props.onPointerDown?.(localX, _localY, event)
+          surface.requestKeyedRender(key)
+          return
+        }
+        activateInputText(surface, runtime, key, initialValue, controlled, props, localX, _localY, contentX, contentW, fontPx, event)
       },
       onPointerMove: (localX, localY, event) => {
+        const numeric = runtime.numericDrag
+        if (numeric?.key === key) {
+          const distanceX = localX - numeric.startX
+          if (!numeric.dragging && Math.abs(distanceX) < INPUT_NUMERIC_DRAG_THRESHOLD_PX) return
+          const deltaX = localX - numeric.lastX
+          if (deltaX === 0) return
+          numeric.dragging = true
+          numeric.lastX = localX
+          runtime.configs.get(key)?.onNumericGesture?.({
+            kind: "scrub",
+            zone: numeric.zone,
+            deltaX,
+            distanceX,
+            shiftKey: event?.shiftKey === true,
+          })
+          props.onPointerMove?.(localX, localY, event)
+          surface.requestKeyedRender(key)
+          return
+        }
         if (runtime.drag?.key !== key) return
         const current = inputStateFor(runtime, key, initialValue, controlled, props)
         const currentView = inputTextView(surface, current.value, current.cursor, fontPx, contentW)
@@ -275,6 +339,40 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
         surface.requestKeyedRender(key)
       },
       onPointerUp: (event) => {
+        const numeric = runtime.numericDrag
+        if (numeric?.key === key) {
+          if (!numeric.dragging) {
+            if (numeric.zone === "left" || numeric.zone === "right") {
+              runtime.configs.get(key)?.onNumericGesture?.({
+                kind: "step",
+                direction: numeric.zone === "left" ? -1 : 1,
+              })
+            }
+            else {
+              runtime.configs.get(key)?.onNumericGesture?.({kind: "text"})
+              activateInputText(
+                surface,
+                runtime,
+                key,
+                initialValue,
+                controlled,
+                props,
+                numeric.startX,
+                chrome.y + chrome.height / 2,
+                contentX,
+                contentW,
+                fontPx,
+                event,
+                false,
+              )
+            }
+          }
+          runtime.configs.get(key)?.onNumericGesture?.({kind: "end"})
+          runtime.numericDrag = null
+          props.onPointerUp?.(event)
+          surface.requestKeyedRender(key)
+          return
+        }
         runtime.drag = null
         props.onPointerUp?.(event)
       },
@@ -396,7 +494,16 @@ function applyInputResult(surface: UiSurface, key: string, state: InputEditState
 function inputRuntimeFor(surface: UiSurface): InputRuntimeState {
   let runtime = inputRuntime.get(surface)
   if (runtime === undefined) {
-    runtime = {activeKey: null, drag: null, blinkKey: null, caretVisible: true, blinkTimer: null, values: new Map(), configs: new Map()}
+    runtime = {
+      activeKey: null,
+      drag: null,
+      numericDrag: null,
+      blinkKey: null,
+      caretVisible: true,
+      blinkTimer: null,
+      values: new Map(),
+      configs: new Map(),
+    }
     inputRuntime.set(surface, runtime)
   }
   return runtime
@@ -576,10 +683,60 @@ function inputNumericZone(
   if (!hovered || type !== "number") return null
   const pointer = surface.hoveredPointer()
   if (pointer === null) return null
+  return inputNumericZoneFromX(chrome, pointer.x)
+}
+
+function inputNumericZoneFromX(
+  chrome: Readonly<{x: number; width: number; height: number}>,
+  pointerX: number,
+): InputNumericZone {
   const handleWidth = Math.min(chrome.width / 3, chrome.height * 0.7)
-  if (pointer.x < chrome.x + handleWidth) return "left"
-  if (pointer.x > chrome.x + chrome.width - handleWidth) return "right"
+  if (pointerX < chrome.x + handleWidth) return "left"
+  if (pointerX > chrome.x + chrome.width - handleWidth) return "right"
   return "center"
+}
+
+function activateInputText(
+  surface: UiSurface,
+  runtime: InputRuntimeState,
+  key: string,
+  initialValue: string,
+  controlled: boolean,
+  props: InputProps,
+  localX: number,
+  localY: number,
+  contentX: number,
+  contentW: number,
+  fontPx: number,
+  event: MouseEvent | undefined,
+  notifyPointerDown = true,
+): void {
+  const next = {...inputStateFor(runtime, key, initialValue, controlled, props)}
+  const nextCursor = inputIndexFromX(
+    surface,
+    next.value,
+    inputTextView(surface, next.value, next.cursor, fontPx, contentW).start,
+    fontPx,
+    localX - contentX,
+  )
+  const anchor = event?.shiftKey === true ? next.selectionAnchor ?? next.cursor : null
+  runtime.activeKey = key
+  runtime.drag = {key, anchor: anchor ?? nextCursor}
+  next.cursor = nextCursor
+  next.selectionAnchor = anchor
+  applyInputResult(surface, key, clampInputState(next), runtime.configs.get(key))
+  resetInputBlink(surface, runtime, key)
+  props.onActivate?.()
+  if (notifyPointerDown) props.onPointerDown?.(localX, localY, event)
+  surface.requestKeyedRender(key)
+}
+
+function cancelNumericInputGesture(surface: UiSurface, runtime: InputRuntimeState): void {
+  const numeric = runtime.numericDrag
+  if (numeric === null) return
+  runtime.configs.get(numeric.key)?.onNumericGesture?.({kind: "cancel"})
+  runtime.numericDrag = null
+  surface.requestKeyedRender(numeric.key)
 }
 
 function drawNumericInputZone(

@@ -8,6 +8,7 @@ import {
   type InputAppearance,
   type InputKeyOptions,
   type InputKeyResult,
+  type InputNumericGesture,
   type InputType,
 } from "@ui/elements"
 import type {UiSurface, StyleProps} from "@ui/elements"
@@ -32,6 +33,7 @@ export type TextFieldProps = {
   allowTab?: boolean
   onClick?: () => void
   onActivate?: () => void
+  onNumericGesture?: (gesture: InputNumericGesture) => void
 }
 
 export function TextField(host: UiSurface, x: number, y: number, width: number, height: number, props: TextFieldProps): void {
@@ -52,6 +54,7 @@ export function TextField(host: UiSurface, x: number, y: number, width: number, 
   if (props.onSubmit !== undefined) inputProps.onSubmit = props.onSubmit
   if (props.submitOnEnter !== undefined) inputProps.submitOnEnter = props.submitOnEnter
   if (props.allowTab !== undefined) inputProps.allowTab = props.allowTab
+  if (props.onNumericGesture !== undefined) inputProps.onNumericGesture = props.onNumericGesture
   const fontPx = props.fontPx ?? (props.sx?.fontSize === undefined ? undefined : Number(props.sx.fontSize))
   if (fontPx !== undefined) inputProps.fontPx = fontPx
   const onActivate = props.onClick ?? props.onActivate

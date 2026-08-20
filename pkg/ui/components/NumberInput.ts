@@ -1,4 +1,4 @@
-import type {InputAppearance, StyleProps, UiSurface} from "@ui/elements"
+import type {InputAppearance, InputNumericGesture, StyleProps, UiSurface} from "@ui/elements"
 import {TextField} from "./TextField.ts"
 
 export type NumberInputKind = "float" | "integer"
@@ -8,6 +8,8 @@ export type NumberInputValueOptions = {
   numberKind?: NumberInputKind
   min?: number
   max?: number
+  softMin?: number
+  softMax?: number
   step?: number
   unit?: string
 }
@@ -28,6 +30,20 @@ export type NumberInputProps = NumberInputFormatOptions & {
   onChange?(value: number): void
 }
 
+export type NumberInputSoftRange = Readonly<{min: number; max: number}>
+
+type NumberPointerState = {
+  origin: number
+  current: number
+  changed: boolean
+  softRange: NumberInputSoftRange
+}
+
+const numberPointerStates = new WeakMap<UiSurface, Map<string, NumberPointerState>>()
+
+// Blender 4.5.5 `interface_handlers.cc`: `ui_numedit_but_NUM` uses a 500px
+// float map, adaptive 1000px soft-range cap, integer divisors and Shift / 10.
+
 /** Draws one controlled scalar number editor without owning consumer state. */
 export function NumberInput(
   host: UiSurface,
@@ -38,13 +54,14 @@ export function NumberInput(
   props: NumberInputProps,
 ): void {
   const disabled = props.disabled === true || props.readOnly === true
+  const key = props.key ?? `number-input:${x}:${y}:${width}:${height}`
   const textFieldProps: Parameters<typeof TextField>[5] = {
+    key,
     value: formatNumberInputValue(props.value, props),
     disabled,
     submitOnEnter: true,
     type: "number",
   }
-  if (props.key !== undefined) textFieldProps.key = props.key
   if (props.fontPx !== undefined) textFieldProps.fontPx = props.fontPx
   if (props.appearance !== undefined) textFieldProps.appearance = props.appearance
   if (props.sx !== undefined) textFieldProps.sx = props.sx
@@ -54,7 +71,83 @@ export function NumberInput(
       if (value !== null) props.onChange!(value)
     }
   }
+  if (!disabled) {
+    textFieldProps.onNumericGesture = (gesture) => handleNumberPointerGesture(host, key, props, gesture)
+  }
   TextField(host, x, y, width, height, textFieldProps)
+}
+
+/** Resolves finite ordered pointer-only bounds within the hard value range. */
+export function resolveNumberInputSoftRange(
+  value: number,
+  options: NumberInputFormatOptions = {},
+): NumberInputSoftRange {
+  const hardMin = finiteBound(options.min, Number.NEGATIVE_INFINITY)
+  const hardMax = Math.max(hardMin, finiteBound(options.max, Number.POSITIVE_INFINITY))
+  const center = normalizeNumberInputValue(value, options)
+  const step = numberPointerStep(options)
+  const adaptiveSpan = numberPointerAdaptiveSpan(options)
+  let minimum = Number.isFinite(options.softMin)
+    ? options.softMin!
+    : Number.isFinite(hardMin)
+      ? hardMin
+      : center - adaptiveSpan / 2
+  let maximum = Number.isFinite(options.softMax)
+    ? options.softMax!
+    : Number.isFinite(hardMax)
+      ? hardMax
+      : center + adaptiveSpan / 2
+  if (minimum > maximum) [minimum, maximum] = [maximum, minimum]
+  minimum = Math.max(hardMin, minimum)
+  maximum = Math.min(hardMax, maximum)
+  if (minimum > maximum) minimum = maximum
+  if (minimum === maximum) {
+    if (maximum + step <= hardMax) maximum += step
+    else if (minimum - step >= hardMin) minimum -= step
+  }
+  return Object.freeze({min: minimum, max: maximum})
+}
+
+/** Applies one source-ordered horizontal scrub increment and hard-normalizes the result. */
+export function scrubNumberInputValue(
+  value: number,
+  deltaX: number,
+  distanceX: number,
+  options: NumberInputFormatOptions = {},
+  shift = false,
+): number {
+  const range = resolveNumberInputDragRange(value, options)
+  const softSpan = range.max - range.min
+  if (softSpan <= 0 || !Number.isFinite(deltaX) || !Number.isFinite(distanceX)) {
+    return normalizeNumberInputValue(value, options)
+  }
+  let divisor = 500
+  let scale = 1
+  if (options.numberKind === "integer") {
+    if (softSpan > 600) divisor = softSpan ** 0.75
+    else if (softSpan < 25) divisor = 50
+    else if (softSpan < 100) divisor = 100
+    if (softSpan > 129) scale = Math.abs(distanceX) / 250
+    scale = Math.max(scale, 0.5)
+  }
+  else if (softSpan > 11) {
+    scale = Math.abs(distanceX) / 500
+  }
+  if (shift) scale /= 10
+  const candidate = Math.min(range.max, Math.max(range.min, value + (deltaX / divisor) * scale * softSpan))
+  return normalizeNumberInputValue(candidate, {...options, step: numberPointerStep(options)})
+}
+
+/** Applies one side-handle step using only the hard value contract. */
+export function stepNumberInputValue(
+  value: number,
+  direction: -1 | 1,
+  options: NumberInputFormatOptions = {},
+): number {
+  return normalizeNumberInputValue(value + numberPointerStep(options) * direction, {
+    ...options,
+    step: numberPointerStep(options),
+  })
 }
 
 /** Normalizes a scalar value against the public integer/float and hard-range contract. */
@@ -100,6 +193,98 @@ export function formatNumberInputValue(
   const precision = normalizedPrecision(options.precision)
   const formatted = precision === undefined ? String(normalized) : normalized.toFixed(precision)
   return `${formatted}${options.unit ?? ""}`
+}
+
+function handleNumberPointerGesture(
+  host: UiSurface,
+  key: string,
+  props: NumberInputProps,
+  gesture: InputNumericGesture,
+): void {
+  const states = numberPointerStateFor(host)
+  if (gesture.kind === "start") {
+    const value = normalizeNumberInputValue(props.value, props)
+    states.set(key, {
+      origin: value,
+      current: value,
+      changed: false,
+      softRange: resolveNumberInputSoftRange(value, props),
+    })
+    return
+  }
+  if (gesture.kind === "text") return
+  const state = states.get(key)
+  if (gesture.kind === "cancel") {
+    if (state?.changed === true && state.current !== state.origin) props.onChange?.(state.origin)
+    states.delete(key)
+    return
+  }
+  if (gesture.kind === "end") {
+    states.delete(key)
+    return
+  }
+  const current = state ?? {
+    origin: normalizeNumberInputValue(props.value, props),
+    current: normalizeNumberInputValue(props.value, props),
+    changed: false,
+    softRange: resolveNumberInputSoftRange(props.value, props),
+  }
+  const next = gesture.kind === "step"
+    ? stepNumberInputValue(current.current, gesture.direction, props)
+    : scrubNumberInputValue(current.current, gesture.deltaX, gesture.distanceX, {
+      ...props,
+      softMin: current.softRange.min,
+      softMax: current.softRange.max,
+    }, gesture.shiftKey)
+  if (next === current.current) return
+  current.current = next
+  current.changed = true
+  states.set(key, current)
+  props.onChange?.(next)
+}
+
+function resolveNumberInputDragRange(
+  value: number,
+  options: NumberInputFormatOptions,
+): NumberInputSoftRange {
+  const range = resolveNumberInputSoftRange(value, options)
+  const span = range.max - range.min
+  const maximumSpan = numberPointerAdaptiveSpan(options)
+  if (span <= maximumSpan) return range
+  const center = normalizeNumberInputValue(value, options)
+  let minimum = center - maximumSpan / 2
+  let maximum = center + maximumSpan / 2
+  if (minimum < range.min) {
+    minimum = range.min
+    maximum = minimum + maximumSpan
+  }
+  else if (maximum > range.max) {
+    maximum = range.max
+    minimum = maximum - maximumSpan
+  }
+  return Object.freeze({min: minimum, max: maximum})
+}
+
+function numberPointerStateFor(host: UiSurface): Map<string, NumberPointerState> {
+  let states = numberPointerStates.get(host)
+  if (states === undefined) {
+    states = new Map()
+    numberPointerStates.set(host, states)
+  }
+  return states
+}
+
+function numberPointerStep(options: NumberInputFormatOptions): number {
+  if (Number.isFinite(options.step) && options.step! > 0) return options.step!
+  if (options.numberKind === "integer") return 1
+  const precision = normalizedPrecision(options.precision) ?? 3
+  return 10 ** -precision
+}
+
+function numberPointerAdaptiveSpan(options: NumberInputFormatOptions): number {
+  return options.numberKind === "integer"
+    ? 2000
+    : 20_000 * Math.min(numberPointerStep(options), 0.1)
 }
 
 function normalizedPrecision(value: number | undefined): number | undefined {
