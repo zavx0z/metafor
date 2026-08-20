@@ -95,15 +95,15 @@ detail story завершена checkpoint-ом `348453120`, остальные 
 `77bfa7264`, Components — `b1a113491`. Текущий срез переводит Elements.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
-создаёт общий Engine/Elements primitive: один rounded SDF quad со spread/blur
-в local units, без texture pass. NODES-017 применит его отдельным следующим
-срезом после завершения header geometry.
+создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
+rounded SDF quad со spread/blur в local units, без texture pass. Текущий live
+consumer gate — NODES-017.8.5.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
-четырёхсторонняя selection shadow после UI-012 SDF primitive; Socket и geometric
-header уже приняты package/live evidence. LOD/alignment, exact collapsed Mapping,
-physical mobile и явная visual owner acceptance остаются следующими gates.
+четырёхсторонняя SDF selection shadow; Socket и geometric header уже приняты
+package/live evidence. LOD/alignment, exact collapsed Mapping, physical mobile
+и явная visual owner acceptance остаются следующими gates.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |

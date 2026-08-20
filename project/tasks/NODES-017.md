@@ -382,11 +382,33 @@ Reference/live scale difference остаётся owner visual gate; automated ca
 Node не меняется, а halo получает прозрачный оттенок фактического header color.
 Одинаковый закон действует для expanded и collapsed Node и не зависит от fixture.
 
-`WAITING`: зависит от
-[`UI-012.1 — Добавить rounded shadow material и UiSurface primitive`](UI-012.md).
-После её checkpoint этот срез меняет только Node renderer: один neutral shadow
-child в обычном состоянии, header-derived shadow при selection и неизменный
-border. Собственный Node blur/shader либо несколько shadow strips запрещены.
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель текущей задачи.
+
+Классификация: следующий visual mechanism того же parent. Общий SDF primitive
+завершён UI-012.1; этот срез меняет только его Node presentation inputs.
+
+Причина: production Node по-прежнему рисует hard shadow вторым rounded rect со
+смещением `(+3,+5)`, поэтому глубина находится справа/снизу. Selection меняет
+border на orange, хотя owner law назначает носителем selection только тень.
+
+Разрешённое изменение одного механизма: заменить offset rect одним
+`UiSurface.drawRoundedShadow()` exact Node rect/radius. Ordinary shadow
+нейтральна; selected получает transparent actual header color. Node border
+остаётся одинаковым. Общий blur/spread опирается на Blender
+`shadow_width = 0.6 × widget_unit` и equal-scale capture, но не получает
+fixture-specific offsets.
+
+Regression: ordinary/selected expanded и collapsed Node используют один shadow
+Mesh/policy, border не меняется, selected shadow выводится из header color,
+fade симметрично расширен на четыре стороны. Retained pan/zoom сохраняет
+geometry/materialization identity; отдельный Node shader/blur запрещён.
+
+Среда и приёмка: production tests/typecheck/boundaries, затем UI-011 exact
+NodeEditor/comparison captures ordinary/selected и bounded clean-target profile.
+Automated capture/profile не являются owner acceptance.
+
+Подготовительный commit: записывается до production patch; prerequisite
+UI-012.1 — commit `e5d484ddc`.
 
 #### NODES-017.8.6 — Убрать пустые Node при overview zoom
 
