@@ -93,6 +93,11 @@
 * Наблюдение: раскрытый Select menu остаётся ordinary retained sibling;
   последующие Parameter labels/controls рисуются поверх popup. Это layering RED,
   а не palette defect; acceptance ждёт generic overlay portal UI-015.7.5.
+* Exact Blender composition reference: `blender-select-header-icons-reference.png`,
+  `350×446`, `111178` bytes, SHA-256
+  `2ec224eb1bb3a9f946193eb01a45ed1942c867ec5a2082e42466fb96011f03ba`.
+  Кадр доказывает non-interactive title `Mode`, separator, selected trigger icon
+  и shared option icon column; title не является fake option.
 
 ## UI-015.7.3 — Vector grouped live RED
 
