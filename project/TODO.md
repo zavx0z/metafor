@@ -80,8 +80,8 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 [`UI-001 — Создать playground универсальных UI Components`](tasks/UI-001.md)
 сохраняет historical visual geometry, universal Field routes и уже использует
-public retained Workbench. Shared dependency завершена; следующий срез переносит
-Components stories и завершает полную русскую локализацию catalog.
+public retained Workbench. Package-owned Components stories готовы checkpoint-ом
+`b1a113491` и ожидают независимую closing review.
 
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 параллельно развивает production Components, пока UI-011 владеет всеми
@@ -92,8 +92,7 @@ playground. NumberInput и ColorInput уже вынесены в public leaves; 
 исправляет незавершённую consumer migration: `4192` уже является эталоном, но
 Node UI, Components и Elements сохраняют старые route/info screens. Node Socket
 detail story завершена checkpoint-ом `348453120`, остальные Node components —
-`77bfa7264`. Текущий срез переводит Components; UI-001 execution/closing
-переданы тому же руководителю.
+`77bfa7264`, Components — `b1a113491`. Текущий срез переводит Elements.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создаёт общий Engine/Elements primitive: один rounded SDF quad со spread/blur
@@ -113,7 +112,7 @@ physical mobile и явная visual owner acceptance остаются след�
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-001 | IN_PROGRESS | нет         | [Открыть](tasks/UI-001.md) |
+| UI-001 | REVIEW      | нет         | [Открыть](tasks/UI-001.md) |
 | UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
 | UI-011 | IN_PROGRESS | нет         | [Открыть](tasks/UI-011.md) |
 | UI-012 | IN_PROGRESS | нет         | [Открыть](tasks/UI-012.md) |

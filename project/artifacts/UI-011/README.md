@@ -57,3 +57,32 @@
   reference/live остаётся owner acceptance gate.
 * Контрольная сумма: SHA-256
   `458e0f54f78cd75abf10c313631074f21a4730053478adb67a36fcb4a6469d54`.
+
+## components-field-number.png
+
+* Источник: `$ui-dev` renderer-activity desktop capture `field/number/input`,
+  target `D0775AE44CFF0E299A0C28EECB3872D2`.
+* Версия проекта: UI-011.3 `b1a113491`, NumberInput `99f80c0e2`.
+* Фактическое наблюдение: production `Field → NumberInput`, TypeScript/copy и
+  controls видны; console `0`, native metrics restored.
+* Контрольная сумма: SHA-256
+  `212ddf69bdbe67bb7215740e3560a75cb178ed741777bf8af8105207b13d73fe`.
+
+## components-field-color.png
+
+* Источник: `$ui-dev` ready desktop capture `field/color/input`, тот же target.
+* Версия проекта: UI-011.3 `b1a113491`, ColorInput `c935de436`.
+* Фактическое наблюдение: production `Field → ColorInput`, swatch/RGBA и
+  TypeScript/copy видны. Первый `starting` кадр отклонён; сохранён ready кадр.
+* Контрольная сумма: SHA-256
+  `ed1610346a91630c1df48a0e822db09f7f1eb977b5c783b2b4ce0b3de842361d`.
+
+## components-field-vector.png
+
+* Источник: `$ui-dev` renderer-activity desktop capture `field/vector/default`,
+  тот же target.
+* Версия проекта: UI-011.3 `b1a113491`, VectorInput `b926baf00`.
+* Фактическое наблюдение: production `Field → VectorInput`, XYZ и
+  TypeScript/copy видны; console `0`, native metrics restored.
+* Контрольная сумма: SHA-256
+  `e7ddf87392c982d683c952f2b685ca5263ae524155f66b0054db0a4603d2b838`.
