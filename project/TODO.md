@@ -132,6 +132,14 @@ Alignment commit `859973c95` прошёл stable restart: Vector `1.000/2.000/3.
 right, Node Rotation `0°/45°/90°` below label-row Socket, console0. Color
 material commit `39443a65b` получил marker/shadow proof, но static review открыл
 exact value-strip correction: current hue tint → achromatic white→black.
+Новый owner Transform RED открыл последовательную UI-015.5.3: connection-aware
+plan уже скрывает linked Vector editor, но measurement продолжает резервировать
+его полную высоту. Correction обязан свести measurement/layout к одному
+visibility plan и снять скрытую editor height без fixture literals/gap hacks.
+Тот же audit отдельно открыл UI-015.5.4 side-aware socket labels: input слева,
+output справа, property label с двоеточием при неизменном Socket anchor; и
+UI-015.5.5 source-backed default Node width вокруг intrinsic editor вместо
+story literal `310`. Эти mechanisms выполняются последовательными slices.
 UI-015.7 source checkpoint `13ac398d1` правильно разделил Engine low-level
 picker plane и Components HSVA/popup owner, но independent Blender review
 оставил composition/interaction незавершёнными. UI-015.7.1 после текущего
@@ -184,7 +192,11 @@ integer Field (`Iterations = 3`) поверх shared numeric gesture owner; FLOA
 Prerequisite UI-015.8.4 Ctrl/Ctrl+Shift linear drag snapping теперь IN_PROGRESS
 на stable aligned numeric baseline.
 Snap commit `b097460fe` завершён; UI-015.8.5 public IntegerInput теперь
-IN_PROGRESS с обязательными exact leaf/story/delivery/Node gates.
+завершён source/static commit-ом `d300a7719`: exact leaf/story/delivery/Field и
+Node consumer готовы. Stable restart/reload PIDs `45117/45132/45133`, console0;
+standalone и Node static PASS, hover/gesture/disabled owner gate остаётся.
+Color correction `6ba99966c` также прошла source-fresh compact/expanded static
+PASS с achromatic Value strip; same ColorInput in Node и pointer gate открыты.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

@@ -182,6 +182,15 @@
   `7b465f4a02ea1000dacfc382b52eecaf62abf6b1d1db79206fc0a7e35bbb60d6`.
 * Components PID `31534`, target `D0775…`, console `0`. Compact имеет menu
   shadow/source cursor contrast; expanded inline — без popup shadow.
+* Achromatic correction `6ba99966c`, source-fresh Components PID `45132`,
+  target `D0775…`, console `0`:
+  * `components-color-compact-achromatic.png` — `320114` bytes, SHA-256
+    `4cba0360b7571507ebb28e7721b8e21dbdf6ebc61171e1faa6cfdfddb3c88487`;
+  * `components-color-expanded-achromatic.png` — `319978` bytes, SHA-256
+    `b105bced093a18afc4a49c3e8f6280672e9d10f0cccb215773e0ecb3cb9cf583`.
+  Фактическое наблюдение: vertical Value strip white→gray→black без hue tint;
+  compact сохраняет popup shadow, expanded остаётся inline без него. Static
+  reviewer PASS; pointer/marker и same ColorInput inside Node остаются open.
 
 ## UI-015.2.1 — Button size RED baseline
 
@@ -216,5 +225,29 @@
 * Наблюдение: one INT button, label `Iterations`, right value `3`, side
   arrows/zone behavior. Owner mapping: public IntegerInput canonical INT;
   NumberInput остаётся FLOAT, implementation engine shared.
+* Source-fresh result `d300a7719`, PIDs Elements/Components/Node
+  `45117/45132/45133`, exact singleton targets, explicit reload, console `0`:
+  * `components-integer-labeled-stable.png` — `267259` bytes, SHA-256
+    `c93e5529e111211aaa2154b6b4a2bc6fe94720818a7db445ae3b99137131c398`;
+  * `node-integer-stable.png` — `400020` bytes, SHA-256
+    `2dee31a56b81c38fee0a85a0df96c40d12b97b2b258d5f9d05091853aaa55457`.
+  Фактическое наблюдение: standalone один joined `Iterations | 3`; expanded
+  Scalar Node показывает тот же public IntegerInput через Field. Static reviewer
+  PASS; idle кадр не доказывает hover arrows/interaction matrix.
+
+## UI-015.5.3 — Linked Node measurement RED
+
+* Источник: owner live screenshot, 2026-08-20, перенесён из temporary path до
+  очистки.
+* Файл: `node-transform-linked-height-red.png`, `628×504`, `26380` bytes,
+  SHA-256 `c13470d8b774d2e7a35430f5e155c2d5c0d56aa4083d23f9cf3d71e56506053d`.
+* Ожидание: linked `Перемещение` оставляет только compact label/socket row;
+  следующий `Вращение` поднимается на удалённую высоту Vector editor + gap,
+  Node rect/shadow/bounds сжимаются к видимому content.
+* Фактическое наблюдение: X/Y/Z скрыты, но между label `Перемещение` и
+  `Вращение` остаётся большой пустой блок — measurement всё ещё резервирует
+  полный grouped Vector editor. Дополнительно input labels центрированы и без
+  двоеточия, а default body чрезмерно шире intrinsic editor. Это общий owner RED
+  baseline для трёх раздельных corrections UI-015.5.3/.4/.5, не acceptance.
 
 Automated captures prove exact canvas state, not explicit owner acceptance.
