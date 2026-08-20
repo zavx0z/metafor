@@ -280,4 +280,20 @@
   Socket anchors и connection-aware height/Links не меняются. Independent
   SOURCE/STATIC VISUAL PASS; default width остаётся UI-015.5.5.
 
+## UI-015.5.5 — Default Node width final result
+
+* Source commits `ebee0da1b` + `b11cced6a`, Node PID `70939`, target `809…`,
+  native `1920×1088 @2`, console `0`:
+  * `node-transform-default-width-linked-final.png` — `408426` bytes, SHA-256
+    `384e2f9b517ccd4e21dfc5d909fc864c16983f0d3bb9421a208f4552902cfead`;
+  * `node-transform-default-width-unlinked-final.png` — `410806` bytes,
+    SHA-256
+    `ecae1a488355be0887176abd3961e807f2475d7329f387fb9a46ca034b6838cc`.
+* Факт: Transform initial width `166` содержит editor `146` и source inset
+  `10` с каждой стороны; linked/unlinked сохраняют width, меняют только height.
+  Blender default/min `140/100` разделены, explicit resize `240` сохраняется,
+  fixture `310` отсутствует. Independent SOURCE/STATIC VISUAL PASS.
+* Промежуточные captures с ошибочным width `162` отклонены reviewer-ом,
+  удалены до result commit и не являются artifact evidence.
+
 Automated captures prove exact canvas state, not explicit owner acceptance.
