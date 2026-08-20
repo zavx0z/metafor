@@ -1884,6 +1884,7 @@ async function startComponentsPlayground(): Promise<void> {
       fontUrl: "/JetBrainsMono-Bold.ttf",
       virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
     })
+    runtime.handleResize()
     const router = new PlaygroundRouter(COMPONENT_PLAYGROUND_ROUTE_DECLARATION)
     const navigate = (route: ComponentsRoute): void => router.go(route)
     const catalogNavigate = (route: ComponentsCatalogRoute): void => {

@@ -165,6 +165,16 @@ describe("restored @ui/components playground", () => {
     expect(server).toContain('entrypoint: join(import.meta.dir, "entry.ts")')
     expect(server).toContain('canvasId: "stage-canvas"')
   })
+
+  test("initializes native canvas metrics before materializing direct detail routes", async () => {
+    const entry = await Bun.file(join(playgroundRoot, "entry.ts")).text()
+    const createRuntime = entry.indexOf("const runtime = await UiRuntime.create")
+    const initializeMetrics = entry.indexOf("runtime.handleResize()", createRuntime)
+    const addFirstSurface = entry.indexOf("runtime.addSurface(backdrop", createRuntime)
+    expect(createRuntime).toBeGreaterThanOrEqual(0)
+    expect(initializeMetrics).toBeGreaterThan(createRuntime)
+    expect(addFirstSurface).toBeGreaterThan(initializeMetrics)
+  })
 })
 
 function createFakeRuntime(): UiRuntime {
