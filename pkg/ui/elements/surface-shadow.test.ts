@@ -9,6 +9,8 @@ import {
 } from "@metafor/engine"
 import type {UiRuntime} from "./runtime.ts"
 import {UiSurface} from "./surface.ts"
+import {div} from "./div.ts"
+import {palette} from "./theme.ts"
 
 class ShadowTestSurface extends UiSurface {
   constructor() {
@@ -99,6 +101,33 @@ const setupSurface = (): {surface: ShadowTestSurface; fake: FakeRuntime} => {
 }
 
 describe("UiSurface rounded shadow", () => {
+  test("materializes omitted white and explicit border-only transparent fills distinctly", () => {
+    const {surface} = setupSurface()
+    const layer = surface.mainLayer()
+
+    surface.drawRoundedRect(10, 20, 100, 40, {radius: 4})
+    surface.drawRoundedRect(10, 70, 100, 40, {
+      radius: {tl: 2, tr: 4, br: 6, bl: 8},
+      fill: null,
+      border: new Color(0.2, 0.4, 0.6, 1),
+      borderWidth: 2,
+    })
+    div(surface, 120, 20, 60, 40, {
+      style: {background: null, borderColor: "cyan", borderWidth: 1, borderRadius: 4},
+    })
+
+    expect(layer.children).toHaveLength(3)
+    const omitted = (layer.children[0] as Mesh).material as RoundedRectMaterial
+    const explicitNull = (layer.children[1] as Mesh).material as RoundedRectMaterial
+    const divBorderOnly = (layer.children[2] as Mesh).material as RoundedRectMaterial
+    expect(omitted.fill).toEqual(new Color(1, 1, 1, 1))
+    expect(explicitNull.fill).toEqual(new Color(1, 1, 1, 0))
+    expect(explicitNull.radii).toEqual([0.002, 0.004, 0.006, 0.008])
+    expect(explicitNull.border).toEqual(new Color(0.2, 0.4, 0.6, 1))
+    expect(divBorderOnly.fill.a).toBe(0)
+    expect(divBorderOnly.border).toEqual(palette.cyan)
+  })
+
   test("keeps ordinary rounded rectangles on their exact unpadded quad", () => {
     const {surface} = setupSurface()
     const layer = surface.mainLayer()

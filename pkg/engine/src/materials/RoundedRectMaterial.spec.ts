@@ -1,7 +1,18 @@
 import {describe, expect, test} from "bun:test"
+import {Color} from "../math/Color"
 import {RoundedRectMaterial} from "./RoundedRectMaterial"
 
 describe("RoundedRectMaterial shadow parameters", () => {
+  test("distinguishes omitted default-white fill from explicit transparent null", () => {
+    const omitted = new RoundedRectMaterial({width: 2, height: 1, radius: 0.2})
+    const transparent = new RoundedRectMaterial({width: 2, height: 1, radius: 0.2, fill: null})
+    const explicit = new RoundedRectMaterial({width: 2, height: 1, radius: 0.2, fill: 0x336699})
+
+    expect(omitted.fill).toEqual(new Color(1, 1, 1, 1))
+    expect(transparent.fill).toEqual(new Color(1, 1, 1, 0))
+    expect(explicit.fill).toEqual(new Color(0x33 / 255, 0x66 / 255, 0x99 / 255, 1))
+  })
+
   test("keeps ordinary rounded rectangles on zero shadow defaults", () => {
     const material = new RoundedRectMaterial({
       width: 2,

@@ -1459,18 +1459,19 @@ export abstract class UiSurface implements UiSurfaceNode {
   ): void {
     if (w <= 0 || h <= 0) return
     const ps = this.pixelScale
-    const material = new RoundedRectMaterial({
+    const materialOptions: ConstructorParameters<typeof RoundedRectMaterial>[0] = {
       width: w * ps,
       height: h * ps,
       radius:
         typeof opts.radius === "number"
           ? opts.radius * ps
           : {tl: opts.radius.tl * ps, tr: opts.radius.tr * ps, br: opts.radius.br * ps, bl: opts.radius.bl * ps},
-      fill: opts.fill ?? null,
       border: opts.border ?? null,
       borderWidth: (opts.borderWidth ?? 0) * ps,
       opacity: opts.opacity ?? 1,
-    })
+    }
+    if (opts.fill !== undefined) materialOptions.fill = opts.fill
+    const material = new RoundedRectMaterial(materialOptions)
     this.#applyRoundedClipTo(material)
     const mesh = new Mesh(new PlaneGeometry({width: w * ps, height: h * ps}), material)
     mesh.position.x = (x + w / 2) * ps

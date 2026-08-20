@@ -21,7 +21,7 @@ export interface RoundedRectMaterialParameters extends MaterialParameters {
   height: number
   /** Радиус скругления (world-units). Может быть single number или per-corner. */
   radius: number | {tl: number; tr: number; br: number; bl: number}
-  /** Цвет заливки. Default 0xffffff. */
+  /** Цвет заливки. Omitted = opaque 0xffffff; explicit null = transparent fill. */
   fill?: Color | number | null
   /** Цвет рамки. Default null (нет рамки). */
   border?: Color | number | null
@@ -68,7 +68,8 @@ export class RoundedRectMaterial extends Material {
 
     this.fill = parameters.fill instanceof Color
       ? parameters.fill.clone()
-      : new Color(parameters.fill === null || parameters.fill === undefined ? 0xffffff : parameters.fill)
+      : new Color(parameters.fill === undefined || parameters.fill === null ? 0xffffff : parameters.fill)
+    if (parameters.fill === null) this.fill.a = 0
     this.border = parameters.border instanceof Color
       ? parameters.border.clone()
       : new Color(parameters.border === null || parameters.border === undefined ? 0x000000 : parameters.border)

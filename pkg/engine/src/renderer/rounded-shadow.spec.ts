@@ -20,6 +20,27 @@ const uploadedParams = (material: RoundedRectMaterial): number[] => {
 }
 
 describe("RoundedRectMaterial analytical shadow", () => {
+  test("uploads explicit transparent fill alpha and keeps border/shader alpha authoritative", () => {
+    const material = new RoundedRectMaterial({
+      width: 2,
+      height: 1,
+      radius: {tl: 0.1, tr: 0.2, br: 0.3, bl: 0.4},
+      fill: null,
+      border: 0x6699cc,
+      borderWidth: 0.05,
+    })
+    const mesh = new Mesh(new PlaneGeometry({width: 2, height: 1}), material)
+    const renderer = new Renderer() as unknown as RendererProbe
+    renderer.perObjectDataCPU = new Float32Array(64)
+    renderer.updateMeshData(mesh, new Matrix4(), 0)
+
+    expect([...renderer.perObjectDataCPU.slice(32, 36)]).toEqual([1, 1, 1, 0])
+    expect(renderer.perObjectDataCPU[39]).toBe(1)
+    expect([...renderer.perObjectDataCPU.slice(44, 48)]).toEqual([0.1, 0.2, 0.3, 0.4].map(Math.fround))
+    expect(roundedShader).toContain("perObject.fill.rgb * fillStrength * perObject.fill.a")
+    expect(roundedShader).toContain("fillStrength * perObject.fill.a + borderStrength * perObject.border.a")
+  })
+
   test("preserves ordinary uniform packing and uses the existing spare params", () => {
     const ordinary = new RoundedRectMaterial({
       width: 2,
