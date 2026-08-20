@@ -32,3 +32,28 @@
   `3840×2176`, outer Socket diameter около `20` physical px.
 * Контрольная сумма: SHA-256
   `0dc325a31a98eae001e31b11439417cc762d64e83f24103f089653e14c8c723f`.
+
+## node-editor-story.png
+
+* Источник: `$ui-dev` exact capture `node-editor/scene/default`, target
+  `809BF08D88E4582CA819EFE847FE1450`.
+* Дата: 2026-08-20 06:46:07 +0300.
+* Версия проекта: UI-011.2 `77bfa7264`, Node header `860076720`.
+* Ожидание: пять Node components, actual expanded/collapsed scene и
+  TypeScript/copy справа.
+* Фактическое наблюдение: ожидание совпало; expanded Nodes и collapsed
+  `Compact Mix` видны, console `0`, canvas `3840×2176`. Mapping fixture нет.
+* Контрольная сумма: SHA-256
+  `20b49ef06dc095b59cc3f3a09312cde0a1c7127ecd5ab3a9a817512256441a08`.
+
+## node-comparison-story.png
+
+* Источник: `$ui-dev` exact capture `comparison/blender/default`, тот же target.
+* Дата: 2026-08-20 06:46:07 +0300.
+* Версия проекта: UI-011.2 `77bfa7264`, Node header `860076720`.
+* Ожидание: maintained Blender reference и actual live Node сохраняются,
+  справа появляется exact story TypeScript/copy.
+* Фактическое наблюдение: ожидание совпало; visual scale difference
+  reference/live остаётся owner acceptance gate.
+* Контрольная сумма: SHA-256
+  `458e0f54f78cd75abf10c313631074f21a4730053478adb67a36fcb4a6469d54`.

@@ -91,8 +91,9 @@ playground. NumberInput и ColorInput уже вынесены в public leaves; 
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: `4192` уже является эталоном, но
 Node UI, Components и Elements сохраняют старые route/info screens. Node Socket
-detail story завершена checkpoint-ом `348453120`; текущий срез переводит
-остальные Node UI routes. UI-001 execution/closing переданы тому же руководителю.
+detail story завершена checkpoint-ом `348453120`, остальные Node components —
+`77bfa7264`. Текущий срез переводит Components; UI-001 execution/closing
+переданы тому же руководителю.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создаёт общий Engine/Elements primitive: один rounded SDF quad со spread/blur
