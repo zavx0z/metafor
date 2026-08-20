@@ -17,6 +17,7 @@ export type {
   FlexRowOpts,
 } from "./flex.types.ts"
 export * from "./flexCss.ts"
+export * from "./shape.ts"
 export * from "./theme.ts"
 export * from "./icons.ts"
 export * from "./icon.ts"
