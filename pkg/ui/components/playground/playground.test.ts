@@ -111,9 +111,9 @@ describe("restored @ui/components playground", () => {
     const desktop = planPlaygroundShell(1920, 1080)
     expect(desktop.catalog).toEqual({x: 16, y: 16, w: 210, h: 1048})
     expect(desktop.section).toEqual({x: 244, y: 16, w: 160, h: 1048})
-    expect(desktop.preview).toEqual({x: 422, y: 16, w: 1164, h: 930})
-    expect(desktop.dock).toEqual({x: 422, y: 964, w: 1164, h: 100})
-    expect(desktop.info).toEqual({x: 1604, y: 16, w: 300, h: 1048})
+    expect(desktop.preview).toEqual({x: 422, y: 16, w: 1024, h: 930})
+    expect(desktop.dock).toEqual({x: 422, y: 964, w: 1024, h: 100})
+    expect(desktop.info).toEqual({x: 1464, y: 16, w: 440, h: 1048})
   })
 
   test("keeps retained preview identities on transform and dirties only one controlled Field", () => {

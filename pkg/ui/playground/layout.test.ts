@@ -8,9 +8,9 @@ describe("shared Playground FlexBox shell", () => {
     expect(frames.stage).toEqual({x: 16, y: 16, w: 1888, h: 1048})
     expect(frames.catalog).toEqual({x: 16, y: 16, w: 210, h: 1048})
     expect(frames.section).toEqual({x: 244, y: 16, w: 160, h: 1048})
-    expect(frames.info).toEqual({x: 1604, y: 16, w: 300, h: 1048})
-    expect(frames.preview).toEqual({x: 422, y: 16, w: 1164, h: 930})
-    expect(frames.dock).toEqual({x: 422, y: 964, w: 1164, h: 100})
+    expect(frames.info).toEqual({x: 1464, y: 16, w: 440, h: 1048})
+    expect(frames.preview).toEqual({x: 422, y: 16, w: 1024, h: 930})
+    expect(frames.dock).toEqual({x: 422, y: 964, w: 1024, h: 100})
   })
 
   test("keeps desktop panel sizing configurable without restoring max caps", () => {

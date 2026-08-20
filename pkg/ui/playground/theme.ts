@@ -3,7 +3,7 @@ export const playgroundTheme = Object.freeze({
   stageGap: 18,
   catalogWidth: 210,
   sectionWidth: 160,
-  infoWidth: 300,
+  infoWidth: 440,
   dockHeight: 100,
   panelRadius: 36,
   previewRadius: 38,

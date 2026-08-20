@@ -40,6 +40,8 @@ export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnT
       entrypoints: [options.entrypoint],
       loader: {".wgsl": "text"},
       target: "browser",
+      format: "esm",
+      splitting: true,
       sourcemap: "inline",
     })
     if (!result.success) {

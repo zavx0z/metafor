@@ -201,6 +201,8 @@ describe("retained @ui/playground surfaces", () => {
       items: largeItems,
       route: "first",
       window: {offset: 490, limit: 10},
+      searchPlaceholder: "Поиск…",
+      onQueryChange() {},
       onNavigate() {},
     })
     surface.attachCanvas(createFakeRuntime())
@@ -208,10 +210,11 @@ describe("retained @ui/playground surfaces", () => {
     expect(surface.diagnostics.owners.map(({key}) => key)).toEqual([
       "panel",
       "title",
+      "search",
       "group:values",
       ...Array.from({length: 10}, (_, index) => `item:item-${490 + index}`),
     ])
-    expect(surface.diagnostics.materializations).toBe(13)
+    expect(surface.diagnostics.materializations).toBe(14)
     surface.dispose()
   })
 

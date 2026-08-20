@@ -1,4 +1,4 @@
-import type {UiSurface} from "@ui/elements"
+import type {UiSurface, UiSurfaceRect} from "@ui/elements"
 import {definePlaygroundRoutes, type PlaygroundRouteDeclaration} from "./router.ts"
 
 export type PlaygroundStoryArgs = Readonly<Record<string, unknown>>
@@ -33,7 +33,7 @@ export type PlaygroundStoryPlayContext<Args extends PlaygroundStoryArgs = Playgr
 export type PlaygroundStoryModuleInput<Args extends PlaygroundStoryArgs> = Readonly<{
   defaultArgs: Args
   controls?: readonly PlaygroundStoryControl<Extract<keyof Args, string>>[]
-  render(surface: UiSurface, args: Args): void
+  render(surface: UiSurface, args: Args, frame: UiSurfaceRect): void
   source(args: Args): string
   play?(context: PlaygroundStoryPlayContext<Args>): void | Promise<void>
 }>
@@ -41,7 +41,7 @@ export type PlaygroundStoryModuleInput<Args extends PlaygroundStoryArgs> = Reado
 export type PlaygroundStoryModule = Readonly<{
   defaultArgs: PlaygroundStoryArgs
   controls: readonly PlaygroundStoryControl[]
-  render(surface: UiSurface, args: PlaygroundStoryArgs): void
+  render(surface: UiSurface, args: PlaygroundStoryArgs, frame: UiSurfaceRect): void
   source(args: PlaygroundStoryArgs): string
   play?(context: PlaygroundStoryPlayContext): void | Promise<void>
 }>
@@ -125,8 +125,8 @@ export function definePlaygroundStoryModule<const Args extends PlaygroundStoryAr
   const module: PlaygroundStoryModule = {
     defaultArgs,
     controls,
-    render(surface, args) {
-      input.render(surface, args as Args)
+    render(surface, args, frame) {
+      input.render(surface, args as Args, frame)
     },
     source(args) {
       const source = input.source(args as Args)

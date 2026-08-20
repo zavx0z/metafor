@@ -1,5 +1,8 @@
 import {type Object3D} from "@metafor/engine"
-import {Button, Pane, Typography, type ButtonProps} from "@ui/components"
+import {Button, type ButtonProps} from "@ui/components/button"
+import {Pane} from "@ui/components/pane"
+import {TextField} from "@ui/components/text-field"
+import {Typography} from "@ui/components/typography"
 import {UiSurface, flexColumn, flexRow, palette, type UiSurfaceRect} from "@ui/elements"
 import {playgroundTheme} from "./theme.ts"
 import type {PlaygroundStoryArgs, PlaygroundStoryControl} from "./story.ts"
@@ -36,6 +39,8 @@ export type PlaygroundNavigationOptions<Route extends string> = Readonly<{
   onNavigate(route: Route): void
   query?: string
   window?: PlaygroundNavigationWindow
+  searchPlaceholder?: string
+  onQueryChange?(query: string): void
 }>
 
 export type PlaygroundInfoLine = string | Readonly<{
@@ -102,6 +107,8 @@ type NormalizedNavigationOptions<Route extends string> = Readonly<{
   onNavigate(route: Route): void
   query: string
   window: PlaygroundNavigationWindow | undefined
+  searchPlaceholder: string | undefined
+  onQueryChange: ((query: string) => void) | undefined
 }>
 
 type NormalizedInfoLine = Readonly<{
@@ -134,6 +141,7 @@ type NormalizedStoryPanelOptions = Readonly<{
 const PANEL_OWNER = "panel"
 const TITLE_OWNER = "title"
 const STATUS_OWNER = "status"
+const SEARCH_OWNER = "search"
 const SOURCE_TITLE_OWNER = "source-title"
 const SOURCE_COPY_OWNER = "source-copy"
 const SOURCE_BOX_OWNER = "source-box"
@@ -287,6 +295,11 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       this.markOwnerDirty(TITLE_OWNER)
       changed = true
     }
+    if (!this.#dock && (previous.query !== next.query || previous.searchPlaceholder !== next.searchPlaceholder ||
+      (previous.onQueryChange === undefined) !== (next.onQueryChange === undefined))) {
+      this.markOwnerDirty(SEARCH_OWNER)
+      changed = true
+    }
 
     const previousItems = new Map(previous.items.map((item) => [item.id, item] as const))
     for (const item of next.items) {
@@ -390,7 +403,11 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       gap: 9,
       items: [
         {height: 34, draw: (x, y, w, h) => { frames.set(TITLE_OWNER, {x, y, w, h}) }},
-        {height: 16, draw: () => {}},
+        this.#options.onQueryChange === undefined ? {height: 16, draw: () => {}} : {
+          height: 38,
+          draw: (x: number, y: number, w: number, h: number) => { frames.set(SEARCH_OWNER, {x, y, w, h}) },
+        },
+        this.#options.onQueryChange === undefined ? false : {height: 4, draw: () => {}},
         ...navigationRows(this.#visibleItems(), frames),
       ],
     })
@@ -429,6 +446,17 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
         children: this.#options.title,
         variant: "title",
         sx: {textAlign: "center"},
+      })
+      return
+    }
+    if (key === SEARCH_OWNER) {
+      TextField(this, 0, 0, frame.w, frame.h, {
+        key: `${this.node.name}:search`,
+        value: this.#options.query,
+        placeholder: this.#options.searchPlaceholder ?? "Поиск…",
+        fontPx: 10,
+        sx: {borderRadius: 12},
+        onChange: (value) => this.#options.onQueryChange?.(value),
       })
       return
     }
@@ -932,6 +960,8 @@ function normalizeNavigationOptions<Route extends string>(
     onNavigate: options.onNavigate,
     query: normalizeNavigationSearch(options.query ?? ""),
     window,
+    searchPlaceholder: options.searchPlaceholder,
+    onQueryChange: options.onQueryChange,
   })
 }
 
@@ -1073,6 +1103,7 @@ function navigationOwnerKeys<Route extends string>(
   dock: boolean,
 ): string[] {
   const keys: string[] = dock ? [] : [TITLE_OWNER]
+  if (!dock && options.onQueryChange !== undefined) keys.push(SEARCH_OWNER)
   const seenGroupIds = new Set<string>()
   for (const item of selectNormalizedNavigationItems(options).items) {
     if (!dock && item.group !== undefined && !seenGroupIds.has(item.group.id)) {
