@@ -382,7 +382,8 @@ Reference/live scale difference остаётся owner visual gate; automated ca
 Node не меняется, а halo получает прозрачный оттенок фактического header color.
 Одинаковый закон действует для expanded и collapsed Node и не зависит от fixture.
 
-Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель текущей задачи.
+Статус и исполнитель: `COMPLETE` на production и automated live contract;
+owner visual acceptance остаётся parent gate.
 
 Классификация: следующий visual mechanism того же parent. Общий SDF primitive
 завершён UI-012.1; этот срез меняет только его Node presentation inputs.
@@ -410,6 +411,23 @@ Automated capture/profile не являются owner acceptance.
 Подготовительный commit: записывается до production patch; prerequisite
 UI-012.1 — commit `e5d484ddc`.
 
+Фактические действия и результат: commit `b9f9419fb` заменил старый offset
+rounded rect одним `drawRoundedShadow()` exact Node rect/radius. Intrinsic
+policy: blur `12`, spread `0`, opacity `0.5`; ordinary halo black, selected —
+actual header RGBA. Body border в обоих состояниях остаётся neutral `1px`;
+expanded и collapsed используют один закон. Focused/Node/boundary/delivery
+tests и package/playground typechecks прошли.
+
+UI-011.5 checkpoint `8078cf31f` добавил controlled exact routes без manual
+browser input. На loaded HEAD `4daabb34f`, PID `71855`, target
+`809BF08D88E4582CA819EFE847FE1450` четыре routes доказали ordinary/selected ×
+expanded/collapsed production Node; source/args/DOM exact, console `0`, canvas
+`3840×2176`, native `1920×1088 @2` восстановлен. Selected halo получает
+header tint, neutral border не меняется, fade не обрезан и не смещён. Orange
+title остаётся известным прежним behavior вне shadow slice. Persistent PNG/SHA
+записаны UI-011 result commit-ом `8ef8ed959`; automated evidence не является
+owner acceptance.
+
 #### NODES-017.8.6 — Убрать пустые Node при overview zoom
 
 Owner-visible zoom-out показал пустые bodies: Flex продолжает правильно
@@ -420,8 +438,20 @@ progressive presentation в тех же Flex rows: полноценные contro
 предельном масштабе. Не создавать вторую Node model, reflow geometry или
 fixture-specific размеры.
 
-`READY`: выполнять после NODES-017.8.5. Regression должен доказать три LOD
-уровня, отсутствие пустого body на overview и неизменные Socket centers/routes.
+`GATE`: первоначальная причина уже устранена retained commit-ом `0f511a575` до
+начала этого среза. Он удалил `scale < 0.38`, убрал renderer-local canvas scale
+и непрерывно масштабирует полностью materialized Node subtree одним retained
+parent transform; geometry/material identity и отсутствие повторного layout
+plan защищены tests. Пустой body от старого binary skip больше не воспроизводит
+current source.
+
+Открытое решение владельца: сохранить постоянный REQUIREMENTS law и добавить
+новый threshold mechanism `full controls → row silhouettes → header-only`,
+который должен rematerialize presentation при пересечении LOD levels; либо
+принять непрерывное intrinsic scaling current retained subtree и удалить
+устаревший progressive LOD law. До решения нельзя выдавать новый механизм за
+исправление прежней причины. Socket centers/routes и intrinsic Flex plan в
+обоих вариантах остаются неизменными.
 
 #### NODES-017.8.7 — Выровнять connected Parameter label слева
 
@@ -533,7 +563,9 @@ retained Engine/UI/Node foundation, public Node catalog и owner-local Component
 playground интегрированы в main. NODES-017 возвращается к
 Socket/header/shadow/LOD/alignment corrections уже без старого flat path.
 NODES-017.8.4 сохраняет rounded header, но исправляет collapse chevron и title
-alignment. NODES-017.8.5 переносит selection с border на четырёхстороннюю тень
-в оттенке header. NODES-017.8.6 устраняет пустые Node при zoom-out без отказа от
-Flex rows. NODES-017.8.7 выравнивает connected Parameter label слева. Physical
-proof по-прежнему ждёт Android device (`@meta/android devices: []`).
+alignment. NODES-017.8.5 завершила перенос selection с border на
+четырёхстороннюю тень в оттенке header. NODES-017.8.6 остановлена на owner GATE:
+старый binary skip уже удалён retained foundation, а отдельный progressive LOD
+требует решения о новом threshold mechanism. NODES-017.8.7 выравнивает
+connected Parameter label слева. Physical proof по-прежнему ждёт Android
+device (`@meta/android devices: []`).
