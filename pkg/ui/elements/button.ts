@@ -4,6 +4,7 @@ import {div} from "./div.ts"
 import {controlChromePadding, controlChromeRect} from "./control-shape.ts"
 import {mergeStyle, px, textMaterial, type ElementChildren, type InteractiveElementProps, type StyleProps} from "./style.ts"
 import {uiShapeMetrics} from "./shape.ts"
+import {drawGroupedCellChrome, type GroupedCellAppearance} from "./grouped-cell.ts"
 import {
   blenderRgba8ToColor,
   resolveWidgetColors,
@@ -13,7 +14,7 @@ import {
 
 export type ButtonElementState = "idle" | "hover" | "active" | "disabled"
 export type ButtonElementSize = "small" | "medium" | "large"
-export type ButtonElementAppearance = "button" | "tool" | "toggle" | "toolbar-item" | "tab"
+export type ButtonElementAppearance = "button" | "regular" | "text" | "number" | "tool" | "toggle" | "toolbar-item" | "tab"
 export type ButtonElementLayout = Readonly<{
   chrome: Readonly<{x: number; y: number; width: number; height: number}>
   content: Readonly<{x: number; y: number; width: number; height: number}>
@@ -30,6 +31,7 @@ export type ButtonElementProps = Omit<InteractiveElementProps, "children" | "sty
   selected?: boolean
   focused?: boolean
   appearance?: ButtonElementAppearance
+  groupedCell?: GroupedCellAppearance
   size?: ButtonElementSize
   tooltip?: string
   tooltipDelayMs?: number
@@ -54,7 +56,9 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
   const style = mergeStyle(styleInput)
   const border = blenderRgba8ToColor(colors.outline)
   const fill = blenderRgba8ToColor(colors.inner)
-  const chrome = controlChromeRect(x, y, width, height, style)
+  const chrome = props.groupedCell === undefined
+    ? controlChromeRect(x, y, width, height, style)
+    : {x, y, width, height}
   const pad = controlChromePadding(style)
   const visibleChrome = chrome
   const fontPx = px(style.fontSize, buttonFontPx(props.size))
@@ -73,23 +77,31 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
     colors,
   }
 
-  div(surface, visibleChrome.x, visibleChrome.y, visibleChrome.width, visibleChrome.height, {
-    children: typeof props.children === "function" ? () => {
-      const render = props.children
-      if (typeof render === "function") render(state, layout)
-    } : undefined,
-    key,
-    style: {
-      ...style,
-      background: style.background === undefined ? fill : style.background,
-      borderColor: style.borderColor === undefined ? border : style.borderColor,
-      borderRadius: style.borderRadius ?? uiShapeMetrics.lowRadius,
-      borderWidth: style.borderWidth ?? uiShapeMetrics.borderWidth,
-      color: style.color ?? blenderRgba8ToColor(colors.text),
-      fontSize: style.fontSize ?? buttonFontPx(props.size),
-      zIndex: style.zIndex ?? Z.ELEMENT,
-    },
-  })
+  const chromeStyle: StyleProps = {
+    ...style,
+    background: style.background === undefined ? fill : style.background,
+    borderColor: props.groupedCell === undefined
+      ? style.borderColor === undefined ? border : style.borderColor
+      : null,
+    borderRadius: style.borderRadius ?? (props.groupedCell === undefined ? uiShapeMetrics.lowRadius : 0),
+    borderWidth: props.groupedCell === undefined
+      ? style.borderWidth ?? uiShapeMetrics.borderWidth
+      : 0,
+    color: style.color ?? blenderRgba8ToColor(colors.text),
+    fontSize: style.fontSize ?? buttonFontPx(props.size),
+    zIndex: style.zIndex ?? Z.ELEMENT,
+  }
+  const customChildren = typeof props.children === "function" ? props.children : null
+  if (props.groupedCell === undefined) {
+    div(surface, visibleChrome.x, visibleChrome.y, visibleChrome.width, visibleChrome.height, {
+      children: customChildren === null ? undefined : () => customChildren(state, layout),
+      key,
+      style: chromeStyle,
+    })
+  } else {
+    drawGroupedCellChrome(surface, visibleChrome, chromeStyle, props.groupedCell)
+    customChildren?.(state, layout)
+  }
 
   const shouldRegisterHit = props.disabled !== true || props.tooltip !== undefined
   if (shouldRegisterHit) {
@@ -140,6 +152,8 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
 }
 
 function buttonWidgetClass(appearance: ButtonElementAppearance | undefined): BlenderWidgetClass {
+  if (appearance === "text") return "text"
+  if (appearance === "number") return "number"
   if (appearance === "tool") return "tool"
   if (appearance === "toggle") return "toggle"
   if (appearance === "toolbar-item") return "toolbarItem"

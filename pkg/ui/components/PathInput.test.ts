@@ -133,6 +133,9 @@ describe("public PathInput", () => {
       [4, 6, 120, 22],
     ])
     expect(joined.roundedRects.some((call) => call.slice(0, 4).toString() === [101.5, 6, 1, 22].toString())).toBeTrue()
+    const folderChrome = joined.roundedRects.find((call) => call[0] === 102 && call[2] === 22)
+    expect(folderChrome?.[4].radius).toEqual({tl: 0, tr: 4, br: 4, bl: 0})
+    expect(folderChrome?.slice(0, 4)).toEqual([102, 6, 22, 22])
 
     const {onBrowse: _onBrowse, ...withoutBrowse} = pathProps([])
     const noAction = new RecordingSurface()

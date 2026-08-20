@@ -198,8 +198,8 @@ describe("public VectorInput", () => {
     focusInput(surface, "vector:0", createInputEditState("1m"))
     VectorInput(surface, 4, 6, 146, 66, vectorProps(() => {}))
 
-    const cornerPatches = surface.roundedRects.filter((call) => call[2] === 8 && call[3] === 8 && call[4].radius === 4)
-    expect(cornerPatches.map((call) => call.slice(0, 4))).toEqual([[142, 6, 8, 8]])
+    const active = surface.roundedRects.find((call) => call[0] === 26 && call[1] === 6 && call[2] === 124 && call[3] === 22)
+    expect(active?.[4].radius).toEqual({tl: 0, tr: 4, br: 0, bl: 0})
   })
 
   test("returns the same value standalone and through vector and rotation Field densities", () => {

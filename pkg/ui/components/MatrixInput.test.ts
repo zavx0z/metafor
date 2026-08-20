@@ -187,8 +187,8 @@ describe("public MatrixInput", () => {
     focusInput(surface, "matrix:0:0", createInputEditState("1.00"))
     MatrixInput(surface, 4, 6, 146, 44, matrixProps(() => {}))
 
-    const cornerPatches = surface.roundedRects.filter((call) => call[2] === 8 && call[3] === 8 && call[4].radius === 4)
-    expect(cornerPatches.map((call) => call.slice(0, 4))).toEqual([[4, 6, 8, 8]])
+    const active = surface.roundedRects.find((call) => call[0] === 4 && call[1] === 6 && call[2] === 73 && call[3] === 22)
+    expect(active?.[4].radius).toEqual({tl: 4, tr: 0, br: 0, bl: 0})
     expect(surface.roundedRects.some((call) => call.slice(0, 4).toString() === [6, 8, 69, 18].toString())).toBeFalse()
   })
 

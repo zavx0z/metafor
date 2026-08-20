@@ -49,6 +49,7 @@ export function ReferenceInput(
   if (tooltip !== undefined) mainProps.tooltip = tooltip
 
   ControlGroup(host, x, y, width, height, {
+    appearance: "pointer",
     columns: actionTracks,
     children(group) {
       let column = 1
@@ -61,7 +62,12 @@ export function ReferenceInput(
         alignItems: "stretch",
         items: [
           {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
-            Button(host, slotX, slotY, slotW, slotH, {...mainProps, sx: group.cellStyle})
+            Button(host, slotX, slotY, slotW, slotH, {
+              ...mainProps,
+              sx: group.cellStyle,
+              appearance: group.buttonAppearance,
+              groupedCell: group.cell(0, 0).groupedCell,
+            })
           }},
           showPicker && {width: pickerWidth, height, draw: (slotX, slotY, slotW, slotH) => {
             const cell = column++
@@ -71,6 +77,8 @@ export function ReferenceInput(
               disabled,
               action: props.onPick!,
               sx: group.cell(0, cell).cellStyle,
+              appearance: group.buttonAppearance,
+              groupedCell: group.cell(0, cell).groupedCell,
             })
           }},
           showClear && {width: clearWidth, height, draw: (slotX, slotY, slotW, slotH) => {
@@ -81,6 +89,8 @@ export function ReferenceInput(
               disabled,
               action: props.onClear!,
               sx: group.cell(0, cell).cellStyle,
+              appearance: group.buttonAppearance,
+              groupedCell: group.cell(0, cell).groupedCell,
             })
           }},
         ],

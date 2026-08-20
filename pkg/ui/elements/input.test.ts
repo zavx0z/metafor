@@ -168,12 +168,34 @@ describe("input visible geometry", () => {
     expect(active.roundedRects).toHaveLength(1)
     expect(active.roundedRects[0]?.slice(0, 4)).toEqual([0, 0, 100, 22])
     expect(active.roundedRects[0]?.[4]).toMatchObject({
-      radius: 0,
+      radius: {tl: 0, tr: 0, br: 0, bl: 0},
       border: null,
       borderWidth: 0,
       fill: blenderRgba8ToColor(resolveWidgetColors("text", {selected: true, textInput: true}).inner),
     })
   })
+
+  test("uses the same exact grouped-cell mask without a universal inset", () => {
+    const surface = new RecordingSurface()
+    input(surface, 10, 20, 100, 40, {
+      key: "grouped-corner",
+      value: "Text",
+      active: true,
+      cursorVisible: false,
+      appearance: {
+        kind: "grouped-cell",
+        corners: {topLeft: false, topRight: true, bottomLeft: false, bottomRight: true},
+      },
+    })
+
+    expect(surface.roundedRects).toHaveLength(1)
+    expect(surface.roundedRects[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
+    expect(surface.roundedRects[0]?.[4]).toMatchObject({
+      radius: {tl: 0, tr: 4, br: 4, bl: 0},
+      borderWidth: 0,
+    })
+  })
+
 
   test("uses exact selection and caret roles", () => {
     const surface = new RecordingSurface()

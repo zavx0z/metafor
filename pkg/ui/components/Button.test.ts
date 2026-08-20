@@ -95,4 +95,17 @@ describe("component Button Elements boundary", () => {
     Button(explicit, 0, 0, 100, 22, {children: "Run", fill, border, selected: true})
     expect(explicit.roundedRects[0]?.[4]).toMatchObject({fill, border})
   })
+
+  test("forwards the generic grouped-cell mask to Elements", () => {
+    const surface = new RecordingSurface()
+    Button(surface, 10, 20, 100, 40, {
+      children: "Grouped",
+      groupedCell: {
+        kind: "grouped-cell",
+        corners: {topLeft: true, topRight: false, bottomLeft: true, bottomRight: false},
+      },
+    })
+    expect(surface.roundedRects[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
+    expect(surface.roundedRects[0]?.[4].radius).toEqual({tl: 4, tr: 0, br: 0, bl: 4})
+  })
 })

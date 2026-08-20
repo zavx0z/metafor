@@ -43,6 +43,7 @@ export function VectorInput(
   const values = normalizeVectorInputValue(props.value, dimensions, props)
   const axes = props.axes ?? DEFAULT_AXES
   ControlGroup(host, x, y, width, height, {
+    appearance: "number",
     rows: dimensions,
     children: (group) => {
       flexColumn({

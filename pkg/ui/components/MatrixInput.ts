@@ -36,6 +36,7 @@ export function MatrixInput(
   const matrix = normalizeMatrixInputValue(props.value)
   const size = matrix.length
   ControlGroup(host, x, y, width, height, {
+    appearance: "number",
     rows: size,
     columns: size,
     children: (group) => {

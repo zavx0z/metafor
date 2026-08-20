@@ -133,6 +133,9 @@ describe("public ReferenceInput", () => {
       [4, 6, 120, 22],
       [4, 6, 120, 22],
     ])
+    expect(joined.roundedRects.find((call) => call[0] === 4 && call[2] === 76)?.[4].radius).toEqual({tl: 4, tr: 0, br: 0, bl: 4})
+    expect(joined.roundedRects.find((call) => call[0] === 80 && call[2] === 22)?.[4].radius).toEqual({tl: 0, tr: 0, br: 0, bl: 0})
+    expect(joined.roundedRects.find((call) => call[0] === 102 && call[2] === 22)?.[4].radius).toEqual({tl: 0, tr: 4, br: 4, bl: 0})
 
     const {onPick: _onPick, ...withoutPick} = referenceProps([])
     const noPicker = new RecordingSurface()

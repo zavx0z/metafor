@@ -7,6 +7,13 @@ import {Z} from "./surface.ts"
 import {drawIconCentered} from "./icon.ts"
 import {uiIcons} from "./icons.ts"
 import {
+  drawGroupedCellChrome,
+  groupedCellCornerRadii,
+  isGroupedCellAppearance,
+  type GroupedCellAppearance,
+  type GroupedCellCorners,
+} from "./grouped-cell.ts"
+import {
   blenderRgba8ToColor,
   blenderTheme,
   resolveNumericZoneColors,
@@ -34,17 +41,8 @@ export type InputKeyOptions = {
   allowTab?: boolean
 }
 
-export type InputGroupedCellCorners = Readonly<{
-  topLeft: boolean
-  topRight: boolean
-  bottomLeft: boolean
-  bottomRight: boolean
-}>
-
-export type InputGroupedCellAppearance = Readonly<{
-  kind: "grouped-cell"
-  corners: InputGroupedCellCorners
-}>
+export type InputGroupedCellCorners = GroupedCellCorners
+export type InputGroupedCellAppearance = GroupedCellAppearance
 
 export type InputAppearance = "standalone" | InputGroupedCellAppearance
 export type InputType = "text" | "number" | "range"
@@ -219,12 +217,12 @@ export function focusInput(surface: UiSurface, key: string, state?: InputEditSta
 export function input(surface: UiSurface, x: number, y: number, width: number, height: number, props: InputProps): void {
   const style = mergeStyle(props)
   const disabled = props.disabled === true
-  const groupedAppearance = typeof props.appearance === "object" && props.appearance.kind === "grouped-cell"
-    ? props.appearance
-    : null
+  const groupedAppearance = isGroupedCellAppearance(props.appearance) ? props.appearance : null
   const groupedCell = groupedAppearance !== null
   const fontPx = props.fontPx ?? px(style.fontSize, uiShapeMetrics.compactFontPx)
-  const chrome = controlChromeRect(x, y, width, height, style)
+  const chrome = groupedAppearance === null
+    ? controlChromeRect(x, y, width, height, style)
+    : {x, y, width, height}
   const padding = controlChromePadding(style)
   const runtime = inputRuntimeFor(surface)
   const key = props.key ?? inputKeyFor(x, y, width, height)
@@ -271,9 +269,9 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   }
   const chromeProps: DivProps = {style: chromeStyle}
   chromeProps.key = key
-  if (groupedAppearance !== null && active) drawGroupedInputChrome(surface, chrome, chromeStyle, groupedAppearance.corners)
+  if (groupedAppearance !== null) drawGroupedCellChrome(surface, chrome, chromeStyle, groupedAppearance)
   else div(surface, chrome.x, chrome.y, chrome.width, chrome.height, chromeProps)
-  drawNumericInputZone(surface, chrome, widgetClass, widgetState)
+  drawNumericInputZone(surface, chrome, widgetClass, widgetState, groupedAppearance)
   if (!disabled) {
     const numericPointer = props.type === "number" && props.onNumericGesture !== undefined && !active
     const pointerZone = widgetState.numericZone
@@ -428,58 +426,6 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
     )
   }
   surface.popClip()
-}
-
-function drawGroupedInputChrome(
-  surface: UiSurface,
-  chrome: Readonly<{x: number; y: number; width: number; height: number}>,
-  style: StyleProps,
-  corners: InputGroupedCellCorners,
-): void {
-  if (!corners.topLeft && !corners.topRight && !corners.bottomLeft && !corners.bottomRight) {
-    div(surface, chrome.x, chrome.y, chrome.width, chrome.height, {style: {...style, borderRadius: 0}})
-    return
-  }
-
-  const radius = Math.min(uiShapeMetrics.lowRadius, chrome.width / 2, chrome.height / 2)
-  if (radius <= 0) return
-  drawGroupedInputChromePart(surface, chrome.x + radius, chrome.y, chrome.width - radius * 2, chrome.height, 0, style)
-  drawGroupedInputChromePart(surface, chrome.x, chrome.y + radius, chrome.width, chrome.height - radius * 2, 0, style)
-  drawGroupedInputCorner(surface, chrome.x, chrome.y, radius, corners.topLeft, style)
-  drawGroupedInputCorner(surface, chrome.x + chrome.width - radius, chrome.y, radius, corners.topRight, style, "top-right")
-  drawGroupedInputCorner(surface, chrome.x, chrome.y + chrome.height - radius, radius, corners.bottomLeft, style, "bottom-left")
-  drawGroupedInputCorner(surface, chrome.x + chrome.width - radius, chrome.y + chrome.height - radius, radius, corners.bottomRight, style, "bottom-right")
-}
-
-function drawGroupedInputCorner(
-  surface: UiSurface,
-  x: number,
-  y: number,
-  radius: number,
-  rounded: boolean,
-  style: StyleProps,
-  corner: "top-left" | "top-right" | "bottom-left" | "bottom-right" = "top-left",
-): void {
-  if (!rounded) {
-    drawGroupedInputChromePart(surface, x, y, radius, radius, 0, style)
-    return
-  }
-  const patchX = corner === "top-right" || corner === "bottom-right" ? x - radius : x
-  const patchY = corner === "bottom-left" || corner === "bottom-right" ? y - radius : y
-  drawGroupedInputChromePart(surface, patchX, patchY, radius * 2, radius * 2, radius, style)
-}
-
-function drawGroupedInputChromePart(
-  surface: UiSurface,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-  style: StyleProps,
-): void {
-  if (width <= 0 || height <= 0) return
-  div(surface, x, y, width, height, {style: {...style, borderRadius: radius}})
 }
 
 async function pasteIntoActiveInput(surface: UiSurface): Promise<void> {
@@ -751,6 +697,7 @@ function drawNumericInputZone(
   chrome: Readonly<{x: number; y: number; width: number; height: number}>,
   kind: "text" | "number" | "numberSlider",
   state: BlenderWidgetState,
+  groupedAppearance: GroupedCellAppearance | null,
 ): void {
   if (kind === "text") return
   const zone = resolveNumericZoneColors(kind, state)
@@ -762,10 +709,11 @@ function drawNumericInputZone(
       ? chrome.x + chrome.width - handleWidth
       : chrome.x + handleWidth
   const width = zone.zone === "center" ? Math.max(0, chrome.width - handleWidth * 2) : handleWidth
+  const cellRadii = groupedCellCornerRadii(groupedAppearance)
   const radius = zone.zone === "left"
-    ? {tl: uiShapeMetrics.lowRadius, tr: 0, br: 0, bl: uiShapeMetrics.lowRadius}
+    ? {tl: cellRadii.tl, tr: 0, br: 0, bl: cellRadii.bl}
     : zone.zone === "right"
-      ? {tl: 0, tr: uiShapeMetrics.lowRadius, br: uiShapeMetrics.lowRadius, bl: 0}
+      ? {tl: 0, tr: cellRadii.tr, br: cellRadii.br, bl: 0}
       : 0
   surface.drawRoundedRect(x, chrome.y, width, chrome.height, {
     radius,

@@ -298,7 +298,7 @@ describe("public NumberInput", () => {
     })
 
     expect(surface.roundedRects[0]?.slice(0, 4)).toEqual([0, 0, 100, 22])
-    expect(surface.roundedRects[0]?.[4]).toMatchObject({radius: 0, borderWidth: 0})
+    expect(surface.roundedRects[0]?.[4]).toMatchObject({radius: {tl: 0, tr: 0, br: 0, bl: 0}, borderWidth: 0})
   })
 
   test("returns the same controlled value standalone and through regular and compact Field", () => {

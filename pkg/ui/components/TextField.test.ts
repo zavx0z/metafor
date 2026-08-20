@@ -36,7 +36,8 @@ describe("component TextField", () => {
       cursorVisible: false,
     })
 
-    const cornerPatches = surface.roundedRects.filter((call) => call[2] === 8 && call[3] === 8 && call[4].radius === 4)
-    expect(cornerPatches.map((call) => call.slice(0, 4))).toEqual([[92, 0, 8, 8]])
+    expect(surface.roundedRects).toHaveLength(1)
+    expect(surface.roundedRects[0]?.slice(0, 4)).toEqual([0, 0, 100, 22])
+    expect(surface.roundedRects[0]?.[4].radius).toEqual({tl: 0, tr: 4, br: 0, bl: 0})
   })
 })

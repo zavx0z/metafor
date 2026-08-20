@@ -10,6 +10,7 @@ import {
   type ButtonElementAppearance,
   type ButtonElementLayout,
   type ButtonElementProps,
+  type GroupedCellAppearance,
   type UiSurface,
   type StyleProps,
 } from "@ui/elements"
@@ -41,6 +42,7 @@ export type ButtonProps = {
   selected?: boolean
   focused?: boolean
   appearance?: ButtonAppearance
+  groupedCell?: GroupedCellAppearance
   tooltip?: string
   tooltipDelayMs?: number
   fill?: Color
@@ -80,6 +82,7 @@ export function Button(host: UiSurface, x: number, y: number, width: number, hei
     focused: props.focused === true,
   }
   if (props.size !== undefined) elementProps.size = props.size
+  if (props.groupedCell !== undefined) elementProps.groupedCell = props.groupedCell
   if (props.disabled !== undefined) elementProps.disabled = props.disabled
   if (props.tooltip !== undefined) elementProps.tooltip = props.tooltip
   if (props.tooltipDelayMs !== undefined) elementProps.tooltipDelayMs = props.tooltipDelayMs

@@ -30,6 +30,9 @@ FlexBox единолично вычисляет local child slots, а child то
 5. Control height/radius/gap/border, row rhythm, panel/header metrics и
    separators имеют одного shared Elements owner. Components и Workbench не
    вводят собственные несовместимые regular/compact shape tokens.
+   Generic `GroupedCellAppearance` одинаково маскирует Input и Button: cell
+   заполняет caller rect без inset, а radius остаётся только на отмеченных
+   внешних corners; middle cells всегда прямоугольные.
 6. Заранее разрешены ровно два project divergence: project font и
    ортогональная route geometry Links. Switcher, округлённая Node header и иные
    прежние отличия автоматически не сохраняются. Link thickness/colors,

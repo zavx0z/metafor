@@ -42,6 +42,9 @@ class RecordingSurface extends BaseUiSurface {
 
 const appearanceClasses = Object.freeze({
   button: "regular",
+  regular: "regular",
+  text: "text",
+  number: "number",
   tool: "tool",
   toggle: "toggle",
   "toolbar-item": "toolbarItem",
@@ -68,6 +71,59 @@ describe("button visible geometry", () => {
     })
     expect(surface.hits[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
     expect(new Set(surface.renderKeys)).toEqual(new Set(["button:10:20:100:40"]))
+  })
+
+  test("fills grouped cells exactly and masks only real outer corners", () => {
+    const outer = new RecordingSurface()
+    button(outer, 10, 20, 100, 40, {
+      children: "Run",
+      groupedCell: {
+        kind: "grouped-cell",
+        corners: {topLeft: true, topRight: false, bottomLeft: true, bottomRight: false},
+      },
+    })
+    expect(outer.roundedRects).toHaveLength(1)
+    expect(outer.roundedRects[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
+    expect(outer.roundedRects[0]?.[4]).toMatchObject({
+      radius: {tl: 4, tr: 0, br: 0, bl: 4},
+      borderWidth: 0,
+    })
+
+    const middle = new RecordingSurface()
+    button(middle, 10, 20, 100, 40, {
+      children: "Run",
+      groupedCell: {
+        kind: "grouped-cell",
+        corners: {topLeft: false, topRight: false, bottomLeft: false, bottomRight: false},
+      },
+    })
+    expect(middle.roundedRects[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
+    expect(middle.roundedRects[0]?.[4].radius).toEqual({tl: 0, tr: 0, br: 0, bl: 0})
+  })
+
+  test("keeps the same grouped outer mask for idle, hover and press materials", () => {
+    class StateSurface extends RecordingSurface {
+      constructor(readonly state: Readonly<{hovered: boolean; pressed: boolean}>) { super() }
+      override hitState(): {hovered: boolean; pressed: boolean} { return {...this.state} }
+    }
+    for (const state of [
+      {hovered: false, pressed: false},
+      {hovered: true, pressed: false},
+      {hovered: true, pressed: true},
+    ]) {
+      const surface = new StateSurface(state)
+      button(surface, 10, 20, 100, 40, {
+        children: "Run",
+        appearance: "text",
+        groupedCell: {
+          kind: "grouped-cell",
+          corners: {topLeft: false, topRight: true, bottomLeft: false, bottomRight: true},
+        },
+      })
+      expect(surface.roundedRects[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
+      expect(surface.roundedRects[0]?.[4].radius).toEqual({tl: 0, tr: 4, br: 4, bl: 0})
+      expect(surface.roundedRects[0]?.[4].fill).toEqual(expectedColor(resolveWidgetColors("text", state).inner))
+    }
   })
 
   test("maps every generic appearance and state through the Blender resolver", () => {

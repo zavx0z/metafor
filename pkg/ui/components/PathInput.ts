@@ -37,6 +37,7 @@ export function PathInput(
   if (!disabled && props.onChange !== undefined) textFieldProps.onChange = (value) => props.onChange!(value)
 
   ControlGroup(host, x, y, width, height, {
+    appearance: "text",
     columns: showBrowse ? ["grow", browseWidth] : 1,
     children(group) {
       flexRow({
@@ -61,6 +62,8 @@ export function PathInput(
               disabled,
               action: props.onBrowse!,
               sx: group.cellStyle,
+              appearance: group.buttonAppearance,
+              groupedCell: group.cell(0, 1).groupedCell,
             }
             IconButton(host, slotX, slotY, slotW, slotH, browseProps)
           }},

@@ -1,17 +1,21 @@
 import {
   div,
+  blenderRgba8ToColor,
   flexColumn,
   flexRow,
-  palette,
+  resolveWidgetColors,
   uiShapeMetrics,
   Z,
-  type InputAppearance,
+  type ButtonElementAppearance,
+  type BlenderWidgetClass,
+  type GroupedCellAppearance,
   type StyleProps,
   type UiSurface,
 } from "@ui/elements"
 
 export type ControlGroupContext = Readonly<{
   cellStyle: Readonly<StyleProps>
+  buttonAppearance: ButtonElementAppearance
   cell(row: number, column: number, contact?: ControlGroupCellContact): ControlGroupCellContext
 }>
 
@@ -24,12 +28,16 @@ export type ControlGroupCellContact = Readonly<{
 
 export type ControlGroupCellContext = Readonly<{
   cellStyle: Readonly<StyleProps>
-  inputAppearance: InputAppearance
+  groupedCell: GroupedCellAppearance
+  inputAppearance: GroupedCellAppearance
 }>
+
+export type ControlGroupAppearance = "text" | "number" | "pointer"
 
 export type ControlGroupProps = Readonly<{
   rows?: number
   columns?: number | readonly ControlGroupTrack[]
+  appearance?: ControlGroupAppearance
   children?(context: ControlGroupContext): void
 }>
 
@@ -54,10 +62,15 @@ export function ControlGroup(
   const rows = controlGroupCount(props.rows)
   const columnTracks = controlGroupTracks(props.columns)
   const columns = columnTracks.length
+  const appearance = props.appearance ?? "pointer"
+  const widgetClass = controlGroupWidgetClass(appearance)
+  const colors = resolveWidgetColors(widgetClass)
+  const fill = blenderRgba8ToColor(colors.inner)
+  const outline = blenderRgba8ToColor(colors.outline)
 
   div(surface, x, y, width, height, {
     style: {
-      background: "bgInput",
+      background: fill,
       borderColor: null,
       borderRadius: uiShapeMetrics.lowRadius,
       borderWidth: 0,
@@ -65,15 +78,15 @@ export function ControlGroup(
     },
   })
 
-  props.children?.(controlGroupContext(rows, columns))
+  props.children?.(controlGroupContext(rows, columns, controlGroupButtonAppearance(appearance)))
 
-  drawControlGroupRowRules(surface, x, y, width, height, rows)
-  drawControlGroupColumnRules(surface, x, y, width, height, columnTracks)
+  drawControlGroupRowRules(surface, x, y, width, height, rows, outline)
+  drawControlGroupColumnRules(surface, x, y, width, height, columnTracks, outline)
 
   div(surface, x, y, width, height, {
     style: {
       background: null,
-      borderColor: "borderRule",
+      borderColor: outline,
       borderRadius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
       zIndex: Z.ELEMENT_RULE,
@@ -81,25 +94,32 @@ export function ControlGroup(
   })
 }
 
-function controlGroupContext(rows: number, columns: number): ControlGroupContext {
+function controlGroupContext(
+  rows: number,
+  columns: number,
+  buttonAppearance: ButtonElementAppearance,
+): ControlGroupContext {
   return Object.freeze({
     cellStyle: controlGroupCellStyle,
+    buttonAppearance,
     cell(row, column, contact = {}) {
       const top = contact.top ?? true
       const right = contact.right ?? true
       const bottom = contact.bottom ?? true
       const left = contact.left ?? true
+      const groupedCell: GroupedCellAppearance = Object.freeze({
+        kind: "grouped-cell",
+        corners: Object.freeze({
+          topLeft: top && left && row === 0 && column === 0,
+          topRight: top && right && row === 0 && column === columns - 1,
+          bottomLeft: bottom && left && row === rows - 1 && column === 0,
+          bottomRight: bottom && right && row === rows - 1 && column === columns - 1,
+        }),
+      })
       return Object.freeze({
         cellStyle: controlGroupCellStyle,
-        inputAppearance: Object.freeze({
-          kind: "grouped-cell" as const,
-          corners: Object.freeze({
-            topLeft: top && left && row === 0 && column === 0,
-            topRight: top && right && row === 0 && column === columns - 1,
-            bottomLeft: bottom && left && row === rows - 1 && column === 0,
-            bottomRight: bottom && right && row === rows - 1 && column === columns - 1,
-          }),
-        }),
+        groupedCell,
+        inputAppearance: groupedCell,
       })
     },
   })
@@ -112,6 +132,7 @@ function drawControlGroupRowRules(
   width: number,
   height: number,
   rows: number,
+  color: ReturnType<typeof blenderRgba8ToColor>,
 ): void {
   flexColumn({
     x,
@@ -128,6 +149,7 @@ function drawControlGroupRowRules(
           rowY + rowHeight - uiShapeMetrics.separatorWidth / 2,
           width,
           uiShapeMetrics.separatorWidth,
+          color,
         )
       },
     })),
@@ -141,6 +163,7 @@ function drawControlGroupColumnRules(
   width: number,
   height: number,
   columns: readonly ControlGroupTrack[],
+  color: ReturnType<typeof blenderRgba8ToColor>,
 ): void {
   flexRow({
     x,
@@ -158,6 +181,7 @@ function drawControlGroupColumnRules(
           y,
           uiShapeMetrics.separatorWidth,
           height,
+          color,
         )
       },
     })),
@@ -170,10 +194,11 @@ function drawControlGroupRule(
   y: number,
   width: number,
   height: number,
+  color: ReturnType<typeof blenderRgba8ToColor>,
 ): void {
   div(surface, x, y, width, height, {
     style: {
-      background: palette.borderRule,
+      background: color,
       borderColor: null,
       borderRadius: 0,
       borderWidth: 0,
@@ -190,4 +215,16 @@ function controlGroupCount(value: number | undefined): number {
 function controlGroupTracks(value: number | readonly ControlGroupTrack[] | undefined): readonly ControlGroupTrack[] {
   if (Array.isArray(value)) return value.length === 0 ? ["1fr"] : [...value]
   return Array.from({length: controlGroupCount(value as number | undefined)}, () => "1fr" as const)
+}
+
+function controlGroupWidgetClass(appearance: ControlGroupAppearance): BlenderWidgetClass {
+  if (appearance === "text") return "text"
+  if (appearance === "number") return "number"
+  return "regular"
+}
+
+function controlGroupButtonAppearance(appearance: ControlGroupAppearance): ButtonElementAppearance {
+  if (appearance === "text") return "text"
+  if (appearance === "number") return "number"
+  return "regular"
 }

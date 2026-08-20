@@ -97,6 +97,11 @@ control нельзя опустить в Elements только ради повт
     визуально совпадать по visible height/radius/border/gap/icon/text rhythm при
     одинаковом available size. Node compact implementation не является
     отдельной удачной темой, которой может расходиться Components playground.
+14. `ControlGroup` получает только generic appearance `text | number | pointer`
+    и единолично владеет base, outline и separators группы. Components mapping:
+    Vector/Matrix используют number, Path — text, Reference — pointer, который
+    внутри Components разрешается в regular class. Blender class names не
+    входят в Field/Node public API.
 14. `NumberInput` единолично переводит generic pointer gestures Elements в
     numeric value: side click применяет step, center release/Ctrl открывает
     text, horizontal scrub использует soft range, step и precision, Shift

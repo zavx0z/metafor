@@ -1,6 +1,8 @@
 import {describe, expect, test} from "bun:test"
 import {
   input,
+  blenderRgba8ToColor,
+  resolveWidgetColors,
   type StyleProps,
   type UiSurface,
   UiSurface as BaseUiSurface,
@@ -42,10 +44,34 @@ describe("public ControlGroup", () => {
       fontSize: uiShapeMetrics.compactFontPx,
     } satisfies StyleProps)
     expect(Object.isFrozen(contexts[0]?.cellStyle)).toBeTrue()
-    expect(contexts[0]?.cell(0, 0).inputAppearance).toEqual({
+    const cell = contexts[0]?.cell(0, 0)
+    expect(cell?.inputAppearance).toEqual({
       kind: "grouped-cell",
       corners: {topLeft: true, topRight: true, bottomLeft: true, bottomRight: true},
     })
+    expect(cell?.groupedCell).toBe(cell?.inputAppearance)
+    expect(contexts[0]?.buttonAppearance).toBe("regular")
+  })
+
+  test("maps generic Component roles to source-backed group base, outline and separators", () => {
+    for (const [appearance, kind, buttonAppearance] of [
+      ["text", "text", "text"],
+      ["number", "number", "number"],
+      ["pointer", "regular", "regular"],
+    ] as const) {
+      const surface = new RecordingSurface()
+      let context: ControlGroupContext | undefined
+      ControlGroup(surface, 0, 0, 100, 44, {
+        appearance,
+        rows: 2,
+        children: (value) => { context = value },
+      })
+      const colors = resolveWidgetColors(kind)
+      expect(surface.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(colors.inner))
+      expect(surface.roundedRects.at(-1)?.[4].border).toEqual(blenderRgba8ToColor(colors.outline))
+      expect(surface.roundedRects.find((call) => call[4].radius === 0)?.[4].fill).toEqual(blenderRgba8ToColor(colors.outline))
+      expect(context?.buttonAppearance).toBe(buttonAppearance)
+    }
   })
 
   test("owns one low-radius outer chrome and exact row and column separators", () => {
@@ -91,6 +117,23 @@ describe("public ControlGroup", () => {
     expect(source).not.toContain("surface.drawRect")
   })
 
+  test("keeps generic role choices in Components without leaking Blender classes to Node API", async () => {
+    const [vector, matrix, path, reference] = await Promise.all([
+      Bun.file(new URL("./VectorInput.ts", import.meta.url)).text(),
+      Bun.file(new URL("./MatrixInput.ts", import.meta.url)).text(),
+      Bun.file(new URL("./PathInput.ts", import.meta.url)).text(),
+      Bun.file(new URL("./ReferenceInput.ts", import.meta.url)).text(),
+    ])
+    expect(vector).toContain('appearance: "number"')
+    expect(matrix).toContain('appearance: "number"')
+    expect(path).toContain('appearance: "text"')
+    expect(reference).toContain('appearance: "pointer"')
+    for (const source of [vector, matrix, path, reference]) {
+      expect(source).not.toContain("BlenderWidgetClass")
+      expect(source).not.toContain("resolveWidgetColors")
+    }
+  })
+
   test("fills a middle active cell exactly to shared separators", () => {
     const surface = new RecordingSurface()
     ControlGroup(surface, 0, 0, 100, 66, {
@@ -108,7 +151,7 @@ describe("public ControlGroup", () => {
     })
 
     expect(surface.roundedRects[1]?.slice(0, 4)).toEqual([0, 22, 100, 22])
-    expect(surface.roundedRects[1]?.[4]).toMatchObject({radius: 0, borderWidth: 0})
+    expect(surface.roundedRects[1]?.[4]).toMatchObject({radius: {tl: 0, tr: 0, br: 0, bl: 0}, borderWidth: 0})
   })
 
   test("rounds only true outer corners without shrinking active corner cells", () => {
@@ -136,17 +179,9 @@ describe("public ControlGroup", () => {
       },
     })
 
-    expect(surface.roundedRects.some((call) => call.slice(0, 4).toString() === [2, 2, 56, 18].toString())).toBeFalse()
-    const cornerPatches = surface.roundedRects.filter((call) => call[2] === 8 && call[3] === 8 && call[4].radius === 4)
-    expect(cornerPatches.map((call) => call.slice(0, 4))).toEqual([
-      [0, 0, 8, 8],
-      [112, 36, 8, 8],
-    ])
-
-    const topLeftActive = surface.roundedRects.slice(1, 7)
-    expect(Math.min(...topLeftActive.map((call) => call[0]))).toBe(0)
-    expect(Math.min(...topLeftActive.map((call) => call[1]))).toBe(0)
-    expect(Math.max(...topLeftActive.map((call) => call[0] + call[2]))).toBe(60)
-    expect(Math.max(...topLeftActive.map((call) => call[1] + call[3]))).toBe(22)
+    const topLeftActive = surface.roundedRects.find((call) => call[0] === 0 && call[1] === 0 && call[2] === 60 && call[3] === 22)
+    const bottomRightActive = surface.roundedRects.find((call) => call[0] === 60 && call[1] === 22 && call[2] === 60 && call[3] === 22)
+    expect(topLeftActive?.[4].radius).toEqual({tl: 4, tr: 0, br: 0, bl: 0})
+    expect(bottomRightActive?.[4].radius).toEqual({tl: 0, tr: 0, br: 4, bl: 0})
   })
 })
