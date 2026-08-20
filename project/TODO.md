@@ -28,6 +28,7 @@ flowchart LR
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     UI001["UI-001 · playground универсальных UI Components"]
+    UI009["UI-009 · восстановить живые UI playground"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
@@ -80,6 +81,11 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 public retained Workbench. Shared dependency завершена; следующий срез переносит
 Components stories и завершает полную русскую локализацию catalog.
 
+[`UI-009 — Восстановить живые playground после UI exports`](tasks/UI-009.md)
+исправляет пропущенный live gate закрытой UI-007: старые Elements и Node UI Bun
+processes не перечитали опубликованные позже `@ui/components/*` exports. Source
+не меняется; выполняется controlled restart и recheck всех четырёх contours.
+
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
 Socket/header/shadow/LOD/alignment corrections; physical mobile и явная visual
@@ -93,6 +99,7 @@ owner acceptance остаются отдельными gates.
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
+| UI-009 | IN_PROGRESS | нет         | [Открыть](tasks/UI-009.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
