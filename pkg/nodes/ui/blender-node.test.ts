@@ -398,11 +398,15 @@ describe("Blender-like Node presets", () => {
           h: state === "input" || state === "output" ? 91 : 22,
         })
         expect(label).toEqual({x: 37, y: 62, w: 146, h: 22})
+        expect(plan.parameters[0]).toMatchObject({
+          side: state === "output" ? "right" : "left",
+          separateLabel: true,
+        })
         expect(field.editorVisible).toBe(state === "input" || state === "output")
         expect(positioned.center).toEqual({x: state === "output" ? 200 : 20, y: 73})
 
         if (shape === BLENDER_SOCKET_SHAPES[0]) {
-          const surface = new RetainedHeaderSurface()
+          const surface = new RecordingLabelSurface()
           try {
             surface.setRect({x: 0, y: 0, w: 240, h: 180}, HEADER_PIXEL_SCALE, projectFont)
             const parent = surface.createParent()
@@ -414,7 +418,14 @@ describe("Blender-like Node presets", () => {
               selected: false,
             }))
             const texts = cachedTextValues(parent)
-            expect(texts).toContain("Rotation")
+            expect(texts).toContain("Rotation:")
+            expect(texts.filter((value) => value === "Rotation:")).toHaveLength(1)
+            const labelCall = surface.texts.find(([value]) => value === "Rotation:")!
+            if (state === "output") {
+              expect(labelCall[1] + surface.measureText("Rotation:", 11)).toBeCloseTo(183)
+            } else {
+              expect(labelCall[1]).toBeCloseTo(37)
+            }
             if (state === "input" || state === "output") {
               expect(texts).toEqual(expect.arrayContaining(["X", "Y", "Z", "0°", "45°", "90°"]))
             } else {
@@ -797,6 +808,17 @@ class RecordingShadowSurface extends RetainedHeaderSurface {
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.nodeRects.push(args)
     super.drawRoundedRect(...args)
+  }
+}
+
+type TextCall = Parameters<UiSurface["drawText"]>
+
+class RecordingLabelSurface extends RetainedHeaderSurface {
+  readonly texts: TextCall[] = []
+
+  override drawText(...args: TextCall): number {
+    this.texts.push(args)
+    return super.drawText(...args)
   }
 }
 

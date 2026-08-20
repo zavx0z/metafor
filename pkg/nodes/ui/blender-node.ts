@@ -112,8 +112,20 @@ export type BlenderNodePlan = Readonly<{
   rect: NodeRect
   header: NodeRect
   body: NodeRect
-  fields: readonly Readonly<{field: FieldDefinition; rect: NodeRect; parameterId?: string; editorVisible: boolean}>[]
-  parameters: readonly Readonly<{parameter: BlenderParameter; rect: NodeRect}>[]
+  fields: readonly Readonly<{
+    field: FieldDefinition
+    rect: NodeRect
+    editorRect: NodeRect
+    parameterId?: string
+    editorVisible: boolean
+    separateLabel: boolean
+  }>[]
+  parameters: readonly Readonly<{
+    parameter: BlenderParameter
+    rect: NodeRect
+    side?: SocketSide
+    separateLabel: boolean
+  }>[]
   sockets: readonly PositionedSocket<BlenderSocket>[]
 }>
 
@@ -231,8 +243,20 @@ export function planBlenderNode(
   const measurement = measureBlenderNode(node, connectedSocketIds)
   const rect = {...frame, h: measurement.height}
   const regions = blenderNodeRegions(rect)
-  const fields: Array<{field: FieldDefinition; rect: NodeRect; parameterId?: string; editorVisible: boolean}> = []
-  const parameters: Array<{parameter: BlenderParameter; rect: NodeRect}> = []
+  const fields: Array<{
+    field: FieldDefinition
+    rect: NodeRect
+    editorRect: NodeRect
+    parameterId?: string
+    editorVisible: boolean
+    separateLabel: boolean
+  }> = []
+  const parameters: Array<{
+    parameter: BlenderParameter
+    rect: NodeRect
+    side?: SocketSide
+    separateLabel: boolean
+  }> = []
   const sockets: PositionedSocket<BlenderSocket>[] = []
   const rows = blenderNodeRows(node, connectedSocketIds)
   flexColumn({
@@ -254,13 +278,29 @@ export function planBlenderNode(
           ? {x: fieldRect.x, y: fieldRect.y, w: fieldRect.w, h: layout.labelRowHeight}
           : fieldRect
         const editorVisible = row.editorVisible
+        const separateLabel = row.parameter !== undefined && row.sockets.length > 0 && layout !== null && layout.labelRowHeight > 0
+        const editorRect = separateLabel && layout !== null
+          ? {
+              x: fieldRect.x,
+              y: fieldRect.y + layout.controlOffsetY,
+              w: fieldRect.w,
+              h: editorVisible ? layout.controlHeight : 0,
+            }
+          : fieldRect
         if (row.field !== undefined) fields.push({
           field: row.field,
           rect: fieldRect,
+          editorRect,
           editorVisible,
+          separateLabel,
           ...(row.parameter === undefined ? {} : {parameterId: row.parameter.id}),
         })
-        if (row.parameter !== undefined) parameters.push({parameter: row.parameter, rect: labelRect})
+        if (row.parameter !== undefined) parameters.push({
+          parameter: row.parameter,
+          rect: labelRect,
+          separateLabel,
+          ...(row.sockets.length === 0 ? {} : {side: parameterLabelSide(row.sockets)}),
+        })
         for (const socket of row.sockets) sockets.push({
           socket,
           side: socketSide(socket),
@@ -402,16 +442,21 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
     const hiddenParameterIds = new Set(plan.fields.flatMap(({parameterId, editorVisible}) =>
       parameterId !== undefined && !editorVisible ? [parameterId] : []))
     if (!node.collapsed) {
-      for (const {field, rect: slot, editorVisible} of plan.fields) {
+      for (const {field, rect, editorRect, editorVisible, separateLabel} of plan.fields) {
         if (!editorVisible) continue
-        Field(host, slot.x, slot.y, slot.w, {...field, key: `${node.id}:${field.id}`}, {density: "compact"})
+        const slot = separateLabel ? editorRect : rect
+        Field(host, slot.x, slot.y, slot.w, {
+          ...field,
+          key: `${node.id}:${field.id}`,
+          ...(separateLabel ? {compactLabel: "hidden" as const} : {}),
+        }, {density: "compact"})
       }
-      for (const {parameter, rect: slot} of plan.parameters) {
-        if (parameter.field !== undefined && !hiddenParameterIds.has(parameter.id)) continue
+      for (const {parameter, rect: slot, side, separateLabel} of plan.parameters) {
+        if (parameter.field !== undefined && !separateLabel && !hiddenParameterIds.has(parameter.id)) continue
         Typography(host, slot.x, slot.y, slot.w, slot.h, {
-          children: parameter.label,
+          children: side === undefined ? parameter.label : socketPropertyLabel(parameter.label),
           fontPx: 11,
-          sx: {textAlign: "center"},
+          sx: {textAlign: side ?? "center"},
         })
       }
     }
@@ -501,6 +546,15 @@ function rowFieldEditorVisible(
   return row.sockets.some((socket) =>
     socket.hideValue !== true
     && (socket.direction === "output" || !connectedSocketIds.has(socket.id)))
+}
+
+function parameterLabelSide(sockets: readonly BlenderSocket[]): SocketSide {
+  return sockets.every((socket) => socketSide(socket) === "right") ? "right" : "left"
+}
+
+function socketPropertyLabel(label: string): string {
+  const value = label.trimEnd()
+  return value.endsWith(":") ? value : `${value}:`
 }
 
 function socketSide(socket: BlenderSocket): SocketSide {
