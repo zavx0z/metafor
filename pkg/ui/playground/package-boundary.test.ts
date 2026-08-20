@@ -16,6 +16,7 @@ describe("@ui/playground package boundary", () => {
   test("exports reusable router, layout and shell surfaces", async () => {
     const source = await Bun.file(join(root, "index.ts")).text()
     expect(source).toContain("router.ts")
+    expect(source).toContain("story.ts")
     expect(source).toContain("layout.ts")
     expect(source).toContain("surfaces.ts")
   })

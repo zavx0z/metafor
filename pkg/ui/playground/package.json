@@ -9,6 +9,7 @@
   "exports": {
     ".": "./index.ts",
     "./router": "./router.ts",
+    "./stories": "./story.ts",
     "./layout": "./layout.ts",
     "./surfaces": "./surfaces.ts",
     "./server": "./server.ts"
