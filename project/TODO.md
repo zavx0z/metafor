@@ -110,6 +110,8 @@ catalog composition перед общей matrix.
 Owner отменил сохранение MetaFor palette: UI-015.8 переводит base colors и
 material states на Blender 4.5.5 по mapping от направленного Blender UI
 помощника. UI-015.5/.7 source сохранён на pause до этого mapping.
+Первый flat mapping получил `CORRECTION REQUIRED`: текущий gate — raw widget
+classes + class-specific state resolvers без записи production theme values.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
