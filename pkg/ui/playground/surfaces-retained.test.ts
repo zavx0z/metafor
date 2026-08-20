@@ -1,6 +1,6 @@
 import {beforeAll, describe, expect, test} from "bun:test"
 import {type BufferGeometry, Object3D, TrueTypeFont} from "@metafor/engine"
-import {type UiRuntime} from "@ui/elements"
+import {type UiRuntime, uiShapeMetrics} from "@ui/elements"
 import {
   PlaygroundDockSurface,
   PlaygroundInfoSurface,
@@ -71,6 +71,17 @@ const materializations = (diagnostics: PlaygroundRetainedDiagnostics): Readonly<
   diagnostics.owners.map(({key, materializations}) => [key, materializations]),
 )
 
+const expectOwnerOrigin = (
+  surface: {node: Object3D},
+  key: string,
+  x: number,
+  y: number,
+  pixelScale = 0.001,
+): void => {
+  expect(owner(surface, key).position.x).toBeCloseTo(x * pixelScale)
+  expect(owner(surface, key).position.y).toBeCloseTo(-y * pixelScale)
+}
+
 const expectOwnersStable = (
   surface: {node: Object3D; diagnostics: PlaygroundRetainedDiagnostics},
   before: ReadonlyMap<string, OwnerSnapshot>,
@@ -117,6 +128,12 @@ describe("retained @ui/playground surfaces", () => {
     expect(surface.diagnostics.layoutPlans).toBe(1)
     expect(surface.diagnostics.materializations).toBe(5)
     expect(materializations(surface.diagnostics)).toEqual({panel: 1, title: 1, "item:first": 1, "item:second": 1, "item:third": 1})
+    const navigationInset = uiShapeMetrics.tightGap * 2
+    const firstRowY = uiShapeMetrics.tightGap + uiShapeMetrics.panelHeaderHeight + uiShapeMetrics.separatorWidth
+    expectOwnerOrigin(surface, "title", navigationInset, uiShapeMetrics.tightGap)
+    expectOwnerOrigin(surface, "item:first", navigationInset, firstRowY)
+    expectOwnerOrigin(surface, "item:second", navigationInset, firstRowY + uiShapeMetrics.rowHeight + uiShapeMetrics.separatorWidth)
+    expectOwnerOrigin(surface, "item:third", navigationInset, firstRowY + (uiShapeMetrics.rowHeight + uiShapeMetrics.separatorWidth) * 2)
     const initial = snapshots(surface)
     const beforeTransform = surface.diagnostics
 
@@ -220,8 +237,8 @@ describe("retained @ui/playground surfaces", () => {
     expect(surface.diagnostics.materializations).toBe(14)
 
     const pointer = {button: 0, preventDefault() {}} as MouseEvent
-    surface.onPointerDown(pointer, 100, 142)
-    surface.onPointerUp(pointer, 100, 142)
+    surface.onPointerDown(pointer, 100, 65)
+    surface.onPointerUp(pointer, 100, 65)
     expect(toggles).toEqual([["values", true]])
 
     const collapsedItems = largeItems.map((item) => ({...item, group: {...item.group!, collapsed: true}}))
@@ -240,8 +257,8 @@ describe("retained @ui/playground surfaces", () => {
     expect(surface.focusedItemId).toBeNull()
     expect(surface.diagnostics.materializations).toBe(15)
 
-    surface.onPointerDown(pointer, 100, 142)
-    surface.onPointerUp(pointer, 100, 142)
+    surface.onPointerDown(pointer, 100, 65)
+    surface.onPointerUp(pointer, 100, 65)
     expect(toggles).toEqual([["values", true], ["values", false]])
 
     surface.setOptions({
@@ -271,9 +288,12 @@ describe("retained @ui/playground surfaces", () => {
     const navigate = (): void => {}
     const surface = new PlaygroundDockSurface<Route>({title: "Routes", items, route: "first", onNavigate: navigate})
     surface.attachCanvas(createFakeRuntime())
-    surface.setRect({x: 0, y: 0, w: 936, h: 100}, 0.001, font)
+    surface.setRect({x: 0, y: 0, w: 936, h: uiShapeMetrics.rowHeight}, 0.001, font)
 
     expect(surface.diagnostics).toMatchObject({layoutPlans: 1, materializations: 4})
+    expectOwnerOrigin(surface, "item:first", uiShapeMetrics.tightGap, 0)
+    expectOwnerOrigin(surface, "item:second", 313 + 1 / 3, 0)
+    expectOwnerOrigin(surface, "item:third", 623 + 2 / 3, 0)
     const initial = snapshots(surface)
     const beforeTransform = surface.diagnostics
     transformRoot(surface)
@@ -352,8 +372,8 @@ describe("retained @ui/playground surfaces", () => {
     const beforePointer = snapshots(surface)
     const beforePointerCounters = materializations(surface.diagnostics)
     const pointer = {button: 0, preventDefault() {}} as MouseEvent
-    surface.onPointerDown(pointer, 50, 111)
-    surface.onPointerUp(pointer, 50, 111)
+    surface.onPointerDown(pointer, 50, 40)
+    surface.onPointerUp(pointer, 50, 40)
     surface.flushPendingRender()
     expect(surface.focusedItemId).toBe("first")
     expect(liveCalls).toEqual(["third", "third", "first"])
@@ -388,7 +408,7 @@ describe("retained @ui/playground surfaces", () => {
       onNavigate: (route) => { calls.push(route) },
     })
     surface.attachCanvas(createFakeRuntime())
-    surface.setRect({x: 0, y: 0, w: 936, h: 100}, 0.001, font)
+    surface.setRect({x: 0, y: 0, w: 936, h: uiShapeMetrics.rowHeight}, 0.001, font)
     surface.onActivate()
     surface.flushPendingRender()
     const beforeMove = snapshots(surface)
@@ -452,14 +472,20 @@ describe("retained @ui/playground surfaces", () => {
       "source-control-group:Состояние",
       "source-control:disabled",
     ])
+    expectOwnerOrigin(surface, "source-title", 6, 3)
+    expectOwnerOrigin(surface, "source-copy", 206, 3)
+    expectOwnerOrigin(surface, "source-box", 6, 30)
+    expectOwnerOrigin(surface, "source-tab:controls", 6, 357)
+    expectOwnerOrigin(surface, "source-tab:events", 150.5, 357)
+    expectOwnerOrigin(surface, "source-control:variant", 6, 409)
 
     const pointer = {button: 0, preventDefault() {}} as MouseEvent
-    surface.onPointerDown(pointer, 220, 38)
-    surface.onPointerUp(pointer, 220, 38)
-    surface.onPointerDown(pointer, 150, 580)
-    surface.onPointerUp(pointer, 150, 580)
-    surface.onPointerDown(pointer, 220, 514)
-    surface.onPointerUp(pointer, 220, 514)
+    surface.onPointerDown(pointer, 220, 15)
+    surface.onPointerUp(pointer, 220, 15)
+    surface.onPointerDown(pointer, 150, 421)
+    surface.onPointerUp(pointer, 150, 421)
+    surface.onPointerDown(pointer, 220, 369)
+    surface.onPointerUp(pointer, 220, 369)
     surface.flushPendingRender()
     expect(copied).toEqual([source])
     expect(changes).toEqual([["variant", "outlined"]])
@@ -478,6 +504,10 @@ describe("retained @ui/playground surfaces", () => {
 
     expect(surface.diagnostics.layoutPlans).toBe(1)
     expect(surface.diagnostics.materializations).toBe(5)
+    expectOwnerOrigin(surface, "title", 6, 3)
+    expectOwnerOrigin(surface, "line:id:generic", 6, 28)
+    expectOwnerOrigin(surface, "line:id:preview", 6, 53)
+    expectOwnerOrigin(surface, "status", 6, 613)
     const initial = snapshots(surface)
     const beforeTransform = surface.diagnostics
     transformRoot(surface)

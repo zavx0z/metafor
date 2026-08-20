@@ -1,4 +1,5 @@
 import {Button, type ButtonColor, type ButtonSize, type ButtonVariant} from "@ui/components/button"
+import {uiShapeMetrics} from "@ui/elements"
 import type {PlaygroundStoryArgs, PlaygroundStoryModule} from "@ui/playground/stories"
 import {definePlaygroundStoryModule} from "@ui/playground/stories"
 
@@ -52,8 +53,8 @@ export function createButtonStory(options: Readonly<{
       {key: "disabled", label: "Недоступна", group: "Состояние", kind: "boolean"},
     ],
     render(surface, args, frame) {
-      const height = args.size === "small" ? 40 : args.size === "large" ? 58 : 48
-      const width = Math.min(320, Math.max(180, frame.w * 0.32))
+      const height = uiShapeMetrics.controlHeight
+      const width = 146
       Button(surface, frame.x + (frame.w - width) / 2, frame.y + frame.h * 0.55 - height / 2, width, height, {
         children: args.label,
         variant: args.variant,

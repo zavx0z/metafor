@@ -1,7 +1,6 @@
 import {type Object3D} from "@metafor/engine"
-import {div} from "@ui/elements/div"
 import {UiSurface} from "@ui/elements/surface"
-import {h2, p} from "@ui/elements/text"
+import {drawPlaygroundPreviewChrome} from "@ui/playground/surfaces"
 import type {
   PlaygroundStoryArgs,
   PlaygroundStoryIndexItem,
@@ -71,20 +70,9 @@ export class ElementsStoryPreviewSurface extends UiSurface {
     if (!geometryChanged && previous.signature === signature) return
     if (geometryChanged) this.#layoutPlans += 1
     this.materializeRetainedParent(this.#previewParent, () => {
-      div(this, 0, 0, this.rectW, this.rectH, {
-        style: {
-          background: "rgba(8, 13, 22, 0.72)",
-          borderColor: "rgba(214, 231, 255, 0.22)",
-          borderRadius: 38,
-        },
-      })
-      h2(this, 42, 38, Math.max(0, this.rectW - 84), 42, {
-        children: index.title,
-        style: {fontSize: 24},
-      })
-      p(this, 42, 92, Math.max(0, this.rectW - 84), 46, {
-        children: "Рабочий элемент, параметры и TypeScript используют один сценарий.",
-        style: {fontSize: 12, color: "muted"},
+      drawPlaygroundPreviewChrome(this, this.rectW, this.rectH, {
+        title: index.title,
+        description: "Рабочий элемент, параметры и TypeScript используют один сценарий.",
       })
       module.render(this, this.#args, {x: 0, y: 0, w: this.rectW, h: this.rectH})
     })

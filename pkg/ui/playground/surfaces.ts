@@ -3,7 +3,7 @@ import {Button, type ButtonProps} from "@ui/components/button"
 import {Pane} from "@ui/components/pane"
 import {TextField} from "@ui/components/text-field"
 import {Typography} from "@ui/components/typography"
-import {UiSurface, flexColumn, flexRow, palette, type UiSurfaceRect} from "@ui/elements"
+import {UiSurface, flexColumn, flexRow, palette, uiShapeMetrics, type UiSurfaceRect} from "@ui/elements"
 import {playgroundTheme} from "./theme.ts"
 import type {PlaygroundStoryArgs, PlaygroundStoryControl} from "./story.ts"
 
@@ -54,6 +54,11 @@ export type PlaygroundInfoOptions = Readonly<{
   title: string
   lines: readonly PlaygroundInfoLine[]
   status?: string
+}>
+
+export type PlaygroundPreviewChromeOptions = Readonly<{
+  title?: string
+  description?: string
 }>
 
 export type PlaygroundStoryPanelMode = "controls" | "events"
@@ -419,17 +424,16 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       y: 0,
       w: this.rectW,
       h: this.rectH,
-      paddingX: 18,
-      paddingTop: 24,
-      paddingBottom: 18,
-      gap: 9,
+      paddingX: uiShapeMetrics.tightGap * 2,
+      paddingTop: uiShapeMetrics.tightGap,
+      paddingBottom: uiShapeMetrics.tightGap,
+      gap: uiShapeMetrics.separatorWidth,
       items: [
-        {height: 34, draw: (x, y, w, h) => { frames.set(TITLE_OWNER, {x, y, w, h}) }},
-        this.#options.onQueryChange === undefined ? {height: 16, draw: () => {}} : {
-          height: 38,
+        {height: uiShapeMetrics.panelHeaderHeight, draw: (x, y, w, h) => { frames.set(TITLE_OWNER, {x, y, w, h}) }},
+        this.#options.onQueryChange === undefined ? false : {
+          height: uiShapeMetrics.rowHeight,
           draw: (x: number, y: number, w: number, h: number) => { frames.set(SEARCH_OWNER, {x, y, w, h}) },
         },
-        this.#options.onQueryChange === undefined ? false : {height: 4, draw: () => {}},
         ...navigationRows(this.#windowItems(), frames),
       ],
     })
@@ -443,13 +447,13 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       y: 0,
       w: this.rectW,
       h: this.rectH,
-      paddingX: 24,
-      paddingY: 24,
-      gap: 10,
+      paddingX: uiShapeMetrics.tightGap,
+      paddingY: 0,
+      gap: uiShapeMetrics.separatorWidth,
       alignItems: "stretch",
       items: this.#visibleItems().map((item) => ({
         width: "1fr" as const,
-        height: 42,
+        height: uiShapeMetrics.rowHeight,
         draw: (x: number, y: number, w: number, h: number) => {
           frames.set(itemOwnerKey(item.id), {x, y, w, h})
         },
@@ -460,13 +464,14 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
 
   #drawOwner(key: string, frame: UiSurfaceRect): void {
     if (key === PANEL_OWNER) {
-      drawPanel(this, frame.w, frame.h, this.#dock)
+      drawPanel(this, frame.w, frame.h)
       return
     }
     if (key === TITLE_OWNER) {
       Typography(this, 0, 0, frame.w, frame.h, {
         children: this.#options.title,
         variant: "title",
+        fontPx: uiShapeMetrics.compactFontPx,
         sx: {textAlign: "center"},
       })
       return
@@ -476,8 +481,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
         key: `${this.node.name}:search`,
         value: this.#options.query,
         placeholder: this.#options.searchPlaceholder ?? "Поиск…",
-        fontPx: 10,
-        sx: {borderRadius: 12},
+        fontPx: uiShapeMetrics.compactFontPx,
         onChange: (value) => this.#options.onQueryChange?.(value),
       })
       return
@@ -494,8 +498,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
         children: `${group.collapsed ? "▸" : "▾"} ${group.label}`,
         variant: "text",
         color: "neutral",
-        radius: 8,
-        fontPx: 9,
+        fontPx: uiShapeMetrics.compactFontPx,
         onClick: () => {
           const current = this.#windowItems().find((item) => item.group?.id === groupId)?.group
           if (current !== undefined) this.#options.onGroupToggle?.(groupId, !current.collapsed)
@@ -514,8 +517,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       color: "neutral",
       ...navigationStyle(active, focused),
       disabled: item.disabled,
-      radius: 999,
-      fontPx: this.#dock ? 10 : 11,
+      fontPx: uiShapeMetrics.compactFontPx,
       onClick: () => {
         const current = this.#options.items.find((candidate) => candidate.id === id)
         if (current === undefined || current.disabled) return
@@ -629,20 +631,19 @@ export class PlaygroundInfoSurface extends RetainedPlaygroundSurface {
       y: 0,
       w: this.rectW,
       h: this.rectH,
-      paddingX: 24,
-      paddingTop: 28,
-      paddingBottom: 24,
-      gap: 14,
+      paddingX: uiShapeMetrics.tightGap * 2,
+      paddingTop: uiShapeMetrics.tightGap,
+      paddingBottom: uiShapeMetrics.tightGap,
+      gap: uiShapeMetrics.separatorWidth,
       items: [
-        {height: 30, draw: (x, y, w, h) => { frames.set(TITLE_OWNER, {x, y, w, h}) }},
-        {height: 26, draw: () => {}},
+        {height: uiShapeMetrics.panelHeaderHeight, draw: (x, y, w, h) => { frames.set(TITLE_OWNER, {x, y, w, h}) }},
         ...this.#options.lines.map((line) => ({
-          height: 22,
+          height: uiShapeMetrics.rowHeight,
           draw: (x: number, y: number, w: number, h: number) => { frames.set(line.key, {x, y, w, h}) },
         })),
         {height: "grow" as const, draw: () => {}},
         this.#options.status === undefined ? false : {
-          height: 40,
+          height: uiShapeMetrics.rowHeight,
           draw: (x: number, y: number, w: number, h: number) => { frames.set(STATUS_OWNER, {x, y, w, h}) },
         },
       ],
@@ -674,7 +675,11 @@ export class PlaygroundInfoSurface extends RetainedPlaygroundSurface {
       return
     }
     if (key === TITLE_OWNER) {
-      Typography(this, 0, 0, frame.w, frame.h, {children: this.#options.title, variant: "title"})
+      Typography(this, 0, 0, frame.w, frame.h, {
+        children: this.#options.title,
+        variant: "title",
+        fontPx: uiShapeMetrics.compactFontPx,
+      })
       return
     }
     if (key === STATUS_OWNER) {
@@ -761,84 +766,89 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
     const forceGeometry = this.#layout !== null &&
       (this.#layout.pixelScale !== this.pixelScale || this.#layout.font !== this.font)
     const frames = new Map<string, UiSurfaceRect>()
-    const horizontalPad = 18
-    const headerY = 22
-    const headerH = 34
+    const horizontalPad = uiShapeMetrics.tightGap * 2
+    const headerY = uiShapeMetrics.tightGap
+    const headerH = uiShapeMetrics.panelHeaderHeight
     flexRow({
       x: horizontalPad,
       y: headerY,
       w: Math.max(0, this.rectW - horizontalPad * 2),
       h: headerH,
-      gap: 8,
+      gap: uiShapeMetrics.tightGap,
       alignItems: "stretch",
       items: [
         {width: "grow", height: headerH, draw: (x, y, w, h) => { frames.set(SOURCE_TITLE_OWNER, {x, y, w, h}) }},
-        {width: 96, height: headerH, draw: (x, y, w, h) => { frames.set(SOURCE_COPY_OWNER, {x, y, w, h}) }},
+        {width: uiShapeMetrics.iconActionSlot * 4, height: headerH, draw: (x, y, w, h) => { frames.set(SOURCE_COPY_OWNER, {x, y, w, h}) }},
       ],
     })
 
-    const codeY = headerY + headerH + 14
-    const codeH = Math.max(180, Math.min(440, this.rectH * 0.46))
+    const codeY = headerY + headerH + uiShapeMetrics.panelSectionGap
+    const codeH = Math.max(
+      uiShapeMetrics.rowHeight * 6,
+      Math.min(uiShapeMetrics.rowHeight * 14, this.rectH * 0.36),
+    )
     frames.set(SOURCE_BOX_OWNER, {x: horizontalPad, y: codeY, w: Math.max(0, this.rectW - horizontalPad * 2), h: codeH})
-    const visibleSourceLines = Math.max(1, Math.floor((codeH - 24) / 18))
+    const sourceInset = uiShapeMetrics.tightGap * 2
+    const sourceLineHeight = uiShapeMetrics.compactFontPx + uiShapeMetrics.tightGap + uiShapeMetrics.separatorWidth
+    const visibleSourceLines = Math.max(1, Math.floor((codeH - sourceInset * 2) / sourceLineHeight))
     for (const [index] of this.#options.sourceLines.slice(0, visibleSourceLines).entries()) {
       frames.set(sourceLineOwnerKey(index), {
-        x: horizontalPad + 12,
-        y: codeY + 10 + index * 18,
-        w: Math.max(0, this.rectW - horizontalPad * 2 - 24),
-        h: 16,
+        x: horizontalPad + sourceInset,
+        y: codeY + sourceInset + index * sourceLineHeight,
+        w: Math.max(0, this.rectW - horizontalPad * 2 - sourceInset * 2),
+        h: sourceLineHeight,
       })
     }
 
-    const tabsY = codeY + codeH + 14
+    const tabsY = codeY + codeH + uiShapeMetrics.panelSectionGap
     flexRow({
       x: horizontalPad,
       y: tabsY,
       w: Math.max(0, this.rectW - horizontalPad * 2),
-      h: 32,
-      gap: 8,
+      h: uiShapeMetrics.rowHeight,
+      gap: uiShapeMetrics.separatorWidth,
       alignItems: "stretch",
       items: [
-        {width: "grow", height: 32, draw: (x, y, w, h) => { frames.set(SOURCE_CONTROLS_TAB_OWNER, {x, y, w, h}) }},
-        {width: "grow", height: 32, draw: (x, y, w, h) => { frames.set(SOURCE_EVENTS_TAB_OWNER, {x, y, w, h}) }},
+        {width: "grow", height: uiShapeMetrics.rowHeight, draw: (x, y, w, h) => { frames.set(SOURCE_CONTROLS_TAB_OWNER, {x, y, w, h}) }},
+        {width: "grow", height: uiShapeMetrics.rowHeight, draw: (x, y, w, h) => { frames.set(SOURCE_EVENTS_TAB_OWNER, {x, y, w, h}) }},
       ],
     })
 
-    let detailY = tabsY + 44
-    const detailBottom = this.rectH - 22
+    let detailY = tabsY + uiShapeMetrics.rowHeight + uiShapeMetrics.panelSectionGap
+    const detailBottom = this.rectH - uiShapeMetrics.tightGap
     if (this.#options.mode === "controls") {
       const seenGroups = new Set<string>()
       for (const control of this.#options.controls) {
         if (!seenGroups.has(control.descriptor.group)) {
           seenGroups.add(control.descriptor.group)
-          if (detailY + 20 > detailBottom) break
+          if (detailY + uiShapeMetrics.rowHeight > detailBottom) break
           frames.set(storyControlGroupOwnerKey(control.descriptor.group), {
             x: horizontalPad,
             y: detailY,
             w: Math.max(0, this.rectW - horizontalPad * 2),
-            h: 18,
+            h: uiShapeMetrics.rowHeight,
           })
-          detailY += 24
+          detailY += uiShapeMetrics.rowHeight + uiShapeMetrics.separatorWidth
         }
-        if (detailY + 34 > detailBottom) break
+        if (detailY + uiShapeMetrics.rowHeight > detailBottom) break
         frames.set(storyControlOwnerKey(control.descriptor.key), {
           x: horizontalPad,
           y: detailY,
           w: Math.max(0, this.rectW - horizontalPad * 2),
-          h: 32,
+          h: uiShapeMetrics.rowHeight,
         })
-        detailY += 40
+        detailY += uiShapeMetrics.rowHeight + uiShapeMetrics.separatorWidth
       }
     } else {
       for (const event of this.#options.events) {
-        if (detailY + 28 > detailBottom) break
+        if (detailY + uiShapeMetrics.rowHeight > detailBottom) break
         frames.set(storyEventOwnerKey(event.id), {
           x: horizontalPad,
           y: detailY,
           w: Math.max(0, this.rectW - horizontalPad * 2),
-          h: 24,
+          h: uiShapeMetrics.rowHeight,
         })
-        detailY += 32
+        detailY += uiShapeMetrics.rowHeight + uiShapeMetrics.separatorWidth
       }
     }
 
@@ -867,16 +877,19 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
       return
     }
     if (key === SOURCE_TITLE_OWNER) {
-      Typography(this, 0, 0, frame.w, frame.h, {children: "TypeScript", variant: "title"})
+      Typography(this, 0, 0, frame.w, frame.h, {
+        children: "TypeScript",
+        variant: "title",
+        fontPx: uiShapeMetrics.compactFontPx,
+      })
       return
     }
     if (key === SOURCE_COPY_OWNER) {
       Button(this, 0, 0, frame.w, frame.h, {
         children: "Копировать",
-        variant: "outlined",
-        color: "primary",
-        radius: 999,
-        fontPx: 9,
+        variant: "glass",
+        color: "neutral",
+        fontPx: uiShapeMetrics.compactFontPx,
         onClick: () => { void this.#options.onCopy(this.#options.source) },
       })
       return
@@ -884,7 +897,13 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
     if (key === SOURCE_BOX_OWNER) {
       Pane(this, 0, 0, frame.w, frame.h, {
         variant: "glass",
-        sx: {background: "rgba(4, 8, 14, 0.64)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17},
+        sx: {
+          background: "rgba(4, 8, 14, 0.64)",
+          borderColor: palette.borderRule,
+          borderRadius: uiShapeMetrics.lowRadius,
+          borderWidth: uiShapeMetrics.borderWidth,
+          padding: 0,
+        },
       })
       return
     }
@@ -894,8 +913,7 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
         children: mode === "controls" ? "Параметры" : "События",
         variant: this.#options.mode === mode ? "contained" : "glass",
         color: "neutral",
-        radius: 999,
-        fontPx: 9,
+        fontPx: uiShapeMetrics.compactFontPx,
         onClick: () => this.#options.onModeChange(mode),
       })
       return
@@ -919,8 +937,7 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
         children: `${control.descriptor.label}: ${formatStoryValue(control.value)}`,
         variant: "glass",
         color: "neutral",
-        radius: 12,
-        fontPx: 9,
+        fontPx: uiShapeMetrics.compactFontPx,
         disabled: next === undefined,
         onClick: () => {
           const current = this.#options.controls.find(({descriptor}) => descriptor.key === controlKey)
@@ -937,6 +954,54 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
       if (event !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: `${event.label}: ${event.value}`, variant: "caption", color: "muted"})
     }
   }
+}
+
+/** Shared compact preview panel/header chrome; the selected story remains consumer-owned. */
+export function drawPlaygroundPreviewChrome(
+  surface: UiSurface,
+  width: number,
+  height: number,
+  options: PlaygroundPreviewChromeOptions = {},
+): void {
+  Pane(surface, 0, 0, width, height, {
+    variant: "glass",
+    sx: {
+      background: playgroundTheme.previewBackground,
+      borderColor: palette.borderRule,
+      borderRadius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
+      padding: 0,
+    },
+  })
+  const {title, description} = options
+  if (title === undefined && description === undefined) return
+  const contentInset = uiShapeMetrics.tightGap * 2
+  flexColumn({
+    x: contentInset,
+    y: uiShapeMetrics.tightGap,
+    w: Math.max(0, width - contentInset * 2),
+    h: uiShapeMetrics.panelHeaderHeight + uiShapeMetrics.panelSectionGap + uiShapeMetrics.rowHeight,
+    gap: uiShapeMetrics.panelSectionGap,
+    items: [
+      title === undefined ? false : {
+        height: uiShapeMetrics.panelHeaderHeight,
+        draw: (x, y, w, h) => Typography(surface, x, y, w, h, {
+          children: title,
+          variant: "title",
+          fontPx: uiShapeMetrics.compactFontPx,
+        }),
+      },
+      description === undefined ? false : {
+        height: uiShapeMetrics.rowHeight,
+        draw: (x, y, w, h) => Typography(surface, x, y, w, h, {
+          children: description,
+          variant: "caption",
+          color: "muted",
+          fontPx: uiShapeMetrics.compactFontPx,
+        }),
+      },
+    ],
+  })
 }
 
 export class PlaygroundBackdropSurface extends UiSurface {
@@ -1176,11 +1241,11 @@ function navigationRows<Route extends string>(
     if (item.group !== undefined && !seenGroupIds.has(item.group.id)) {
       seenGroupIds.add(item.group.id)
       const key = groupOwnerKey(item.group.id)
-      rows.push({height: 26, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
+      rows.push({height: uiShapeMetrics.rowHeight, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
     }
     if (item.group?.collapsed === true) continue
     const key = itemOwnerKey(item.id)
-    rows.push({height: 38, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
+    rows.push({height: uiShapeMetrics.rowHeight, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
   }
   return rows
 }
@@ -1239,13 +1304,15 @@ function isNavigationActivationKey(key: string): boolean {
   return key === "Enter" || key === " " || key === "Space" || key === "Spacebar"
 }
 
-function drawPanel(surface: UiSurface, width: number, height: number, dock = false): void {
+function drawPanel(surface: UiSurface, width: number, height: number): void {
   Pane(surface, 0, 0, width, height, {
     variant: "glass",
     sx: {
       background: playgroundTheme.panelBackground,
-      borderColor: dock ? playgroundTheme.dockBorder : playgroundTheme.panelBorder,
-      borderRadius: dock ? 34 : playgroundTheme.panelRadius,
+      borderColor: palette.borderRule,
+      borderRadius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
+      padding: 0,
       zIndex: -0.12,
     },
   })

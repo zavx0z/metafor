@@ -629,8 +629,8 @@ describe("@ui/components package-owned Workbench stories", () => {
 
   test("uses public full-viewport Workbench geometry and the package server", async () => {
     const desktop = planPlaygroundShell(1920, 1080)
-    expect(desktop.preview).toEqual({x: 422, y: 16, w: 1024, h: 930})
-    expect(desktop.info).toEqual({x: 1464, y: 16, w: 440, h: 1048})
+    expect(desktop.preview).toEqual({x: 375, y: 3, w: 1101, h: 1049})
+    expect(desktop.info).toEqual({x: 1477, y: 3, w: 440, h: 1074})
     const server = await Bun.file(join(playgroundRoot, "server.ts")).text()
     expect(server).toContain("startPlaygroundServer")
     expect(server).toContain('packageName: "@ui/components"')
