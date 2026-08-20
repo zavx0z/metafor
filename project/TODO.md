@@ -29,6 +29,7 @@ flowchart LR
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     UI001["UI-001 · playground универсальных UI Components"]
     UI010["UI-010 · полный набор универсальных полей"]
+    UI011["UI-011 · Node UI и Elements на Workbench"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
@@ -86,6 +87,12 @@ Components stories и завершает полную русскую локал�
 ждёт завершения UI-001. Она разложит единый Field facade на переиспользуемые
 public controls и добавит отсутствующие сложные редакторы без Node-копий.
 
+[`UI-011 — Перевести Node UI и Elements playground на Workbench`](tasks/UI-011.md)
+исправляет незавершённую consumer migration: `4192` уже является эталоном, но
+Node UI и Elements сохраняют старые route/info screens. Первый срез по owner
+screenshot переводит Node Socket на конкретные sections, detail preview,
+variants и постоянный code/copy; общая matrix принимает UI-001.4 Components.
+
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
 Socket/header/shadow/LOD/alignment corrections; physical mobile и явная visual
@@ -100,6 +107,7 @@ owner acceptance остаются отдельными gates.
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-001 | IN_PROGRESS | нет         | [Открыть](tasks/UI-001.md) |
 | UI-010 | WAITING     | UI-001      | [Открыть](tasks/UI-010.md) |
+| UI-011 | IN_PROGRESS | нет         | [Открыть](tasks/UI-011.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
