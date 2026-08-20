@@ -68,6 +68,25 @@ FlexBox единолично вычисляет local child slots, а child то
     decorative helpers остаются flat: у них нет собственного
     transform, dirty lifecycle или пользы от partial rematerialization.
 
+## Dev playground boundary
+
+1. Standalone Elements playground является desktop consumer общего Workbench
+   `@ui/playground`. Package-owned typed stories владеют metadata, concrete
+   component/section/variant routes, lazy exact public imports, preview, source
+   и controls; package не копирует общий shell и не передаёт ему Elements
+   vocabulary.
+2. Catalog явно разделяет primitives, layout, style и events. Вторая панель
+   выбирает реальные sections одного Element, dock — его variants, а справа
+   постоянно видны exact TypeScript/copy и controls/events. Статический Info и
+   aggregate inventory не заменяют detail story.
+3. Consumer preview владеет одним устойчивым retained parent. Выбранная story,
+   её args, production rendering и копируемый TypeScript являются одним
+   состоянием; изменение args не перестраивает Workbench shell.
+4. Видимые catalog, sections, variants и controls пишутся по-русски; public API
+   identifiers, exact subpaths, pathname routes и TypeScript не переводятся.
+   Исторические public playground paths нормализуются в действующие detail
+   routes, а не открывают параллельный старый interface.
+
 ## Мягкая rounded shadow
 
 1. `UiSurface` предоставляет один low-level rounded shadow primitive поверх
