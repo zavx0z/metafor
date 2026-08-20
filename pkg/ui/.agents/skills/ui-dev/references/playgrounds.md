@@ -107,8 +107,11 @@ lifecycle ownership of that origin.
 `canvas` validates real pixels by copying the WebGPU canvas into a bounded 2D
 RGB/alpha probe. A first `starting-or-idle-black` snapshot is rejected, then the
 same target receives exactly one same-route `Page.navigate` plus ready wait to
-create renderer activity. A non-black second snapshot is written atomically and
-reports `attempts:2`, the rejected first probe, and
+create renderer activity. During that retry only, background focus emulation
+removes renderer throttling; two animation frames and one final task are awaited
+within a two-second bound, then emulation is restored to `false` in `finally`.
+A non-black second snapshot is written atomically and reports `attempts:2`, the
+rejected first probe, and
 `rendererActivity:"same-route-navigation"`. A second black snapshot returns
 `kind:"starting-or-idle-black"`, `written:false`, exits nonzero, and does not
 write or remove the destination. There is no further retry.

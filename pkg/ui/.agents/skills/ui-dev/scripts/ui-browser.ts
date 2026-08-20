@@ -512,9 +512,38 @@ async function captureCanvas(
   return retryStartingBlack
     ? acceptCanvasEvidence({
         ...common,
-        retryAfterBlack: () => navigateAndWait(cdp, config.targetUrl, config.ready),
+        retryAfterBlack: () => awaitCanvasRendererActivity(cdp, config),
       })
     : acceptCanvasEvidence(common)
+}
+
+async function awaitCanvasRendererActivity(cdp: CdpConnection, config: TargetConfig): Promise<void> {
+  await setFocusEmulation(cdp, true)
+  try {
+    await navigateAndWait(cdp, config.targetUrl, config.ready)
+    const activity = await evaluate<{frames: number; timedOut: boolean}>(cdp, `new Promise((resolve) => {
+      let settled = false
+      let frames = 0
+      const finish = (timedOut) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timeout)
+        resolve({frames, timedOut})
+      }
+      const timeout = setTimeout(() => finish(true), 2000)
+      const step = () => {
+        frames++
+        if (frames < 2) requestAnimationFrame(step)
+        else setTimeout(() => finish(false), 0)
+      }
+      requestAnimationFrame(step)
+    })`, true)
+    if (activity.timedOut || activity.frames < 2) {
+      throw new Error(`canvas renderer activity timed out after ${activity.frames} frames`)
+    }
+  } finally {
+    await setFocusEmulation(cdp, false)
+  }
 }
 
 async function createConsoleCollector(cdp: CdpConnection) {
