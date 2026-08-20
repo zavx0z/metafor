@@ -162,6 +162,16 @@ export const BLENDER_SOCKET_VISUAL_POLICY: BlenderSocketVisualPolicy = Object.fr
 })
 
 const NODE_HEADER_HEIGHT = 24
+const BLENDER_NODE_HEADER_VISUAL_POLICY = Object.freeze({
+  leftPadding: 8,
+  rightPadding: 6,
+  iconSlotWidth: 12,
+  iconGap: 4,
+  chevronEnvelope: 8,
+  chevronDepth: 5,
+  chevronStrokeWidth: 1.5,
+  chevronOpticalInset: chevronMiterOpticalInset(8, 5, 1.5),
+})
 const NODE_PADDING = 8
 const NODE_GAP = 3
 const NODE_MIN_WIDTH = 180
@@ -323,15 +333,23 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
       y: plan.header.y,
       w: plan.header.w,
       h: plan.header.h,
-      paddingX: 6,
-      gap: 4,
+      paddingLeft: BLENDER_NODE_HEADER_VISUAL_POLICY.leftPadding,
+      paddingRight: BLENDER_NODE_HEADER_VISUAL_POLICY.rightPadding,
+      gap: BLENDER_NODE_HEADER_VISUAL_POLICY.iconGap,
       alignItems: "stretch",
       items: [
-        {width: 12, height: plan.header.h, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
-          children: node.collapsed ? "›" : "⌄",
-          fontPx: 10,
-          color: "text",
-        })},
+        {
+          width: BLENDER_NODE_HEADER_VISUAL_POLICY.iconSlotWidth,
+          height: plan.header.h,
+          draw: (slotX, slotY, slotW, slotH) => drawNodeCollapseChevron(
+            host,
+            slotX,
+            slotY,
+            slotW,
+            slotH,
+            node.collapsed === true,
+          ),
+        },
         {width: "grow", height: plan.header.h, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
           children: node.label ?? node.title,
           fontPx: 11,
@@ -482,6 +500,52 @@ function drawSideSocketLabel(
       {width: "1fr", height, draw: (x, y, w, h) => Typography(host, x, y, w, h, {children: label, fontPx: 11, sx: {textAlign: "right"}})},
     ],
   })
+}
+
+/**
+ * Intrinsic open chevron calibrated against Blender's shared Node header rhythm.
+ *
+ * Blender starts the icon button at `0.4 × widget_unit` and the title at
+ * `1.2 × widget_unit`. The retained Node keeps one local square envelope and
+ * rotates the same path between down/right states. One intrinsic compensation
+ * cancels the polyline miter's directional extension, so the painted bounds
+ * stay centered with the title regardless of font baseline or viewport scale.
+ */
+function drawNodeCollapseChevron(
+  host: SocketRendererContext<BlenderSocket>["host"],
+  slotX: number,
+  slotY: number,
+  slotW: number,
+  slotH: number,
+  collapsed: boolean,
+): void {
+  const centerX = slotX + slotW / 2
+    - (collapsed ? BLENDER_NODE_HEADER_VISUAL_POLICY.chevronOpticalInset : 0)
+  const centerY = slotY + slotH / 2
+    - (collapsed ? 0 : BLENDER_NODE_HEADER_VISUAL_POLICY.chevronOpticalInset)
+  const halfEnvelope = BLENDER_NODE_HEADER_VISUAL_POLICY.chevronEnvelope / 2
+  const halfDepth = BLENDER_NODE_HEADER_VISUAL_POLICY.chevronDepth / 2
+  const points = collapsed ? [
+    {x: centerX - halfDepth, y: centerY - halfEnvelope},
+    {x: centerX + halfDepth, y: centerY},
+    {x: centerX - halfDepth, y: centerY + halfEnvelope},
+  ] : [
+    {x: centerX - halfEnvelope, y: centerY - halfDepth},
+    {x: centerX, y: centerY + halfDepth},
+    {x: centerX + halfEnvelope, y: centerY - halfDepth},
+  ]
+  host.drawPolyline(
+    points,
+    palette.text,
+    BLENDER_NODE_HEADER_VISUAL_POLICY.chevronStrokeWidth,
+    Z.TEXT + 0.03,
+  )
+}
+
+function chevronMiterOpticalInset(envelope: number, depth: number, strokeWidth: number): number {
+  const armRun = envelope / 2
+  const armRunUnit = armRun / Math.hypot(armRun, depth)
+  return strokeWidth / 4 * (1 / armRunUnit - armRunUnit)
 }
 
 function drawSocketShape(

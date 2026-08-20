@@ -5,12 +5,14 @@ import {
   BLENDER_SOCKET_PRESETS,
   BLENDER_SOCKET_SHAPES,
   BLENDER_SOCKET_VISUAL_POLICY,
+  blenderNodeRenderer,
   blenderSocketPreset,
   blenderSocketRenderer,
   blenderSocketVisualBounds,
   createBlenderNodeRenderers,
   measureBlenderNode,
   planBlenderNode,
+  positionBlenderNode,
   type BlenderNode,
   type BlenderSocket,
   type BlenderSocketShape,
@@ -80,6 +82,53 @@ describe("Blender-like Node presets", () => {
     expect("renderForeground" in renderers.node).toBeFalse()
     expect(typeof renderers.socket.render).toBe("function")
     expect(typeof renderers.link.render).toBe("function")
+  })
+
+  test("draws one intrinsic geometric chevron and shared title slot in both header states", () => {
+    const expanded = paintedNodeHeader(false)
+    const collapsed = paintedNodeHeader(true)
+
+    expect(expanded.header).toEqual({x: 20, y: 30, w: 180, h: 24, radius: 6})
+    expect(collapsed.header).toEqual(expanded.header)
+    expect(expanded.chevron.width).toBe(1.5)
+    expect(expanded.chevron.points.map(({x}) => x)).toEqual([30, 34, 38])
+    expect(expanded.chevron.points[0]!.y).toBeCloseTo(39.133968)
+    expect(expanded.chevron.points[1]!.y).toBeCloseTo(44.133968)
+    expect(expanded.chevron.points[2]!.y).toBeCloseTo(39.133968)
+    expect(collapsed.chevron.width).toBe(1.5)
+    expect(collapsed.chevron.points.map(({y}) => y)).toEqual([38, 42, 46])
+    expect(collapsed.chevron.points[0]!.x).toBeCloseTo(31.133968)
+    expect(collapsed.chevron.points[1]!.x).toBeCloseTo(36.133968)
+    expect(collapsed.chevron.points[2]!.x).toBeCloseTo(31.133968)
+    expect(expanded.title).toEqual({value: "Mapping", x: 44, y: 36.5, fontPx: 11, maxWidthPx: 150})
+    expect(collapsed.title).toEqual(expanded.title)
+
+    for (const result of [expanded, collapsed]) {
+      const xs = result.chevron.points.map(({x}) => x)
+      const ys = result.chevron.points.map(({y}) => y)
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(30)
+      expect(Math.max(...xs)).toBeLessThanOrEqual(38)
+      expect(Math.min(...ys)).toBeGreaterThanOrEqual(38)
+      expect(Math.max(...ys)).toBeLessThanOrEqual(46)
+      expect(result.title.y + result.title.fontPx / 2).toBe(42)
+      const pathEnvelope = Math.max(
+        Math.max(...xs) - Math.min(...xs),
+        Math.max(...ys) - Math.min(...ys),
+      )
+      for (const parentScale of [0.16, 0.5, 1, 2]) {
+        expect(pathEnvelope * parentScale).toBeCloseTo(8 * parentScale)
+        expect(result.chevron.width * parentScale).toBeCloseTo(1.5 * parentScale)
+      }
+    }
+
+    const expandedStroke = paintedPolylineBounds(expanded.chevron.points, expanded.chevron.width)
+    const collapsedStroke = paintedPolylineBounds(collapsed.chevron.points, collapsed.chevron.width)
+    expect(expandedStroke.centerX).toBeCloseTo(34)
+    expect(expandedStroke.centerY).toBeCloseTo(42)
+    expect(collapsedStroke.centerX).toBeCloseTo(34)
+    expect(collapsedStroke.centerY).toBeCloseTo(42)
+    expect(expandedStroke.w).toBeCloseTo(collapsedStroke.h)
+    expect(expandedStroke.h).toBeCloseTo(collapsedStroke.w)
   })
 
   test("places loose right sockets above properties and loose left sockets below parameters", () => {
@@ -226,6 +275,87 @@ function paintedSocketBounds(
     y,
     w: Math.max(...boxes.map((box) => box.x + box.w)) - x,
     h: Math.max(...boxes.map((box) => box.y + box.h)) - y,
+  }
+}
+
+type PaintedNodeHeader = Readonly<{
+  header: Readonly<{x: number; y: number; w: number; h: number; radius: number}>
+  chevron: Readonly<{
+    points: readonly Readonly<{x: number; y: number}>[]
+    width: number
+  }>
+  title: Readonly<{
+    value: string
+    x: number
+    y: number
+    fontPx: number
+    maxWidthPx: number
+  }>
+}>
+
+function paintedNodeHeader(collapsed: boolean): PaintedNodeHeader {
+  const node: BlenderNode = {id: "mapping", title: "Mapping", collapsed}
+  const rect = {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height}
+  const entry = positionBlenderNode(node, rect)
+  const plan = planBlenderNode(node, rect)
+  const rounded: Array<{x: number; y: number; w: number; h: number; radius: number}> = []
+  const polylines: Array<{
+    points: readonly Readonly<{x: number; y: number}>[]
+    width: number
+  }> = []
+  const texts: Array<{
+    value: string
+    x: number
+    y: number
+    fontPx: number
+    maxWidthPx: number
+  }> = []
+  const material = {}
+  const host = {
+    materials: {text: material, orange: material},
+    drawRoundedRect(x: number, y: number, w: number, h: number, opts: {radius: number}) {
+      rounded.push({x, y, w, h, radius: opts.radius})
+    },
+    drawPolyline(points: readonly Readonly<{x: number; y: number}>[], _color: unknown, width: number) {
+      polylines.push({points, width})
+    },
+    drawText(value: string, x: number, y: number, opts: {fontPx: number; maxWidthPx: number}) {
+      texts.push({value, x, y, fontPx: opts.fontPx, maxWidthPx: opts.maxWidthPx})
+      return 0
+    },
+  } as unknown as Parameters<typeof blenderNodeRenderer.render>[0]["host"]
+
+  blenderNodeRenderer.render({
+    host,
+    entry,
+    plan,
+    connectedSocketIds: new Set(),
+    selected: false,
+  })
+
+  return {
+    header: rounded.at(-1)!,
+    chevron: polylines[0]!,
+    title: texts.find(({value}) => value === node.title)!,
+  }
+}
+
+function paintedPolylineBounds(
+  points: readonly Readonly<{x: number; y: number}>[],
+  width: number,
+): Readonly<{w: number; h: number; centerX: number; centerY: number}> {
+  const coordinates = Array.from(createUiPolylineStrokeGeometry(points, width)!.attributes.position!.array)
+  const xs = coordinates.filter((_, index) => index % 3 === 0)
+  const ys = coordinates.filter((_, index) => index % 3 === 1)
+  const minX = Math.min(...xs)
+  const maxX = Math.max(...xs)
+  const minY = Math.min(...ys)
+  const maxY = Math.max(...ys)
+  return {
+    w: maxX - minX,
+    h: maxY - minY,
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2,
   }
 }
 
