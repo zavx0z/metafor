@@ -116,6 +116,10 @@ UI-015.8.2 source checkpoint соединяет Path/Reference в один Contr
 Source commit `7eb779e23` закрыл root lifecycle/basic composition, но review
 открыл последовательные UI-015.7.2 cross-Surface nested chain, UI-015.7.3 joined
 Button corners + group material roles и UI-015.7.4 Color marker/shadow material.
+Owner Node screenshot дополнительно открыл UI-015.7.5: Popover lifecycle есть,
+но retained popup content остаётся обычным sibling и перекрывается поздними
+Parameter rows. Новый generic overlay portal должен атомарно вынести visual/
+hits/dismiss owner в top Surface layer без Select/Node-specific z hack.
 Owner отменил сохранение MetaFor palette: UI-015.8 переводит base colors и
 material states на Blender 4.5.5 по mapping от направленного Blender UI
 помощника. UI-015.5/.7 source сохранён на pause до этого mapping.
