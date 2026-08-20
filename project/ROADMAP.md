@@ -213,9 +213,9 @@ initial bundle. Внешний Blender catalog остаётся только ref
 
 Shared Workbench foundation и эталон `4192` уже существуют, но package
 consumers ещё не считаются мигрированными: Components, Elements и Node UI
-сохраняют прежние ручные routes и статическую info panel. UI-001.4 переводит
-Components, UI-011 — Node UI и Elements; только после общей acceptance matrix
-этот Workbench считается действующим для всех playground.
+сохраняют прежние ручные routes и статическую info panel. UI-011 владеет
+миграцией всех трёх consumers и execution/closing UI-001; только после общей
+acceptance matrix этот Workbench считается действующим для всех playground.
 
 Действующий `@nodes/layout` пока получает минимальный ELK-like `LayoutGraph` с уже измеренными
 node sizes и port offsets, единолично вычисляет node/compound/gateway/edge
