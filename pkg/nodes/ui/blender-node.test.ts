@@ -77,7 +77,7 @@ describe("Blender-like Node presets", () => {
       }],
     }
     const measured = measureBlenderNode(node)
-    expect(measured.width).toBe(100)
+    expect(measured.width).toBe(140)
     expect(measured.height).toBeGreaterThan(80)
   })
 
@@ -540,16 +540,16 @@ describe("Blender-like Node presets", () => {
     }
     const unlinked = measureBlenderNode(node)
     const linked = measureBlenderNode(node, new Set(["translation"]))
-    expect(unlinked.width).toBe(162)
+    expect(unlinked.width).toBe(166)
     expect(linked.width).toBe(unlinked.width)
     expect(linked.height).toBeLessThan(unlinked.height)
 
     const defaultFrame = {x: 20, y: 30, w: unlinked.width, h: unlinked.height}
     const defaultPlan = planBlenderNode(node, defaultFrame)
-    expect(defaultPlan.rect.w).toBe(162)
+    expect(defaultPlan.rect.w).toBe(166)
     expect(defaultPlan.fields.map(({rect}) => ({x: rect.x, w: rect.w}))).toEqual([
-      {x: 28, w: 146},
-      {x: 28, w: 146},
+      {x: 30, w: 146},
+      {x: 30, w: 146},
     ])
 
     const resized = planBlenderNode(node, {...defaultFrame, w: 240})
@@ -573,7 +573,7 @@ describe("Blender-like Node presets", () => {
     try {
       surface.setRect({x: 0, y: 0, w: 600, h: 120}, HEADER_PIXEL_SCALE, projectFont)
       expect(longHeader.width).toBe(Math.ceil(8 + 12 + 4 + surface.measureText(longHeaderLabel, 11) + 6))
-      expect(longSocket.width).toBe(Math.ceil(surface.measureText(longSocketLabel, 11) + 16))
+      expect(longSocket.width).toBe(Math.ceil(surface.measureText(longSocketLabel, 11) + 20))
     } finally {
       surface.dispose()
     }

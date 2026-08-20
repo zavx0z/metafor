@@ -204,8 +204,11 @@ const BLENDER_NODE_HEADER_VISUAL_POLICY = Object.freeze({
 })
 const NODE_PADDING = 8
 const NODE_GAP = 3
-/** Minimum of Blender's default `node_type_size_preset` in `blenkernel/intern/node.cc`. */
+/** Blender default preset from `node_type_size(ntype, 140, 100, ...)`. */
+const NODE_DEFAULT_WIDTH = 140
 const NODE_MIN_WIDTH = 100
+/** Blender `NODE_DYS = U.widget_unit / 2` at the accepted 20-unit widget scale. */
+const NODE_DYS = 10
 const NODE_MIN_HEIGHT = 52
 const NODE_FONT_PX = 11
 const NODE_FONT_LETTER_SPACING = NODE_FONT_PX * 0.05
@@ -241,11 +244,13 @@ export function measureBlenderNode(
 
 /**
  * Plans the initial Node width from the same content later materialized by the
- * renderer. Blender provides a 100-unit lower bound and arbitrary UI layout
- * scaling rather than semantic width tiers. MetaFor therefore keeps that
- * source minimum, then expands it for the project font, Socket/property labels
- * and shared Field intrinsic widths. Explicit positioned widths remain owned
- * by `positionBlenderNode` / `planBlenderNode` and never pass through here.
+ * renderer. Blender's default preset is 140 units with a separate 100-unit
+ * resize minimum. MetaFor uses the default as the initial floor, then expands
+ * it for the project font, Socket/property labels and shared Field intrinsic
+ * widths with Blender's 10-unit horizontal content margin. Explicit positioned
+ * widths remain owned by `positionBlenderNode` / `planBlenderNode` and never
+ * pass through this initial planner, so the resize contract may approach the
+ * separate minimum.
  */
 function measureBlenderNodeWidth(node: BlenderNode): number {
   const headerWidth = BLENDER_NODE_HEADER_VISUAL_POLICY.leftPadding
@@ -253,7 +258,7 @@ function measureBlenderNodeWidth(node: BlenderNode): number {
     + BLENDER_NODE_HEADER_VISUAL_POLICY.iconGap
     + measureNodeTextWidth(node.label ?? node.title)
     + BLENDER_NODE_HEADER_VISUAL_POLICY.rightPadding
-  if (node.collapsed) return Math.ceil(Math.max(NODE_MIN_WIDTH, headerWidth))
+  if (node.collapsed) return Math.ceil(Math.max(NODE_MIN_WIDTH, NODE_DEFAULT_WIDTH, headerWidth))
   let contentWidth = 0
   for (const field of node.properties ?? []) {
     contentWidth = Math.max(contentWidth, measureFieldContentWidth(field, field.label))
@@ -270,8 +275,9 @@ function measureBlenderNodeWidth(node: BlenderNode): number {
   }
   return Math.ceil(Math.max(
     NODE_MIN_WIDTH,
+    NODE_DEFAULT_WIDTH,
     headerWidth,
-    contentWidth + NODE_PADDING * 2,
+    contentWidth + NODE_DYS * 2,
   ))
 }
 
