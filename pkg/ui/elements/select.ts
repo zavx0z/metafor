@@ -6,6 +6,7 @@ import {
   type BlenderWidgetState,
 } from "./blender-theme.ts"
 import {button, type ButtonElementLayout, type ButtonElementProps, type ButtonElementState} from "./button.ts"
+import {buttonHitRect, type ButtonInternalProps} from "./button-internal.ts"
 import {controlChromeRect} from "./control-shape.ts"
 import {flexColumn, flexRow} from "./flex.ts"
 import {drawIconCentered} from "./icon.ts"
@@ -90,8 +91,9 @@ function drawSelectTrigger<Value extends SelectElementValue>(
   context: PopoverContext | undefined,
 ): void {
   const disabled = props.disabled === true
-  const elementProps: ButtonElementProps = {
+  const elementProps: ButtonElementProps & ButtonInternalProps = {
     key,
+    [buttonHitRect]: {x, y, width, height},
     children: (state, layout) => drawSelectContent(
       surface,
       label,

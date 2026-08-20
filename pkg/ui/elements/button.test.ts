@@ -54,7 +54,7 @@ const appearanceClasses = Object.freeze({
 const expectedColor = (bytes: Parameters<typeof blenderRgba8ToColor>[0]) => blenderRgba8ToColor(bytes)
 
 describe("button visible geometry", () => {
-  test("uses shared dense defaults inside the caller-owned hit rect", () => {
+  test("uses the medium visible geometry as its matching hit rect", () => {
     const surface = new RecordingSurface()
     button(surface, 10, 20, 100, 40, {children: "Run", onClick() {}})
 
@@ -69,8 +69,42 @@ describe("button visible geometry", () => {
       fontPx: uiShapeMetrics.compactFontPx,
       maxWidthPx: 100 - uiShapeMetrics.tightGap * 4,
     })
-    expect(surface.hits[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
+    expect(surface.hits[0]?.slice(0, 4)).toEqual([10, 29, 100, 22])
     expect(new Set(surface.renderKeys)).toEqual(new Set(["button:10:20:100:40"]))
+  })
+
+  test("materializes each size across chrome, hit, text and custom content geometry", () => {
+    const expectations = {
+      small: {y: 31, height: 18, paddingX: 5, fontPx: 10, iconPx: 12, radius: 3, gap: 2},
+      medium: {y: 29, height: 22, paddingX: 6, fontPx: 11, iconPx: 14, radius: 4, gap: 3},
+      large: {y: 26, height: 28, paddingX: 8, fontPx: 14, iconPx: 18, radius: 5, gap: 4},
+    } as const
+
+    for (const [size, expected] of Object.entries(expectations)) {
+      const surface = new RecordingSurface()
+      let observed: ButtonElementLayout | undefined
+      button(surface, 10, 20, 100, 40, {
+        size: size as keyof typeof expectations,
+        onClick() {},
+        children: (_state, layout) => { observed = layout },
+      })
+
+      expect(surface.roundedRects[0]?.slice(0, 4)).toEqual([10, expected.y, 100, expected.height])
+      expect(surface.roundedRects[0]?.[4]).toMatchObject({radius: expected.radius, borderWidth: 1})
+      expect(surface.hits[0]?.slice(0, 4)).toEqual([10, expected.y, 100, expected.height])
+      expect(observed).toMatchObject({
+        chrome: {x: 10, y: expected.y, width: 100, height: expected.height},
+        content: {
+          x: 10 + expected.paddingX,
+          y: expected.y,
+          width: 100 - expected.paddingX * 2,
+          height: expected.height,
+        },
+        fontPx: expected.fontPx,
+        iconPx: expected.iconPx,
+        gap: expected.gap,
+      })
+    }
   })
 
   test("fills grouped cells exactly and masks only real outer corners", () => {

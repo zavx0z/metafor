@@ -31,11 +31,13 @@ type CenteredTextCall = Parameters<UiSurface["drawTextCentered"]>
 
 class StoryActionSurface extends BaseUiSurface {
   readonly hits: HitCall[] = []
+  readonly renderKeys: string[] = []
 
   override drawRoundedRect(..._args: RoundedRectCall): void {}
   override drawText(..._args: TextCall): number { return 0 }
   override drawTextCentered(..._args: CenteredTextCall): number { return 0 }
   override hit(...args: HitCall): void { this.hits.push(args) }
+  override registerRenderKey(key: string): void { this.renderKeys.push(key) }
   override pushClip(): void {}
   override popClip(): void {}
   protected render(): void {}
@@ -555,6 +557,18 @@ describe("@ui/components package-owned Workbench stories", () => {
 
     const noti = await COMPONENT_STORIES.load("noti/status/unavailable")
     expect(noti.source(noti.defaultArgs)).toContain("не опубликован в рабочем API")
+  })
+
+  test("renders every Button size inside the same available story rect", async () => {
+    const keys: string[] = []
+    for (const size of ["small", "medium", "large"] as const) {
+      const module = await COMPONENT_STORIES.load(`button/sizes/${size}`)
+      const surface = new StoryActionSurface()
+      module.render(surface, module.defaultArgs, {x: 0, y: 0, w: 600, h: 400})
+      keys.push(surface.renderKeys.find((key) => key.startsWith("component-button:")) ?? "")
+    }
+    expect(new Set(keys).size).toBe(1)
+    expect(keys[0]).toEndWith(":192:40:Основная")
   })
 
   test("uses one retained production preview parent", () => {

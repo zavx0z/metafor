@@ -70,7 +70,7 @@ export function createButtonStory(options: Readonly<{
       {key: "disabled", label: "Недоступна", group: "Состояние", kind: "boolean"},
     ],
     render(surface, args, frame) {
-      const height = args.size === "small" ? 40 : args.size === "large" ? 58 : 48
+      const height = 40
       const width = args.icon === "apply" && args.label.length === 0
         ? height
         : Math.min(320, Math.max(180, frame.w * 0.32))

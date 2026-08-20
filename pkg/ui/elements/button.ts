@@ -1,10 +1,12 @@
 import type {HitOptions, UiSurface} from "./surface.ts"
 import {Z} from "./surface.ts"
 import {div} from "./div.ts"
-import {controlChromePadding, controlChromeRect} from "./control-shape.ts"
+import {controlChromePadding} from "./control-shape.ts"
 import {mergeStyle, px, textMaterial, type ElementChildren, type InteractiveElementProps, type StyleProps} from "./style.ts"
 import {uiShapeMetrics} from "./shape.ts"
 import {drawGroupedCellChrome, type GroupedCellAppearance} from "./grouped-cell.ts"
+import {planButtonSize, type ButtonElementSize} from "./button-size.ts"
+import {buttonHitRect, type ButtonInternalProps} from "./button-internal.ts"
 import {
   blenderRgba8ToColor,
   resolveWidgetColors,
@@ -13,7 +15,13 @@ import {
 } from "./blender-theme.ts"
 
 export type ButtonElementState = "idle" | "hover" | "active" | "disabled"
-export type ButtonElementSize = "small" | "medium" | "large"
+export {
+  buttonSizeMetrics,
+  planButtonSize,
+  type ButtonElementSize,
+  type ButtonSizeMetrics,
+  type ButtonSizePlan,
+} from "./button-size.ts"
 export type ButtonElementAppearance = "button" | "regular" | "text" | "number" | "tool" | "toggle" | "toolbar-item" | "tab"
 export type ButtonElementLayout = Readonly<{
   chrome: Readonly<{x: number; y: number; width: number; height: number}>
@@ -56,24 +64,25 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
   const style = mergeStyle(styleInput)
   const border = blenderRgba8ToColor(colors.outline)
   const fill = blenderRgba8ToColor(colors.inner)
-  const chrome = props.groupedCell === undefined
-    ? controlChromeRect(x, y, width, height, style)
-    : {x, y, width, height}
-  const pad = controlChromePadding(style)
+  const sizePlan = props.groupedCell === undefined
+    ? planButtonSize(x, y, width, height, props.size, style)
+    : null
+  const chrome = sizePlan?.chrome ?? {x, y, width, height}
+  const pad = sizePlan === null ? controlChromePadding(style) : null
   const visibleChrome = chrome
-  const fontPx = px(style.fontSize, buttonFontPx(props.size))
-  const content = {
-    x: visibleChrome.x + pad.left,
+  const fontPx = sizePlan?.fontPx ?? px(style.fontSize, buttonFontPx(props.size))
+  const content = sizePlan?.content ?? {
+    x: visibleChrome.x + (pad?.left ?? 0),
     y: visibleChrome.y,
-    width: Math.max(0, visibleChrome.width - pad.left - pad.right),
+    width: Math.max(0, visibleChrome.width - (pad?.left ?? 0) - (pad?.right ?? 0)),
     height: visibleChrome.height,
   }
   const layout: ButtonElementLayout = {
     chrome: visibleChrome,
     content,
     fontPx,
-    iconPx: Math.min(uiShapeMetrics.iconGlyphSize, content.width, content.height),
-    gap: uiShapeMetrics.tightGap,
+    iconPx: sizePlan?.iconPx ?? Math.min(uiShapeMetrics.iconGlyphSize, content.width, content.height),
+    gap: sizePlan?.gap ?? uiShapeMetrics.tightGap,
     colors,
   }
 
@@ -83,12 +92,12 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
     borderColor: props.groupedCell === undefined
       ? style.borderColor === undefined ? border : style.borderColor
       : null,
-    borderRadius: style.borderRadius ?? (props.groupedCell === undefined ? uiShapeMetrics.lowRadius : 0),
+    borderRadius: sizePlan?.radius ?? (style.borderRadius ?? 0),
     borderWidth: props.groupedCell === undefined
-      ? style.borderWidth ?? uiShapeMetrics.borderWidth
+      ? sizePlan?.borderWidth ?? uiShapeMetrics.borderWidth
       : 0,
     color: style.color ?? blenderRgba8ToColor(colors.text),
-    fontSize: style.fontSize ?? buttonFontPx(props.size),
+    fontSize: fontPx,
     zIndex: style.zIndex ?? Z.ELEMENT,
   }
   const customChildren = typeof props.children === "function" ? props.children : null
@@ -105,6 +114,9 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
 
   const shouldRegisterHit = props.disabled !== true || props.tooltip !== undefined
   if (shouldRegisterHit) {
+    const interactionRect = (props as ButtonElementProps & ButtonInternalProps)[buttonHitRect]
+      ?? sizePlan?.hit
+      ?? visibleChrome
     const hitOptions: HitOptions = {
       cursor: props.disabled === true ? "default" : "pointer",
       key,
@@ -129,21 +141,35 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
     }
     if (props.tooltip !== undefined) {
       const action = props.disabled === true ? (() => {}) : props.onClick ?? (() => {})
-      surface.hit(x, y, width, height, action, {
+      surface.hit(interactionRect.x, interactionRect.y, interactionRect.width, interactionRect.height, action, {
         ...hitOptions,
         tooltip: {label: props.tooltip, delayMs: props.tooltipDelayMs ?? 450},
       })
       const tooltipOpts: {delayMs?: number} = {}
       if (props.tooltipDelayMs !== undefined) tooltipOpts.delayMs = props.tooltipDelayMs
-      surface.drawTooltipForHit(x, y, width, height, props.tooltip, tooltipOpts)
+      surface.drawTooltipForHit(
+        interactionRect.x,
+        interactionRect.y,
+        interactionRect.width,
+        interactionRect.height,
+        props.tooltip,
+        tooltipOpts,
+      )
     } else if (props.disabled !== true) {
-      surface.hit(x, y, width, height, props.onClick ?? (() => {}), hitOptions)
+      surface.hit(
+        interactionRect.x,
+        interactionRect.y,
+        interactionRect.width,
+        interactionRect.height,
+        props.onClick ?? (() => {}),
+        hitOptions,
+      )
     }
   }
 
   if (props.children !== false && props.children !== null && props.children !== undefined && typeof props.children !== "function") {
-    const maxWidth = Math.max(1, chrome.width - pad.left - pad.right)
-    surface.drawTextCentered(String(props.children), visibleChrome.x + visibleChrome.width / 2, visibleChrome.y + visibleChrome.height / 2, {
+    const maxWidth = Math.max(1, content.width)
+    surface.drawTextCentered(String(props.children), content.x + content.width / 2, content.y + content.height / 2, {
       fontPx,
       material: textMaterial(surface, style.color ?? blenderRgba8ToColor(colors.text)),
       maxWidthPx: maxWidth,
