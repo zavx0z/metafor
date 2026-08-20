@@ -104,6 +104,11 @@ const loadStandaloneInputStory = (
   return createStandaloneInputStory(component)
 }
 
+const loadControlGroupStory = async (): Promise<PlaygroundStoryModule> => {
+  const {createControlGroupStory} = await import("./stories/control-group.ts")
+  return createControlGroupStory()
+}
+
 const loadReferenceInputStory = async (): Promise<PlaygroundStoryModule> => {
   const {createReferenceInputStory} = await import("./stories/reference-input.ts")
   return createReferenceInputStory()
@@ -240,6 +245,22 @@ export const COMPONENT_STORIES = definePlaygroundStories({
       id: "inputs",
       label: "Ввод",
       components: [
+        {
+          id: "control-group",
+          label: "Группа контролов",
+          apiName: "ControlGroup",
+          tags: ["input", "group", "joined", "grid"],
+          sections: [{
+            id: "basic",
+            label: "Основная",
+            variants: [{
+              id: "default",
+              label: "Три строки",
+              title: "ControlGroup · Соединённые строки",
+              load: loadControlGroupStory,
+            }],
+          }],
+        },
         {
           id: "field",
           label: "Поле",

@@ -19,18 +19,24 @@ import {
 } from "./Field.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type RectCall = Parameters<UiSurface["drawRect"]>
 type CenteredTextCall = Parameters<UiSurface["drawTextCentered"]>
 type TextCall = Parameters<UiSurface["drawText"]>
 type HitCall = Parameters<UiSurface["hit"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
+  readonly rects: RectCall[] = []
   readonly centeredTexts: CenteredTextCall[] = []
   readonly texts: TextCall[] = []
   readonly hits: HitCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
+  }
+
+  override drawRect(...args: RectCall): void {
+    this.rects.push(args)
   }
 
   override drawTextCentered(...args: CenteredTextCall): number {
@@ -94,19 +100,19 @@ const expectTextInsideRows = (surface: RecordingSurface, rowHeight: number): voi
 }
 
 describe("public CollectionInput", () => {
-  test("normalizes bounded visible rows and measures MetaFor production rhythm", () => {
+  test("normalizes bounded visible rows and measures one shared dense rhythm", () => {
     expect(normalizeCollectionInputVisibleRows()).toBe(3)
     expect(normalizeCollectionInputVisibleRows(0)).toBe(1)
     expect(normalizeCollectionInputVisibleRows(4.8)).toBe(4)
     expect(normalizeCollectionInputVisibleRows(99)).toBe(8)
     expect(normalizeCollectionInputVisibleRows(Number.NaN)).toBe(3)
-    expect(measureCollectionInputHeight({visibleRows: 3})).toBe(108)
+    expect(measureCollectionInputHeight({visibleRows: 3})).toBe(72)
     expect(measureCollectionInputHeight({density: "compact", visibleRows: 3})).toBe(72)
-    expect(measureCollectionInputHeight({visibleRows: 1})).toBe(60)
+    expect(measureCollectionInputHeight({visibleRows: 1})).toBe(47)
     expect(measureCollectionInputHeight({density: "compact", visibleRows: 1})).toBe(47)
-    expect(measureCollectionInputHeight({visibleRows: 3, onMove: () => {}})).toBe(124)
+    expect(measureCollectionInputHeight({visibleRows: 3, onMove: () => {}})).toBe(97)
     expect(measureCollectionInputHeight({density: "compact", visibleRows: 3, onMove: () => {}})).toBe(97)
-    expect(measureCollectionInputHeight({visibleRows: 1, onMove: () => {}})).toBe(124)
+    expect(measureCollectionInputHeight({visibleRows: 1, onMove: () => {}})).toBe(97)
     expect(measureCollectionInputHeight({density: "compact", visibleRows: 1, onMove: () => {}})).toBe(97)
   })
 
@@ -120,17 +126,18 @@ describe("public CollectionInput", () => {
   test("publishes row selection, independent add and valid selected-item removal", () => {
     const events: string[] = []
     const surface = new RecordingSurface()
-    CollectionInput(surface, 4, 6, 180, 108, props(events))
+    CollectionInput(surface, 4, 6, 146, 72, props(events))
 
     expect(surface.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
-      {x: 4, y: 6, width: 145, height: 36},
-      {x: 4, y: 78, width: 145, height: 36},
-      {x: 156, y: 6, width: 28, height: 28},
-      {x: 156, y: 38, width: 28, height: 28},
+      {x: 4, y: 6, width: 121, height: 24},
+      {x: 4, y: 30, width: 121, height: 24},
+      {x: 4, y: 54, width: 121, height: 24},
+      {x: 128, y: 6, width: 22, height: 22},
+      {x: 128, y: 31, width: 22, height: 22},
     ])
     trigger(surface.hits[0])
-    trigger(surface.hits[2])
     trigger(surface.hits[3])
+    trigger(surface.hits[4])
     expect(events).toEqual(["select:position", "add", "remove:rotation"])
     expect(items[2]?.id).toBe("rotation")
     expect(surface.centeredTexts.map(([text]) => text)).not.toContain("↑")
@@ -141,18 +148,19 @@ describe("public CollectionInput", () => {
     const events: string[] = []
     const surface = new RecordingSurface()
     const before = items.map((item) => item)
-    CollectionInput(surface, 4, 6, 180, 124, props(events, {onMove: move(events)}))
+    CollectionInput(surface, 4, 6, 146, 97, props(events, {onMove: move(events)}))
 
     expect(surface.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
-      {x: 4, y: 6, width: 145, height: 36},
-      {x: 4, y: 78, width: 145, height: 36},
-      {x: 156, y: 6, width: 28, height: 28},
-      {x: 156, y: 38, width: 28, height: 28},
-      {x: 156, y: 70, width: 28, height: 28},
-      {x: 156, y: 102, width: 28, height: 28},
+      {x: 4, y: 6, width: 121, height: 24},
+      {x: 4, y: 30, width: 121, height: 24},
+      {x: 4, y: 54, width: 121, height: 24},
+      {x: 128, y: 6, width: 22, height: 22},
+      {x: 128, y: 31, width: 22, height: 22},
+      {x: 128, y: 56, width: 22, height: 22},
+      {x: 128, y: 81, width: 22, height: 22},
     ])
     expect(surface.centeredTexts.map(([text]) => text)).toEqual(["↑", "↓"])
-    trigger(surface.hits[4])
+    trigger(surface.hits[5])
     expect(events).toEqual(["move:rotation:up"])
     expect(items.map((item) => item)).toEqual(before)
     expect(items[2]).toBe(before[2])
@@ -167,9 +175,9 @@ describe("public CollectionInput", () => {
     for (const {selectedId, direction} of cases) {
       const events: string[] = []
       const surface = new RecordingSurface()
-      CollectionInput(surface, 0, 0, 180, 124, props(events, {selectedId, onMove: move(events)}))
-      const actionHits = surface.hits.filter(([x]) => x === 152)
-      const moveHits = actionHits.filter(([, hitY]) => hitY === 64 || hitY === 96)
+      CollectionInput(surface, 0, 0, 146, 97, props(events, {selectedId, onMove: move(events)}))
+      const actionHits = surface.hits.filter(([x]) => x === 124)
+      const moveHits = actionHits.filter(([, hitY]) => hitY === 50 || hitY === 75)
       expect(moveHits).toHaveLength(2)
       for (const hit of moveHits) trigger(hit)
       expect(events).toEqual([`move:${selectedId}:${direction}`])
@@ -180,8 +188,8 @@ describe("public CollectionInput", () => {
     for (const selectedId of [null, "missing", "normal"] as const) {
       const events: string[] = []
       const surface = new RecordingSurface()
-      CollectionInput(surface, 0, 0, 180, 124, props(events, {selectedId, onMove: move(events)}))
-      const moveHits = surface.hits.filter(([x, y]) => x === 152 && (y === 64 || y === 96))
+      CollectionInput(surface, 0, 0, 146, 97, props(events, {selectedId, onMove: move(events)}))
+      const moveHits = surface.hits.filter(([x, y]) => x === 124 && (y === 50 || y === 75))
       expect(moveHits).toHaveLength(2)
       for (const hit of moveHits) trigger(hit)
       expect(events).toEqual([])
@@ -193,13 +201,13 @@ describe("public CollectionInput", () => {
       const events: string[] = []
       const height = measureCollectionInputHeight({density, visibleRows: 1, onMove: move(events)})
       const surface = new RecordingSurface()
-      CollectionInput(surface, 0, 0, 180, height, props(events, {
+      CollectionInput(surface, 0, 0, 146, height, props(events, {
         density,
         visibleRows: 1,
         selectedId: "position",
         onMove: move(events),
       }))
-      const dockX = density === "compact" ? 158 : 152
+      const dockX = 124
       const actionHits = surface.hits.filter(([x]) => x === dockX)
       expect(actionHits).toHaveLength(4)
       for (const [, y, , hitHeight] of actionHits) expect(y + hitHeight).toBeLessThanOrEqual(height)
@@ -207,17 +215,18 @@ describe("public CollectionInput", () => {
     }
   })
 
-  test("keeps regular descriptions and compact single-line text inside exact rows", () => {
+  test("keeps descriptions as row tooltips and both densities single-line", () => {
     const regular = new RecordingSurface()
-    CollectionInput(regular, 0, 0, 180, 108, props([]))
+    CollectionInput(regular, 0, 0, 146, 72, props([]))
     const regularText = regular.texts.map(([text, , , options]) => ({text, fontPx: options.fontPx}))
-    expect(regularText).toContainEqual({text: "Position", fontPx: 12})
-    expect(regularText).toContainEqual({text: "Vector attribute", fontPx: 10})
-    expectTextInsideRows(regular, 36)
+    expect(regularText).toContainEqual({text: "Position", fontPx: 11})
+    expect(regularText.map(({text}) => text)).not.toContain("Vector attribute")
+    expect(regular.hits[0]?.[5]).toMatchObject({tooltip: {label: "Vector attribute"}})
+    expectTextInsideRows(regular, 24)
     expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
 
     const compact = new RecordingSurface()
-    CollectionInput(compact, 0, 0, 180, 72, props([], {density: "compact"}))
+    CollectionInput(compact, 0, 0, 146, 72, props([], {density: "compact"}))
     const compactText = compact.texts.map(([text, , , options]) => ({text, fontPx: options.fontPx}))
     expect(compactText).toContainEqual({text: "Position", fontPx: 11})
     expect(compactText.map(({text}) => text)).not.toContain("Vector attribute")
@@ -234,8 +243,8 @@ describe("public CollectionInput", () => {
     ] satisfies Partial<CollectionInputProps>[]) {
       const events: string[] = []
       const surface = new RecordingSurface()
-      CollectionInput(surface, 0, 0, 180, 108, props(events, extra))
-      const actionHits = surface.hits.filter(([x]) => x === 152)
+      CollectionInput(surface, 0, 0, 146, 72, props(events, extra))
+      const actionHits = surface.hits.filter(([x]) => x === 124)
       const addHit = actionHits.find(([, y]) => y === 0)
       trigger(addHit)
       for (const hit of actionHits.filter(([, y]) => y !== 0)) trigger(hit)
@@ -245,7 +254,7 @@ describe("public CollectionInput", () => {
     for (const state of [{disabled: true}, {readOnly: true}] as const) {
       const events: string[] = []
       const surface = new RecordingSurface()
-      CollectionInput(surface, 0, 0, 180, 124, props(events, {...state, onMove: move(events)}))
+      CollectionInput(surface, 0, 0, 146, 97, props(events, {...state, onMove: move(events)}))
       for (const hit of surface.hits) trigger(hit)
       expect(events).toEqual([])
     }
@@ -253,7 +262,7 @@ describe("public CollectionInput", () => {
 
   test("renders a stable empty row and bounded scroll viewport", () => {
     const surface = new RecordingSurface()
-    CollectionInput(surface, 0, 0, 180, 48, props([], {
+    CollectionInput(surface, 0, 0, 146, 48, props([], {
       density: "compact",
       items: [],
       selectedId: null,
@@ -263,8 +272,8 @@ describe("public CollectionInput", () => {
 
     expect(surface.texts.map(([text]) => text)).toContain("Нет атрибутов")
     expect(surface.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
-      {x: 158, y: 0, width: 22, height: 22},
-      {x: 158, y: 25, width: 22, height: 22},
+      {x: 124, y: 0, width: 22, height: 22},
+      {x: 124, y: 25, width: 22, height: 22},
     ])
   })
 
@@ -274,11 +283,11 @@ describe("public CollectionInput", () => {
     const compactEvents: string[] = []
 
     const standalone = new RecordingSurface()
-    CollectionInput(standalone, 0, 0, 180, 124, props(standaloneEvents, {onMove: move(standaloneEvents)}))
+    CollectionInput(standalone, 0, 0, 146, 97, props(standaloneEvents, {onMove: move(standaloneEvents)}))
     trigger(standalone.hits[0])
-    trigger(standalone.hits[2])
     trigger(standalone.hits[3])
     trigger(standalone.hits[4])
+    trigger(standalone.hits[5])
 
     const definition = (events: string[]): CollectionFieldDefinition => ({
       id: "attributes",
@@ -293,18 +302,18 @@ describe("public CollectionInput", () => {
     })
 
     const regular = new RecordingSurface()
-    Field(regular, 0, 0, 180, definition(regularEvents))
+    Field(regular, 0, 0, 146, definition(regularEvents))
     trigger(regular.hits[0])
-    trigger(regular.hits[2])
     trigger(regular.hits[3])
     trigger(regular.hits[4])
+    trigger(regular.hits[5])
 
     const compact = new RecordingSurface()
-    Field(compact, 0, 0, 180, definition(compactEvents), {density: "compact"})
+    Field(compact, 0, 0, 146, definition(compactEvents), {density: "compact"})
     trigger(compact.hits[0])
-    trigger(compact.hits[2])
     trigger(compact.hits[3])
     trigger(compact.hits[4])
+    trigger(compact.hits[5])
 
     expect(regularEvents).toEqual(standaloneEvents)
     expect(compactEvents).toEqual(standaloneEvents)

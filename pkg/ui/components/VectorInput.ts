@@ -1,4 +1,10 @@
-import {flexColumn, flexRow, type UiSurface} from "@ui/elements"
+import {
+  flexColumn,
+  flexRow,
+  uiShapeMetrics,
+  type UiSurface,
+} from "@ui/elements"
+import {ControlGroup, type ControlGroupContext} from "./ControlGroup.ts"
 import {
   NumberInput,
   normalizeNumberInputValue,
@@ -23,12 +29,6 @@ export type VectorInputProps = VectorInputValueOptions & {
 }
 
 const DEFAULT_AXES = Object.freeze(["X", "Y", "Z", "W"])
-const REGULAR_HEIGHT = 28
-const REGULAR_GAP = 5
-const REGULAR_AXIS_GAP = 3
-const REGULAR_AXIS_WIDTH = 18
-const COMPACT_HEIGHT = 22
-const COMPACT_GAP = 3
 
 /** Draws one controlled 2–4-axis numeric editor without owning consumer state. */
 export function VectorInput(
@@ -42,46 +42,32 @@ export function VectorInput(
   const dimensions = vectorInputDimensions(props.value, props.dimensions)
   const values = normalizeVectorInputValue(props.value, dimensions, props)
   const axes = props.axes ?? DEFAULT_AXES
-  if (props.density === "compact") {
-    flexColumn({
-      x,
-      y,
-      w: width,
-      h: height,
-      gap: COMPACT_GAP,
-      items: Array.from({length: dimensions}, (_, index) => ({
-        height: COMPACT_HEIGHT,
-        draw: (rowX: number, rowY: number, rowW: number, rowH: number) => {
-          drawVectorInputAxis(host, rowX, rowY, rowW, rowH, props, values, axes, index, "compact")
-        },
-      })),
-    })
-    return
-  }
-  flexRow({
-    x,
-    y,
-    w: width,
-    h: height,
-    gap: REGULAR_GAP,
-    alignItems: "stretch",
-    items: Array.from({length: dimensions}, (_, index) => ({
-      width: "1fr" as const,
-      height,
-      draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
-        drawVectorInputAxis(host, cellX, cellY, cellW, cellH, props, values, axes, index, "regular")
-      },
-    })),
+  ControlGroup(host, x, y, width, height, {
+    rows: dimensions,
+    children: (group) => {
+      flexColumn({
+        x,
+        y,
+        w: width,
+        h: height,
+        gap: 0,
+        items: Array.from({length: dimensions}, (_, index) => ({
+          height: "1fr" as const,
+          draw: (rowX: number, rowY: number, rowW: number, rowH: number) => {
+            drawVectorInputAxis(host, rowX, rowY, rowW, rowH, props, values, axes, index, group)
+          },
+        })),
+      })
+    },
   })
 }
 
-/** Returns the intrinsic height of the regular row or compact vertical axis stack. */
+/** Returns the intrinsic height of the joined 2–4-axis stack in either density. */
 export function measureVectorInputHeight(
   props: Pick<VectorInputProps, "value" | "dimensions" | "density">,
 ): number {
-  if (props.density !== "compact") return REGULAR_HEIGHT
   const dimensions = vectorInputDimensions(props.value, props.dimensions)
-  return dimensions * COMPACT_HEIGHT + (dimensions - 1) * COMPACT_GAP
+  return dimensions * uiShapeMetrics.controlHeight
 }
 
 /** Normalizes an immutable vector through the public scalar number contract. */
@@ -103,22 +89,24 @@ function drawVectorInputAxis(
   values: readonly number[],
   axes: readonly string[],
   index: number,
-  density: VectorInputDensity,
+  group: ControlGroupContext,
 ): void {
-  const compact = density === "compact"
-  const labelWidth = compact ? COMPACT_HEIGHT : REGULAR_AXIS_WIDTH
-  const numberProps = vectorAxisNumberProps(props, values, index, density)
+  const numberProps = vectorAxisNumberProps(props, values, index)
+  numberProps.appearance = group.inputAppearance
+  numberProps.sx = group.cellStyle
   flexRow({
     x,
     y,
     w: width,
     h: height,
-    gap: compact ? COMPACT_GAP : REGULAR_AXIS_GAP,
+    gap: 0,
     alignItems: "stretch",
     items: [
-      {width: labelWidth, height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, compact
-        ? {children: axes[index] ?? String(index), fontPx: 11, color: "muted"}
-        : {children: axes[index] ?? String(index), variant: "caption"})},
+      {width: uiShapeMetrics.iconActionSlot, height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+        children: axes[index] ?? String(index),
+        fontPx: uiShapeMetrics.compactFontPx,
+        color: "muted",
+      })},
       {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
         NumberInput(host, slotX, slotY, slotW, slotH, numberProps)
       }},
@@ -130,11 +118,11 @@ function vectorAxisNumberProps(
   props: VectorInputProps,
   values: readonly number[],
   index: number,
-  density: VectorInputDensity,
 ): NumberInputProps {
   const numberProps: NumberInputProps = {
     value: values[index]!,
-    density,
+    density: props.density ?? "regular",
+    fontPx: uiShapeMetrics.compactFontPx,
   }
   if (props.key !== undefined) numberProps.key = `${props.key}:${index}`
   if (props.numberKind !== undefined) numberProps.numberKind = props.numberKind

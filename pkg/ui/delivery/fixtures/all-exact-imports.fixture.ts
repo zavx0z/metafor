@@ -26,6 +26,7 @@ import type * as componentsCheckbox from "@ui/components/checkbox"
 import type * as componentsBadge from "@ui/components/badge"
 import type * as componentsTypography from "@ui/components/typography"
 import type * as componentsTextField from "@ui/components/text-field"
+import type * as componentsControlGroup from "@ui/components/control-group"
 import type * as componentsNumberInput from "@ui/components/number-input"
 import type * as componentsColorInput from "@ui/components/color-input"
 import type * as componentsVectorInput from "@ui/components/vector-input"
@@ -76,6 +77,7 @@ export type ExactProductionImports = {
     typeof componentsBadge,
     typeof componentsTypography,
     typeof componentsTextField,
+    typeof componentsControlGroup,
     typeof componentsNumberInput,
     typeof componentsColorInput,
     typeof componentsVectorInput,

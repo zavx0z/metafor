@@ -15,6 +15,7 @@
     "./badge": "./Badge.ts",
     "./typography": "./Typography.ts",
     "./text-field": "./TextField.ts",
+    "./control-group": "./ControlGroup.ts",
     "./number-input": "./NumberInput.ts",
     "./color-input": "./ColorInput.ts",
     "./vector-input": "./VectorInput.ts",

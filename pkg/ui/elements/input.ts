@@ -26,6 +26,8 @@ export type InputKeyOptions = {
   allowTab?: boolean
 }
 
+export type InputAppearance = "standalone" | "grouped-cell"
+
 export type InputProps = DivProps & {
   value?: string
   placeholder?: string
@@ -35,6 +37,7 @@ export type InputProps = DivProps & {
   selectionAnchor?: number | null
   cursorVisible?: boolean
   fontPx?: number
+  appearance?: InputAppearance
   onActivate?: () => void
   onChange?: (value: string, state: InputEditState) => void
   onSubmit?: (value: string, state: InputEditState) => void
@@ -166,6 +169,7 @@ export function focusInput(surface: UiSurface, key: string, state?: InputEditSta
 export function input(surface: UiSurface, x: number, y: number, width: number, height: number, props: InputProps): void {
   const style = mergeStyle(props)
   const disabled = props.disabled === true
+  const groupedCell = props.appearance === "grouped-cell"
   const fontPx = props.fontPx ?? px(style.fontSize, uiShapeMetrics.compactFontPx)
   const chrome = controlChromeRect(x, y, width, height, style)
   const padding = controlChromePadding(style)
@@ -193,16 +197,17 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
 
   const chromeStyle: StyleProps = {
     ...style,
-    borderColor: style.borderColor === undefined ? active ? "cyan" : "borderRule" : style.borderColor,
-    borderRadius: style.borderRadius ?? uiShapeMetrics.lowRadius,
-    borderWidth: style.borderWidth ?? uiShapeMetrics.borderWidth,
+    borderColor: style.borderColor === undefined ? groupedCell ? null : active ? "cyan" : "borderRule" : style.borderColor,
+    borderRadius: style.borderRadius ?? (groupedCell ? 0 : uiShapeMetrics.lowRadius),
+    borderWidth: style.borderWidth ?? (groupedCell ? 0 : uiShapeMetrics.borderWidth),
   }
   if (style.background === undefined && style.backgroundColor === undefined) {
-    chromeStyle.background = active ? "bgHot" : "bgInput"
+    chromeStyle.background = groupedCell ? active ? "bgHot" : null : active ? "bgHot" : "bgInput"
   }
+  const visualChrome = groupedCell && active ? insetGroupedCellChrome(chrome) : chrome
   const chromeProps: DivProps = {style: chromeStyle}
   chromeProps.key = key
-  div(surface, chrome.x, chrome.y, chrome.width, chrome.height, chromeProps)
+  div(surface, visualChrome.x, visualChrome.y, visualChrome.width, visualChrome.height, chromeProps)
   if (!disabled) {
     const hit: HitOptions = {
       key,
@@ -261,6 +266,18 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
     surface.drawRect(Math.round(cursorX), Math.round(chrome.y + (chrome.height - fontPx) / 2), 2, Math.max(1, fontPx + 2), palette.cyan, Z.TEXT + 0.02)
   }
   surface.popClip()
+}
+
+function insetGroupedCellChrome(
+  chrome: Readonly<{x: number; y: number; width: number; height: number}>,
+): Readonly<{x: number; y: number; width: number; height: number}> {
+  const inset = Math.ceil(uiShapeMetrics.lowRadius / 2)
+  return {
+    x: chrome.x + inset,
+    y: chrome.y + inset,
+    width: Math.max(1, chrome.width - inset * 2),
+    height: Math.max(1, chrome.height - inset * 2),
+  }
 }
 
 async function pasteIntoActiveInput(surface: UiSurface): Promise<void> {

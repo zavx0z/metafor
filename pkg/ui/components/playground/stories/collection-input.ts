@@ -9,6 +9,7 @@ import {
   type PlaygroundStoryArgs,
   type PlaygroundStoryModule,
 } from "@ui/playground/stories"
+import {uiShapeMetrics} from "@ui/elements"
 import type {CollectionInputStoryVariant} from "../stories.ts"
 
 type CollectionInputStoryArgs = PlaygroundStoryArgs & Readonly<{
@@ -99,7 +100,7 @@ export function createCollectionInputStory(variant: CollectionInputStoryVariant)
           globalThis.__componentsStoryControlBridge?.("event", `onMove: ${id}, ${moveLabel}`)
         },
       }
-      const width = Math.min(460, Math.max(310, frame.w * 0.52))
+      const width = 121 + uiShapeMetrics.tightGap + uiShapeMetrics.iconActionSlot
       const height = measureCollectionInputHeight(props)
       CollectionInput(
         surface,

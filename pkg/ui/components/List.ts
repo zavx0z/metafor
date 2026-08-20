@@ -56,6 +56,8 @@ export type ListItemProps = {
   inset?: boolean
   alignItems?: ListItemAlignItems
   height?: number
+  tooltip?: string
+  tooltipDelayMs?: number
   sx?: StyleProps
   onClick?: () => void
 }
@@ -254,6 +256,8 @@ function renderListItem(host: UiSurface, x: number, y: number, width: number, he
       if (props.divider === true) ListDivider(host, x, y + rowH - 1, width, {inset: props.iconSrc !== undefined || props.icon !== undefined})
     },
   }
+  if (props.tooltip !== undefined) itemProps.tooltip = props.tooltip
+  if (props.tooltipDelayMs !== undefined) itemProps.tooltipDelayMs = props.tooltipDelayMs
   if (props.disabled !== true) {
     if (props.button === true) itemProps.onClick = props.onClick ?? (() => {})
     else if (props.onClick !== undefined) itemProps.onClick = props.onClick

@@ -54,7 +54,7 @@ export function createStandaloneInputStory(component: StandaloneInputStory): Pla
       const change = (next: unknown): void => globalThis.__componentsStoryControlBridge?.("value", next)
       if (component === "vector-input") {
         const vector = vectorValue(args.value)
-        const width = Math.min(520, Math.max(320, frame.w * 0.58))
+        const width = 146
         const height = measureVectorInputHeight({value: vector, dimensions: 3, density: args.density})
         VectorInput(
           surface,
@@ -74,7 +74,7 @@ export function createStandaloneInputStory(component: StandaloneInputStory): Pla
         return
       }
       const matrix = matrixValue(args.value)
-      const width = Math.min(360, Math.max(240, frame.w * 0.38))
+      const width = 146
       const height = measureMatrixInputHeight({value: matrix, density: args.density})
       MatrixInput(
         surface,

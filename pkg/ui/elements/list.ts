@@ -1,5 +1,5 @@
 import {div, type DivProps, type DivScrollContext} from "./div.ts"
-import {Z, type UiSurface} from "./surface.ts"
+import {Z, type HitOptions, type UiSurface} from "./surface.ts"
 import {boxPadding, mergeStyle, px, type ElementChildren, type InteractiveElementProps, type StyleProps} from "./style.ts"
 
 export type UlElementContext = DivScrollContext & {
@@ -36,6 +36,8 @@ export type LiElementChildren = ElementChildren | ((state: LiElementState) => vo
 export type LiElementProps = Omit<InteractiveElementProps, "children" | "style"> & {
   children?: LiElementChildren
   style?: StyleProps | ((state: LiElementState) => StyleProps)
+  tooltip?: string
+  tooltipDelayMs?: number
 }
 
 export function ul(surface: UiSurface, x: number, y: number, width: number, height: number, props: UlElementProps = {}): void {
@@ -114,9 +116,10 @@ export function li(surface: UiSurface, x: number, y: number, width: number, heig
     props.onPointerLeave !== undefined ||
     props.onPointerDown !== undefined ||
     props.onPointerMove !== undefined ||
-    props.onPointerUp !== undefined
+    props.onPointerUp !== undefined ||
+    props.tooltip !== undefined
   if (!interactive) return
-  surface.hit(x, y, width, height, props.onClick ?? (() => {}), {
+  const hitOptions: HitOptions = {
     key,
     cursor: "pointer",
     ...(props.onPointerEnter === undefined ? {} : {onPointerEnter: props.onPointerEnter}),
@@ -124,7 +127,12 @@ export function li(surface: UiSurface, x: number, y: number, width: number, heig
     ...(props.onPointerDown === undefined ? {} : {onPointerDown: props.onPointerDown}),
     ...(props.onPointerMove === undefined ? {} : {onPointerMove: props.onPointerMove}),
     ...(props.onPointerUp === undefined ? {} : {onPointerUp: props.onPointerUp}),
-  })
+  }
+  if (props.tooltip !== undefined) {
+    hitOptions.tooltip = {label: props.tooltip, delayMs: props.tooltipDelayMs ?? 450}
+    surface.drawTooltipForHit(x, y, width, height, props.tooltip, {delayMs: props.tooltipDelayMs ?? 450})
+  }
+  surface.hit(x, y, width, height, props.onClick ?? (() => {}), hitOptions)
 }
 
 export function ulContentHeight(count: number, opts: {itemHeight?: number; itemGap?: number; paddingTop?: number; paddingBottom?: number} = {}): number {

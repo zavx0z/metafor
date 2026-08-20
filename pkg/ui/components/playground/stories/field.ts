@@ -69,7 +69,7 @@ export function createFieldStory(options: Readonly<{
 
 function fieldStoryWidth(kind: FieldStoryKind, availableWidth: number): number {
   if (kind === "vector" || kind === "rotation" || kind === "matrix" || kind === "collection") {
-    return Math.min(520, Math.max(280, availableWidth * 0.56))
+    return Math.min(146, availableWidth)
   }
   return Math.min(250, availableWidth)
 }

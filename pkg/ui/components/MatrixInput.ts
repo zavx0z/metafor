@@ -1,4 +1,10 @@
-import {flexColumn, flexRow, type UiSurface} from "@ui/elements"
+import {
+  flexColumn,
+  flexRow,
+  uiShapeMetrics,
+  type UiSurface,
+} from "@ui/elements"
+import {ControlGroup, type ControlGroupContext} from "./ControlGroup.ts"
 import {
   NumberInput,
   normalizeNumberInputValue,
@@ -18,11 +24,6 @@ export type MatrixInputProps = {
   onChange?(value: readonly (readonly number[])[]): void
 }
 
-const REGULAR_ROW_HEIGHT = 28
-const REGULAR_GAP = 4
-const COMPACT_ROW_HEIGHT = 22
-const COMPACT_GAP = 3
-
 /** Draws one controlled square 2×2–4×4 numeric editor without owning consumer state. */
 export function MatrixInput(
   host: UiSurface,
@@ -33,42 +34,46 @@ export function MatrixInput(
   props: MatrixInputProps,
 ): void {
   const matrix = normalizeMatrixInputValue(props.value)
-  const compact = props.density === "compact"
-  const gap = compact ? COMPACT_GAP : REGULAR_GAP
-  flexColumn({
-    x,
-    y,
-    w: width,
-    h: height,
-    gap,
-    items: matrix.map((values, row) => ({
-      height: compact ? COMPACT_ROW_HEIGHT : "1fr" as const,
-      draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
-        x: rowX,
-        y: rowY,
-        w: rowW,
-        h: rowH,
-        gap,
-        alignItems: "stretch",
-        items: values.map((value, column) => ({
-          width: "1fr" as const,
-          height: rowH,
-          draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
-            NumberInput(host, cellX, cellY, cellW, cellH, matrixCellProps(props, matrix, row, column))
-          },
+  const size = matrix.length
+  ControlGroup(host, x, y, width, height, {
+    rows: size,
+    columns: size,
+    children: (group) => {
+      flexColumn({
+        x,
+        y,
+        w: width,
+        h: height,
+        gap: 0,
+        items: matrix.map((values, row) => ({
+          height: "1fr" as const,
+          draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
+            x: rowX,
+            y: rowY,
+            w: rowW,
+            h: rowH,
+            gap: 0,
+            alignItems: "stretch",
+            items: values.map((_value, column) => ({
+              width: "1fr" as const,
+              height: rowH,
+              draw: (cellX: number, cellY: number, cellW: number, cellH: number) => {
+                NumberInput(host, cellX, cellY, cellW, cellH, matrixCellProps(props, matrix, row, column, group))
+              },
+            })),
+          }),
         })),
-      }),
-    })),
+      })
+    },
   })
 }
 
-/** Returns the current regular grid height or intrinsic compact row stack height. */
+/** Returns the joined square grid height in either density. */
 export function measureMatrixInputHeight(
   props: Pick<MatrixInputProps, "value" | "density">,
 ): number {
   const size = matrixInputSize(props.value)
-  if (props.density !== "compact") return size * REGULAR_ROW_HEIGHT
-  return size * COMPACT_ROW_HEIGHT + (size - 1) * COMPACT_GAP
+  return size * uiShapeMetrics.controlHeight
 }
 
 /** Normalizes a square value with a 2×2 identity fallback and finite scalar entries. */
@@ -87,12 +92,15 @@ function matrixCellProps(
   matrix: readonly (readonly number[])[],
   row: number,
   column: number,
+  group: ControlGroupContext,
 ): NumberInputProps {
   const numberProps: NumberInputProps = {
     value: matrix[row]![column]!,
     density: (props.density ?? "regular") as NumberInputDensity,
     precision: 2,
-    fontPx: props.density === "compact" ? 11 : 9,
+    fontPx: uiShapeMetrics.compactFontPx,
+    appearance: group.inputAppearance,
+    sx: group.cellStyle,
   }
   if (props.key !== undefined) numberProps.key = `${props.key}:${row}:${column}`
   if (props.disabled !== undefined) numberProps.disabled = props.disabled

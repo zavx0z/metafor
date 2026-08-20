@@ -1,4 +1,4 @@
-import type {UiSurface} from "@ui/elements"
+import type {InputAppearance, StyleProps, UiSurface} from "@ui/elements"
 import {TextField} from "./TextField.ts"
 
 export type NumberInputKind = "float" | "integer"
@@ -23,6 +23,8 @@ export type NumberInputProps = NumberInputFormatOptions & {
   readOnly?: boolean
   density?: NumberInputDensity
   fontPx?: number
+  appearance?: InputAppearance
+  sx?: StyleProps
   onChange?(value: number): void
 }
 
@@ -43,6 +45,8 @@ export function NumberInput(
   }
   if (props.key !== undefined) textFieldProps.key = props.key
   if (props.fontPx !== undefined) textFieldProps.fontPx = props.fontPx
+  if (props.appearance !== undefined) textFieldProps.appearance = props.appearance
+  if (props.sx !== undefined) textFieldProps.sx = props.sx
   if (!disabled && props.onChange !== undefined) {
     textFieldProps.onSubmit = (text) => {
       const value = parseNumberInputValue(text, props)

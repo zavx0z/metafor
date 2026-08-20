@@ -100,6 +100,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "badge",
       "typography",
       "divider",
+      "control-group",
       "field",
       "text-field",
       "number-input",
@@ -125,6 +126,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Метка",
       "Типографика",
       "Разделитель",
+      "Группа контролов",
       "Поле",
       "Текстовый ввод",
       "Числовой ввод",
@@ -171,6 +173,11 @@ describe("@ui/components package-owned Workbench stories", () => {
     ])
     const catalog = new Set(componentCatalogItems(new Set()).map(({id}) => id))
     for (const component of publicInputLeaves) expect(catalog.has(component)).toBeTrue()
+
+    const controlGroup = await COMPONENT_STORIES.load("control-group/basic/default")
+    expect(controlGroup.defaultArgs).toEqual({rows: 3})
+    expect(controlGroup.source(controlGroup.defaultArgs)).toContain('from "@ui/components/control-group"')
+    expect(controlGroup.source(controlGroup.defaultArgs)).toContain("ControlGroup(surface, x, y, 146, 66")
 
     const vector = await COMPONENT_STORIES.load("vector-input/basic/default")
     expect(vector.defaultArgs).toEqual({value: [1, 2, 3], density: "regular", disabled: false})
@@ -345,7 +352,7 @@ describe("@ui/components package-owned Workbench stories", () => {
     const actionSurface = new StoryActionSurface()
     try {
       collection.render(actionSurface, collection.defaultArgs, {x: 0, y: 0, w: 1024, h: 720})
-      for (const hit of actionSurface.hits.slice(0, 4)) hit[4]()
+      for (const index of [0, 2, 3, 4]) actionSurface.hits[index]![4]()
     } finally {
       globalThis.__componentsStoryControlBridge = undefined
       actionSurface.dispose()

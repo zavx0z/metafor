@@ -20,16 +20,22 @@ import {
 } from "./MatrixInput.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type RectCall = Parameters<UiSurface["drawRect"]>
 type TextCall = Parameters<UiSurface["drawText"]>
 type HitCall = Parameters<UiSurface["hit"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
+  readonly rects: RectCall[] = []
   readonly texts: TextCall[] = []
   readonly hits: HitCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
+  }
+
+  override drawRect(...args: RectCall): void {
+    this.rects.push(args)
   }
 
   override drawText(...args: TextCall): number {
@@ -100,7 +106,7 @@ describe("public MatrixInput", () => {
     ])
     const values: (readonly (readonly number[])[])[] = []
     const surface = new RecordingSurface()
-    MatrixInput(surface, 0, 0, 204, 56, matrixProps((value) => values.push(value), {value: initial}))
+    MatrixInput(surface, 0, 0, 146, 44, matrixProps((value) => values.push(value), {value: initial}))
 
     submit(surface, "matrix:1:0", "4.7500004")
     submit(surface, "matrix:0:1", "not-a-number")
@@ -114,41 +120,43 @@ describe("public MatrixInput", () => {
     const values: (readonly (readonly number[])[])[] = []
     for (const state of [{disabled: true}, {readOnly: true}] as const) {
       const surface = new RecordingSurface()
-      MatrixInput(surface, 0, 0, 204, 56, matrixProps((value) => values.push(value), state))
+      MatrixInput(surface, 0, 0, 146, 44, matrixProps((value) => values.push(value), state))
       expect(surface.hits).toHaveLength(0)
       submit(surface, "matrix:0:1", "4.75")
     }
     expect(values).toEqual([])
   })
 
-  test("preserves regular and compact matrix geometry and measurement", () => {
+  test("uses one joined regular and compact matrix grid with shared rules", () => {
     const value = [[1, 0], [0, 1]] as const
-    expect(measureMatrixInputHeight({value})).toBe(56)
-    expect(measureMatrixInputHeight({value, density: "compact"})).toBe(47)
-    expect(measureMatrixInputHeight({value: [[1], [0], [0]]})).toBe(84)
-    expect(measureMatrixInputHeight({value: [[1], [0], [0], [0]], density: "compact"})).toBe(97)
+    expect(measureMatrixInputHeight({value})).toBe(44)
+    expect(measureMatrixInputHeight({value, density: "compact"})).toBe(44)
+    expect(measureMatrixInputHeight({value: [[1], [0], [0]]})).toBe(66)
+    expect(measureMatrixInputHeight({value: [[1], [0], [0], [0]], density: "compact"})).toBe(88)
 
     const regular = new RecordingSurface()
-    MatrixInput(regular, 4, 6, 204, 56, matrixProps(() => {}))
-    expect(regular.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 8, w: 100, h: 22},
-      {x: 108, y: 8, w: 100, h: 22},
-      {x: 4, y: 38, w: 100, h: 22},
-      {x: 108, y: 38, w: 100, h: 22},
+    MatrixInput(regular, 4, 6, 146, 44, matrixProps(() => {}))
+    expect(regular.hits.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
+      {x: 4, y: 6, w: 73, h: 22},
+      {x: 77, y: 6, w: 73, h: 22},
+      {x: 4, y: 28, w: 73, h: 22},
+      {x: 77, y: 28, w: 73, h: 22},
     ])
-    expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
+    expect(regular.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
+    expect(regular.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
     expect(regular.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
-    expect(regular.texts.map((call) => call[3].fontPx)).toEqual([9, 9, 9, 9])
+    expect(regular.texts.map((call) => call[3].fontPx)).toEqual([11, 11, 11, 11])
 
     const compact = new RecordingSurface()
-    MatrixInput(compact, 4, 6, 123, 47, matrixProps(() => {}, {density: "compact"}))
-    expect(compact.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 60, h: 22},
-      {x: 67, y: 6, w: 60, h: 22},
-      {x: 4, y: 31, w: 60, h: 22},
-      {x: 67, y: 31, w: 60, h: 22},
+    MatrixInput(compact, 4, 6, 146, 44, matrixProps(() => {}, {density: "compact"}))
+    expect(compact.hits.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
+      {x: 4, y: 6, w: 73, h: 22},
+      {x: 77, y: 6, w: 73, h: 22},
+      {x: 4, y: 28, w: 73, h: 22},
+      {x: 77, y: 28, w: 73, h: 22},
     ])
-    expect(compact.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
+    expect(compact.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
+    expect(compact.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
     expect(compact.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
     expect(compact.texts.map((call) => call[3].fontPx)).toEqual([11, 11, 11, 11])
   })
@@ -159,7 +167,7 @@ describe("public MatrixInput", () => {
     const compactFieldValues: (readonly (readonly number[])[])[] = []
 
     const standalone = new RecordingSurface()
-    MatrixInput(standalone, 0, 0, 204, 56, matrixProps((value) => standaloneValues.push(value), {
+    MatrixInput(standalone, 0, 0, 146, 44, matrixProps((value) => standaloneValues.push(value), {
       key: "standalone",
     }))
     submit(standalone, "standalone:0:1", "4.75")

@@ -21,16 +21,22 @@ import {
 } from "./VectorInput.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type RectCall = Parameters<UiSurface["drawRect"]>
 type TextCall = Parameters<UiSurface["drawText"]>
 type HitCall = Parameters<UiSurface["hit"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
+  readonly rects: RectCall[] = []
   readonly texts: TextCall[] = []
   readonly hits: HitCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
+  }
+
+  override drawRect(...args: RectCall): void {
+    this.rects.push(args)
   }
 
   override drawText(...args: TextCall): number {
@@ -93,7 +99,7 @@ describe("public VectorInput", () => {
 
   test("draws default and custom axis labels with the configured unit", () => {
     const defaults = new RecordingSurface()
-    VectorInput(defaults, 0, 0, 400, 28, vectorProps(() => {}, {
+    VectorInput(defaults, 0, 0, 146, 88, vectorProps(() => {}, {
       value: [1, 2, 3, 4],
       dimensions: 4,
     }))
@@ -101,7 +107,7 @@ describe("public VectorInput", () => {
     expect(defaultTexts).toEqual(expect.arrayContaining(["X", "Y", "Z", "W", "1m", "4m"]))
 
     const custom = new RecordingSurface()
-    VectorInput(custom, 0, 0, 200, 28, vectorProps(() => {}, {
+    VectorInput(custom, 0, 0, 146, 44, vectorProps(() => {}, {
       value: [5, 6],
       dimensions: 2,
       axes: ["U", "V"],
@@ -115,7 +121,7 @@ describe("public VectorInput", () => {
     const initial = Object.freeze([1, 2, 3])
     const values: (readonly number[])[] = []
     const surface = new RecordingSurface()
-    VectorInput(surface, 0, 0, 300, 28, vectorProps((value) => values.push(value), {value: initial}))
+    VectorInput(surface, 0, 0, 146, 66, vectorProps((value) => values.push(value), {value: initial}))
 
     submit(surface, "vector:1", "11.13 m")
     submit(surface, "vector:2", "not-a-number")
@@ -129,34 +135,37 @@ describe("public VectorInput", () => {
     const values: (readonly number[])[] = []
     for (const state of [{disabled: true}, {readOnly: true}] as const) {
       const surface = new RecordingSurface()
-      VectorInput(surface, 0, 0, 300, 28, vectorProps((value) => values.push(value), state))
+      VectorInput(surface, 0, 0, 146, 66, vectorProps((value) => values.push(value), state))
       expect(surface.hits).toHaveLength(0)
       submit(surface, "vector:1", "4.75m")
     }
     expect(values).toEqual([])
   })
 
-  test("preserves the regular horizontal and compact vertical geometry", () => {
+  test("uses the same joined stacked axis geometry in regular and compact density", () => {
     const regular = new RecordingSurface()
-    VectorInput(regular, 4, 6, 300, 28, vectorProps(() => {}))
-    expect(regular.roundedRects).toHaveLength(3)
-    expect(regular.roundedRects[0]?.[0]).toBeCloseTo(25)
-    expect(regular.roundedRects[0]?.[1]).toBe(9)
-    expect(regular.roundedRects[0]?.[2]).toBeCloseTo(75.666667)
-    expect(regular.roundedRects[0]?.[3]).toBe(22)
-    expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
+    const regularHeight = measureVectorInputHeight({value: [1, 2, 3]})
+    expect(regularHeight).toBe(66)
+    VectorInput(regular, 4, 6, 146, regularHeight, vectorProps(() => {}))
+    expect(regular.hits.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
+      {x: 26, y: 6, w: 124, h: 22},
+      {x: 26, y: 28, w: 124, h: 22},
+      {x: 26, y: 50, w: 124, h: 22},
+    ])
+    expect(regular.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
+    expect(regular.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
 
     const compact = new RecordingSurface()
     const compactHeight = measureVectorInputHeight({value: [1, 2, 3], density: "compact"})
-    expect(compactHeight).toBe(72)
-    VectorInput(compact, 4, 6, 120, compactHeight, vectorProps(() => {}, {density: "compact"}))
-    expect(compact.roundedRects).toHaveLength(3)
-    expect(compact.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 29, y: 6, w: 95, h: 22},
-      {x: 29, y: 31, w: 95, h: 22},
-      {x: 29, y: 56, w: 95, h: 22},
+    expect(compactHeight).toBe(regularHeight)
+    VectorInput(compact, 4, 6, 146, compactHeight, vectorProps(() => {}, {density: "compact"}))
+    expect(compact.hits.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
+      {x: 26, y: 6, w: 124, h: 22},
+      {x: 26, y: 28, w: 124, h: 22},
+      {x: 26, y: 50, w: 124, h: 22},
     ])
-    expect(compact.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
+    expect(compact.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
+    expect(compact.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
   })
 
   test("returns the same value standalone and through vector and rotation Field densities", () => {
@@ -167,7 +176,7 @@ describe("public VectorInput", () => {
     const rotationCompactValues: (readonly number[])[] = []
 
     const standalone = new RecordingSurface()
-    VectorInput(standalone, 0, 0, 300, 28, vectorProps((value) => standaloneValues.push(value), {
+    VectorInput(standalone, 0, 0, 146, 66, vectorProps((value) => standaloneValues.push(value), {
       key: "standalone",
       unit: "°",
     }))

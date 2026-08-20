@@ -101,6 +101,33 @@ describe("input visible geometry", () => {
     expect(active.roundedRects[0]?.[4].border).toEqual(palette.cyan)
   })
 
+  test("keeps grouped cells borderless while active material remains visible", () => {
+    const idle = new RecordingSurface()
+    input(idle, 0, 0, 100, 22, {
+      key: "grouped-idle",
+      value: "Text",
+      appearance: "grouped-cell",
+    })
+    expect(idle.roundedRects).toHaveLength(0)
+
+    const active = new RecordingSurface()
+    input(active, 0, 0, 100, 22, {
+      key: "grouped-active",
+      value: "Text",
+      appearance: "grouped-cell",
+      active: true,
+      cursorVisible: false,
+    })
+    expect(active.roundedRects).toHaveLength(1)
+    expect(active.roundedRects[0]?.slice(0, 4)).toEqual([2, 2, 96, 18])
+    expect(active.roundedRects[0]?.[4]).toMatchObject({
+      radius: 0,
+      border: null,
+      borderWidth: 0,
+      fill: palette.bgHot,
+    })
+  })
+
   test("preserves explicit chrome, font, padding and palette styles", () => {
     const surface = new RecordingSurface()
     input(surface, 10, 20, 100, 40, {

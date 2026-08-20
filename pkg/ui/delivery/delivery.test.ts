@@ -46,6 +46,7 @@ const productionExports = Object.freeze({
     "./badge": "./Badge.ts",
     "./typography": "./Typography.ts",
     "./text-field": "./TextField.ts",
+    "./control-group": "./ControlGroup.ts",
     "./number-input": "./NumberInput.ts",
     "./color-input": "./ColorInput.ts",
     "./vector-input": "./VectorInput.ts",
@@ -137,6 +138,7 @@ describe("production UI delivery baseline", () => {
       "exact-elements-button.fixture.ts",
       "exact-elements-select.fixture.ts",
       "exact-components-field.fixture.ts",
+      "exact-components-control-group.fixture.ts",
       "exact-components-number-input.fixture.ts",
       "exact-components-color-input.fixture.ts",
       "exact-components-vector-input.fixture.ts",
@@ -173,6 +175,21 @@ describe("production UI delivery baseline", () => {
     expect(graph).not.toContain("definePlaygroundRoutes")
   })
 
+  test("keeps the exact ControlGroup leaf on HTML-like Elements and independent from consumers", async () => {
+    const fixture = join(uiRoot, "delivery/fixtures/exact-components-control-group.fixture.ts")
+    const graph = (await outputSources(await buildBrowser([fixture], false)))
+      .map(({source}) => source)
+      .join("\n")
+    expect(graph).toContain("function ControlGroup")
+    expect(graph).toContain("function div")
+    expect(graph).not.toContain("function Field")
+    expect(graph).not.toContain("function VectorInput")
+    expect(graph).not.toContain("function MatrixInput")
+    expect(graph).not.toContain("function CollectionInput")
+    expect(graph).not.toContain("@nodes/ui")
+    expect(graph).not.toContain("@ui/playground")
+  })
+
   test("keeps the exact ColorInput leaf independent from Node and playground symbols", async () => {
     const fixture = join(uiRoot, "delivery/fixtures/exact-components-color-input.fixture.ts")
     const graph = (await outputSources(await buildBrowser([fixture], false)))
@@ -192,6 +209,7 @@ describe("production UI delivery baseline", () => {
       .map(({source}) => source)
       .join("\n")
     expect(graph).toContain("function VectorInput")
+    expect(graph).toContain("function ControlGroup")
     expect(graph).not.toContain("function Field")
     expect(graph).not.toContain("@nodes/ui")
     expect(graph).not.toContain("NodeEditor")
@@ -206,6 +224,7 @@ describe("production UI delivery baseline", () => {
       .join("\n")
     expect(graph).toContain("function MatrixInput")
     expect(graph).toContain("function NumberInput")
+    expect(graph).toContain("function ControlGroup")
     expect(graph).not.toContain("function Field")
     expect(graph).not.toContain("@nodes/ui")
     expect(graph).not.toContain("NodeEditor")
@@ -247,6 +266,7 @@ describe("production UI delivery baseline", () => {
     expect(graph).toContain("function CollectionInput")
     expect(graph).toContain("function List")
     expect(graph).toContain("function Button")
+    expect(graph).toContain("function ControlGroup")
     expect(graph).not.toContain("function Field")
     expect(graph).not.toContain("@nodes/ui")
     expect(graph).not.toContain("NodeEditor")

@@ -1,5 +1,14 @@
-import {flexColumn, flexRow, palette, uiIcons, uiShapeMetrics, type UiSurface} from "@ui/elements"
+import {
+  flexColumn,
+  flexRow,
+  palette,
+  uiIcons,
+  uiShapeMetrics,
+  type StyleProps,
+  type UiSurface,
+} from "@ui/elements"
 import {Button, IconButton, type ButtonProps, type IconButtonProps} from "./Button.ts"
+import {ControlGroup, type ControlGroupContext} from "./ControlGroup.ts"
 import {List, type ListItemProps, type ListProps} from "./List.ts"
 
 export type CollectionInputItem = Readonly<{
@@ -77,8 +86,8 @@ export function CollectionInput(
   const canRemove = !blocked && selected !== undefined && selected.disabled !== true && props.onRemove !== undefined
   const canMove = !blocked && selected !== undefined && selected.disabled !== true && props.onMove !== undefined
   const key = props.key ?? `collection-input:${x}:${y}:${width}:${height}`
-  const compact = props.density === "compact"
-  const listItems = collectionInputListItems(props, key, blocked, compact)
+  const visibleRows = normalizeCollectionInputVisibleRows(props.visibleRows)
+  const listHeight = Math.min(height, metrics.rowHeight * visibleRows)
 
   flexRow({
     x,
@@ -86,24 +95,25 @@ export function CollectionInput(
     w: width,
     h: height,
     gap: metrics.dockGap,
-    alignItems: "stretch",
+    alignItems: "start",
     items: [
-      {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
-        const listProps: ListProps = {
-          key: `${key}:list`,
-          dense: compact,
-          disablePadding: true,
-          itemHeight: metrics.rowHeight,
-          items: listItems,
-          sx: {
-            background: palette.bgInput,
-            borderColor: palette.borderDim,
-            borderWidth: 1,
-            borderRadius: metrics.radius,
-          },
-        }
-        if (selected !== undefined) listProps.selectedKey = `${key}:item:${selected.id}`
-        List(host, slotX, slotY, slotW, slotH, listProps)
+      {width: "grow", height: listHeight, draw: (slotX, slotY, slotW, slotH) => {
+        ControlGroup(host, slotX, slotY, slotW, slotH, {
+          rows: visibleRows,
+          children: (group) => drawCollectionInputList(
+            host,
+            slotX,
+            slotY,
+            slotW,
+            slotH,
+            metrics,
+            props,
+            key,
+            blocked,
+            selected,
+            group,
+          ),
+        })
       }},
       {width: metrics.actionSize, height, draw: (slotX, slotY, slotW, slotH) => {
         drawCollectionInputActions(
@@ -130,31 +140,57 @@ type CollectionInputMetrics = Readonly<{
   actionSize: number
   actionGap: number
   dockGap: number
-  radius: number
-  fontPx: number
 }>
 
-function collectionInputMetrics(density: CollectionInputDensity | undefined): CollectionInputMetrics {
-  if (density === "compact") {
-    return {rowHeight: 24, actionSize: 22, actionGap: 3, dockGap: 3, radius: uiShapeMetrics.lowRadius, fontPx: 11}
+function collectionInputMetrics(_density: CollectionInputDensity | undefined): CollectionInputMetrics {
+  return {
+    rowHeight: uiShapeMetrics.rowHeight,
+    actionSize: uiShapeMetrics.iconActionSlot,
+    actionGap: uiShapeMetrics.tightGap,
+    dockGap: uiShapeMetrics.tightGap,
   }
-  return {rowHeight: 36, actionSize: 28, actionGap: 4, dockGap: 7, radius: uiShapeMetrics.lowRadius, fontPx: 12}
+}
+
+function drawCollectionInputList(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  metrics: CollectionInputMetrics,
+  props: CollectionInputProps,
+  key: string,
+  blocked: boolean,
+  selected: CollectionInputItem | undefined,
+  group: ControlGroupContext,
+): void {
+  const listProps: ListProps = {
+    key: `${key}:list`,
+    dense: true,
+    disablePadding: true,
+    itemHeight: metrics.rowHeight,
+    items: collectionInputListItems(props, key, blocked, group.cellStyle),
+    sx: group.cellStyle,
+  }
+  if (selected !== undefined) listProps.selectedKey = `${key}:item:${selected.id}`
+  List(host, x, y, width, height, listProps)
 }
 
 function collectionInputListItems(
   props: CollectionInputProps,
   key: string,
   blocked: boolean,
-  compact: boolean,
+  cellStyle: Readonly<StyleProps>,
 ): readonly ListItemProps[] {
   if (props.items.length === 0) {
     return [{
       key: `${key}:empty`,
       primary: props.emptyLabel ?? "Нет элементов",
       disabled: true,
-      dense: compact,
+      dense: true,
       button: false,
       disableGutters: false,
+      sx: cellStyle,
     }]
   }
   return props.items.map((item) => {
@@ -163,11 +199,12 @@ function collectionInputListItems(
       key: `${key}:item:${item.id}`,
       primary: item.label,
       disabled,
-      dense: compact,
+      dense: true,
       button: !disabled && props.onSelect !== undefined,
       disableGutters: false,
+      sx: cellStyle,
     }
-    if (!compact && item.description !== undefined) row.secondary = item.description
+    if (item.description !== undefined) row.tooltip = item.description
     if (!disabled && props.onSelect !== undefined) row.onClick = () => props.onSelect!(item.id)
     return row
   })
@@ -216,7 +253,6 @@ function drawCollectionInputActions(
         Button(host, slotX, slotY, slotW, slotH, collectionMoveActionProps(
           "↑",
           "Переместить выбранный элемент вверх",
-          metrics,
           !canMoveUp,
           canMoveUp ? () => props.onMove!(selected!.id, "up") : undefined,
         ))
@@ -225,7 +261,6 @@ function drawCollectionInputActions(
         Button(host, slotX, slotY, slotW, slotH, collectionMoveActionProps(
           "↓",
           "Переместить выбранный элемент вниз",
-          metrics,
           !canMoveDown,
           canMoveDown ? () => props.onMove!(selected!.id, "down") : undefined,
         ))
@@ -244,14 +279,10 @@ function collectionActionProps(
   const props: IconButtonProps = {
     label,
     iconSrc,
-    variant: metrics.actionSize === 22 ? "contained" : "outlined",
-    radius: metrics.radius,
+    variant: "contained",
     iconSizePx: Math.min(16, metrics.actionSize - 8),
-    fontPx: metrics.fontPx,
     disabled,
-  }
-  if (metrics.actionSize === 22) {
-    props.fill = palette.bgInput
+    fill: palette.bgInput,
   }
   if (action !== undefined) props.action = action
   return props
@@ -260,20 +291,15 @@ function collectionActionProps(
 function collectionMoveActionProps(
   children: "↑" | "↓",
   tooltip: string,
-  metrics: CollectionInputMetrics,
   disabled: boolean,
   action: (() => void) | undefined,
 ): ButtonProps {
   const props: ButtonProps = {
     children,
     tooltip,
-    variant: metrics.actionSize === 22 ? "contained" : "outlined",
-    radius: metrics.radius,
-    fontPx: metrics.fontPx,
+    variant: "contained",
     disabled,
-  }
-  if (metrics.actionSize === 22) {
-    props.fill = palette.bgInput
+    fill: palette.bgInput,
   }
   if (action !== undefined) props.action = action
   return props
