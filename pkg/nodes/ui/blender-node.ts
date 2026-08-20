@@ -137,6 +137,30 @@ export const BLENDER_SOCKET_PRESETS: Readonly<Record<BlenderSocketKind, BlenderS
   custom: preset("custom", "Custom", [0.84, 0.35, 0.82], "circle-dot"),
 })
 
+export type BlenderSocketVisualPolicy = Readonly<{
+  diameter: number
+  outlineWidth: number
+  cornerRadius: number
+  strokeWidth: number
+  innerDotDiameter: number
+}>
+
+/**
+ * Intrinsic local Socket geometry calibrated to Blender's `NODE_SOCKSIZE`.
+ *
+ * Blender uses a radius of one quarter widget unit, so the ordinary Socket
+ * diameter is one half unit. These metrics remain local scene geometry: the
+ * retained Node parent scales them continuously and no screen-space floor is
+ * applied here.
+ */
+export const BLENDER_SOCKET_VISUAL_POLICY: BlenderSocketVisualPolicy = Object.freeze({
+  diameter: 10,
+  outlineWidth: 1,
+  cornerRadius: 1,
+  strokeWidth: 2,
+  innerDotDiameter: 3,
+})
+
 const NODE_HEADER_HEIGHT = 24
 const NODE_PADDING = 8
 const NODE_GAP = 3
@@ -351,7 +375,6 @@ export const blenderSocketRenderer: SocketRenderer<BlenderSocket> = Object.freez
       host,
       entry.center.x,
       entry.center.y,
-      8,
       entry.socket.shape ?? socketPreset.shape,
       colorFrom(socketPreset.color),
       selected,
@@ -465,56 +488,78 @@ function drawSocketShape(
   host: SocketRendererContext<BlenderSocket>["host"],
   cx: number,
   cy: number,
-  size: number,
   shape: BlenderSocketShape,
   color: Color,
   selected: boolean,
 ): void {
+  const bounds = blenderSocketVisualBounds({x: cx, y: cy})
+  const radius = BLENDER_SOCKET_VISUAL_POLICY.diameter / 2
+  const diamondHalfExtent = radius - BLENDER_SOCKET_VISUAL_POLICY.strokeWidth / Math.SQRT2
   if (shape === "line") {
-    host.drawLine(cx, cy - size * 0.62, cx, cy + size * 0.62, color, size * 0.28, Z.TEXT + 0.03)
+    host.drawLine(
+      cx,
+      cy - radius,
+      cx,
+      cy + radius,
+      color,
+      BLENDER_SOCKET_VISUAL_POLICY.strokeWidth,
+      Z.TEXT + 0.03,
+    )
     return
   }
   if (shape === "volume-grid") {
-    const half = size * 0.54
-    host.drawRoundedRect(cx - half, cy - half, half * 2, half * 2, {
-      radius: size * 0.12,
+    host.drawRoundedRect(bounds.x, bounds.y, bounds.w, bounds.h, {
+      radius: BLENDER_SOCKET_VISUAL_POLICY.cornerRadius,
       fill: color,
       border: selected ? palette.windowActiveBorder : palette.bg,
-      borderWidth: size * 0.14,
+      borderWidth: BLENDER_SOCKET_VISUAL_POLICY.outlineWidth,
       z: Z.TEXT + 0.03,
     })
-    host.drawLine(cx, cy - half + 1, cx, cy + half - 1, palette.bg, size * 0.12, Z.TEXT + 0.04)
-    host.drawLine(cx - half + 1, cy, cx + half - 1, cy, palette.bg, size * 0.12, Z.TEXT + 0.04)
+    const gridHalfExtent = BLENDER_SOCKET_VISUAL_POLICY.diameter / 2 - BLENDER_SOCKET_VISUAL_POLICY.outlineWidth
+    host.drawLine(cx, cy - gridHalfExtent, cx, cy + gridHalfExtent, palette.bg, BLENDER_SOCKET_VISUAL_POLICY.outlineWidth, Z.TEXT + 0.04)
+    host.drawLine(cx - gridHalfExtent, cy, cx + gridHalfExtent, cy, palette.bg, BLENDER_SOCKET_VISUAL_POLICY.outlineWidth, Z.TEXT + 0.04)
     return
   }
   const baseShape = shape.replace("-dot", "") as "circle" | "square" | "diamond"
   const border = selected ? palette.windowActiveBorder : palette.bg
   if (baseShape === "circle" || baseShape === "square") {
-    host.drawRoundedRect(cx - size / 2, cy - size / 2, size, size, {
-      radius: baseShape === "circle" ? size / 2 : size * 0.16,
+    host.drawRoundedRect(bounds.x, bounds.y, bounds.w, bounds.h, {
+      radius: baseShape === "circle"
+        ? BLENDER_SOCKET_VISUAL_POLICY.diameter / 2
+        : BLENDER_SOCKET_VISUAL_POLICY.cornerRadius,
       fill: color,
       border,
-      borderWidth: size * 0.14,
+      borderWidth: BLENDER_SOCKET_VISUAL_POLICY.outlineWidth,
       z: Z.TEXT + 0.03,
     })
   } else {
-    const half = size * 0.62
     host.drawPolyline([
-      {x: cx, y: cy - half},
-      {x: cx + half, y: cy},
-      {x: cx, y: cy + half},
-      {x: cx - half, y: cy},
-      {x: cx, y: cy - half},
-    ], color, size * 0.32, Z.TEXT + 0.03)
+      {x: cx, y: cy - diamondHalfExtent},
+      {x: cx + diamondHalfExtent, y: cy},
+      {x: cx, y: cy + diamondHalfExtent},
+      {x: cx - diamondHalfExtent, y: cy},
+      {x: cx, y: cy - diamondHalfExtent},
+    ], color, BLENDER_SOCKET_VISUAL_POLICY.strokeWidth, Z.TEXT + 0.03)
   }
   if (shape.endsWith("-dot")) {
-    const dot = size * 0.28
+    const dot = BLENDER_SOCKET_VISUAL_POLICY.innerDotDiameter
     host.drawRoundedRect(cx - dot / 2, cy - dot / 2, dot, dot, {
       radius: dot / 2,
       fill: palette.bg,
       border: null,
       z: Z.TEXT + 0.04,
     })
+  }
+}
+
+/** Visual-only bounds; interaction hit targets remain a separate policy. */
+export function blenderSocketVisualBounds(center: Readonly<{x: number; y: number}>): NodeRect {
+  const radius = BLENDER_SOCKET_VISUAL_POLICY.diameter / 2
+  return {
+    x: center.x - radius,
+    y: center.y - radius,
+    w: BLENDER_SOCKET_VISUAL_POLICY.diameter,
+    h: BLENDER_SOCKET_VISUAL_POLICY.diameter,
   }
 }
 

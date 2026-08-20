@@ -1,14 +1,25 @@
 import {describe, expect, test} from "bun:test"
+import {createUiPolylineStrokeGeometry} from "@ui/elements"
 import {
   BLENDER_SOCKET_KINDS,
   BLENDER_SOCKET_PRESETS,
   BLENDER_SOCKET_SHAPES,
+  BLENDER_SOCKET_VISUAL_POLICY,
   blenderSocketPreset,
+  blenderSocketRenderer,
+  blenderSocketVisualBounds,
   createBlenderNodeRenderers,
   measureBlenderNode,
   planBlenderNode,
   type BlenderNode,
+  type BlenderSocket,
+  type BlenderSocketShape,
 } from "./blender-node.ts"
+
+type PaintCall =
+  | Readonly<{kind: "rect"; x: number; y: number; w: number; h: number}>
+  | Readonly<{kind: "line"; x1: number; y1: number; x2: number; y2: number; width: number}>
+  | Readonly<{kind: "polyline"; points: readonly Readonly<{x: number; y: number}>[]; width: number}>
 
 describe("Blender-like Node presets", () => {
   test("publishes the complete first socket catalog and eight source shapes", () => {
@@ -92,4 +103,142 @@ describe("Blender-like Node presets", () => {
     expect(output.side).toBe("right")
     expect(input.side).toBe("left")
   })
+
+  test("uses one calibrated visual envelope for all eight Socket shapes without a scale floor", () => {
+    const center = {x: 40, y: 60}
+    const expected = blenderSocketVisualBounds(center)
+    expect(BLENDER_SOCKET_VISUAL_POLICY).toEqual({
+      diameter: 10,
+      outlineWidth: 1,
+      cornerRadius: 1,
+      strokeWidth: 2,
+      innerDotDiameter: 3,
+    })
+
+    for (const shape of BLENDER_SOCKET_SHAPES) {
+      const painted = paintedSocketBounds(shape, center)
+      expect(painted.x, `${shape} x`).toBeGreaterThanOrEqual(expected.x - 1e-6)
+      expect(painted.y, `${shape} y`).toBeGreaterThanOrEqual(expected.y - 1e-6)
+      expect(painted.x + painted.w, `${shape} right`).toBeLessThanOrEqual(expected.x + expected.w + 1e-6)
+      expect(painted.y + painted.h, `${shape} bottom`).toBeLessThanOrEqual(expected.y + expected.h + 1e-6)
+      expect(Math.max(painted.w, painted.h), `${shape} diameter`).toBeCloseTo(BLENDER_SOCKET_VISUAL_POLICY.diameter)
+
+      for (const parentScale of [0.16, 0.5, 1, 2]) {
+        const projectedDiameter = Math.max(painted.w, painted.h) * parentScale
+        expect(projectedDiameter, `${shape} @ ${parentScale}`).toBeCloseTo(BLENDER_SOCKET_VISUAL_POLICY.diameter * parentScale)
+      }
+    }
+  })
+
+  test("keeps Parameter and loose Socket centers on their exact Flex rows and Node borders", () => {
+    const node: BlenderNode = {
+      id: "socket-rows",
+      title: "Socket rows",
+      parameters: [{
+        id: "value",
+        label: "Value",
+        field: {id: "value", label: "Value", kind: "number", value: 0.5},
+      }],
+      sockets: [
+        {id: "loose-right", label: "Loose right", direction: "input", socketType: "float", side: "right"},
+        {id: "value-left", label: "Value left", direction: "output", socketType: "float", parameterId: "value", side: "left"},
+        {id: "value-right", label: "Value right", direction: "input", socketType: "float", parameterId: "value", side: "right"},
+        {id: "loose-left", label: "Loose left", direction: "output", socketType: "float", side: "left"},
+      ],
+    }
+    const rect = {x: 20, y: 30, w: 240, h: measureBlenderNode(node).height}
+    const plan = planBlenderNode(node, rect)
+    const parameterRect = plan.parameters.find(({parameter}) => parameter.id === "value")!.rect
+    const byId = new Map(plan.sockets.map((entry) => [entry.socket.id, entry] as const))
+    const parameterCenterY = parameterRect.y + parameterRect.h / 2
+
+    expect(byId.get("value-left")?.center).toEqual({x: rect.x, y: parameterCenterY})
+    expect(byId.get("value-right")?.center).toEqual({x: rect.x + rect.w, y: parameterCenterY})
+    expect(byId.get("value-left")?.socket.direction).toBe("output")
+    expect(byId.get("value-right")?.socket.direction).toBe("input")
+    expect(byId.get("loose-right")?.center.x).toBe(rect.x + rect.w)
+    expect(byId.get("loose-left")?.center.x).toBe(rect.x)
+    expect(byId.get("loose-right")!.center.y - plan.body.y).toBe(
+      plan.body.y + plan.body.h - byId.get("loose-left")!.center.y,
+    )
+
+    for (const shape of BLENDER_SOCKET_SHAPES.slice(0, 6)) {
+      const left = paintedSocketBounds(shape, byId.get("value-left")!.center)
+      const right = paintedSocketBounds(shape, byId.get("value-right")!.center)
+      expect(rect.x - left.x, `${shape} left outside`).toBeCloseTo(BLENDER_SOCKET_VISUAL_POLICY.diameter / 2)
+      expect(left.x + left.w - rect.x, `${shape} left inside`).toBeCloseTo(BLENDER_SOCKET_VISUAL_POLICY.diameter / 2)
+      expect(rect.x + rect.w - right.x, `${shape} right inside`).toBeCloseTo(BLENDER_SOCKET_VISUAL_POLICY.diameter / 2)
+      expect(right.x + right.w - (rect.x + rect.w), `${shape} right outside`).toBeCloseTo(BLENDER_SOCKET_VISUAL_POLICY.diameter / 2)
+    }
+  })
 })
+
+function paintedSocketBounds(
+  shape: BlenderSocketShape,
+  center: Readonly<{x: number; y: number}>,
+): Readonly<{x: number; y: number; w: number; h: number}> {
+  const calls: PaintCall[] = []
+  const host = {
+    drawRoundedRect(x: number, y: number, w: number, h: number) {
+      calls.push({kind: "rect", x, y, w, h})
+    },
+    drawLine(x1: number, y1: number, x2: number, y2: number, _color: unknown, width: number) {
+      calls.push({kind: "line", x1, y1, x2, y2, width})
+    },
+    drawPolyline(points: readonly Readonly<{x: number; y: number}>[], _color: unknown, width: number) {
+      calls.push({kind: "polyline", points, width})
+    },
+  } as unknown as Parameters<typeof blenderSocketRenderer.render>[0]["host"]
+  const socket: BlenderSocket = {
+    id: `socket-${shape}`,
+    label: shape,
+    direction: "bidirectional",
+    socketType: "custom",
+    shape,
+  }
+  blenderSocketRenderer.render({
+    host,
+    entry: {socket, side: "right", center},
+    selected: false,
+    nodeId: "visual-policy",
+  })
+
+  const boxes = calls.map((call) => {
+    if (call.kind === "rect") return {x: call.x, y: call.y, w: call.w, h: call.h}
+    const coordinates = call.kind === "polyline"
+      ? Array.from(createUiPolylineStrokeGeometry(call.points, call.width)!.attributes.position!.array)
+      : lineQuad(call)
+    const xs = coordinates.filter((_, index) => index % 3 === 0)
+    const ys = coordinates.filter((_, index) => index % 3 === 1)
+    const x = Math.min(...xs)
+    const y = Math.min(...ys)
+    return {
+      x,
+      y,
+      w: Math.max(...xs) - x,
+      h: Math.max(...ys) - y,
+    }
+  })
+  const x = Math.min(...boxes.map((box) => box.x))
+  const y = Math.min(...boxes.map((box) => box.y))
+  return {
+    x,
+    y,
+    w: Math.max(...boxes.map((box) => box.x + box.w)) - x,
+    h: Math.max(...boxes.map((box) => box.y + box.h)) - y,
+  }
+}
+
+function lineQuad(call: Extract<PaintCall, {kind: "line"}>): number[] {
+  const dx = call.x2 - call.x1
+  const dy = call.y2 - call.y1
+  const length = Math.hypot(dx, dy)
+  const offsetX = -dy / length * call.width / 2
+  const offsetY = dx / length * call.width / 2
+  return [
+    call.x1 + offsetX, call.y1 + offsetY, 0,
+    call.x1 - offsetX, call.y1 - offsetY, 0,
+    call.x2 + offsetX, call.y2 + offsetY, 0,
+    call.x2 - offsetX, call.y2 - offsetY, 0,
+  ]
+}
