@@ -195,6 +195,15 @@ number/slider, boolean, enum, color, vector/rotation, matrix и resource referen
 используются одинаково внутри Node properties/socket defaults и в обычных
 панелях. `@nodes/ui` владеет только их размещением внутри Node preset.
 
+Общая dev-среда `@ui/playground` развивается в масштабируемый WebGPU Workbench
+для собственных Elements, Components, Node UI и Widgets MetaFor. Существующий
+пятипанельный FlexBox shell и Engine/UiRuntime сохраняются; desktop занимает
+весь canvas. Package-owned stories дают единый источник preview, variants,
+controls, копируемого TypeScript и проверок, а metadata index обеспечивает
+поиск и lazy загрузку больших catalog без включения всех implementations в
+initial bundle. Внешний Blender catalog остаётся только reference и не
+переносит свои ноды, изображения или examples в MetaFor.
+
 Действующий `@nodes/layout` пока получает минимальный ELK-like `LayoutGraph` с уже измеренными
 node sizes и port offsets, единолично вычисляет node/compound/gateway/edge
 coordinates и возвращает exact parameter-socket routes. В Hamiltonian renderer

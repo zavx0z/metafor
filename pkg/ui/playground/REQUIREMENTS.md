@@ -8,8 +8,10 @@ playground. Он не владеет production semantics UI Components либо
 1. Один route выбирает package-specific preview. Общая typed declaration
    содержит полные вложенные IDs и fallback, а библиотека жёстко материализует
    их как pathname `/route/id`. Consumer не выбирает hash/path mode или prefix.
-2. Общий shell состоит из catalog, sections, preview, dock и info. Desktop
-   сохраняет historical five-panel geometry; mobile показывает preview consumer.
+2. Общий shell состоит из catalog, sections, preview, dock и info. Он является
+   desktop-only рабочей средой, сохраняет historical five-panel geometry и
+   занимает весь доступный canvas с небольшим внешним отступом; искусственный
+   `maxWidth`/`maxHeight` не оставляет вокруг панелей пустую рамку.
 3. Shell layout вычисляется FlexBox. CSS-style `%`/`fr`/`grow` является способом
    описания той же системы, а не отдельным layout.
 4. Generic surfaces получают readonly descriptors и callbacks. Они не содержат
@@ -39,3 +41,22 @@ playground. Он не владеет production semantics UI Components либо
     pointer, Arrow Up/Down/Left/Right и Home/End меняют одно keyed состояние,
     Enter/Space вызывают текущий route callback. Видимое перемещение focus
     материализует только прежний и новый item owner; disabled item пропускается.
+12. Масштабируемый catalog строится из package-owned typed story descriptors.
+    Один descriptor связывает component identity, section, variant, args,
+    production render, source generator, controls и optional interaction; route,
+    поиск, preview, dock, копируемый код и render test не получают отдельных
+    расходящихся описаний.
+13. Catalog и sections поддерживают большой индекс через поиск, сворачиваемые
+    группы и виртуализированное отображение. Initial bundle содержит metadata
+    index; story implementation загружается lazy factory только после выбора.
+    Точный production import contract принадлежит package owner, а не
+    playground.
+14. Preview всегда использует production UI на текущем Engine/UiRuntime. Dock
+    показывает variants выбранной story. Правая панель постоянно показывает
+    сгенерированный TypeScript и действие копирования; ниже неё располагаются
+    controls и события, не скрывая код.
+15. Видимый интерфейс catalog пишется по-русски. Public API identifiers, import
+    specifiers, route IDs и TypeScript-код сохраняют точное исходное написание.
+    Внешний Blender catalog используется только как reference при выборе
+    собственных Elements, Components и Node UI; его ноды, assets и примеры не
+    импортируются в playground.
