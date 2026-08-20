@@ -22,6 +22,7 @@
     "./reference-input": "./ReferenceInput.ts",
     "./enum-input": "./EnumInput.ts",
     "./collection-input": "./CollectionInput.ts",
+    "./path-input": "./PathInput.ts",
     "./switcher": "./Switcher.ts",
     "./progress-checkbox": "./ProgressCheckbox.ts",
     "./slider-control": "./SliderControl.ts",

@@ -26,6 +26,7 @@ describe("universal UI fields", () => {
       "matrix",
       "reference",
       "collection",
+      "path",
       "readonly",
     ])
   })
@@ -99,6 +100,7 @@ describe("universal UI fields", () => {
       {id: "matrix", label: "Matrix", kind: "matrix", value: [[1, 0], [0, 1]]},
       {id: "reference", label: "Reference", kind: "reference", value: null},
       {id: "collection", label: "Collection", kind: "collection", items: [], selectedId: null},
+      {id: "path", label: "Path", kind: "path", value: "/tmp/value"},
       {id: "readonly", label: "Readonly", kind: "readonly", value: "value"},
     ]
     expect(fields.map((field) => measureFieldHeight(field)).every((height) => height > 0)).toBeTrue()
@@ -118,5 +120,7 @@ describe("universal UI fields", () => {
     expect(measureFieldHeight(reorder)).toBe(145)
     expect(measureFieldHeight(reorder, {density: "compact"})).toBe(122)
     expect(measureFieldHeight({...reorder, compactLabel: "hidden"}, {density: "compact"})).toBe(97)
+    expect(measureFieldHeight(fields[11]!)).toBe(49)
+    expect(measureFieldHeight(fields[11]!, {density: "compact"})).toBe(22)
   })
 })

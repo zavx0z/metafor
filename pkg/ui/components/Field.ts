@@ -35,6 +35,11 @@ import {
   type MatrixInputProps,
 } from "./MatrixInput.ts"
 import {
+  PathInput,
+  type PathInputDensity,
+  type PathInputProps,
+} from "./PathInput.ts"
+import {
   ReferenceInput,
   type ReferenceInputDensity,
   type ReferenceInputProps,
@@ -139,6 +144,14 @@ export type ReferenceFieldDefinition = FieldBase & Readonly<{
   onClear?(): void
 }>
 
+export type PathFieldDefinition = FieldBase & Readonly<{
+  kind: "path"
+  value: string
+  placeholder?: string
+  onChange?(value: string): void
+  onBrowse?(): void
+}>
+
 export type CollectionFieldDefinition = FieldBase & Readonly<{
   kind: "collection"
   items: readonly FieldCollectionItem[]
@@ -166,6 +179,7 @@ export type FieldDefinition =
   | RotationFieldDefinition
   | MatrixFieldDefinition
   | ReferenceFieldDefinition
+  | PathFieldDefinition
   | CollectionFieldDefinition
   | ReadonlyFieldDefinition
 
@@ -184,6 +198,7 @@ export const FIELD_KINDS = Object.freeze([
   "matrix",
   "reference",
   "collection",
+  "path",
   "readonly",
 ] as const)
 
@@ -240,6 +255,7 @@ function drawFieldControl(
   else if (definition.kind === "matrix") drawMatrixField(host, x, y, width, height, definition)
   else if (definition.kind === "reference") drawReferenceField(host, x, y, width, height, definition)
   else if (definition.kind === "collection") drawCollectionField(host, x, y, width, height, definition)
+  else if (definition.kind === "path") drawPathField(host, x, y, width, height, definition)
   else drawReadonlyField(host, x, y, width, height, definition)
 }
 
@@ -425,6 +441,10 @@ function drawCompactControl(
   }
   if (field.kind === "reference") {
     ReferenceInput(host, x, y, width, height, referenceInputProps(field, "compact"))
+    return
+  }
+  if (field.kind === "path") {
+    PathInput(host, x, y, width, height, pathInputProps(field, "compact"))
     return
   }
   const value = field.kind === "readonly" ? String(field.value) : field.value
@@ -733,6 +753,27 @@ function referenceInputProps(
   if (field.readOnly !== undefined) props.readOnly = field.readOnly
   if (field.onActivate !== undefined) props.onActivate = field.onActivate
   if (field.onClear !== undefined) props.onClear = field.onClear
+  return props
+}
+
+function drawPathField(host: UiSurface, x: number, y: number, width: number, height: number, field: PathFieldDefinition): void {
+  PathInput(host, x, y, width, height, pathInputProps(field, "regular"))
+}
+
+function pathInputProps(
+  field: PathFieldDefinition,
+  density: PathInputDensity,
+): PathInputProps {
+  const props: PathInputProps = {
+    key: fieldKey(field),
+    value: field.value,
+    density,
+  }
+  if (field.placeholder !== undefined) props.placeholder = field.placeholder
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onChange !== undefined) props.onChange = field.onChange
+  if (field.onBrowse !== undefined) props.onBrowse = field.onBrowse
   return props
 }
 
