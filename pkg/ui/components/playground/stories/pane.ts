@@ -47,7 +47,7 @@ export function createPaneStory(variant: PaneVariant): PlaygroundStoryModule {
         sx: {borderRadius: args.radius === "rounded" ? 30 : 14},
       })
       Typography(surface, x + 28, y + 54, width - 56, 34, {
-        children: "Production Pane",
+        children: "Рабочий компонент Pane",
         variant: "title",
         sx: {textAlign: "center"},
       })

@@ -290,7 +290,7 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             label: "Значение",
             variants: [
               {id: "selected-description", label: "С описанием", title: "EnumInput · Описание выбранного значения", load: loadEnumInputStory("selected-description")},
-              {id: "invalid-legacy", label: "Неизвестное", title: "EnumInput · Неизвестное legacy-значение", load: loadEnumInputStory("invalid-legacy")},
+              {id: "invalid-legacy", label: "Неизвестное", title: "EnumInput · Неизвестное устаревшее значение", load: loadEnumInputStory("invalid-legacy")},
             ],
           },
           {
@@ -330,7 +330,7 @@ export const COMPONENT_STORIES = definePlaygroundStories({
         {id: "list", label: "Список", apiName: "List", sections: [{id: "basic", label: "Основной", variants: singleVariant("list", "List · Основной")} ]},
         {id: "table", label: "Таблица", apiName: "Table", sections: [{id: "basic", label: "Основная", variants: singleVariant("table", "Table · Основная")} ]},
         {id: "scrollbar", label: "Полоса прокрутки", apiName: "scrollbar", sections: [{id: "vertical", label: "Вертикальная", variants: singleVariant("scrollbar", "Scrollbar · Вертикальная")} ]},
-        {id: "noti", label: "Уведомления", apiName: "Noti", sections: [{id: "status", label: "Статус", variants: singleVariant("noti", "Noti · Нет public export", "unavailable", "Не реализован")} ]},
+        {id: "noti", label: "Уведомления", apiName: "Noti", sections: [{id: "status", label: "Статус", variants: singleVariant("noti", "Noti · Нет рабочего экспорта", "unavailable", "Не реализован")} ]},
       ],
     },
   ],

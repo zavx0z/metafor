@@ -55,8 +55,11 @@ playground. Он не владеет production semantics UI Components либо
     показывает variants выбранной story. Правая панель постоянно показывает
     сгенерированный TypeScript и действие копирования; ниже неё располагаются
     controls и события, не скрывая код.
-15. Видимый интерфейс catalog пишется по-русски. Public API identifiers, import
-    specifiers, route IDs и TypeScript-код сохраняют точное исходное написание.
-    Внешний Blender catalog используется только как reference при выборе
-    собственных Elements, Components и Node UI; его ноды, assets и примеры не
-    импортируются в playground.
+15. Все обращённые к человеку строки Workbench пишутся по-русски: навигация и
+    поиск, описания preview, демонстрационные подписи, controls, events,
+    состояния и статусы. Public API identifiers, import specifiers, route IDs и
+    TypeScript-код сохраняют точное исходное написание; имена Blender и API
+    остаются точными только там, где являются именем reference либо
+    контракта, а не обычной подписью. Внешний Blender catalog используется
+    только как reference при выборе собственных Elements, Components и Node UI;
+    его ноды, assets и примеры не импортируются в playground.

@@ -44,7 +44,7 @@ export function createEnumInputStory(variant: EnumInputStoryVariant): Playground
           {value: "add", label: "Сложение"},
           {value: "multiply", label: "Умножение"},
           {value: "subtract", label: "Вычитание"},
-          {value: "missing", label: "Неизвестное legacy"},
+          {value: "missing", label: "Неизвестное устаревшее"},
         ],
       },
       {

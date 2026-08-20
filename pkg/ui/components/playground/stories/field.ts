@@ -99,7 +99,7 @@ function fieldControls(kind: FieldStoryKind): readonly PlaygroundStoryControl<ke
 }
 
 function initialFieldValue(kind: FieldStoryKind): unknown {
-  if (kind === "text") return "UI component"
+  if (kind === "text") return "Компонент UI"
   if (kind === "number") return 0.625
   if (kind === "boolean") return true
   if (kind === "enum") return "multiply"

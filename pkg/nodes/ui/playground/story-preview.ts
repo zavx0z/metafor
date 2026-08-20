@@ -47,7 +47,7 @@ export class NodeStoryPreviewSurface extends UiSurface {
       style: {fontSize: 24},
     })
     p(this, 42, 92, Math.max(0, this.rectW - 84), 46, {
-      children: "Production Socket, параметры и TypeScript используют одно состояние story.",
+      children: "Рабочий Socket, параметры и TypeScript используют одно состояние сценария.",
       style: {fontSize: 12, color: "muted"},
     })
     this.#module.render(this, this.#args, {x: 0, y: 0, w: this.rectW, h: this.rectH})

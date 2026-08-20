@@ -144,8 +144,8 @@ function renderScrollDiv(
 ): void {
   const horizontal = variant === "horizontal"
   const content = horizontal
-    ? Array.from({length: 8}, (_, index) => `segment-${index + 1}`).join("     ")
-    : Array.from({length: 18}, (_, index) => `Строка ${String(index + 1).padStart(2, "0")} · retained content`).join("\n")
+    ? Array.from({length: 8}, (_, index) => `сегмент-${index + 1}`).join("     ")
+    : Array.from({length: 18}, (_, index) => `Строка ${String(index + 1).padStart(2, "0")} · сохранённое содержимое`).join("\n")
   div(surface, x, y, width, 240, {
     key: `elements-story-div-scroll-${variant}`,
     children: content,
@@ -172,14 +172,14 @@ function renderList(
   height: number,
 ): void {
   const rows = [
-    ["UiRuntime", "Один runtime на продукт"],
-    ["UiSurface", "Retained parent"],
+    ["UiRuntime", "Одна среда выполнения на продукт"],
+    ["UiSurface", "Стабильный родитель"],
     ["FlexBox", "Общая раскладка"],
-    ["Input", "Hit и keyboard state"],
-    ["Theme", "Общие токены"],
-    ["Scroll", "Виртуальная область"],
-    ["Renderer", "WebGPU draw pass"],
-    ["Story", "Lazy production import"],
+    ["Ввод", "Попадание и состояние клавиатуры"],
+    ["Тема", "Общие токены"],
+    ["Прокрутка", "Виртуальная область"],
+    ["Рендерер", "Проход отрисовки WebGPU"],
+    ["Сценарий", "Ленивая загрузка рабочего модуля"],
   ] as const
   const dense = args.mode === "dense"
   const itemHeight = dense ? 38 : 50

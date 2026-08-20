@@ -79,9 +79,9 @@ function renderLayoutStory(
         gap: args.gap,
         alignItems: args.align,
         items: [
-          {height: 58, width: 220, draw: (cx, cy, cw, ch) => cell(surface, cx, cy, cw, ch, "header", "cyan")},
+          {height: 58, width: 220, draw: (cx, cy, cw, ch) => cell(surface, cx, cy, cw, ch, "шапка", "cyan")},
           {height: "grow", width: 320, draw: (cx, cy, cw, ch) => cell(surface, cx, cy, cw, ch, "grow", "green")},
-          {height: 48, width: 260, draw: (cx, cy, cw, ch) => cell(surface, cx, cy, cw, ch, "footer", "orange")},
+          {height: 48, width: 260, draw: (cx, cy, cw, ch) => cell(surface, cx, cy, cw, ch, "подвал", "orange")},
         ],
       })
       return

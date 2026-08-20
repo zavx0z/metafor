@@ -278,7 +278,7 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(color.defaultArgs.value).toEqual({r: 0.18, g: 0.58, b: 0.92, a: 1})
 
     const noti = await COMPONENT_STORIES.load("noti/status/unavailable")
-    expect(noti.source(noti.defaultArgs)).toContain("не опубликован production package export")
+    expect(noti.source(noti.defaultArgs)).toContain("не опубликован в рабочем API")
   })
 
   test("uses one retained production preview parent", () => {

@@ -100,7 +100,7 @@ try {
   const storyPreview = new NodeStoryPreviewSurface()
   let storyPanel: PlaygroundStoryPanelSurface
   const storyPanelOptions = (): PlaygroundStoryPanelOptions => ({
-    source: storyModule?.source(storyArgs) ?? "// Загрузка story…",
+    source: storyModule?.source(storyArgs) ?? "// Загрузка сценария…",
     args: storyArgs,
     controls: storyModule?.controls ?? [],
     events: [{

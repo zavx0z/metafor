@@ -95,7 +95,7 @@ async function startComponentsPlayground(): Promise<void> {
       args: storyArgs,
       controls: storyModule.controls,
       events: [
-        {id: "route", label: "Story", value: storyRoute},
+        {id: "route", label: "Сценарий", value: storyRoute},
         {id: "changes", label: "Изменения", value: String(controlChanges)},
         {
           id: "owner-callback",

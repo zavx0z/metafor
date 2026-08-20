@@ -79,10 +79,10 @@ export class SocketCatalogSurface extends UiSurface {
     Pane(this, 0, 0, this.rectW, this.rectH, {variant: "outlined", sx: {borderRadius: 12}})
     const title = this.#mode === "types" ? "Типы сокетов" : this.#mode === "shapes" ? "Формы сокетов" : "Состояния сокетов"
     const description = this.#mode === "types"
-      ? `${SOCKET_CATALOG.length} типов без Fields и Parameters`
+      ? `${SOCKET_CATALOG.length} типов без полей и параметров`
       : this.#mode === "shapes"
-        ? `${BLENDER_SOCKET_SHAPES.length} source-compatible форм`
-        : "input / output / bidirectional · selected / ordinary"
+        ? `${BLENDER_SOCKET_SHAPES.length} форм, совместимых с исходным API`
+        : "вход / выход / двунаправленный · выбранный / обычный"
     flexColumn({
       x: 0,
       y: 0,
@@ -150,9 +150,9 @@ export class SocketCatalogSurface extends UiSurface {
 
   #drawStates(x: number, y: number, w: number, h: number): void {
     const states: readonly Readonly<{socket: BlenderSocket; label: string; selected: boolean}>[] = [
-      {socket: {id: "state-input", label: "Input", direction: "input", socketType: "float"}, label: "Input · ordinary", selected: false},
-      {socket: {id: "state-output", label: "Output", direction: "output", socketType: "color"}, label: "Output · selected", selected: true},
-      {socket: {id: "state-bidirectional", label: "Bidirectional", direction: "bidirectional", socketType: "vector", shape: "diamond-dot"}, label: "Bidirectional", selected: false},
+      {socket: {id: "state-input", label: "Вход", direction: "input", socketType: "float"}, label: "Вход · обычный", selected: false},
+      {socket: {id: "state-output", label: "Выход", direction: "output", socketType: "color"}, label: "Выход · выбранный", selected: true},
+      {socket: {id: "state-bidirectional", label: "Двунаправленный", direction: "bidirectional", socketType: "vector", shape: "diamond-dot"}, label: "Двунаправленный", selected: false},
     ]
     flexColumn({
       x,

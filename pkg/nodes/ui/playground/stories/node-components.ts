@@ -16,7 +16,7 @@ const COMPONENT_LABELS: Readonly<Record<NodeComponentId, string>> = Object.freez
   "node-editor": "Редактор нод",
   frame: "Frame",
   link: "Link",
-  comparison: "Blender comparison",
+  comparison: "Сравнение с Blender",
 })
 
 export function createNodeComponentStory(
@@ -59,7 +59,7 @@ export function createNodeComponentStory(
         "",
         "const editor = new NodeEditor({",
         "  renderers: createBlenderNodeRenderers(),",
-        '  title: "BLENDER COMPARISON",',
+        '  title: "СРАВНЕНИЕ С BLENDER",',
         "})",
         "editor.setTree(comparisonTree)",
       ].join("\n")

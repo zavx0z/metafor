@@ -108,7 +108,7 @@ class FixturePreviewSurface extends UiSurface {
       })
       h2(this, 42, 38, Math.max(0, this.rectW - 84), 42, {children: this.#storyIndex.title, style: {fontSize: 24}})
       p(this, 42, 92, Math.max(0, this.rectW - 84), 46, {
-        children: "Production-компонент, текущие параметры и копируемый TypeScript используют одну story.",
+        children: "Рабочий компонент, текущие параметры и копируемый TypeScript используют один сценарий.",
         style: {fontSize: 12, color: "muted"},
       })
       this.#storyModule.render(this, this.#args, {x: 0, y: 0, w: this.rectW, h: this.rectH})

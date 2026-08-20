@@ -83,7 +83,7 @@ export class ComponentsStoryPreviewSurface extends UiSurface {
         style: {fontSize: 24},
       })
       p(this, 42, 92, Math.max(0, this.rectW - 84), 46, {
-        children: "Production-компонент, параметры и TypeScript используют одну story.",
+        children: "Рабочий компонент, параметры и TypeScript используют один сценарий.",
         style: {fontSize: 12, color: "muted"},
       })
       module.render(this, this.#args, {x: 0, y: 0, w: this.rectW, h: this.rectH})

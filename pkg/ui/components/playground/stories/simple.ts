@@ -141,7 +141,7 @@ function renderSimpleStory(
   }
   if (options.component === "typography") {
     Typography(surface, centerX - 260, centerY - 70, 520, 34, {children: args.label, variant: "title", sx: {textAlign: "center"}})
-    Typography(surface, centerX - 260, centerY - 18, 520, 28, {children: "Основной текст production Typography", variant: "body", sx: {textAlign: "center"}})
+    Typography(surface, centerX - 260, centerY - 18, 520, 28, {children: "Основной текст компонента Typography", variant: "body", sx: {textAlign: "center"}})
     Typography(surface, centerX - 260, centerY + 26, 520, 24, {children: "Подпись", variant: "caption", color: "muted", sx: {textAlign: "center"}})
     return
   }
@@ -189,13 +189,13 @@ function renderSimpleStory(
     return
   }
   Typography(surface, centerX - 300, centerY - 38, 600, 32, {
-    children: "Noti пока не имеет public production export",
+    children: "Noti пока не опубликован в рабочем API",
     variant: "subtitle",
     color: "muted",
     sx: {textAlign: "center"},
   })
   Typography(surface, centerX - 300, centerY + 14, 600, 26, {
-    children: "Запись сохранена в каталоге явно и не маскируется disabled-маршрутом.",
+    children: "Запись явно сохранена в каталоге и не скрыта недоступным маршрутом.",
     variant: "caption",
     color: "muted",
     sx: {textAlign: "center"},
@@ -221,8 +221,8 @@ function simpleStorySource(
   if (options.component === "table") return 'import {Table} from "@ui/components/table"\n\nTable(surface, x, y, w, h, {columns, rows, getRowId: (row) => row.name})'
   if (options.component === "scrollbar") return `import {scrollbar} from "@ui/elements/scrollbar"\n\nscrollbar(surface, x, y, height, {offset: ${Math.round(args.value * 600)}, visible: 260, total: 860})`
   return [
-    "// Noti пока не опубликован production package export.",
-    "// Каталог сохраняет явный статус вместо неработающего import.",
+    "// Noti пока не опубликован в рабочем API.",
+    "// Каталог сохраняет явный статус вместо неработающего импорта.",
   ].join("\n")
 }
 

@@ -61,72 +61,72 @@ export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, Ble
 }
 
 export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
-  const frame: BlenderFrame = {id: "catalog-frame", label: "Node component system"}
+  const frame: BlenderFrame = {id: "catalog-frame", label: "Система компонентов нод"}
   const nestedFrame: BlenderFrame = {
     id: "data-frame",
     parentFrameId: "catalog-frame",
-    label: "Data Processing",
+    label: "Обработка данных",
     color: {r: 0.16, g: 0.28, b: 0.48, a: 1},
     labelSize: 15,
   }
-  const scalar = blenderNode("scalar", "Scalar Math", "Converter", [
-    {id: "operation", label: "Operation", kind: "enum", value: "multiply", options: [
-      {value: "add", label: "Add"},
-      {value: "multiply", label: "Multiply"},
+  const scalar = blenderNode("scalar", "Скалярная математика", "Converter", [
+    {id: "operation", label: "Операция", kind: "enum", value: "multiply", options: [
+      {value: "add", label: "Сложение"},
+      {value: "multiply", label: "Умножение"},
     ]},
   ], [
-    parameter({id: "factor", label: "Factor", kind: "number", presentation: "slider", value: 0.65, min: 0, max: 1, step: 0.01}),
-    parameter({id: "clamp", label: "Clamp", kind: "boolean", value: true}),
+    parameter({id: "factor", label: "Коэффициент", kind: "number", presentation: "slider", value: 0.65, min: 0, max: 1, step: 0.01}),
+    parameter({id: "clamp", label: "Ограничение", kind: "boolean", value: true}),
   ], [
-    socket("value", "Factor", "input", "float", "factor", "left"),
-    socket("enabled", "Clamp", "input", "boolean", "clamp", "left"),
-    socket("result", "Result", "output", "float"),
+    socket("value", "Коэффициент", "input", "float", "factor", "left"),
+    socket("enabled", "Ограничение", "input", "boolean", "clamp", "left"),
+    socket("result", "Результат", "output", "float"),
   ])
-  const transform = blenderNode("transform", "Transform", "Vector", [], [
-    parameter({id: "translation", label: "Translation", kind: "vector", value: [1, 2, 3]}),
-    parameter({id: "rotation", label: "Rotation", kind: "rotation", value: [0, 45, 90]}),
+  const transform = blenderNode("transform", "Преобразование", "Vector", [], [
+    parameter({id: "translation", label: "Перемещение", kind: "vector", value: [1, 2, 3]}),
+    parameter({id: "rotation", label: "Вращение", kind: "rotation", value: [0, 45, 90]}),
   ], [
-    socket("vector", "Translation", "input", "vector", "translation", "left"),
-    socket("rotation", "Rotation", "input", "rotation", "rotation", "left"),
-    socket("matrix", "Matrix", "output", "matrix"),
+    socket("vector", "Перемещение", "input", "vector", "translation", "left"),
+    socket("rotation", "Вращение", "input", "rotation", "rotation", "left"),
+    socket("matrix", "Матрица", "output", "matrix"),
   ])
   const shader = blenderNode("shader", "Principled", "Shader", [
-    {id: "distribution", label: "Distribution", kind: "enum", value: "ggx", options: [
+    {id: "distribution", label: "Распределение", kind: "enum", value: "ggx", options: [
       {value: "ggx", label: "GGX"},
       {value: "multi", label: "Multiscatter"},
     ]},
   ], [
-    parameter({id: "base-color", label: "Base Color", kind: "color", value: {r: 0.15, g: 0.42, b: 0.88, a: 1}}),
-    parameter({id: "material-value", label: "Material", kind: "reference", value: {id: "material-1", label: "Material.001", kind: "material"}}),
+    parameter({id: "base-color", label: "Основной цвет", kind: "color", value: {r: 0.15, g: 0.42, b: 0.88, a: 1}}),
+    parameter({id: "material-value", label: "Материал", kind: "reference", value: {id: "material-1", label: "Material.001", kind: "material"}}),
   ], [
-    socket("color", "Base Color", "input", "color", "base-color", "left"),
-    socket("material", "Material", "input", "material", "material-value", "left"),
-    socket("shader", "Shader", "output", "shader"),
+    socket("color", "Основной цвет", "input", "color", "base-color", "left"),
+    socket("material", "Материал", "input", "material", "material-value", "left"),
+    socket("shader", "Шейдер", "output", "shader"),
   ])
-  const asset = blenderNode("asset", "Asset Input", "Resource", [
-    {id: "name", label: "Name", kind: "text", value: "Suzanne"},
-    {id: "object", label: "Object", kind: "reference", value: {id: "suzanne", label: "Suzanne", kind: "object"}},
+  const asset = blenderNode("asset", "Ввод ресурса", "Resource", [
+    {id: "name", label: "Имя", kind: "text", value: "Suzanne"},
+    {id: "object", label: "Объект", kind: "reference", value: {id: "suzanne", label: "Suzanne", kind: "object"}},
   ], [], [
-    socket("object", "Object", "output", "object"),
-    socket("image", "Image", "output", "image"),
-    socket("string", "Name", "output", "string"),
+    socket("object", "Объект", "output", "object"),
+    socket("image", "Изображение", "output", "image"),
+    socket("string", "Имя", "output", "string"),
   ])
-  const matrix = blenderNode("matrix", "Matrix Math", "Utility", [
-    {id: "status", label: "Status", kind: "readonly", value: "Identity"},
+  const matrix = blenderNode("matrix", "Матричная математика", "Utility", [
+    {id: "status", label: "Статус", kind: "readonly", value: "Единичная"},
   ], [
-    parameter({id: "matrix-value", label: "Matrix", kind: "matrix", value: [[1, 0], [0, 1]]}),
+    parameter({id: "matrix-value", label: "Матрица", kind: "matrix", value: [[1, 0], [0, 1]]}),
   ], [
-    socket("matrix-in", "Matrix", "input", "matrix", "matrix-value", "left"),
-    socket("matrix-out", "Matrix", "output", "matrix", "matrix-value", "right"),
-    socket("geometry", "Geometry", "input", "geometry"),
+    socket("matrix-in", "Матрица", "input", "matrix", "matrix-value", "left"),
+    socket("matrix-out", "Матрица", "output", "matrix", "matrix-value", "right"),
+    socket("geometry", "Геометрия", "input", "geometry"),
     socket("bundle", "Bundle", "bidirectional", "bundle"),
     socket("closure", "Closure", "output", "closure"),
   ])
   const collapsed: BlenderNode = {
-    ...blenderNode("collapsed", "Compact Mix", "Converter", [], [], [
+    ...blenderNode("collapsed", "Компактное смешивание", "Converter", [], [], [
       socket("factor-a", "A", "input", "float"),
       socket("factor-b", "B", "input", "float"),
-      socket("mixed", "Result", "output", "float"),
+      socket("mixed", "Результат", "output", "float"),
     ]),
     collapsed: true,
   }
