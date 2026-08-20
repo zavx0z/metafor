@@ -128,6 +128,9 @@ numeric column выравнивается справа с общим caret/selec
 X/Y/Z и использует number text role. Shared Vector RED добавляет default
 precision3/right edge; Rotation precision0. Socket anchor доказан отдельной
 label row, Node width/margins ждут exact proof.
+Alignment commit `859973c95` прошёл stable restart: Vector `1.000/2.000/3.000`
+right, Node Rotation `0°/45°/90°` below label-row Socket, console0. Color
+material commit `39443a65b` также получил compact/expanded static captures.
 UI-015.7 source checkpoint `13ac398d1` правильно разделил Engine low-level
 picker plane и Components HSVA/popup owner, но independent Blender review
 оставил composition/interaction незавершёнными. UI-015.7.1 после текущего

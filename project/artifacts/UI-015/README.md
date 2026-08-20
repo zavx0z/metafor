@@ -166,6 +166,22 @@
 * Наблюдение: axes/value pinned left, values `1/2/3` без Blender default three
   decimals и общей правой кромки. Target: centered axis column + right-aligned
   `1.000/2.000/3.000`, same numeric origin for caret/selection/pointer.
+* Stable after `components-vector-aligned-stable.png` — `283904` bytes,
+  SHA-256 `ce1f9c8f06b989b7058fc3e19b7782811fd4f620604fc237cd63f475c77b6278`.
+  PID `31534`, target `D0775…`, route `/field/vector/default`, console `0`.
+* Node after `node-rotation-aligned-stable.png` — `397233` bytes, SHA-256
+  `9b97ec76ccfdd314248c19be0125cea8b20f7f26dd4ca48f74ade84f1d783a0e`.
+  PID `31535`, target `809…`, route `/node-editor/scene/default`, console `0`;
+  label row/Socket above intrinsic Rotation editor.
+
+## UI-015.7.4 — Color material stable evidence
+
+* `components-color-compact-stable.png` — `318302` bytes, SHA-256
+  `ba2012a79e4b8d1b25c24e26888470f06a5925ac43429b1b7286dd31a8a8805c`.
+* `components-color-expanded-stable.png` — `318270` bytes, SHA-256
+  `7b465f4a02ea1000dacfc382b52eecaf62abf6b1d1db79206fc0a7e35bbb60d6`.
+* Components PID `31534`, target `D0775…`, console `0`. Compact имеет menu
+  shadow/source cursor contrast; expanded inline — без popup shadow.
 
 ## UI-015.2.1 — Button size RED baseline
 
