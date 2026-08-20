@@ -51,6 +51,17 @@ export type RejectedCanvasEvidence = Readonly<{
 
 export type CanvasEvidence = AcceptedCanvasEvidence | RejectedCanvasEvidence
 
+/** Typed rejection shared by browser actions without importer source-order coupling. */
+export class CanvasEvidenceRejected extends Error {
+  readonly evidence: CanvasEvidence
+
+  constructor(evidence: CanvasEvidence) {
+    super(evidence.kind)
+    this.name = "CanvasEvidenceRejected"
+    this.evidence = evidence
+  }
+}
+
 export function classifyCanvasPixels(probe: RawCanvasProbe): CanvasPixelEvidence {
   const {width, height, rgba} = probe
   if (!Number.isInteger(width) || width < 1 || !Number.isInteger(height) || height < 1) {

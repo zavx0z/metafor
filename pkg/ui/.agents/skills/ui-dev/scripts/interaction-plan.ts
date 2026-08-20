@@ -1,4 +1,8 @@
 import {isAbsolute} from "node:path"
+import {
+  CanvasEvidenceRejected,
+  type CanvasEvidence,
+} from "./canvas-evidence.ts"
 
 type JsonObject = Readonly<Record<string, unknown>>
 
@@ -44,6 +48,9 @@ export type InteractionEvidence = Readonly<{
   console: readonly Readonly<{level: string}>[]
   captures: readonly Readonly<{kind: string; written: boolean}>[]
 }>
+export type InteractionOutcome =
+  | Readonly<{outcome: "passed"}>
+  | Readonly<{outcome: "failed"; error: string; rejectedCanvas?: CanvasEvidence}>
 
 const MAX_STEPS = 256
 const MAX_SETTLE_MS = 2_000
@@ -96,6 +103,20 @@ export function assertInteractionEvidence(evidence: InteractionEvidence): void {
   if (errors.length > 0) throw new Error(`interaction console errors: ${JSON.stringify(errors)}`)
   const rejected = evidence.captures.find(({written}) => !written)
   if (rejected !== undefined) throw new Error(`interaction canvas rejected: ${rejected.kind}`)
+}
+
+/** Convert any execution failure into the command's stable structured result. */
+export function interactionOutcome(failure: unknown): InteractionOutcome {
+  if (failure === null) return Object.freeze({outcome: "passed"})
+  return Object.freeze({
+    outcome: "failed",
+    error: errorText(failure),
+    ...(failure instanceof CanvasEvidenceRejected ? {rejectedCanvas: failure.evidence} : {}),
+  })
+}
+
+export function interactionExitCode(result: Readonly<Record<string, unknown>>): 0 | 1 {
+  return result.outcome === "passed" ? 0 : 1
 }
 
 /** Dispatch validated synthetic input in order and release held input on failure. */

@@ -2,6 +2,7 @@
 
 import {isAbsolute, join, resolve} from "node:path"
 import {
+  CanvasEvidenceRejected,
   acceptCanvasEvidence,
   type CanvasEvidence,
   type RawCanvasSnapshot,
@@ -9,6 +10,8 @@ import {
 import {
   assertInteractionEvidence,
   executeInteractionPlan,
+  interactionExitCode,
+  interactionOutcome,
   parseInteractionPlan,
   validateInteractionInvocation,
   type InteractionPlan,
@@ -169,7 +172,7 @@ else await withPage(target, async (cdp) => {
     await waitReady(cdp, config.ready)
     const result = await runInteraction(cdp, config, target, interactionPlan ?? fail("interaction plan was not loaded"))
     output(result)
-    if (result.outcome !== "passed") process.exitCode = 1
+    process.exitCode = interactionExitCode(result)
   }
 })
 
@@ -723,15 +726,6 @@ async function runViewports(cdp: CdpConnection, config: TargetConfig, target: Ta
   return result
 }
 
-class CanvasEvidenceRejected extends Error {
-  readonly evidence: CanvasEvidence
-
-  constructor(evidence: CanvasEvidence) {
-    super(evidence.kind)
-    this.evidence = evidence
-  }
-}
-
 async function runTouch(cdp: CdpConnection, config: TargetConfig, target: Target): Promise<JsonObject> {
   let native: JsonObject | null = null
   let result: JsonObject = {action: "touch", ...targetResult(config, target)}
@@ -860,10 +854,11 @@ async function runInteraction(
       failure = error
     }
   }
+  const outcome = interactionOutcome(failure)
   return {
     action: "interact",
     ...targetResult(config, target),
-    outcome: failure === null ? "passed" : "failed",
+    ...outcome,
     plan: {version: plan.version, steps: plan.steps.length, settleMs: plan.settleMs},
     initial,
     final,
@@ -871,10 +866,6 @@ async function runInteraction(
     checkpoints,
     console: collector.entries,
     consoleErrors: errors,
-    ...(failure === null ? {} : {
-      error: errorText(failure),
-      ...(failure instanceof CanvasEvidenceRejected ? {rejectedCanvas: failure.evidence} : {}),
-    }),
     syntheticInput: true,
     backgroundOnly: true,
     ownerAcceptance: false,

@@ -161,8 +161,9 @@ describe("ui-dev registry", () => {
     expect(source).toContain("validateInteractionInvocation({")
     expect(source).toMatch(/async function runInteraction[\s\S]*createConsoleCollector\(cdp\)[\s\S]*executeInteractionPlan\(plan[\s\S]*captureCanvas\(cdp, config, step.canvas, false\)/)
     expect(source).toContain("const errors = consoleErrors(collector.entries)")
-    expect(source).toContain('outcome: failure === null ? "passed" : "failed"')
-    expect(source).toContain('if (result.outcome !== "passed") process.exitCode = 1')
+    expect(source).toContain("const outcome = interactionOutcome(failure)")
+    expect(source).toContain("process.exitCode = interactionExitCode(result)")
+    expect(source).not.toContain("class CanvasEvidenceRejected")
     for (const forbidden of [
       "Runtime.evaluate",
       "Page.navigate",

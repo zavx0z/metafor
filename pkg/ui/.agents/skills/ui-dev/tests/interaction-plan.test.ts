@@ -1,7 +1,13 @@
 import {describe, expect, test} from "bun:test"
 import {
+  CanvasEvidenceRejected,
+  type RejectedCanvasEvidence,
+} from "../scripts/canvas-evidence.ts"
+import {
   assertInteractionEvidence,
   executeInteractionPlan,
+  interactionExitCode,
+  interactionOutcome,
   parseInteractionPlan,
   validateInteractionInvocation,
   type InteractionCommandHost,
@@ -148,5 +154,42 @@ describe("ui-dev data-only interaction plans", () => {
     expect(() => assertInteractionEvidence({...accepted, finalUrl: "http://127.0.0.1:4017/color-input/basic"})).toThrow("exact route")
     expect(() => assertInteractionEvidence({...accepted, console: [{level: "error"}]})).toThrow("console errors")
     expect(() => assertInteractionEvidence({...accepted, captures: [{kind: "starting-or-idle-black", written: false}]})).toThrow("canvas rejected")
+  })
+
+  test("returns a structured failed nonzero outcome for a rejected checkpoint", async () => {
+    const evidence: RejectedCanvasEvidence = {
+      kind: "starting-or-idle-black",
+      written: false,
+      path: "/tmp/rejected.png",
+      bytes: 0,
+      attempts: 1,
+      rendererActivity: null,
+      rejected: [],
+      probe: {width: 1, height: 1, pixels: 1, nonBlackPixels: 0, maxRgb: 0, black: true},
+    }
+    let failure: unknown = null
+    try {
+      await executeInteractionPlan(parseInteractionPlan({
+        version: 1,
+        steps: [{kind: "checkpoint", name: "rejected", dom: true}],
+      }), {
+        viewport: {width: 100, height: 80},
+        async send() {},
+        async settle() {},
+        async checkpoint() { throw new CanvasEvidenceRejected(evidence) },
+      })
+    } catch (error) {
+      failure = error
+    }
+    const outcome = interactionOutcome(failure)
+    expect(outcome).toEqual({
+      outcome: "failed",
+      error: "starting-or-idle-black",
+      rejectedCanvas: evidence,
+    })
+    expect(interactionExitCode(outcome)).toBe(1)
+    const passed = interactionOutcome(null)
+    expect(passed).toEqual({outcome: "passed"})
+    expect(interactionExitCode(passed)).toBe(0)
   })
 })
