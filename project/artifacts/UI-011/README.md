@@ -86,3 +86,86 @@
   TypeScript/copy видны; console `0`, native metrics restored.
 * Контрольная сумма: SHA-256
   `e7ddf87392c982d683c952f2b685ca5263ae524155f66b0054db0a4603d2b838`.
+
+## elements-div-background.png
+
+* Источник: `$ui-dev` renderer-activity desktop capture
+  `div/basic/background`, target `E2087390E08913DD8CA4142D5D9E8C48`.
+* Дата: 2026-08-20; версия UI-011.4 `ee3a47350`, PID `55110`.
+* Ожидание: concrete Elements catalog, разделы Container, production `div`,
+  variants и TypeScript/copy/controls в общей Workbench structure.
+* Фактическое наблюдение: ожидание совпало; console `0`, native
+  `1920×1088 @2` восстановлен. Обычный idle capture был чёрным и отклонён.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `7b0dd2e68b899bafb4a701159a3c93a4f9b9ca88642938001687b93041c5e0e2`.
+
+## elements-flex-css-fraction.png
+
+* Источник: тот же exact target, renderer-activity desktop capture
+  `flex-css/sizes/fraction`.
+* Дата и версия: 2026-08-20, UI-011.4 `ee3a47350`.
+* Ожидание: detail story `Flex CSS · Доли`, три production slots `1fr/2fr/1fr`,
+  exact source и layout controls.
+* Фактическое наблюдение: ожидание совпало; console `0`, native metrics
+  восстановлены, capture non-black.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `16f9d711b83af342f97a4e1411004dab2ab6ad5127ca611e10ebd5d2d355c17d`.
+
+## elements-theme-cyan.png
+
+* Источник: тот же exact target, renderer-activity desktop capture
+  `theme/tone/cyan`.
+* Дата и версия: 2026-08-20, UI-011.4 `ee3a47350`.
+* Ожидание: Theme detail story с четырьмя variants, production palette source и
+  русскими controls.
+* Фактическое наблюдение: ожидание совпало; выбран Cyan, console `0`, native
+  metrics восстановлены.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `4fab9b5272989dbce1823bbba49d751edca3ba4aec2de70fc7df41c6d71e67a9`.
+
+## elements-pointer-click.png
+
+* Источник: тот же exact target, renderer-activity desktop capture
+  `pointer/state/click`.
+* Дата и версия: 2026-08-20, UI-011.4 `ee3a47350`.
+* Ожидание: Pointer detail story, шесть state variants, production button,
+  click state и exact event TypeScript.
+* Фактическое наблюдение: ожидание совпало; `Состояние: клик`, `Клики: 1`,
+  console `0`, native metrics восстановлены.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `efc353a92146442bbcf80133b7f708c46b3c9b39efdad89877a1e5549f94004b`.
+
+## node-shadow-ordinary-scene.png
+
+* Источник: `$ui-dev` renderer-activity desktop capture
+  `node-editor/scene/default`, target `809BF08D88E4582CA819EFE847FE1450`.
+* Дата: 2026-08-20; loaded PID `59015`, production shadow checkpoint
+  `b9f9419fb`, Matrix correction `a54f54495`.
+* Ожидание: ordinary expanded Nodes и ordinary collapsed `Compact Mix` имеют
+  мягкую симметричную SDF-тень без обрезания; Workbench code/copy виден справа.
+* Фактическое наблюдение: ожидание совпало для ordinary states; selected Node
+  не доказан этим route и вынесен в UI-011.5. Console `0`, native metrics
+  восстановлены. Bounded profile того же workload: `60` frames, mean
+  `31.38 ms`, max `50.8 ms`, JS heap delta `+11880` bytes; GPU time не измерен.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `23fdea890579d4ef587492c0148849d68a29c7bff1dcf9a3887051b5685c7522`.
+
+## components-field-matrix.png
+
+* Источник: `$ui-dev` renderer-activity desktop capture
+  `field/matrix/default`, target `D0775AE44CFF0E299A0C28EECB3872D2`.
+* Дата: 2026-08-20; loaded PID `59026`, MatrixInput checkpoint `4978b3d97`,
+  presentation correction `a54f54495`.
+* Ожидание: production `Field → MatrixInput` показывает `1.00/0.00`, regular
+  compact typography, TypeScript/copy и controls.
+* Фактическое наблюдение: ожидание совпало; первый `starting` black frame
+  отклонён, сохранён ready non-black capture; console `0`, native metrics
+  восстановлены.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `fc2c48402b95f83333cd4fd8451a433033718df4e6f69e56a30798acf7b8aedf`.
