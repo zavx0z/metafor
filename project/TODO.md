@@ -121,7 +121,10 @@ classes + class-specific state resolvers без записи production theme va
 Вторая узкая amendment добавляет Boolean/Workbench classes, state precedence,
 numeric zones и deep-freeze; production values всё ещё закрыты review gate.
 Raw owner `eb3539420` получил independent PASS. UI-015.8.2 consumer contour
-становится READY после grouped correction и закрытия UI-015.7 import graph.
+commit `c754dc40e` получил source/state-mapping PASS, но не interaction/visual
+acceptance. UI-015.8.3 после popup correction добавляет отсутствующие Blender
+step/scrub/text-transition gestures числовым полям; UI-015.9 ждёт и popup owner,
+и numeric interaction, затем проверяет те же controls внутри expanded Node.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
