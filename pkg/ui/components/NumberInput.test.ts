@@ -100,6 +100,40 @@ const numberProps = (
   ...extra,
 })
 
+const integerScrubPath = (
+  segments: number,
+  modifiers: Readonly<{shiftKey?: boolean; ctrlKey?: boolean}> = {},
+  cancel = false,
+): readonly number[] => {
+  const values: number[] = []
+  const surface = new RecordingSurface()
+  NumberInput(surface, 0, 0, 100, 22, {
+    key: `integer-path:${segments}:${modifiers.shiftKey === true}:${modifiers.ctrlKey === true}`,
+    value: 3,
+    numberKind: "integer",
+    min: 0,
+    max: 100,
+    softMin: 0,
+    softMax: 100,
+    step: 1,
+    onChange: (value) => values.push(value),
+  })
+  const options = surface.hits[0]?.[5]
+  if (typeof options !== "object") return values
+  options.onPointerDown?.(50, 11, pointer())
+  options.onPointerMove?.(54, 11, pointer())
+  for (let segment = 1; segment <= segments; segment++) {
+    options.onPointerMove?.(
+      54 + (100 * segment) / segments,
+      11,
+      pointer(modifiers),
+    )
+  }
+  if (cancel) handleActiveInputKey(surface, escape())
+  else options.onPointerUp?.(pointer(modifiers))
+  return values
+}
+
 describe("public NumberInput", () => {
   test("normalizes finite float, integer, range and step values", () => {
     expect(normalizeNumberInputValue(3.1415927)).toBe(3.141593)
@@ -173,6 +207,24 @@ describe("public NumberInput", () => {
       options.onPointerMove?.(124, 11, pointer())
     }
     expect(values).toEqual([2, 3, 2.7])
+  })
+
+  test("keeps one fractional integer accumulator across event segmentation and modifiers", () => {
+    const finals = (modifiers: Readonly<{shiftKey?: boolean; ctrlKey?: boolean}> = {}) =>
+      [2, 12, 60].map((segments) => integerScrubPath(segments, modifiers).at(-1))
+    const shiftFinals = finals({shiftKey: true})
+    const plainFinals = finals()
+    const ctrlFinals = finals({ctrlKey: true})
+    const ctrlShiftFinals = finals({ctrlKey: true, shiftKey: true})
+    expect(shiftFinals).toEqual([5, 5, 5])
+    expect(plainFinals).toEqual([23, 23, 23])
+    expect(ctrlFinals).toEqual([20, 20, 20])
+    expect(ctrlShiftFinals).toEqual([5, 5, 5])
+    expect(shiftFinals[0]).toBeGreaterThan(3)
+    expect(shiftFinals[0]).toBeLessThan(plainFinals[0]!)
+
+    const cancelled = integerScrubPath(60, {shiftKey: true}, true)
+    expect(cancelled.at(-1)).toBe(3)
   })
 
   test("publishes controlled side steps, scrub updates and cancel restoration", () => {

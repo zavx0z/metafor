@@ -200,9 +200,22 @@ export function scrubNumberInputValue(
   ctrl = false,
 ): number {
   const range = resolveNumberInputDragRange(value, options)
+  const raw = scrubNumberInputRawValue(value, deltaX, distanceX, range, options, shift)
+  const candidate = ctrl ? snapLinearNumberInputValue(raw, range, shift) : raw
+  return normalizeNumberInputValue(candidate, {...options, step: numberPointerStep(options)})
+}
+
+function scrubNumberInputRawValue(
+  value: number,
+  deltaX: number,
+  distanceX: number,
+  range: NumberInputSoftRange,
+  options: NumberInputFormatOptions,
+  shift: boolean,
+): number {
   const softSpan = range.max - range.min
   if (softSpan <= 0 || !Number.isFinite(deltaX) || !Number.isFinite(distanceX)) {
-    return normalizeNumberInputValue(value, options)
+    return Math.min(range.max, Math.max(range.min, value))
   }
   let divisor = 500
   let scale = 1
@@ -217,9 +230,7 @@ export function scrubNumberInputValue(
     scale = Math.abs(distanceX) / 500
   }
   if (shift) scale /= 10
-  const candidate = Math.min(range.max, Math.max(range.min, value + (deltaX / divisor) * scale * softSpan))
-  const snapped = ctrl ? snapLinearNumberInputValue(candidate, range, shift) : candidate
-  return normalizeNumberInputValue(snapped, {...options, step: numberPointerStep(options)})
+  return Math.min(range.max, Math.max(range.min, value + (deltaX / divisor) * scale * softSpan))
 }
 
 /** Applies Blender's linear float snap law for the active frozen soft range. */
@@ -337,25 +348,19 @@ function handleNumberPointerGesture(
     next = stepNumberInputValue(current.current, gesture.direction, props)
     current.rawCurrent = next
   } else {
-    const frozenOptions = {
-      ...props,
-      softMin: current.dragRange.min,
-      softMax: current.dragRange.max,
-    }
-    const rawNext = scrubNumberInputValue(
+    const rawNext = scrubNumberInputRawValue(
       current.rawCurrent,
       gesture.deltaX,
       gesture.distanceX,
-      frozenOptions,
+      current.dragRange,
+      props,
       gesture.shiftKey,
     )
     current.rawCurrent = rawNext
-    next = gesture.ctrlKey
-      ? normalizeNumberInputValue(
-        snapLinearNumberInputValue(rawNext, current.dragRange, gesture.shiftKey),
-        {...props, step: numberPointerStep(props)},
-      )
+    const projected = gesture.ctrlKey
+      ? snapLinearNumberInputValue(rawNext, current.dragRange, gesture.shiftKey)
       : rawNext
+    next = normalizeNumberInputValue(projected, {...props, step: numberPointerStep(props)})
   }
   if (next === current.current) {
     states.set(key, current)
