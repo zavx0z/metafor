@@ -24,6 +24,7 @@ export type BlenderRgba8 = readonly [r: number, g: number, b: number, a: number]
 
 export type BlenderWidgetClass =
   | "regular" | "text" | "number" | "numberSlider"
+  | "option" | "toggle" | "tool" | "toolbarItem" | "tab"
   | "menu" | "menuBack" | "menuItem" | "box" | "listItem" | "scroll"
 
 export type BlenderWidgetColorSet = Readonly<{
@@ -41,6 +42,8 @@ export type BlenderWidgetState = Readonly<{
   pressed?: boolean
   selected?: boolean
   activeDefault?: boolean
+  selectedDraw?: boolean
+  selectedPreview?: boolean
   disabled?: boolean
   inactive?: boolean
   searchNoMatch?: boolean
@@ -57,10 +60,20 @@ export type ResolvedBlenderWidgetColors = Readonly<{
   roundness: number
 }>
 
+export type ResolvedBlenderNumericZone = Readonly<{
+  zone: "left" | "center" | "right"
+  colors: ResolvedBlenderWidgetColors
+}>
+
 export function resolveWidgetColors(
   kind: BlenderWidgetClass,
   state?: BlenderWidgetState,
 ): ResolvedBlenderWidgetColors
+
+export function resolveNumericZoneColors(
+  kind: "number" | "numberSlider",
+  state: BlenderWidgetState,
+): ResolvedBlenderNumericZone | null
 ```
 
 Raw theme дополнительно публикует отдельные immutable namespaces `state`,
@@ -77,6 +90,11 @@ RGBA сохранён в source byte order, включая прозрачнос�
 | `text` | `#3d3d3dff` | `#1d1d1dff` | `#181818ff` | `#ffffff33` | `#e6e6e6ff` | `#ffffffff` | `.2` |
 | `number` | `#3d3d3dff` | `#545454ff` | `#222222ff` | `#4772b3ff` | `#e6e6e6ff` | `#ffffffff` | `.2` |
 | `numberSlider` | `#3d3d3dff` | `#545454ff` | `#222222ff` | `#4772b3ff` | `#e6e6e6ff` | `#ffffffff` | `.2` |
+| `option` | `#3d3d3dff` | `#545454ff` | `#4772b3ff` | `#ffffffff` | `#e6e6e6ff` | `#ffffffff` | `.2` |
+| `toggle` | `#3d3d3dff` | `#545454ff` | `#4772b3ff` | `#252525ff` | `#e6e6e6ff` | `#ffffffff` | `.2` |
+| `tool` | `#3d3d3dff` | `#545454ff` | `#4772b3ff` | `#ffffffff` | `#e6e6e6ff` | `#ffffffff` | `.2` |
+| `toolbarItem` | `#3d3d3dff` | `#282828ff` | `#4772b3ff` | `#ffffffb3` | `#e6e6e6ff` | `#ffffffff` | `.2` |
+| `tab` | `#1d1d1dff` | `#1d1d1dff` | `#303030ff` | `#1d1d1dff` | `#989898ff` | `#ffffffff` | `.2` |
 | `menu` | `#3d3d3dff` | `#282828ff` | `#4772b3b3` | `#d9d9d9ff` | `#e6e6e6ff` | `#ffffffff` | `.2` |
 | `menuBack` | `#242424ff` | `#181818ff` | `#4772b3ff` | `#d9d9d9ff` | `#999999ff` | `#ffffffff` | `.2` |
 | `menuItem` | `#3d3d3d00` | `#18181800` | `#4772b3ff` | `#ffffff8f` | `#ddddddff` | `#ffffffff` | `.2` |
@@ -84,7 +102,31 @@ RGBA сохранён в source byte order, включая прозрачнос�
 | `listItem` | `#2d2d2dff` | `#ffffff00` | `#4772b3ff` | `#ffffff33` | `#ccccccff` | `#ffffffff` | `.2` |
 | `scroll` | `#3d3d3dff` | `#22222200` | `#ffffffff` | `#545454ff` | `#e6e6e6ff` | `#ffffffff` | `.5` |
 
-## State resolver laws
+## State resolver precedence
+
+Generic chain, in exact order:
+
+1. choose raw class; `state.listItem` replaces it with `listItem` first;
+2. apply disabled/inactive/search alpha to the raw set;
+3. `selected || pressed` copies `innerSelected/textSelected` and suppresses
+   generic hover;
+4. otherwise `activeDefault` copies selected colors, then generic hover HSL may
+   apply;
+5. special widget post-processing runs only in its source order.
+
+Menu item is a separate mutually-exclusive chain:
+
+1. `disabled && hovered`;
+2. `disabled`;
+3. `inactive` with its optional hover transform, followed by text/inner blend;
+4. `activeDefault || selectedDraw`;
+5. `selectedPreview`;
+6. `hovered`;
+7. idle.
+
+Numeric base uses the generic chain. `resolveNumericZoneColors` returns a
+secondary left/center/right draw set only for `hovered && !textInput`; it never
+replaces base control colors.
 
 | Scope | Source anchor | Law |
 | --- | --- | --- |
@@ -114,6 +156,10 @@ RGBA сохранён в source byte order, включая прозрачнос�
 | `widget_text_cursor` | `#71a8ffff` | text caret |
 
 Generic disabled alpha is not used for special menu-row disabled states.
+
+All raw tuples, containing sets/namespaces and every resolved tuple/result are
+deep-frozen at runtime. Tests cover exact source bytes, alpha multiplication,
+HSL rounding/clamp and input immutability.
 
 ## State и Space Node namespaces
 
@@ -149,15 +195,38 @@ documented composite/capture result; raw `spaceNode.back` alpha `00` не
 Component Number и shared Workbench. После него те же Text/Number/Menu states
 проверяются внутри Node Parameter.
 
+## Exhaustiveness ledger и первые consumers
+
+| Blender class | Status | First exact consumer |
+| --- | --- | --- |
+| `regular` | covered now | ordinary Elements button / Component Button |
+| `text` | covered now | TextField/input |
+| `number` | covered now | NumberInput |
+| `numberSlider` | covered now | inline SliderControl |
+| `option` | covered now | Blender Boolean checkbox inside Field/Node |
+| `toggle` | covered now | selected/expanded Component toggle button |
+| `tool` | covered now | Workbench Copy/operator button |
+| `toolbarItem` | covered now | Workbench catalog/section/dock navigation |
+| `tab` | covered now | Workbench Parameters/Events tabs |
+| `menu/menuBack/menuItem` | covered now | Select/EnumInput closed + popup rows |
+| `box` | covered now | preview/code/panel box |
+| `listItem` | covered now | List/Collection rows |
+| `scroll` | covered now | Scrollbar |
+| `radio`, `pulldown`, `tooltip`, `progress`, `pieMenu` | deferred extension | not a first-slice Node/Workbench acceptance owner; must be added before migrating the corresponding consumer |
+
+Workbench panel/canvas roles remain `spaceNode`/`box`, not `toolbarItem`.
+
 ## Visual state matrix после допуска
 
 Один и тот же DPR/target/route для before/after:
 
-1. Button: idle, hover, pressed, selected, disabled.
+1. Button/tool/toggle: idle, hover, pressed, selected, disabled.
 2. Text: idle, focused, selection/caret, disabled/read-only.
 3. Number/slider: idle, center/left/right hover, edit/pressed, disabled.
 4. Menu: closed idle/hover/pressed; popup row idle/hover/selected/disabled.
-5. List: idle/hover/selected/disabled.
-6. Те же Text/Number/Menu внутри expanded Node.
+5. Boolean option: idle, hover, selected, disabled.
+6. Workbench toolbar item/tab: idle, hover, selected, focused, disabled.
+7. List: idle/hover/selected/disabled.
+8. Те же Boolean/Text/Number/Menu внутри expanded Node.
 
 Automated PNG и unit tests не ставят owner acceptance.

@@ -112,6 +112,8 @@ material states на Blender 4.5.5 по mapping от направленного 
 помощника. UI-015.5/.7 source сохранён на pause до этого mapping.
 Первый flat mapping получил `CORRECTION REQUIRED`: текущий gate — raw widget
 classes + class-specific state resolvers без записи production theme values.
+Вторая узкая amendment добавляет Boolean/Workbench classes, state precedence,
+numeric zones и deep-freeze; production values всё ещё закрыты review gate.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

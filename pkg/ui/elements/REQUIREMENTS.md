@@ -51,8 +51,9 @@ FlexBox единолично вычисляет local child slots, а child то
     Component использует её только как rendering primitive внутри композиции
     Elements.
 11. Blender theme owner хранит raw RGBA и roundness отдельно для widget classes
-    `regular`, `text`, `number`, `numberSlider`, `menu`, `menuBack`, `menuItem`,
-    `box`, `listItem`, `scroll`, а также namespaces `state` и `spaceNode`.
+    `regular`, `text`, `number`, `numberSlider`, `option`, `toggle`, `tool`,
+    `toolbarItem`, `tab`, `menu`, `menuBack`, `menuItem`, `box`, `listItem`,
+    `scroll`, а также namespaces `state` и `spaceNode`.
     Alpha source fields сохраняется; классы нельзя схлопнуть в один flat
     `bgInput/bgHot/cyan` state law.
 12. Pure `resolveWidgetColors(kind, state)` повторяет class-specific Blender
@@ -64,6 +65,12 @@ FlexBox единолично вычисляет local child slots, а child то
     border/outline, checker colors/size и class roundness. Standard radius
     вычисляется из `.2 × widget unit/actual rect`; scroll/panel/popup не получают
     тот же radius без собственного source law.
+14. Resolver precedence детерминирован и повторяет source order. Generic class
+    сначала получает list-item override и alpha, затем selected/pressed либо
+    active-default/hover; menu item использует собственную mutually-exclusive
+    chain. Numeric zone является отдельным secondary draw result поверх base.
+    Raw и resolved tuples/namespaces deep-frozen; HSL/alpha math проверяется
+    exact byte/clamp tests.
 
 ## Retained UI-закон
 
