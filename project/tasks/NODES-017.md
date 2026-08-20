@@ -258,9 +258,34 @@ reference rows. После NODES-017.8.2 измерить исправленны
 результатом своей Parameter либо loose Socket Flex row и лежит на border Node,
 чтобы половина shape находилась снаружи. Fixture-specific offsets запрещены.
 
-`READY`: исправленный row order позволяет измерить reference/live Socket, но
-срез отложен до NODES-017.8.8: общий inherited scale меняет visual diameter и
-должен предшествовать окончательной Socket calibration.
+Статус и исполнитель: `IN_PROGRESS`, внутренний исполнитель текущей задачи.
+
+Классификация: отдельное уже зарегистрированное visual-расхождение того же
+родителя. Срез изменяет только общую Socket presentation policy; Field controls,
+Node header, shadow и playground остаются за соседними срезами и владельцами.
+
+Причина: retained scale foundation NODES-018 уже интегрирована, но Blender
+renderer по-прежнему передаёт в `drawSocketShape` fixture-independent, однако
+не откалиброванный literal size `8`. Border/radius policy и reference
+`NODE_SOCKSIZE` не связаны regression; поэтому видимый диаметр расходится с
+Blender, хотя center правильно выводится из exact Flex row.
+
+Разрешённое изменение одного механизма: измерить maintained Blender 4.5.5
+reference при сопоставимом масштабе, ввести одну общую Socket size/border policy
+в production `@nodes/ui` и сохранить center на border соответствующей row.
+Field, Node layout и route fixtures не подгоняются offsets.
+
+Regression: все восемь shapes используют одну calibrated bounding policy;
+left/right Parameter и loose Socket centers остаются exact row centers,
+половина обычной shape находится снаружи Node border, а retained parent scale
+меняет visual diameter непрерывно без screen-space floor.
+
+Среда и приёмка: package tests/typecheck, затем exact `node-ui` target на route,
+которую публикует UI-011. Blender/live сравниваются при записанном viewport и
+масштабе; automated canvas не является owner acceptance.
+
+Подготовительный commit: записывается до production patch. NODES-017.8.8 уже
+завершена и больше не блокирует calibration.
 
 #### NODES-017.8.4 — Согласовать collapse chevron и title в header
 
