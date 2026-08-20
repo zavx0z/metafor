@@ -7,6 +7,8 @@ import {Color, TextMaterial} from "@metafor/engine"
 import islandsDarkTheme from "./themes/islands-dark.color-theme.json"
 import {uiShapeMetrics} from "./shape.ts"
 
+export * from "./blender-theme.ts"
+
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
 
 export const palette = {
