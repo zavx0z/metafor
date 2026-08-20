@@ -10,6 +10,7 @@ type NodeComponentStoryArgs = PlaygroundStoryArgs & Readonly<{
   component: NodeComponentId
   selected: boolean
   target?: NodeEditorStoryTarget
+  "select-open": boolean
 }>
 
 const COMPONENT_LABELS: Readonly<Record<NodeComponentId, string>> = Object.freeze({
@@ -21,7 +22,7 @@ const COMPONENT_LABELS: Readonly<Record<NodeComponentId, string>> = Object.freez
 
 export function createNodeComponentStory(
   component: NodeComponentId,
-  initialState?: Readonly<{target: NodeEditorStoryTarget; selected: boolean}>,
+  initialState?: Readonly<{target: NodeEditorStoryTarget; selected: boolean; selectOpen?: boolean}>,
 ): PlaygroundStoryModule {
   if (component === "node-editor" && initialState === undefined) {
     throw new Error("NodeEditor story requires an exact target and selected state")
@@ -30,6 +31,7 @@ export function createNodeComponentStory(
     defaultArgs: {
       component,
       selected: initialState?.selected ?? (component === "frame" || component === "link"),
+      "select-open": initialState?.selectOpen === true,
       ...(initialState === undefined ? {} : {target: initialState.target}),
     },
     controls: component === "node-editor"
@@ -45,6 +47,7 @@ export function createNodeComponentStory(
             })),
           },
           {key: "selected", label: "Выбрана", group: "Состояние", kind: "boolean"},
+          {key: "select-open", label: "Select раскрыт", group: "Состояние", kind: "boolean"},
         ]
       : component === "frame" || component === "link"
         ? [{key: "selected", label: "Выбран", group: "Состояние", kind: "boolean"}]

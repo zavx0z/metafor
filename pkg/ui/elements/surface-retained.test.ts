@@ -35,6 +35,10 @@ class RetainedTestSurface extends UiSurface {
     this.materializeRetainedParent(parent, draw)
   }
 
+  portal(draw: () => void): void {
+    this.withOverlayPortal(draw)
+  }
+
   stageHit(
     parent: Object3D,
     rect: Readonly<{x: number; y: number; w: number; h: number}>,
@@ -186,6 +190,7 @@ class RetainedSelectSurface extends UiSurface {
   readonly sibling: Object3D
   selectMaterializations = 0
   siblingMaterializations = 0
+  siblingActions = 0
   surfaceRenderPasses = 0
   value = "multiply"
   #mounted = false
@@ -220,7 +225,8 @@ class RetainedSelectSurface extends UiSurface {
 
   readonly #drawSibling = (): void => {
     this.siblingMaterializations += 1
-    this.drawRect(160, 10, 30, 22, new Color(0.7, 0.3, 0.2, 1))
+    this.drawRect(10, 33, 120, 68, new Color(0.7, 0.3, 0.2, 1))
+    this.hit(10, 33, 120, 68, () => { this.siblingActions += 1 }, {key: "later-sibling"})
   }
 }
 
@@ -263,6 +269,157 @@ beforeAll(async () => {
 })
 
 describe("UiSurface retained component parent", () => {
+  test("keeps a standalone portal on the ordinary immediate overlay fallback", () => {
+    const surface = new RetainedTestSurface()
+    surface.setRect({x: 0, y: 0, w: 120, h: 80}, 0.001, font)
+    surface.portal(() => {
+      surface.drawRect(10, 10, 40, 20, new Color(0.2, 0.8, 0.4, 1))
+    })
+    const immediate = requiredLayer(surface, "RetainedTestSurface.immediateOverlayLayer")
+    const retained = requiredLayer(surface, "RetainedTestSurface.retainedOverlayLayer")
+    expect(immediate.children).toHaveLength(1)
+    expect(retained.children).toHaveLength(0)
+    surface.dispose()
+  })
+
+  test("commits one owner-linked portal above later siblings and rolls visual/input lifecycle back atomically", () => {
+    const fake = createFakeRuntime()
+    const surface = new RetainedTestSurface()
+    surface.attachCanvas(fake.runtime)
+    surface.setRect({x: 0, y: 0, w: 240, h: 160}, 0.001, font)
+    const root = surface.createParent("root")
+    const owner = surface.createParent("portal-owner", root)
+    const sibling = surface.createParent("later-sibling", root)
+    const actions: string[] = []
+
+    surface.materialize(owner, () => {
+      surface.portal(() => {
+        surface.drawRect(12, 12, 80, 40, new Color(0.2, 0.8, 0.4, 1))
+        surface.hit(12, 12, 80, 40, () => actions.push("portal"), {key: "portal-hit"})
+        surface.wheel(12, 12, 80, 40, () => actions.push("portal-wheel"), "portal-wheel")
+        surface.dismissableLayer({
+          key: "portal-dismiss",
+          regions: [{x: 12, y: 12, w: 80, h: 40}],
+          dismiss: () => actions.push("dismiss"),
+        })
+      })
+    })
+    surface.materialize(sibling, () => {
+      surface.drawRect(12, 12, 80, 40, new Color(0.8, 0.2, 0.2, 1))
+      surface.hit(12, 12, 80, 40, () => actions.push("sibling"), {key: "sibling-hit"})
+      surface.wheel(12, 12, 80, 40, () => actions.push("sibling-wheel"), "sibling-wheel")
+      surface.dismissableLayer({
+        key: "sibling-dismiss",
+        regions: [{x: 12, y: 12, w: 80, h: 40}],
+        dismiss: () => actions.push("sibling-dismiss"),
+      })
+    })
+
+    const overlayLayer = surface.node.getObjectByName("RetainedTestSurface.overlayLayer")!
+    const overlay = surface.node.getObjectByName("RetainedTestSurface.retainedOverlayLayer")
+    expect(overlay).toBeDefined()
+    expect(overlayLayer.children.map(({name}) => name)).toEqual([
+      "RetainedTestSurface.retainedOverlayLayer",
+      "RetainedTestSurface.immediateOverlayLayer",
+    ])
+    expect(owner.children).toHaveLength(0)
+    expect(overlay!.children).toHaveLength(1)
+    const portal = overlay!.children[0]!
+    const portalVisual = portal.children[0] as Mesh
+    const portalGeometry = portalVisual.geometry
+    surface.onPointerDown({} as MouseEvent, 20, 20)
+    surface.onPointerUp({} as MouseEvent, 20, 20)
+    expect(actions).toEqual(["portal"])
+    surface.onWheel({} as WheelEvent, 20, 20)
+    expect(actions).toEqual(["portal", "portal-wheel"])
+    expect(surface.dismissTopLayer("escape")).toBeTrue()
+    expect(actions).toEqual(["portal", "portal-wheel", "dismiss"])
+
+    expect(() => surface.materialize(owner, () => {
+      surface.portal(() => {
+        surface.drawRect(20, 20, 20, 20, new Color(0.1, 0.2, 0.9, 1))
+        surface.hit(20, 20, 20, 20, () => actions.push("staged"), {key: "staged-hit"})
+      })
+      throw new Error("portal staging failed")
+    })).toThrow("portal staging failed")
+    expect(overlay!.children).toEqual([portal])
+    expect(portal.children).toEqual([portalVisual])
+    surface.onPointerDown({} as MouseEvent, 20, 20)
+    surface.onPointerUp({} as MouseEvent, 20, 20)
+    expect(actions).toEqual(["portal", "portal-wheel", "dismiss", "portal"])
+
+    surface.materialize(owner, () => {
+      surface.portal(() => {
+        surface.drawRect(12, 12, 80, 40, new Color(0.1, 0.2, 0.9, 1))
+        surface.hit(12, 12, 80, 40, () => actions.push("replacement"), {key: "replacement-hit"})
+      })
+    })
+    expect(overlay!.children).toEqual([portal])
+    expect(portal.children[0]).not.toBe(portalVisual)
+    expect(countGeometry(fake.invalidated, portalGeometry)).toBe(1)
+    const replacementVisual = portal.children[0]
+    const siblingChildren = [...sibling.children]
+    surface.requestKeyedRender("replacement-hit")
+    surface.flushPendingRender()
+    expect(overlay!.children).toEqual([portal])
+    expect(portal.children[0]).not.toBe(replacementVisual)
+    expect(sibling.children).toEqual(siblingChildren)
+
+    surface.materialize(owner, () => {
+      surface.drawRect(0, 0, 4, 4, new Color(0.5, 0.5, 0.5, 1))
+    })
+    expect(overlay!.children).toHaveLength(0)
+    surface.onPointerDown({} as MouseEvent, 20, 20)
+    surface.onPointerUp({} as MouseEvent, 20, 20)
+    expect(actions).toEqual(["portal", "portal-wheel", "dismiss", "portal", "sibling"])
+  })
+
+  test("inherits retained transforms, viewport clip and visibility without rebuilding portal geometry", () => {
+    const fake = createFakeRuntime()
+    const surface = new RetainedTestSurface()
+    surface.attachCanvas(fake.runtime)
+    surface.setRect({x: 0, y: 0, w: 240, h: 160}, 0.001, font)
+    const root = surface.createParent("root")
+    const owner = surface.createParent("portal-owner", root)
+    surface.setViewportClip(root, {x: 10, y: 12, w: 100, h: 70})
+    surface.materialize(owner, () => {
+      surface.portal(() => {
+        surface.drawRect(0, 0, 120, 90, new Color(0.2, 0.8, 0.4, 1))
+      })
+    })
+    const overlay = surface.node.getObjectByName("RetainedTestSurface.retainedOverlayLayer")!
+    const portal = overlay.children[0]!
+    const visual = portal.children[0] as Mesh
+    const geometry = visual.geometry
+    const material = visual.material as MeshBasicMaterial
+    surface.node.updateWorldMatrix()
+    expect([...portal.matrixWorld.elements]).toEqual([...owner.matrixWorld.elements])
+    expect(material.clipBounds).toEqual([10, 12, 110, 82])
+
+    surface.transform(root, (parent) => {
+      parent.position.set(0.04, -0.03, 0)
+      parent.scale.set(0.5, 0.5, 1)
+    })
+    surface.node.updateWorldMatrix()
+    expect([...portal.matrixWorld.elements]).toEqual([...owner.matrixWorld.elements])
+    expect(portal.children[0]).toBe(visual)
+    expect(visual.geometry).toBe(geometry)
+    expect(material.clipBounds).toEqual([10, 12, 110, 82])
+
+    surface.setVisibility(root, false)
+    surface.node.updateWorldMatrix()
+    expect(portal.visible).toBeFalse()
+    surface.setVisibility(root, true)
+    surface.node.updateWorldMatrix()
+    expect(portal.visible).toBeTrue()
+
+    surface.removeParent(owner)
+    expect(overlay.children).toHaveLength(0)
+    expect(countGeometry(fake.invalidated, geometry)).toBe(1)
+    surface.dispose()
+    expect(countGeometry(fake.invalidated, geometry)).toBe(1)
+  })
+
   test("preserves identity on presentation and recursively invalidates owned geometry once", () => {
     const fake = createFakeRuntime()
     const surface = new RetainedTestSurface()
@@ -825,3 +982,9 @@ describe("UiSurface retained component parent", () => {
     surface.dispose()
   })
 })
+
+function requiredLayer(surface: UiSurface, name: string): Object3D {
+  const layer = surface.node.getObjectByName(name)
+  if (layer === undefined) throw new Error(`Missing Surface layer: ${name}`)
+  return layer
+}

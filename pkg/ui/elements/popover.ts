@@ -92,12 +92,14 @@ export function popover(
   regions = [anchor, placement]
   activatePopover(scope, activeRecord())
   const chainRegions = popoverChainRegions(scope, surface, regions)
-  surface.dismissableLayer({
-    key,
-    regions: chainRegions,
-    dismiss: (reason) => dismissPopoverChain(scope, reason),
+  surface.withOverlayPortal(() => {
+    surface.dismissableLayer({
+      key,
+      regions: chainRegions,
+      dismiss: (reason) => dismissPopoverChain(scope, reason),
+    })
+    props.content(placement, context)
   })
-  props.content(placement, context)
 }
 
 /** Pure bottom-start placement with top flip and final viewport clamping. */

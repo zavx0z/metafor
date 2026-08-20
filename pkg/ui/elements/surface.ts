@@ -85,6 +85,8 @@ type UiFrameHandle = {kind: "raf"; id: number} | {kind: "timeout"; id: ReturnTyp
 type RetainedMaterialization = {
   target: Object3D
   staging: Object3D
+  overlayStaging: Object3D
+  overlayDepth: number
   provisionalParents: Set<Object3D>
   hits: RetainedHitRecord[]
   wheelHits: RetainedWheelHitRecord[]
@@ -321,6 +323,7 @@ type PendingTooltipDraw = {
 
 type RetainedHitRecord = {
   parent: Object3D
+  overlayPortal: boolean
   x: number
   y: number
   w: number
@@ -340,6 +343,7 @@ type RetainedHitRecord = {
 
 type RetainedWheelHitRecord = Readonly<{
   parent: Object3D
+  overlayPortal: boolean
   x: number
   y: number
   w: number
@@ -362,6 +366,7 @@ type DismissableLayerRecord = DismissableLayerOptions & Readonly<{
 
 type RetainedDismissableLayerRecord = DismissableLayerRecord & Readonly<{
   parent: Object3D
+  overlayPortal: boolean
 }>
 
 type ResolvedHitBox = HitBox & Readonly<{retainedParent?: Object3D}>
@@ -372,6 +377,24 @@ const RETAINED_UNBOUNDED_CLIP: ClipLocalRect = {
   yMin: Number.NEGATIVE_INFINITY,
   xMax: Number.POSITIVE_INFINITY,
   yMax: Number.POSITIVE_INFINITY,
+}
+
+class RetainedOverlayPortal extends Object3D {
+  constructor(readonly owner: Object3D) {
+    super()
+  }
+
+  override updateWorldMatrix(force = false): void {
+    let current: Object3D | null = this.owner
+    let ownerVisible = true
+    while (current !== null) {
+      if (!current.visible) ownerVisible = false
+      current = current.parent
+    }
+    this.visible = ownerVisible
+    this.matrixWorld.copy(this.owner.matrixWorld)
+    for (const child of this.children) child.updateWorldMatrix(force)
+  }
 }
 
 export type UiCursorTooltipPlacement = Readonly<{
@@ -444,6 +467,8 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #selectionLayer: Object3D
   readonly #layer: Object3D
   readonly #overlayLayer: Object3D
+  readonly #immediateOverlayLayer: Object3D
+  readonly #retainedOverlayLayer: Object3D
   readonly #retainedLayer: Object3D
   readonly #retainedParents = new Set<Object3D>()
   readonly #retainedHits = new Map<Object3D, readonly RetainedHitRecord[]>()
@@ -452,6 +477,7 @@ export abstract class UiSurface implements UiSurfaceNode {
   readonly #retainedRenderKeys = new Map<Object3D, ReadonlySet<string>>()
   readonly #retainedDraws = new Map<Object3D, () => void>()
   readonly #retainedViewportClips = new Map<Object3D, ClipLocalRect>()
+  readonly #retainedOverlayPortals = new Map<Object3D, RetainedOverlayPortal>()
   #retainedMaterialization: RetainedMaterialization | null = null
   #drawLayer: UiSurfaceDrawLayer = "main"
   #framebufferDisplayId: UiDisplayId = "default"
@@ -600,6 +626,17 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#overlayLayer.name = `${this.constructor.name}.overlayLayer`
     this.#overlayLayer.position.z = 0
     this.node.add(this.#overlayLayer)
+
+    this.#retainedOverlayLayer = new Object3D()
+    this.#retainedOverlayLayer.name = `${this.constructor.name}.retainedOverlayLayer`
+    this.#retainedOverlayLayer.position.z = 0
+    this.#overlayLayer.add(this.#retainedOverlayLayer)
+
+    // Immediate screen overlays (notably tooltips) stay above retained portals.
+    this.#immediateOverlayLayer = new Object3D()
+    this.#immediateOverlayLayer.name = `${this.constructor.name}.immediateOverlayLayer`
+    this.#immediateOverlayLayer.position.z = 0
+    this.#overlayLayer.add(this.#immediateOverlayLayer)
 
   }
 
@@ -764,6 +801,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       key,
       regions,
       dismiss: options.dismiss,
+      ...(transaction === null ? {} : {overlayPortal: transaction.overlayDepth > 0}),
     }
     if (transaction === null) this.#dismissables.push(record)
     else {
@@ -817,6 +855,24 @@ export abstract class UiSurface implements UiSurfaceNode {
       draw()
     } finally {
       this.#drawLayer = prev
+    }
+  }
+
+  /**
+   * Draws immediate content in the ordinary overlay, or atomically stages a
+   * retained transaction's visual/input subtree for the Surface top layer.
+   */
+  withOverlayPortal(draw: () => void): void {
+    const transaction = this.#retainedMaterialization
+    if (transaction === null) {
+      this.withLayer("overlay", draw)
+      return
+    }
+    transaction.overlayDepth += 1
+    try {
+      draw()
+    } finally {
+      transaction.overlayDepth -= 1
     }
   }
 
@@ -878,9 +934,12 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
 
     const staging = new Object3D()
+    const overlayStaging = new Object3D()
     const transaction: RetainedMaterialization = {
       target: parent,
       staging,
+      overlayStaging,
+      overlayDepth: 0,
       provisionalParents: new Set<Object3D>(),
       hits: [],
       wheelHits: [],
@@ -897,6 +956,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       this.#retainedMaterialization = null
       this.#clipStack = previousClipStack
       this.#disposeChildren(staging)
+      this.#disposeChildren(overlayStaging)
       throw error
     }
 
@@ -911,6 +971,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       parent.add(child)
     }
     for (const retainedParent of transaction.provisionalParents) this.#retainedParents.add(retainedParent)
+    this.#commitRetainedOverlayPortal(transaction)
     this.#retainedDraws.set(parent, draw)
     this.#replaceRetainedHits(parent, transaction.hits)
     this.#replaceRetainedWheelHits(parent, transaction.wheelHits)
@@ -919,6 +980,32 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#disposeSubtrees(previousChildren)
     this.#keyedRerenderParents.delete(parent)
     this.canvas?.requestRender()
+  }
+
+  #commitRetainedOverlayPortal(transaction: RetainedMaterialization): void {
+    const previousPortal = this.#retainedOverlayPortals.get(transaction.target)
+    const nextChildren = [...transaction.overlayStaging.children]
+    if (nextChildren.length === 0) {
+      if (previousPortal === undefined) return
+      this.#retainedOverlayPortals.delete(transaction.target)
+      this.#retainedOverlayLayer.remove(previousPortal)
+      this.#disposeChildren(previousPortal)
+      return
+    }
+
+    const portal = previousPortal ?? new RetainedOverlayPortal(transaction.target)
+    if (previousPortal === undefined) {
+      portal.name = `${this.constructor.name}.retainedOverlayPortal`
+      this.#retainedOverlayPortals.set(transaction.target, portal)
+      this.#retainedOverlayLayer.add(portal)
+    }
+    const previousChildren = [...portal.children]
+    for (const child of previousChildren) portal.remove(child)
+    for (const child of nextChildren) {
+      transaction.overlayStaging.remove(child)
+      portal.add(child)
+    }
+    this.#disposeSubtrees(previousChildren)
   }
 
   /** Updates only one retained parent's local transform and presents the frame. */
@@ -1028,6 +1115,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
     const record: RetainedHitRecord = {
       parent,
+      overlayPortal: transaction.overlayDepth > 0,
       x,
       y,
       w,
@@ -1646,6 +1734,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       }
       transaction.wheelHits.push({
         parent: transaction.target,
+        overlayPortal: transaction.overlayDepth > 0,
         x,
         y,
         w,
@@ -1768,6 +1857,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#setHoverTooltip(null)
     for (const layer of this.#contentLayers()) this.#clearLayer(layer)
     this.#clearLayer(this.#retainedLayer)
+    this.#clearLayer(this.#retainedOverlayLayer)
     this.#clearLayer(this.#backgroundLayer)
   }
 
@@ -1871,7 +1961,11 @@ export abstract class UiSurface implements UiSurfaceNode {
   }
 
   #currentLayer(): Object3D {
-    if (this.#retainedMaterialization !== null) return this.#retainedMaterialization.staging
+    if (this.#retainedMaterialization !== null) {
+      return this.#retainedMaterialization.overlayDepth > 0
+        ? this.#retainedMaterialization.overlayStaging
+        : this.#retainedMaterialization.staging
+    }
     return this.#layerObject(this.#drawLayer)
   }
 
@@ -1884,18 +1978,18 @@ export abstract class UiSurface implements UiSurfaceNode {
       case "selection":
         return this.#selectionLayer
       case "overlay":
-        return this.#overlayLayer
+        return this.#immediateOverlayLayer
       case "main":
         return this.#layer
     }
   }
 
   #contentLayers(): readonly Object3D[] {
-    return [this.#underlayLayer, this.#contentUnderlayLayer, this.#selectionLayer, this.#layer, this.#overlayLayer]
+    return [this.#underlayLayer, this.#contentUnderlayLayer, this.#selectionLayer, this.#layer, this.#immediateOverlayLayer]
   }
 
   #positionedLayers(): readonly Object3D[] {
-    return [...this.#contentLayers(), this.#retainedLayer]
+    return [this.#underlayLayer, this.#contentUnderlayLayer, this.#selectionLayer, this.#layer, this.#overlayLayer, this.#retainedLayer]
   }
 
   #redrawRequestedLayers(): void {
@@ -2110,6 +2204,9 @@ export abstract class UiSurface implements UiSurfaceNode {
       material.clipBounds = this.#clipBoundsForEvidence(material[CLIP_EVIDENCE])
     }
 
+    const portal = this.#retainedOverlayPortals.get(obj)
+    if (portal !== undefined) this.#refreshClipBoundsForObject(portal)
+
     for (const child of obj.children) this.#refreshClipBoundsForObject(child)
   }
 
@@ -2246,16 +2343,24 @@ export abstract class UiSurface implements UiSurfaceNode {
     return null
   }
 
-  #retainedRecordsInPaintOrder<T>(records: ReadonlyMap<Object3D, readonly T[]>): T[] {
+  #retainedRecordsInPaintOrder<T extends Readonly<{overlayPortal?: boolean}>>(
+    records: ReadonlyMap<Object3D, readonly T[]>,
+  ): T[] {
     const ordered: T[] = []
+    const overlay: T[] = []
     const visit = (object: Object3D): void => {
       if (!object.visible) return
       const owned = records.get(object)
-      if (owned !== undefined) ordered.push(...owned)
+      if (owned !== undefined) {
+        for (const record of owned) {
+          if (record.overlayPortal === true) overlay.push(record)
+          else ordered.push(record)
+        }
+      }
       for (const child of object.children) visit(child)
     }
     visit(this.#retainedLayer)
-    return ordered
+    return [...ordered, ...overlay]
   }
 
   #setHoverTooltip(hit: HitBox | null): void {
@@ -2443,6 +2548,11 @@ export abstract class UiSurface implements UiSurfaceNode {
     }
 
     const disposeObject = (obj: Object3D): void => {
+      const portal = this.#retainedOverlayPortals.get(obj)
+      if (portal !== undefined) {
+        this.#retainedOverlayPortals.delete(obj)
+        disposeObject(portal)
+      }
       for (const child of [...obj.children]) disposeObject(child)
 
       const text = obj as Text

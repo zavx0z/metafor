@@ -60,7 +60,9 @@ export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, Ble
   }
 }
 
-export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
+export function createCatalogNodeTree(
+  options: Readonly<{openSelect?: boolean}> = {},
+): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
   const frame: BlenderFrame = {id: "catalog-frame", label: "Система компонентов нод"}
   const nestedFrame: BlenderFrame = {
     id: "data-frame",
@@ -70,10 +72,17 @@ export function createCatalogNodeTree(): PositionedNodeTree<BlenderNode, Blender
     labelSize: 15,
   }
   const scalar = blenderNode("scalar", "Скалярная математика", "Converter", [
-    {id: "operation", label: "Операция", kind: "enum", value: "multiply", options: [
-      {value: "add", label: "Сложение"},
-      {value: "multiply", label: "Умножение"},
-    ]},
+    {
+      id: "operation",
+      label: "Операция",
+      kind: "enum",
+      value: "multiply",
+      ...(options.openSelect === true ? {open: true} : {}),
+      options: [
+        {value: "add", label: "Сложение"},
+        {value: "multiply", label: "Умножение"},
+      ],
+    },
   ], [
     parameter({id: "factor", label: "Коэффициент", kind: "number", presentation: "slider", value: 0.65, min: 0, max: 1, step: 0.01}),
     parameter({id: "clamp", label: "Ограничение", kind: "boolean", value: true}),

@@ -104,9 +104,10 @@ describe("Blender-like Node component playground", () => {
       "node-editor/collapsed/default",
       "node-editor/collapsed/selected",
     ])
-    expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "collapsed"])
+    expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "collapsed", "popup"])
     expect(nodePlaygroundDockItems("node-editor/scene/default").map(({id}) => id)).toEqual(["default", "selected"])
     expect(nodePlaygroundDockItems("node-editor/collapsed/selected").map(({id}) => id)).toEqual(["default", "selected"])
+    expect(nodePlaygroundDockItems("node-editor/popup/select-open").map(({id}) => id)).toEqual(["select-open"])
 
     const cases = [
       {route: "node-editor/scene/default", target: "expanded", selected: false, nodeId: "scalar"},
@@ -122,7 +123,7 @@ describe("Blender-like Node component playground", () => {
         target: expected.target,
         selected: expected.selected,
       })
-      expect(story.controls.map(({key}) => key)).toEqual(["target", "selected"])
+      expect(story.controls.map(({key}) => key)).toEqual(["target", "selected", "select-open"])
       const state = nodeEditorStoryState(story.defaultArgs)
       expect(state).toEqual({
         target: expected.target,
@@ -138,6 +139,16 @@ describe("Blender-like Node component playground", () => {
         ? 'editor.select({kind: "node", id: targetNodeId})'
         : "editor.select(null)")
     }
+    const openSelect = await NODE_COMPONENT_STORIES.load("node-editor/popup/select-open")
+    expect(openSelect.defaultArgs).toMatchObject({
+      component: "node-editor",
+      target: "expanded",
+      selected: false,
+      "select-open": true,
+    })
+    expect(createCatalogNodeTree({openSelect: true}).nodes
+      .find(({node}) => node.id === "scalar")?.node.properties
+      ?.find(({id}) => id === "operation")).toMatchObject({kind: "enum", open: true})
     expect(NODE_EDITOR_STORY_NODE_IDS).toEqual({expanded: "scalar", collapsed: "collapsed"})
   })
 

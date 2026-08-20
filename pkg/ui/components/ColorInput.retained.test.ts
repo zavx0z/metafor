@@ -17,6 +17,7 @@ class RetainedColorSurface extends UiSurface {
   readonly published: ColorInputValue[] = []
   colorMaterializations = 0
   siblingMaterializations = 0
+  siblingActions = 0
   #mounted = false
 
   constructor() {
@@ -32,7 +33,8 @@ class RetainedColorSurface extends UiSurface {
     this.materializeRetainedParent(this.colorOwner, this.#drawColor)
     this.materializeRetainedParent(this.siblingOwner, () => {
       this.siblingMaterializations += 1
-      this.drawRect(220, 20, 24, 24, new Color(0.2, 0.3, 0.4, 1))
+      this.drawRect(26, 49, 112, 112, new Color(0.2, 0.3, 0.4, 1))
+      this.hit(26, 49, 112, 112, () => { this.siblingActions += 1 }, {key: "later-color-sibling"})
     })
   }
 
@@ -89,14 +91,19 @@ describe("retained ColorInput owner", () => {
       surface.setRect({x: 0, y: 0, w: 320, h: 240}, 0.001, font)
       const siblingChildren = [...surface.siblingOwner.children]
       const siblingGeometries = siblingChildren.map((child) => (child as {geometry?: BufferGeometry}).geometry)
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(1)
+      const overlay = surface.node.getObjectByName("RetainedColorSurface.retainedOverlayLayer")
+      expect(overlay).toBeDefined()
+      expect(pickerPlanes(surface.node)).toHaveLength(1)
+      expect(overlay!.children).toHaveLength(0)
 
       const pointer = {button: 0, preventDefault() {}} as MouseEvent
       surface.onPointerDown(pointer, 31, 31)
       surface.flushPendingRender()
       surface.onPointerUp(pointer, 31, 31)
       surface.flushPendingRender()
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(4)
+      expect(pickerPlanes(surface.colorOwner)).toHaveLength(1)
+      expect(pickerPlanes(surface.node)).toHaveLength(4)
+      expect(overlay!.children).toHaveLength(1)
       expect(surface.siblingMaterializations).toBe(1)
       expect(surface.siblingOwner.children).toEqual(siblingChildren)
 
@@ -106,29 +113,33 @@ describe("retained ColorInput owner", () => {
       surface.onPointerMove(pointer, 82, 161)
       surface.flushPendingRender()
       expect(surface.published).toHaveLength(2)
+      expect(surface.siblingActions).toBe(0)
       expect(surface.published.every((value) => Object.isFrozen(value))).toBeTrue()
       expect(surface.colorMaterializations).toBe(beforeDragMaterializations + 2)
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(4)
+      expect(pickerPlanes(surface.node)).toHaveLength(4)
       expect(surface.siblingMaterializations).toBe(1)
       expect(surface.siblingOwner.children).toEqual(siblingChildren)
       expect(surface.siblingOwner.children.map((child) => (child as {geometry?: BufferGeometry}).geometry)).toEqual(siblingGeometries)
 
       surface.onPointerUp(pointer, 82, 161)
       surface.flushPendingRender()
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(4)
+      expect(pickerPlanes(surface.node)).toHaveLength(4)
 
       surface.onPointerDown(pointer, 280, 220)
       surface.flushPendingRender()
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(1)
+      expect(pickerPlanes(surface.node)).toHaveLength(1)
+      expect(overlay!.children).toHaveLength(0)
 
       surface.onPointerDown(pointer, 31, 31)
       surface.flushPendingRender()
       surface.onPointerUp(pointer, 31, 31)
       surface.flushPendingRender()
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(4)
+      expect(pickerPlanes(surface.node)).toHaveLength(4)
+      expect(overlay!.children).toHaveLength(1)
       expect(surface.dismissTopLayer("escape")).toBeTrue()
       surface.flushPendingRender()
-      expect(pickerPlanes(surface.colorOwner)).toHaveLength(1)
+      expect(pickerPlanes(surface.node)).toHaveLength(1)
+      expect(overlay!.children).toHaveLength(0)
       expect(surface.siblingMaterializations).toBe(1)
       expect(surface.siblingOwner.children).toEqual(siblingChildren)
     } finally {

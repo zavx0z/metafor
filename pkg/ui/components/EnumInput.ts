@@ -1,4 +1,17 @@
-import {flexRow, select, uiShapeMetrics, type SelectElementProps, type UiSurface} from "@ui/elements"
+import {
+  blenderRgba8ToColor,
+  drawIconCentered,
+  flexRow,
+  resolveWidgetColors,
+  select,
+  textMaterial,
+  uiShapeMetrics,
+  Z,
+  type ButtonElementState,
+  type SelectElementContentRect,
+  type SelectElementProps,
+  type UiSurface,
+} from "@ui/elements"
 import {Button, type ButtonProps} from "./Button.ts"
 
 export type EnumInputOption = Readonly<{
@@ -6,6 +19,7 @@ export type EnumInputOption = Readonly<{
   label: string
   description?: string
   disabled?: boolean
+  iconSrc?: string
 }>
 
 export type EnumInputDensity = "regular" | "compact"
@@ -18,10 +32,13 @@ export type EnumInputProps = {
   presentation?: EnumInputPresentation
   state?: EnumInputState
   tooltip?: string
+  popupLabel?: string
   disabled?: boolean
   readOnly?: boolean
   density?: EnumInputDensity
+  open?: boolean
   onChange?(value: string): void
+  onOpenChange?(open: boolean): void
 }
 
 /** Returns the exact immutable option selected by a stable controlled value. */
@@ -73,6 +90,27 @@ export function EnumInput(
     options,
     disabled,
   }
+  if (props.open !== undefined) selectProps.open = props.open
+  if (props.onOpenChange !== undefined) selectProps.onOpenChange = props.onOpenChange
+  if (props.popupLabel !== undefined) selectProps.popupLabel = props.popupLabel
+  const hasOptionIcon = options.some((option) => option.iconSrc !== undefined)
+  if (selected?.iconSrc !== undefined) {
+    selectProps.renderTriggerContent = (context) => {
+      const colors = resolveWidgetColors("menu", enumTriggerWidgetState(context.state))
+      drawEnumContent(host, context.rect, context.label, selected.iconSrc, true, colors.text, colors.item)
+    }
+  }
+  if (hasOptionIcon) {
+    selectProps.renderOptionContent = (context) => {
+      const colors = resolveWidgetColors("menuItem", {
+        disabled: context.disabled,
+        hovered: context.state.hovered || context.state.pressed,
+        selectedDraw: context.selected,
+      })
+      const iconSrc = findEnumInputOption(String(context.option.value), options)?.iconSrc
+      drawEnumContent(host, context.rect, context.option.label, iconSrc, true, colors.text, colors.item)
+    }
+  }
   const tooltip = selected?.description ?? props.tooltip
   if (tooltip !== undefined) selectProps.tooltip = tooltip
   if (!disabled && props.onChange !== undefined) {
@@ -105,6 +143,7 @@ function drawExpandedEnumInput(
         const selected = option.value === props.value
         const optionDisabled = disabled || option.disabled === true
         const buttonProps = enumButtonProps(props, option.label, optionDisabled, selected)
+        if (option.iconSrc !== undefined) buttonProps.startIcon = option.iconSrc
         const tooltip = option.description ?? (selected ? props.tooltip : undefined)
         if (tooltip !== undefined) buttonProps.tooltip = tooltip
         if (!optionDisabled && props.onChange !== undefined) {
@@ -114,6 +153,63 @@ function drawExpandedEnumInput(
       },
     })),
   })
+}
+
+function drawEnumContent(
+  host: UiSurface,
+  rect: SelectElementContentRect,
+  label: string,
+  iconSrc: string | undefined,
+  reserveIconColumn: boolean,
+  textColor: Readonly<[number, number, number, number]>,
+  itemColor: Readonly<[number, number, number, number]>,
+): void {
+  const iconSize = Math.min(uiShapeMetrics.iconGlyphSize, rect.h)
+  flexRow({
+    x: rect.x,
+    y: rect.y,
+    w: rect.w,
+    h: rect.h,
+    gap: reserveIconColumn ? uiShapeMetrics.tightGap : 0,
+    alignItems: "center",
+    items: [
+      reserveIconColumn && {
+        width: iconSize,
+        height: iconSize,
+        draw: (x, y, width, height) => {
+          if (iconSrc === undefined) return
+          drawIconCentered(host, iconSrc, x + width / 2, y + height / 2, iconSize, {
+            tint: blenderRgba8ToColor(itemColor),
+            z: Z.TEXT + 0.22,
+          })
+        },
+      },
+      {
+        width: "grow",
+        height: rect.h,
+        draw: (x, y, width, height) => {
+          host.drawText(label, x, y + (height - uiShapeMetrics.compactFontPx) / 2, {
+            fontPx: uiShapeMetrics.compactFontPx,
+            material: textMaterial(host, blenderRgba8ToColor(textColor)),
+            maxWidthPx: Math.max(1, width),
+            z: Z.TEXT + 0.22,
+          })
+        },
+      },
+    ],
+  })
+}
+
+function enumTriggerWidgetState(state: ButtonElementState): Readonly<{
+  hovered: boolean
+  pressed: boolean
+  disabled: boolean
+}> {
+  return {
+    hovered: state === "hover",
+    pressed: state === "active",
+    disabled: state === "disabled",
+  }
 }
 
 function enumInputExceptionalLabel(props: EnumInputProps): string | undefined {

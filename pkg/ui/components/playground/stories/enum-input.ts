@@ -9,7 +9,7 @@ import {
   type PlaygroundStoryModule,
 } from "@ui/playground/stories"
 import type {EnumInputStoryVariant} from "../stories.ts"
-import {uiShapeMetrics} from "@ui/elements"
+import {uiIcons, uiShapeMetrics} from "@ui/elements"
 
 type EnumInputStoryArgs = PlaygroundStoryArgs & Readonly<{
   value: string
@@ -19,6 +19,8 @@ type EnumInputStoryArgs = PlaygroundStoryArgs & Readonly<{
   density: "regular" | "compact"
   disabled: boolean
   readonly: boolean
+  icons: "none" | "all" | "mixed"
+  open: boolean
   event: string
 }>
 
@@ -26,6 +28,18 @@ const SAMPLE_OPTIONS = Object.freeze([
   Object.freeze({value: "add", label: "Сложение", description: "Сложить входные значения"}),
   Object.freeze({value: "multiply", label: "Умножение", description: "Умножить входные значения"}),
   Object.freeze({value: "subtract", label: "Вычитание", description: "Вычесть второе значение"}),
+]) satisfies readonly EnumInputOption[]
+
+const ICON_OPTIONS = Object.freeze([
+  Object.freeze({...SAMPLE_OPTIONS[0]!, iconSrc: uiIcons.plus}),
+  Object.freeze({...SAMPLE_OPTIONS[1]!, iconSrc: uiIcons.apply}),
+  Object.freeze({...SAMPLE_OPTIONS[2]!, iconSrc: uiIcons.minus}),
+]) satisfies readonly EnumInputOption[]
+
+const MIXED_ICON_OPTIONS = Object.freeze([
+  ICON_OPTIONS[0]!,
+  SAMPLE_OPTIONS[1]!,
+  ICON_OPTIONS[2]!,
 ]) satisfies readonly EnumInputOption[]
 
 declare global {
@@ -91,6 +105,7 @@ export function createEnumInputStory(variant: EnumInputStoryVariant): Playground
       },
       {key: "disabled", label: "Недоступно", group: "Состояние", kind: "boolean"},
       {key: "readonly", label: "Только чтение", group: "Состояние", kind: "boolean"},
+      {key: "open", label: "Раскрыто", group: "Состояние", kind: "boolean"},
       {key: "event", label: "Последнее событие", group: "События", kind: "custom"},
     ],
     render(surface, args, frame) {
@@ -105,12 +120,25 @@ export function createEnumInputStory(variant: EnumInputStoryVariant): Playground
         disabled: args.disabled,
         readOnly: args.readonly,
         tooltip: "Выберите операцию",
+        open: args.open,
+        onOpenChange(open) {
+          globalThis.__componentsStoryControlBridge?.("open", open)
+        },
         onChange(value) {
           globalThis.__componentsStoryControlBridge?.("value", value)
           globalThis.__componentsStoryControlBridge?.("event", `onChange: ${value}`)
         },
       }
-      if (args.options !== "undefined") props.options = args.options === "empty" ? [] : SAMPLE_OPTIONS
+      if (args.options !== "undefined") {
+        props.options = args.options === "empty"
+          ? []
+          : args.icons === "all"
+            ? ICON_OPTIONS
+            : args.icons === "mixed"
+              ? MIXED_ICON_OPTIONS
+              : SAMPLE_OPTIONS
+      }
+      if (args.icons !== "none") props.popupLabel = "Операция"
       if (args.state === "error") props.state = "error"
       EnumInput(
         surface,
@@ -136,6 +164,8 @@ function enumInputDefaults(variant: EnumInputStoryVariant): EnumInputStoryArgs {
     density: "regular",
     disabled: variant === "disabled",
     readonly: variant === "readonly",
+    icons: variant === "header-icons" ? "all" : variant === "mixed-icons" ? "mixed" : "none",
+    open: variant === "header-icons" || variant === "mixed-icons",
     event: "Ожидание",
   })
 }
@@ -148,7 +178,7 @@ function enumInputSource(args: EnumInputStoryArgs): string {
     ? []
     : [
       "",
-      `const options: readonly EnumInputOption[] = ${JSON.stringify(args.options === "empty" ? [] : SAMPLE_OPTIONS)}`,
+      ...enumOptionsSource(args),
     ]
   const properties = [
     `  value: ${JSON.stringify(args.value)},`,
@@ -159,6 +189,8 @@ function enumInputSource(args: EnumInputStoryArgs): string {
   if (args.state === "error") properties.push('  state: "error",')
   if (args.disabled) properties.push("  disabled: true,")
   if (args.readonly) properties.push("  readOnly: true,")
+  if (args.open) properties.push("  open: true,", "  onOpenChange: setOpen,")
+  if (args.icons !== "none") properties.push('  popupLabel: "Операция",')
   properties.push("  onChange: setValue,")
   return [
     imports,
@@ -168,4 +200,19 @@ function enumInputSource(args: EnumInputStoryArgs): string {
     ...properties,
     "})",
   ].join("\n")
+}
+
+function enumOptionsSource(args: EnumInputStoryArgs): string[] {
+  if (args.options === "empty") return ["const options: readonly EnumInputOption[] = []"]
+  if (args.icons === "none") return [`const options: readonly EnumInputOption[] = ${JSON.stringify(SAMPLE_OPTIONS)}`]
+  const middleIcon = args.icons === "all" ? "iconSrc: uiIcons.apply, " : ""
+  return [
+    'import {uiIcons} from "@ui/elements/icons"',
+    "",
+    "const options: readonly EnumInputOption[] = [",
+    `  {value: "add", label: "Сложение", iconSrc: uiIcons.plus},`,
+    `  {value: "multiply", label: "Умножение", ${middleIcon}description: "Умножить входные значения"},`,
+    `  {value: "subtract", label: "Вычитание", iconSrc: uiIcons.minus},`,
+    "]",
+  ]
 }

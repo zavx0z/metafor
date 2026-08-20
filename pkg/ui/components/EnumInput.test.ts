@@ -25,6 +25,7 @@ type CenteredTextCall = Parameters<UiSurface["drawTextCentered"]>
 type ImageCall = Parameters<UiSurface["drawImage"]>
 type HitCall = Parameters<UiSurface["hit"]>
 type ShadowCall = Parameters<UiSurface["drawRoundedShadow"]>
+type RectCall = Parameters<UiSurface["drawRect"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
@@ -33,6 +34,7 @@ class RecordingSurface extends BaseUiSurface {
   readonly images: ImageCall[] = []
   readonly hits: HitCall[] = []
   readonly shadows: ShadowCall[] = []
+  readonly rects: RectCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
@@ -57,6 +59,8 @@ class RecordingSurface extends BaseUiSurface {
   }
 
   override drawRoundedShadow(...args: ShadowCall): void { this.shadows.push(args) }
+
+  override drawRect(...args: RectCall): void { this.rects.push(args) }
 
   override pushClip(): void {}
 
@@ -115,6 +119,71 @@ describe("public EnumInput", () => {
     expect(surface.texts.map(([text]) => text)).toEqual(["Multiply", "Add", "Multiply", "Subtract"])
     trigger(surface.hits[3])
     expect(values).toEqual(["subtract"])
+  })
+
+  test("owns selected and per-option icons while keeping one aligned mixed-option column", () => {
+    const surface = new RecordingSurface()
+    const iconOptions = Object.freeze([
+      Object.freeze({value: "add", label: "Add", iconSrc: "icon:add"}),
+      Object.freeze({value: "multiply", label: "Multiply"}),
+      Object.freeze({value: "subtract", label: "Subtract", iconSrc: "icon:subtract"}),
+    ]) satisfies readonly EnumInputOption[]
+    const props: EnumInputProps = {
+      value: "add",
+      options: iconOptions,
+      popupLabel: "Operation",
+    }
+    EnumInput(surface, 4, 6, 120, 28, props)
+    trigger(surface.hits[0])
+    surface.texts.length = 0
+    surface.images.length = 0
+    surface.hits.length = 0
+    EnumInput(surface, 4, 6, 120, 28, props)
+
+    expect(surface.texts.map(([text]) => text)).toEqual([
+      "Add",
+      "Operation",
+      "Add",
+      "Multiply",
+      "Subtract",
+    ])
+    expect(surface.images.map(([src]) => src).filter((src) => src.startsWith("icon:"))).toEqual([
+      "icon:add",
+      "icon:add",
+      "icon:subtract",
+    ])
+    const optionLabels = surface.texts.slice(2)
+    expect(optionLabels.map(([, x]) => x)).toEqual([
+      optionLabels[0]![1],
+      optionLabels[0]![1],
+      optionLabels[0]![1],
+    ])
+  })
+
+  test("passes the semantic Field label as popup header without Node-owned copy", () => {
+    const surface = new RecordingSurface()
+    const definition: EnumFieldDefinition = {
+      id: "operation",
+      label: "Operation",
+      compactLabel: "hidden",
+      kind: "enum",
+      value: "multiply",
+      options,
+    }
+    Field(surface, 0, 0, 120, definition, {density: "compact"})
+    trigger(surface.hits[0])
+    surface.texts.length = 0
+    surface.hits.length = 0
+    Field(surface, 0, 0, 120, definition, {density: "compact"})
+
+    expect(surface.texts.map(([text]) => text)).toEqual([
+      "Multiply",
+      "Operation",
+      "Add",
+      "Multiply",
+      "Subtract",
+    ])
+    expect(surface.hits).toHaveLength(4)
   })
 
   test("keeps an invalid controlled value observable while retaining legacy cycle behavior", () => {

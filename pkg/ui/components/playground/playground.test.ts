@@ -254,7 +254,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "cycle", "expanded",
     ])
     expect(componentVariantItems("enum-input/value/selected-description").map(({id}) => id)).toEqual([
-      "selected-description", "invalid-legacy",
+      "selected-description", "header-icons", "mixed-icons", "invalid-legacy",
     ])
     expect(componentVariantItems("enum-input/exception/no-items").map(({id}) => id)).toEqual([
       "no-items", "menu-undefined", "menu-error",
@@ -279,6 +279,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       ["density", "Плотность"],
       ["disabled", "Недоступно"],
       ["readonly", "Только чтение"],
+      ["open", "Раскрыто"],
       ["event", "Последнее событие"],
     ])
     const cycleSource = enumCycle.source(enumCycle.defaultArgs)
@@ -289,6 +290,14 @@ describe("@ui/components package-owned Workbench stories", () => {
     const enumSelected = await COMPONENT_STORIES.load("enum-input/value/selected-description")
     expect(enumSelected.defaultArgs).toMatchObject({value: "multiply", presentation: "cycle"})
     expect(enumSelected.source(enumSelected.defaultArgs)).toContain('description":"Умножить входные значения"')
+
+    const enumHeaderIcons = await COMPONENT_STORIES.load("enum-input/value/header-icons")
+    expect(enumHeaderIcons.defaultArgs).toMatchObject({icons: "all", open: true})
+    expect(enumHeaderIcons.source(enumHeaderIcons.defaultArgs)).toContain('popupLabel: "Операция"')
+    expect(enumHeaderIcons.source(enumHeaderIcons.defaultArgs)).toContain("iconSrc: uiIcons.apply")
+    const enumMixedIcons = await COMPONENT_STORIES.load("enum-input/value/mixed-icons")
+    expect(enumMixedIcons.defaultArgs).toMatchObject({icons: "mixed", open: true})
+    expect(enumMixedIcons.source(enumMixedIcons.defaultArgs)).not.toContain("iconSrc: uiIcons.apply")
 
     const enumExpanded = await COMPONENT_STORIES.load("enum-input/presentation/expanded")
     expect(enumExpanded.defaultArgs).toMatchObject({presentation: "expanded", value: "multiply"})

@@ -106,7 +106,9 @@ export type EnumFieldDefinition = FieldBase & Readonly<{
   kind: "enum"
   value: string
   options: readonly FieldOption[]
+  open?: boolean
   onChange?(value: string): void
+  onOpenChange?(open: boolean): void
 }>
 
 export type ColorFieldDefinition = FieldBase & Readonly<{
@@ -543,11 +545,14 @@ function enumInputProps(field: EnumFieldDefinition, density: EnumInputDensity): 
     value: field.value,
     options: field.options,
     density,
+    popupLabel: field.label,
   }
   if (field.description !== undefined) props.tooltip = field.description
+  if (field.open !== undefined) props.open = field.open
   if (field.disabled !== undefined) props.disabled = field.disabled
   if (field.readOnly !== undefined) props.readOnly = field.readOnly
   if (field.onChange !== undefined) props.onChange = field.onChange
+  if (field.onOpenChange !== undefined) props.onOpenChange = field.onOpenChange
   return props
 }
 

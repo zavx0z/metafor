@@ -127,7 +127,10 @@ function renderPrimitiveStory(
   }
   if (options.component === "select") {
     const controlWidth = 146
-    select(surface, frame.x + (frame.w - controlWidth) / 2, centerY - uiShapeMetrics.controlHeight / 2, controlWidth, uiShapeMetrics.controlHeight, {
+    const controlY = options.variant === "flipped"
+      ? frame.y + frame.h - uiShapeMetrics.controlHeight - 6
+      : centerY - uiShapeMetrics.controlHeight / 2
+    select(surface, frame.x + (frame.w - controlWidth) / 2, controlY, controlWidth, uiShapeMetrics.controlHeight, {
       key: "elements-story-select",
       value: args.label,
       options: [
@@ -137,6 +140,7 @@ function renderPrimitiveStory(
         {value: "Деление", label: "Деление", disabled: true},
       ],
       open: args.open,
+      ...((options.variant === "header" || options.variant === "flipped") ? {popupLabel: "Операция"} : {}),
       active: args.active,
       disabled: args.disabled,
       onChange: (value) => {
@@ -339,7 +343,7 @@ function primitiveArgs(options: Readonly<{
     radius: options.component === "button" || options.component === "input" || options.component === "select" ? uiShapeMetrics.lowRadius : 28,
     disabled: options.variant === "disabled",
     active: options.variant === "active",
-    open: options.variant === "open",
+    open: options.variant === "open" || options.variant === "header" || options.variant === "flipped",
     fit: options.variant === "contain" ? "contain" : "cover",
     mode: options.component === "list" ? options.variant as PrimitiveStoryArgs["mode"] : "regular",
     align: options.component === "span" ? options.variant as CssTextAlign : "center",
@@ -393,7 +397,7 @@ function primitiveSource(
     '  {value: "Деление", label: "Деление", disabled: true},',
     "]",
     "",
-    `select(surface, x, y, w, h, {key: "value", value: ${JSON.stringify(args.label)}, options, open: ${args.open}, active: ${args.active}, disabled: ${args.disabled}, onChange: setValue, onOpenChange: setOpen})`,
+    `select(surface, x, y, w, h, {key: "value", value: ${JSON.stringify(args.label)}, options, open: ${args.open}, active: ${args.active}, disabled: ${args.disabled},${options.variant === "header" || options.variant === "flipped" ? ' popupLabel: "Операция",' : ""} onChange: setValue, onOpenChange: setOpen})`,
   ].join("\n")
   if (options.component === "img") return `import {img} from "@ui/elements/img"\n\nimg(surface, x, y, w, h, {src: artworkUrl, fit: ${JSON.stringify(args.fit)}})`
   const listOptions = [

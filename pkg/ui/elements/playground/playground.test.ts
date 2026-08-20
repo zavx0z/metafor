@@ -112,6 +112,9 @@ describe("@ui/elements package-owned Workbench stories", () => {
     expect(elementSectionItems("div/scroll/vertical").map(({id}) => id)).toEqual(["basic", "scroll"])
     expect(elementSectionItems("css/border/rounded").map(({id}) => id)).toEqual(["padding", "flex", "border", "color", "typography"])
     expect(elementVariantItems("div/basic/padding").map(({id}) => id)).toEqual(["background", "border", "padding", "z-index"])
+    expect(elementVariantItems("select/state/header").map(({id}) => id)).toEqual([
+      "inactive", "active", "open", "header", "flipped", "disabled",
+    ])
     expect(elementVariantItems("pointer/state/release").map(({id}) => id)).toEqual(["idle", "hover", "press", "release", "click", "disabled"])
   })
 
@@ -130,6 +133,11 @@ describe("@ui/elements package-owned Workbench stories", () => {
     expect(select.source(select.defaultArgs)).toContain('from "@ui/elements/select"')
     expect(select.defaultArgs).toMatchObject({label: "Умножение", open: true, radius: uiShapeMetrics.lowRadius})
     expect(select.source(select.defaultArgs)).toContain("options")
+    const selectHeader = await ELEMENT_STORIES.load("select/state/header")
+    expect(selectHeader.defaultArgs).toMatchObject({open: true, state: "header"})
+    expect(selectHeader.source(selectHeader.defaultArgs)).toContain('popupLabel: "Операция"')
+    const selectFlipped = await ELEMENT_STORIES.load("select/state/flipped")
+    expect(selectFlipped.defaultArgs).toMatchObject({open: true, state: "flipped"})
     const popover = await ELEMENT_STORIES.load("popover/state/open")
     expect(popover.source(popover.defaultArgs)).toContain('from "@ui/elements/popover"')
     expect(popover.defaultArgs).toMatchObject({open: true})
@@ -152,7 +160,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
   })
 
   test("loads every published detail story with non-empty exact code", async () => {
-    expect(ELEMENT_STORY_ROUTES).toHaveLength(48)
+    expect(ELEMENT_STORY_ROUTES).toHaveLength(50)
     for (const route of ELEMENT_STORY_ROUTES) {
       const module = await ELEMENT_STORIES.load(route)
       const source = module.source(module.defaultArgs)
@@ -210,7 +218,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
     expect(sources[0]).toContain('from "@ui/elements/list"')
     expect(sources[0]).toContain('from "@ui/elements/select"')
     expect(sources[0]).toContain('import {uiShapeMetrics} from "../../shape.ts"')
-    expect(sources[0]!.match(/uiShapeMetrics\.controlHeight/g)?.length).toBe(6)
+    expect(sources[0]!.match(/uiShapeMetrics\.controlHeight/g)?.length).toBe(7)
     expect(sources[0]).not.toContain("240, 52")
     expect(sources[0]).not.toContain("460, 50")
     expect(sources[1]).toContain('from "@ui/elements/popover"')

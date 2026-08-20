@@ -43,7 +43,10 @@ FlexBox единолично вычисляет local child slots, а child то
 8. `select` принадлежит Elements: primitive владеет dense chrome, выбранной
    либо placeholder-подписью, chevron, visual states и caller hit geometry.
    Components-владелец enum задаёт options/value/cycle semantics, но не рисует
-   выбор значения через Button и не повторяет его shape policy.
+   выбор значения через Button и не повторяет его shape policy. Optional popup
+   label остаётся non-interactive text header с separator; generic trigger и
+   option content hooks получают только rect/state/value context и не вводят
+   icon vocabulary либо автоматическую icon column в Elements.
 9. Public Elements vocabulary следует простейшим HTML-аналогам: `div`, `span`,
    `button`, `input`, `select`, `popover`, `img`, `ul/li` и layout primitives.
    `IconButton`, `ControlGroup`, `ColorInput`, picker popup composition и другие составные controls не
@@ -144,8 +147,15 @@ FlexBox единолично вычисляет local child slots, а child то
     identity. Отсутствующий или неоднозначный key не выбирает
     случайного owner и сохраняет full-Surface fallback.
 12. Pure FlexBox/style helpers, screen-space tooltip overlay и статические
-    decorative helpers остаются flat: у них нет собственного
-    transform, dirty lifecycle или пользы от partial rematerialization.
+   decorative helpers остаются flat: у них нет собственного
+   transform, dirty lifecycle или пользы от partial rematerialization.
+13. `withOverlayPortal` является low-level Surface capability, а не Element.
+    Immediate fallback рисует в ordinary overlay. В retained transaction visual
+    subtree, hit, wheel и dismiss records атомарно принадлежат exact owner, но
+    после commit popup visual прикрепляется к top retained overlay под screen
+    tooltip. Replacement/rollback/remove/dispose не оставляют stale portal,
+    transform/clip/visibility наследуются без rematerialization, а portal input
+    records выигрывают actual paint order у поздних ordinary retained siblings.
 
 ## Dev playground boundary
 

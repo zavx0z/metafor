@@ -66,7 +66,9 @@ control нельзя опустить в Elements только ради повт
    Rotation использует тот же control с отдельным semantic kind.
 4. `ColorField` хранит нормализованный RGBA, `EnumField` — stable option value,
    `ReferenceField` — opaque consumer ID и display label. Компонент не загружает
-   resource и не знает его domain.
+   resource и не знает его domain. `EnumInput` единолично владеет optional
+   selected/per-option icons и общей alignment column смешанного списка,
+   передавая Field label как popup header через generic Select content hooks.
 5. Field renderer вызывается одинаково на обычной Surface и внутри Node
    renderer. Node package может выбирать field по socket type, но не копирует
    field implementation.

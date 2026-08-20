@@ -139,6 +139,8 @@ export const ELEMENT_STORIES = definePlaygroundStories({
               {id: "inactive", label: "Неактивный", title: "select · Неактивный", load: loadPrimitiveStory("select", "state", "inactive")},
               {id: "active", label: "Активный", title: "select · Активный", load: loadPrimitiveStory("select", "state", "active")},
               {id: "open", label: "Раскрытый", title: "select · Раскрытый", load: loadPrimitiveStory("select", "state", "open")},
+              {id: "header", label: "С заголовком", title: "select · Заголовок popup", load: loadPrimitiveStory("select", "state", "header")},
+              {id: "flipped", label: "Сверху", title: "select · Popup сверху", load: loadPrimitiveStory("select", "state", "flipped")},
               {id: "disabled", label: "Недоступный", title: "select · Недоступный", load: loadPrimitiveStory("select", "state", "disabled")},
             ],
           }],

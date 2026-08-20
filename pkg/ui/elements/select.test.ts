@@ -13,6 +13,7 @@ type TextCall = Parameters<UiSurface["drawText"]>
 type ImageCall = Parameters<UiSurface["drawImage"]>
 type HitCall = Parameters<UiSurface["hit"]>
 type ShadowCall = Parameters<UiSurface["drawRoundedShadow"]>
+type RectCall = Parameters<UiSurface["drawRect"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
@@ -20,6 +21,7 @@ class RecordingSurface extends BaseUiSurface {
   readonly images: ImageCall[] = []
   readonly hits: HitCall[] = []
   readonly shadows: ShadowCall[] = []
+  readonly rects: RectCall[] = []
   readonly renderKeys: string[] = []
   readonly keyedRenders: string[] = []
   readonly dismissables: DismissableLayerOptions[] = []
@@ -30,6 +32,7 @@ class RecordingSurface extends BaseUiSurface {
   override drawImage(...args: ImageCall): void { this.images.push(args) }
   override hit(...args: HitCall): void { this.hits.push(args) }
   override drawRoundedShadow(...args: ShadowCall): void { this.shadows.push(args) }
+  override drawRect(...args: RectCall): void { this.rects.push(args) }
   override registerRenderKey(key: string): void { this.renderKeys.push(key) }
   override requestKeyedRender(key: string): void { this.keyedRenders.push(key) }
   override interactionViewport(): UiSurfaceRect { return this.viewport }
@@ -42,6 +45,7 @@ class RecordingSurface extends BaseUiSurface {
     this.images.length = 0
     this.hits.length = 0
     this.dismissables.length = 0
+    this.rects.length = 0
   }
 }
 
@@ -176,6 +180,73 @@ describe("select element", () => {
     surface.clearRecording()
     select(surface, 10, 20, 146, 22, {...props, value: "subtract"})
     expect(surface.texts.map(([text]) => text)).toEqual(["Subtract"])
+  })
+
+  test("measures an optional non-interactive popup label and delegates content through rect-only hooks", () => {
+    const surface = new RecordingSurface()
+    const triggerContexts: unknown[] = []
+    const optionContexts: unknown[] = []
+    select(surface, 10, 20, 146, 22, {
+      key: "labelled",
+      value: "multiply",
+      options,
+      open: true,
+      popupLabel: "Operation",
+      renderTriggerContent(context) {
+        triggerContexts.push(context)
+        surface.drawText(`trigger:${context.label}`, context.rect.x, context.rect.y, {
+          fontPx: uiShapeMetrics.compactFontPx,
+          material: surface.materials.text,
+          maxWidthPx: context.rect.w,
+        })
+      },
+      renderOptionContent(context) {
+        optionContexts.push(context)
+        surface.drawText(`option:${context.option.label}`, context.rect.x, context.rect.y, {
+          fontPx: uiShapeMetrics.compactFontPx,
+          material: surface.materials.text,
+          maxWidthPx: context.rect.w,
+        })
+      },
+    })
+
+    expect(surface.texts.map(([text]) => text)).toEqual([
+      "trigger:Multiply",
+      "Operation",
+      "option:Add",
+      "option:Multiply",
+      "option:Subtract",
+      "option:Divide",
+    ])
+    expect(triggerContexts).toEqual([expect.objectContaining({
+      label: "Multiply",
+      value: "multiply",
+      placeholder: false,
+      rect: {x: 16, y: 20, w: 117, h: 22},
+    })])
+    expect(optionContexts).toHaveLength(4)
+    expect(optionContexts[0]).toEqual(expect.objectContaining({
+      option: options[0],
+      selected: false,
+      disabled: false,
+      rect: {x: 17, y: 67, w: 132, h: 22},
+    }))
+    expect(optionContexts[1]).toEqual(expect.objectContaining({selected: true}))
+    expect(optionContexts[3]).toEqual(expect.objectContaining({disabled: true}))
+    expect(surface.roundedRects[1]?.slice(0, 4)).toEqual([10, 43, 146, 113])
+    expect(surface.rects[0]?.slice(0, 4)).toEqual([11, 66, 144, uiShapeMetrics.borderWidth])
+    expect(surface.hits.map(hitKey)).toEqual([
+      "labelled",
+      "labelled:option:add",
+      "labelled:option:multiply",
+      "labelled:option:subtract",
+      "labelled:option:divide",
+    ])
+
+    const plain = new RecordingSurface()
+    select(plain, 10, 20, 146, 22, {key: "plain", value: "multiply", options, open: true})
+    expect(plain.roundedRects[1]?.slice(0, 4)).toEqual([10, 43, 146, 90])
+    expect(plain.texts.map(([text]) => text)).not.toContain("Operation")
   })
 
   test("supports deterministic controlled open state and closes on trigger reclick", () => {

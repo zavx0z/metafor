@@ -53,6 +53,7 @@ export type NodeEditorStoryRoute =
   | "node-editor/scene/selected"
   | "node-editor/collapsed/default"
   | "node-editor/collapsed/selected"
+  | "node-editor/popup/select-open"
 export type NodeComponentStoryRoute =
   | NodeEditorStoryRoute
   | "frame/nested/default"
@@ -109,7 +110,7 @@ const loadSocketStory = (
 
 const loadNodeComponentStory = (
   component: NodeComponentId,
-  state?: Readonly<{target: NodeEditorStoryTarget; selected: boolean}>,
+  state?: Readonly<{target: NodeEditorStoryTarget; selected: boolean; selectOpen?: boolean}>,
 ) => async (): Promise<PlaygroundStoryModule> => {
   await import("@nodes/ui/node-editor")
   await import("@nodes/ui/blender-node")
@@ -194,6 +195,16 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
               load: loadNodeComponentStory("node-editor", {target: "collapsed", selected: true}),
             },
           ],
+        }, {
+          id: "popup",
+          label: "Раскрытые controls",
+          variants: [{
+            id: "select-open",
+            label: "Select раскрыт",
+            title: "Редактор нод · Select раскрыт",
+            tags: ["expanded", "select", "open", "overlay"],
+            load: loadNodeComponentStory("node-editor", {target: "expanded", selected: false, selectOpen: true}),
+          }],
         }],
       },
       {

@@ -112,6 +112,67 @@ function attachPointerRuntime(canvas: Readonly<{attachCanvas(runtime: UiRuntime)
 }
 
 describe("generic Blender-like Node Editor contracts", () => {
+  test("ports an open Select above later Parameter visuals and preserves it through transform-only Node frames", async () => {
+    const node: BlenderNode = {
+      id: "popup-node",
+      title: "Popup Node",
+      properties: [
+        {
+          id: "operation",
+          label: "Операция",
+          compactLabel: "hidden",
+          kind: "enum",
+          value: "multiply",
+          open: true,
+          options: [
+            {value: "add", label: "Сложение"},
+            {value: "multiply", label: "Умножение"},
+            {value: "subtract", label: "Вычитание"},
+          ],
+        },
+        {id: "factor", label: "Коэффициент", kind: "number", value: 0.5},
+        {id: "clamp", label: "Ограничение", kind: "boolean", value: true},
+      ],
+      parameters: [],
+      sockets: [],
+    }
+    const measured = measureBlenderNode(node)
+    const entry = positionBlenderNode(node, {x: 40, y: 40, w: 240, h: measured.height})
+    const popupTree: PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> = {
+      bounds: {x: 0, y: 0, w: 340, h: Math.max(240, measured.height + 80)},
+      frames: [],
+      nodes: [entry],
+      links: [],
+    }
+    const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
+      renderers: createBlenderNodeRenderers(),
+      toolbar: false,
+    })
+    attachPointerRuntime(editor)
+    editor.setTree(popupTree)
+    const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    editor.setRect({x: 0, y: 0, w: 640, h: 360}, 0.001, new TrueTypeFont(fontBytes))
+
+    const owner = requiredObject(editor.node, "NodeCanvas.node:popup-node")
+    const retainedOverlay = requiredObject(editor.node, "NodeEditor.retainedOverlayLayer")
+    expect(retainedOverlay.children).toHaveLength(1)
+    const portal = retainedOverlay.children[0]! as Object3D & Readonly<{owner: Object3D}>
+    expect(portal.owner).toBe(owner)
+    expect(portal.children.length).toBeGreaterThan(6)
+    expect(owner.children.length).toBeGreaterThan(6)
+    expect(owner.children).not.toContain(portal)
+
+    const portalChildren = [...portal.children]
+    const before = editor.diagnostics
+    editor.setCanvasTransform({x: 80, y: 44, scale: 1.6})
+    editor.node.updateWorldMatrix()
+    expect(editor.diagnostics.localLayoutPlans).toBe(before.localLayoutPlans)
+    expect(editor.diagnostics.materializations).toBe(before.materializations)
+    expect(portal.children).toEqual(portalChildren)
+    expect([...portal.matrixWorld.elements]).toEqual([...owner.matrixWorld.elements])
+    editor.dispose()
+  })
+
   test("retains the actual content hierarchy and rematerializes only dirty components", async () => {
     const calls = {
       nodePlans: 0,

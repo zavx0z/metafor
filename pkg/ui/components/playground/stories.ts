@@ -57,6 +57,8 @@ export type EnumInputStoryVariant =
   | "cycle"
   | "expanded"
   | "selected-description"
+  | "header-icons"
+  | "mixed-icons"
   | "invalid-legacy"
   | "no-items"
   | "menu-undefined"
@@ -358,6 +360,8 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             label: "Значение",
             variants: [
               {id: "selected-description", label: "С описанием", title: "EnumInput · Описание выбранного значения", load: loadEnumInputStory("selected-description")},
+              {id: "header-icons", label: "Заголовок и иконки", title: "EnumInput · Заголовок и иконки", load: loadEnumInputStory("header-icons")},
+              {id: "mixed-icons", label: "Смешанные иконки", title: "EnumInput · Общая колонка иконок", load: loadEnumInputStory("mixed-icons")},
               {id: "invalid-legacy", label: "Неизвестное", title: "EnumInput · Неизвестное устаревшее значение", load: loadEnumInputStory("invalid-legacy")},
             ],
           },

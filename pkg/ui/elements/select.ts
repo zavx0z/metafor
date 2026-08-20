@@ -25,14 +25,35 @@ export type SelectElementOption<Value extends SelectElementValue = SelectElement
   disabled?: boolean
 }>
 
+export type SelectElementContentRect = Readonly<{x: number; y: number; w: number; h: number}>
+
+export type SelectElementTriggerContentContext<Value extends SelectElementValue = SelectElementValue> = Readonly<{
+  rect: SelectElementContentRect
+  value: Value | null | undefined
+  label: string
+  placeholder: boolean
+  state: ButtonElementState
+}>
+
+export type SelectElementOptionContentContext<Value extends SelectElementValue = SelectElementValue> = Readonly<{
+  rect: SelectElementContentRect
+  option: SelectElementOption<Value>
+  selected: boolean
+  disabled: boolean
+  state: Readonly<{hovered: boolean; pressed: boolean}>
+}>
+
 export type SelectElementProps<Value extends SelectElementValue = SelectElementValue> = Omit<ButtonElementProps, "children" | "style"> & {
   value?: Value | null
   placeholder?: string
   options?: readonly SelectElementOption<Value>[]
   open?: boolean
   active?: boolean
+  popupLabel?: string
   style?: StyleProps
   chevronSrc?: string
+  renderTriggerContent?(context: SelectElementTriggerContentContext<Value>): void
+  renderOptionContent?(context: SelectElementOptionContentContext<Value>): void
   onChange?(value: Value): void
   onOpenChange?(open: boolean): void
 }
@@ -61,7 +82,9 @@ export function select<Value extends SelectElementValue = SelectElementValue>(
     return
   }
   const border = uiShapeMetrics.borderWidth
-  const menuHeight = options.length * uiShapeMetrics.controlHeight + border * 2
+  const hasPopupLabel = (props.popupLabel?.length ?? 0) > 0
+  const popupHeaderHeight = hasPopupLabel ? uiShapeMetrics.controlHeight + border : 0
+  const menuHeight = options.length * uiShapeMetrics.controlHeight + popupHeaderHeight + border * 2
   const popoverProps: PopoverProps = {
     key,
     ...(props.open === undefined ? {} : {open: props.open}),
@@ -71,7 +94,17 @@ export function select<Value extends SelectElementValue = SelectElementValue>(
       drawSelectTrigger(surface, x, y, width, height, props, key, label, placeholder, context.open, context)
     },
     content: (rect, context) => {
-      drawSelectMenu(surface, rect, key, options, props.value, props.onChange, context)
+      drawSelectMenu(
+        surface,
+        rect,
+        key,
+        options,
+        props.value,
+        props.onChange,
+        context,
+        hasPopupLabel ? props.popupLabel : undefined,
+        props.renderOptionContent,
+      )
     },
   }
   popover(surface, chrome.x, chrome.y, chrome.width, chrome.height, popoverProps)
@@ -101,6 +134,8 @@ function drawSelectTrigger<Value extends SelectElementValue>(
       resolvedSelectState(state, props.active === true || open),
       layout,
       props.chevronSrc ?? uiIcons.chevronDown,
+      props.value,
+      props.renderTriggerContent,
     ),
     style: (state) => selectStyle(props.style ?? {}, resolvedSelectState(state, props.active === true || open)),
   }
@@ -157,6 +192,8 @@ function drawSelectMenu<Value extends SelectElementValue>(
   value: Value | null | undefined,
   onChange: ((value: Value) => void) | undefined,
   context: PopoverContext,
+  popupLabel: string | undefined,
+  renderOptionContent: SelectElementProps<Value>["renderOptionContent"],
 ): void {
   const border = uiShapeMetrics.borderWidth
   surface.drawRoundedShadow(rect.x, rect.y, rect.w, rect.h, {
@@ -176,64 +213,96 @@ function drawSelectMenu<Value extends SelectElementValue>(
     z: Z.ELEMENT + 0.2,
   })
 
+  const optionItems = options.map((option) => ({
+    height: uiShapeMetrics.controlHeight,
+    draw: (rowX: number, rowY: number, rowWidth: number, rowHeight: number) => {
+      const rowKey = `${key}:option:${String(option.value)}`
+      const state = surface.hitState(rowX, rowY, rowWidth, rowHeight, rowKey)
+      const selected = Object.is(option.value, value)
+      const disabled = option.disabled === true
+      const colors = resolveWidgetColors("menuItem", {
+        disabled,
+        hovered: state.hovered || state.pressed,
+        selectedDraw: selected,
+      })
+      surface.drawRoundedRect(rowX, rowY, rowWidth, rowHeight, {
+        radius: 0,
+        fill: blenderRgba8ToColor(colors.inner),
+        border: null,
+        borderWidth: 0,
+        z: Z.ELEMENT + 0.22,
+      })
+      const contentRect = Object.freeze({
+        x: rowX + uiShapeMetrics.tightGap * 2,
+        y: rowY,
+        w: Math.max(0, rowWidth - uiShapeMetrics.tightGap * 4),
+        h: rowHeight,
+      })
+      if (renderOptionContent === undefined) {
+        surface.drawText(option.label, contentRect.x, contentRect.y + (contentRect.h - uiShapeMetrics.compactFontPx) / 2, {
+          fontPx: uiShapeMetrics.compactFontPx,
+          material: textMaterial(surface, blenderRgba8ToColor(colors.text)),
+          maxWidthPx: Math.max(1, contentRect.w),
+          z: Z.TEXT + 0.22,
+        })
+      } else {
+        renderOptionContent(Object.freeze({rect: contentRect, option, selected, disabled, state: Object.freeze({...state})}))
+      }
+      const tooltip = option.description === undefined ? undefined : {label: option.description, delayMs: 450}
+      surface.hit(rowX, rowY, rowWidth, rowHeight, () => {
+        if (disabled) return
+        onChange?.(option.value)
+        context.close()
+      }, {
+        key: rowKey,
+        cursor: disabled ? "default" : "pointer",
+        ...(tooltip === undefined ? {} : {tooltip}),
+        onPointerEnter: () => surface.requestKeyedRender(key),
+        onPointerLeave: () => surface.requestKeyedRender(key),
+      })
+      if (option.description !== undefined) {
+        surface.drawTooltipForHit(rowX, rowY, rowWidth, rowHeight, option.description, {delayMs: 450})
+      }
+    },
+  }))
+  const headerItems = popupLabel === undefined ? [] : [
+    {
+      height: uiShapeMetrics.controlHeight,
+      draw: (headerX: number, headerY: number, headerWidth: number, headerHeight: number) => {
+        surface.drawText(popupLabel, headerX + uiShapeMetrics.tightGap * 2, headerY + (headerHeight - uiShapeMetrics.compactFontPx) / 2, {
+          fontPx: uiShapeMetrics.compactFontPx,
+          material: textMaterial(surface, blenderRgba8ToColor(menuColors.text)),
+          maxWidthPx: Math.max(1, headerWidth - uiShapeMetrics.tightGap * 4),
+          z: Z.TEXT + 0.22,
+        })
+      },
+    },
+    {
+      height: border,
+      draw: (separatorX: number, separatorY: number, separatorWidth: number, separatorHeight: number) => {
+        surface.drawRect(separatorX, separatorY, separatorWidth, separatorHeight, blenderRgba8ToColor(menuColors.outline), Z.ELEMENT_RULE + 0.22)
+      },
+    },
+  ]
   flexColumn({
     x: rect.x + border,
     y: rect.y + border,
     w: Math.max(0, rect.w - border * 2),
     h: Math.max(0, rect.h - border * 2),
     gap: 0,
-    items: options.map((option) => ({
-      height: uiShapeMetrics.controlHeight,
-      draw: (rowX, rowY, rowWidth, rowHeight) => {
-        const rowKey = `${key}:option:${String(option.value)}`
-        const state = surface.hitState(rowX, rowY, rowWidth, rowHeight, rowKey)
-        const selected = Object.is(option.value, value)
-        const disabled = option.disabled === true
-        const colors = resolveWidgetColors("menuItem", {
-          disabled,
-          hovered: state.hovered || state.pressed,
-          selectedDraw: selected,
-        })
-        surface.drawRoundedRect(rowX, rowY, rowWidth, rowHeight, {
-          radius: 0,
-          fill: blenderRgba8ToColor(colors.inner),
-          border: null,
-          borderWidth: 0,
-          z: Z.ELEMENT + 0.22,
-        })
-        surface.drawText(option.label, rowX + uiShapeMetrics.tightGap * 2, rowY + (rowHeight - uiShapeMetrics.compactFontPx) / 2, {
-          fontPx: uiShapeMetrics.compactFontPx,
-          material: textMaterial(surface, blenderRgba8ToColor(colors.text)),
-          maxWidthPx: Math.max(1, rowWidth - uiShapeMetrics.tightGap * 4),
-          z: Z.TEXT + 0.22,
-        })
-        const tooltip = option.description === undefined ? undefined : {label: option.description, delayMs: 450}
-        surface.hit(rowX, rowY, rowWidth, rowHeight, () => {
-          if (disabled) return
-          onChange?.(option.value)
-          context.close()
-        }, {
-          key: rowKey,
-          cursor: disabled ? "default" : "pointer",
-          ...(tooltip === undefined ? {} : {tooltip}),
-          onPointerEnter: () => surface.requestKeyedRender(key),
-          onPointerLeave: () => surface.requestKeyedRender(key),
-        })
-        if (option.description !== undefined) {
-          surface.drawTooltipForHit(rowX, rowY, rowWidth, rowHeight, option.description, {delayMs: 450})
-        }
-      },
-    })),
+    items: [...headerItems, ...optionItems],
   })
 }
 
-function drawSelectContent(
+function drawSelectContent<Value extends SelectElementValue>(
   surface: UiSurface,
   label: string,
   placeholder: boolean,
   state: ButtonElementState,
   layout: ButtonElementLayout,
   chevronSrc: string,
+  value: Value | null | undefined,
+  renderTriggerContent: SelectElementProps<Value>["renderTriggerContent"],
 ): void {
   const content = layout.content
   const colors = resolveWidgetColors("menu", selectWidgetState(state))
@@ -247,12 +316,17 @@ function drawSelectContent(
     alignItems: "center",
     items: [
       {width: "grow", height: content.height, draw: (x, y, width, height) => {
-        surface.drawText(label, x, y + (height - layout.fontPx) / 2, {
-          fontPx: layout.fontPx,
-          material: textMaterial(surface, blenderRgba8ToColor(text)),
-          maxWidthPx: Math.max(1, width),
-          z: Z.TEXT,
-        })
+        const rect = Object.freeze({x, y, w: width, h: height})
+        if (renderTriggerContent === undefined) {
+          surface.drawText(label, x, y + (height - layout.fontPx) / 2, {
+            fontPx: layout.fontPx,
+            material: textMaterial(surface, blenderRgba8ToColor(text)),
+            maxWidthPx: Math.max(1, width),
+            z: Z.TEXT,
+          })
+        } else {
+          renderTriggerContent(Object.freeze({rect, value, label, placeholder, state}))
+        }
       }},
       {width: layout.iconPx, height: layout.iconPx, draw: (x, y, width, height) => {
         drawIconCentered(surface, chevronSrc, x + width / 2, y + height / 2, layout.iconPx, {

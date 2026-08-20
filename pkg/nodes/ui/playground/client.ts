@@ -299,6 +299,9 @@ try {
   }
 
   function applyProductionStoryState(route: NodePlaygroundRoute): void {
+    editor.setTree(createCatalogNodeTree({
+      openSelect: isNodeEditorStoryRoute(route) && storyArgs["select-open"] === true,
+    }))
     if (isNodeSocketStoryRoute(route)) return
     if (isNodeEditorStoryRoute(route)) {
       applyNodeEditorStoryState(storyArgs, {
