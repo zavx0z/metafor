@@ -104,6 +104,9 @@ Workbench overrides `999/12/34/36`; live before/after и Node regression зел�
 Следующий UI-015.5 переводит Vector/Rotation/Matrix/Collection grouped editors.
 Baseline на current Components Workbench подтвердил horizontal Vector,
 раздельную Matrix и oversized Collection; UI-015.5 уже IN_PROGRESS.
+Grouped source commit `14f440899` получил ownership PASS, но UI-015.5.1
+исправляет active-cell inset, tooltip cursor и завышенные Matrix/Collection
+reference claims до visual acceptance.
 Параллельный live audit Path/Reference/Color выявил текстовый `…`, missing
 resource/picker actions и closed-only ColorInput; UI-015.7 доводит их до exact
 catalog composition перед общей matrix.
