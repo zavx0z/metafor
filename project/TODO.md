@@ -110,6 +110,10 @@ centered rounded islands без disclosure slot/indent и keyboard tree law.
 Владелец уточнил primary pattern новым
 `workbench-accordion-reference.png`: Blender Properties/Preferences accordion
 list, не Outliner tree; Outliner остаётся только keyboard corroboration.
+Последующий side-by-side уточнил model boundary: accordion только grouped+
+toggle catalog; ungrouped `Поле` остаётся отдельным selection list и не
+наследует disclosure/left alignment. Current dark headers/gaps/bright outline
+отклонены до source checkpoint.
 Следующий UI-015.5 переводит Vector/Rotation/Matrix/Collection grouped editors.
 Baseline на current Components Workbench подтвердил horizontal Vector,
 раздельную Matrix и oversized Collection; UI-015.5 уже IN_PROGRESS.

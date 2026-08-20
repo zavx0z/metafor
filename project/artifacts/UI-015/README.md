@@ -89,6 +89,19 @@
   `93999f8291ed237a8f110e1e0f1e65958e7b5460f56ca1e4cbc63176cd95f758`.
   Незакоммиченный patch убрал cards, но оставил чрезмерно разреженный flat list
   без читаемой section composition; это не source result.
+* Owner side-by-side current: `workbench-accordion-current-red.png`, `426×512`,
+  `22005` bytes, SHA-256
+  `3fa7055b48a5f9945ace7830ddd88417e98df29cfe81ac61a782bf6d7494aa92`.
+* Exact target crop: `workbench-accordion-blender-target.png`, `604×632`,
+  `147597` bytes, SHA-256
+  `fe7aedff255eecdc578608ecc70acb54fe61ec5e1b6069a15fea5e4335b0e890`.
+  Target требует medium-gray panel headers, compact gaps, no bright expanded
+  outline и точный typography/padding rhythm.
+* Secondary regression: `workbench-secondary-navigation-red.png`, `352×758`,
+  `22402` bytes, SHA-256
+  `49dee2c02273289a1adff2acf7ea97f73c09dca638adb87ebc52069c5ebcee70`.
+  Ungrouped `Поле` ошибочно получил global left tree layout; он обязан остаться
+  самостоятельным selection list без disclosure/indent.
 
 ## UI-015.7.5 — Node Select overlay RED baseline
 
