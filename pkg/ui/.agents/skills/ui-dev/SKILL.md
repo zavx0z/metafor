@@ -40,6 +40,33 @@ The dispatcher stops only its exact checkout/selector/PID/command/listener.
 Foreign listeners are reported and preserved; a second process is never
 started or adopted.
 
+## Prove source freshness before browser evidence
+
+These package playgrounds intentionally do not use HMR. Partial hot replacement
+cannot prove a fresh combined package graph, changed exports/manifest, exact
+process ownership, retained-state reset, or the code loaded by the existing
+document. `ensure` with `outcome:"reused"` proves only process health and
+ownership; it never proves current source.
+
+After any applicable production source, story, shared playground dependency,
+package manifest/export, or browser entry change made since the selector was
+started — or whenever freshness cannot be proved — the supervising task must:
+
+1. finish a stable scoped source checkpoint; never present a dirty atomic patch
+   as the current owner interface;
+2. `restart` every affected selector through the dispatcher and retain each
+   foreground PTY;
+3. explicitly `reload` the existing singleton target even when its URL/route is
+   unchanged;
+4. verify exact route/source/args in DOM, console `0`, and an accepted non-black
+   canvas before visual handoff.
+
+Route/args-only navigation on an already fresh process may reuse the selector
+and target without restart. A browser reload alone does not refresh a stale
+server graph. Read the affected-selector table and exact commands in
+[references/playgrounds.md](references/playgrounds.md) before the first source
+refresh or browser operation.
+
 Current selectors and exact usage are in
 [references/playgrounds.md](references/playgrounds.md). `elements` owns the
 restored public-shell playground on its package contour.
@@ -81,4 +108,5 @@ or explicit owner acceptance.
 
 At handoff report checkout/branch/commit, selector, exact command/cwd/port,
 ownership and PID/log, route/target ID, native metrics after restore, checks and
-captures, and every remaining physical-device, GPU, integration, or owner gate.
+captures, the loaded source-freshness boundary, and every remaining
+physical-device, GPU, integration, or owner gate.

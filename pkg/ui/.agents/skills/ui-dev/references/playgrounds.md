@@ -50,12 +50,47 @@ ready marker, canvas capability, state key, PID and log from the registry. An
 unowned listener returns a typed `foreign` outcome and remains untouched.
 Elements uses the same exact package ownership and singleton target rules.
 
-A long-lived Bun server does not prove that it has reread a changed workspace
-package manifest or `exports`. After such a change, restart every affected
-selector through the dispatcher. A successful fresh build proves only current
-disk resolution; it does not prove the old process. If the existing document
-previously received `500` for `/entry.js`, explicitly `reload` its exact target
-after server recovery: navigating to the same URL does not reload it.
+### No-HMR source freshness gate
+
+All maintained selectors are no-HMR by design. HMR is not accepted evidence for
+this package architecture: it can replace only part of a split graph, preserve
+stale retained/runtime state, bypass a changed manifest/export, and leave the
+existing document on a different source boundary than its server. A successful
+fresh build proves current disk resolution only; a healthy/reused process and a
+browser reload do not prove that process compiled the same graph.
+
+Use this decision table after a stable scoped source checkpoint:
+
+| Changed scope | Required selector restart |
+| --- | --- |
+| `pkg/ui/elements` production, exports or manifest | `elements`, `components`, `node-ui`, and every running shared fixture importer |
+| `pkg/ui/components` production, exports or manifest | `components`, `node-ui`, and every running shared fixture importer |
+| `pkg/nodes/ui` production or package-owned stories | `node-ui` |
+| package-owned Elements stories | `elements` |
+| package-owned Components stories | `components` |
+| shared `pkg/ui/playground` shell/router/theme | every running maintained selector |
+| exact selector server/browser entry or build config | that selector and each direct importer named above |
+| route/args-only navigation with no source change | no restart; navigate/reload the same target |
+
+When a listed selector is not running, do not start it only to satisfy the
+table. Restart every affected selector that is running or is required by the
+current acceptance path. If dependency reachability is uncertain, treat the
+consumer as affected instead of assuming freshness.
+
+After every restart, resolve the existing singleton target and run explicit
+`reload --target-id ... --route ...`. This is mandatory even if the target URL
+already matches: same-URL navigation may leave the previous document loaded.
+Then prove DOM ready plus exact route/source/args, console `0`, and non-black
+canvas. Report new PID/processStart, target ID, route and source checkpoint.
+
+Do not restart an owner-visible contour while source is an unfinished atomic
+patch merely to preview it. A deliberate RED diagnosis of dirty source must be
+labelled uncommitted/intermediate and cannot become current/final evidence. For
+normal handoff, commit/checkpoint first, then restart and reload.
+
+If the existing document previously received `500` for `/entry.js`, explicit
+reload after recovery is especially required; navigating to the same URL does
+not reload it.
 
 The dispatcher needs process inspection and localhost HTTP access. In a
 restricted process/network sandbox its status can be false `foreign` or
