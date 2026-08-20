@@ -194,6 +194,12 @@ viewport/editor renderer contracts и подключаемыми Node/Socket/Lin
 number/slider, boolean, enum, color, vector/rotation, matrix и resource reference
 используются одинаково внутри Node properties/socket defaults и в обычных
 панелях. `@nodes/ui` владеет только их размещением внутри Node preset.
+Новый общий visual этап
+[`UI-015 — Перевести весь UI на форму и композицию Blender`](tasks/UI-015.md)
+распространяет уже удачное Node-направление на Elements, Components, Fields и
+shared Workbench: Blender задаёт composition/form/rhythm, а MetaFor сохраняет
+palette, project font и semantic tone colors. Новые UI-010 leaves ждут этой
+shape foundation.
 Следующий принятый этап
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 сохраняет `Field` единым semantic facade, но выделяет public controls для
@@ -208,7 +214,9 @@ collection editor. Blender задаёт их поведение, состоян�
 весь canvas. Package-owned stories дают единый источник preview, variants,
 controls, копируемого TypeScript и проверок, а metadata index обеспечивает
 поиск и lazy загрузку больших catalog без включения всех implementations в
-initial bundle. Внешний Blender catalog остаётся только reference и не
+initial bundle. Five-panel semantics сохраняются, но visual chrome переводится
+на compact Blender editor form вместо oversized rounded islands/pill navigation.
+Внешний Blender catalog остаётся только reference и не
 переносит свои ноды, изображения или examples в MetaFor.
 
 Shared Workbench foundation и эталон `4192` уже существуют. Node UI, Components
@@ -243,13 +251,13 @@ layout integration существующие policies продолжают нез
 Links, containment и generic renderer boundary. Этот catalog не заменяет
 layout playground и не является product acceptance Hamiltonian.
 
-Визуальный эталон component library — настоящий локальный Blender 4.5.5 LTS,
+Визуальный эталон всего UI — настоящий локальный Blender 4.5.5 LTS,
 а не свободная стилизация по его терминологии. Canvas, Node/Frame, Socket rows,
 controls, Links и interaction states проверяются side-by-side при сопоставимом
 масштабе. Automated screenshot не является visual acceptance: завершение
 этого направления требует явного принятия владельца.
 
-Эталон не отменяет project identity: сохраняются проектный шрифт и
+Эталон не отменяет project identity: сохраняются MetaFor palette, проектный шрифт и
 ортогональные Link routes со скруглёнными углами. Blender Frame становится
 отдельным first-class component и единственным visual owner вложенности Node;
 обычная Node не подменяет Frame. Тот же Node Editor обязан работать на mobile:

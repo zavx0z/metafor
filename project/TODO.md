@@ -29,6 +29,7 @@ flowchart LR
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     UI010["UI-010 · полный набор универсальных полей"]
     UI012["UI-012 · мягкая производительная SDF-тень"]
+    UI015["UI-015 · Blender form для всего UI"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
@@ -49,6 +50,7 @@ flowchart LR
     MF405 --> MF406
     MF411 --> MF414
     MF424 --> HAM006
+    UI015 --> UI010
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -87,7 +89,13 @@ CollectionInput reorder commit-ом `2404e88ac`; зависимая UI-010.10 st
 `7cae3d28c` завершена: encoded-PNG guard дал current non-black capture, exact
 source/console и completeness `7/7`. Текущий UI-010.11 добавляет public
 PathInput commit-ом `9aeb7f70c`; зависимая UI-010.12 story сейчас закрывает
-completeness/live `8/8` source-ом `c998dd212` и current non-black capture.
+completeness/live `8/8` source-ом `c998dd212` и current non-black capture. Новые
+controls ждут UI-015 shape foundation, чтобы не продолжать старую pill form.
+
+[`UI-015 — Перевести весь UI на форму и композицию Blender`](tasks/UI-015.md)
+сохраняет palette/font MetaFor, но переводит Elements, Components, Fields и
+Workbench на Blender 4.5.5 composition/form/rhythm. Текущий срез измеряет exact
+reference и вводит единые Elements shape metrics без изменения consumers.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
@@ -110,7 +118,8 @@ mobile и явная visual owner acceptance остаются следующим
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
+| UI-015 | IN_PROGRESS | нет         | [Открыть](tasks/UI-015.md) |
+| UI-010 | WAITING     | UI-015      | [Открыть](tasks/UI-010.md) |
 | UI-012 | REVIEW      | нет         | [Открыть](tasks/UI-012.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
