@@ -38,6 +38,19 @@ ready marker, canvas capability, state key, PID and log from the registry. An
 unowned listener returns a typed `foreign` outcome and remains untouched.
 Elements uses the same exact package ownership and singleton target rules.
 
+A long-lived Bun server does not prove that it has reread a changed workspace
+package manifest or `exports`. After such a change, restart every affected
+selector through the dispatcher. A successful fresh build proves only current
+disk resolution; it does not prove the old process. If the existing document
+previously received `500` for `/entry.js`, explicitly `reload` its exact target
+after server recovery: navigating to the same URL does not reload it.
+
+The dispatcher needs process inspection and localhost HTTP access. In a
+restricted process/network sandbox its status can be false `foreign` or
+`unhealthy`, and server bind can surface as false `EADDRINUSE`. Run lifecycle and
+browser commands outside that restriction before deciding ownership or changing
+a process. Never use the restricted result to adopt or kill a listener.
+
 Use `UI_DEV_TEST_MODE=1 UI_DEV_TEST_PORT=<free-port>` only for isolated tests;
 normal work always uses the registry port.
 
@@ -106,6 +119,7 @@ file. No old node-local skill directory or compatibility route exists.
 | Evidence | What it proves | What remains open |
 | --- | --- | --- |
 | Registry/lifecycle tests | Exact supported commands and process ownership | Browser rendering |
+| Fresh in-memory build | Current disk source and manifests resolve | Old process and loaded document |
 | DOM and console | State of one route-specific background target | Visual quality |
 | Canvas PNG | Exact canvas pixels for that target and viewport | Browser chrome and owner judgment |
 | Mobile emulation or synthetic touch | Responsive/handler path | Physical-device proof |
