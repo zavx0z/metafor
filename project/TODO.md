@@ -97,13 +97,11 @@ controls ждут UI-015 shape foundation, чтобы не продолжать 
 Workbench на Blender 4.5.5 composition/form/rhythm. Текущий срез измеряет exact
 reference и уже ввёл Elements shape owner `af5ae43a8`; UI-015.2 подключает его
 к Input/Button primitive chrome commit-ом `e6f7669bf` с before/after evidence.
-UI-015.3 зафиксировал dense scalar rows commit `813f48994`; live показал, что
-новый Elements select пока сохраняет старый click-cycle и не раскрывает options.
-Текущий UI-015.4 добавляет настоящий dropdown, единый radius `4`, снижает
-чрезмерный idle border contrast и убирает геометрический/timer button press на
-Elements owner до grouped editors.
-Параллельный UI-015.6 удаляет exact Workbench overrides `999/12/34/36`, которые
-на owner screenshot превращают navigation, tabs и panels в отдельную pill-тему.
+UI-015.3/.4 завершили dense scalar rows и настоящий Elements dropdown commits
+`813f48994`, `ea1af7aa5`, `9365d9af0`: единый radius `4`, тихий idle border и
+повторный material-only Button press. UI-015.6 commit `cd85f9614` удалил exact
+Workbench overrides `999/12/34/36`; live before/after и Node regression зелёные.
+Следующий UI-015.5 переводит Vector/Rotation/Matrix/Collection grouped editors.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один

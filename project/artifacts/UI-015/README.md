@@ -21,3 +21,53 @@
   к Blender scalar reference `146×23`; owner acceptance остаётся отдельной.
 * Контрольная сумма: SHA-256
   `6445146ec6b852767e159d9a62aff25f2c274fe816222c567b9e7fe563f8ebd5`.
+
+## UI-015.3/.4 — scalar Field и раскрывающийся select
+
+* Reference: Blender catalog commit `62bf479`,
+  `node-types_ShaderNodeValue.webp` и
+  `node-types_GeometryNodeMenuSwitch.webp`.
+* Source: `813f48994`, dropdown correction `ea1af7aa5`, Button ownership
+  correction `9365d9af0`.
+* Live: `$ui-dev` Elements PID `85299`, target
+  `E2087390E08913DD8CA4142D5D9E8C48`; Components PID `85298`, target
+  `D0775AE44CFF0E299A0C28EECB3872D2`. Native `1920×1088 @2`, canvas
+  `3840×2176`, console `0` на всех routes.
+* Факт: scalar Field стал одной row label+control; closed select `146×22`,
+  radius `4`, label слева и chevron справа; open popup имеет ту же ширину,
+  плоские `22`-unit rows, одну внешнюю тихую границу, selected/disabled state.
+  MetaFor palette/font сохранены. Actual retained pointer tests проверяют выбор,
+  закрытие после choice/reclick и два последовательных Button press/release без
+  geometry shift или timer state.
+* Captures:
+  * `components-scalar-before.png` — `584763` bytes, SHA-256
+    `9fca0f90af997c88cebb68e270cedbaeefa047b2252b3b976059274f3d796217`;
+  * `components-scalar-final.png` — `451284` bytes, SHA-256
+    `f93d2f24e1d0cee4be1fce9bbf218aaf9aa51aa383ff9ee45afe57c28a610eb0`;
+  * `components-enum-final.png` — `458741` bytes, SHA-256
+    `ab959a0df1b59cd0836ca68d3ea1d5249d671cebb9552e566f469425410065e8`;
+  * `elements-select-closed-final.png` — `422763` bytes, SHA-256
+    `3ba81a77e10586f4bd2a5cf99b6809519fc434ccfd470973ca46c070c079cdaf`;
+  * `elements-select-open-final.png` — `429178` bytes, SHA-256
+    `6b23ca4e3e55117cc4a4a53e16542f425bfa752cb3372a3f3ad8eaabe4623a8c`.
+
+## UI-015.6 — compact Workbench chrome
+
+* Owner screenshot `owner-workbench-override.png` зафиксировал конфликт:
+  production button radius `4`, но shell явно передавал `999/12/34/36`.
+  Файл `733495` bytes, SHA-256
+  `4446599137e33ad742d6db76268f9109618663b5c61e71d65937857cbd6722b2`.
+* Source: `cd85f9614`. Shared shell и три package preview используют один owner:
+  radius `4`, panel/header/row/dock `24`, control `22`, separators `1`, tight
+  padding `3/6`, idle `borderRule`; active/focus остаются material states.
+* Before/after exact Elements route `button/state/default`:
+  * `workbench-button-before.png` — `491056` bytes, SHA-256
+    `0df6cbafaced5e4c367513912db35805c9bc978422716389bbe4316afae46f0f`;
+  * `workbench-button-after.png` — `389564` bytes, SHA-256
+    `29b28654d474b3b9d6e79febcb41add45f689c659157af398921da776169cf81`.
+* Node regression: PID `84906`, target `809BF08D88E4582CA819EFE847FE1450`,
+  route `node-editor/scene/default`, console `0`; production Node scene preserved
+  under compact shell. `node-workbench-final.png` — `450640` bytes, SHA-256
+  `1877f9ddcdd9ed401bf29df411bc64c2e9efb12675a07b3358a742f296abd316`.
+
+Automated captures prove exact canvas state, not explicit owner acceptance.
