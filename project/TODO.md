@@ -210,6 +210,11 @@ Node consumer готовы. Stable restart/reload PIDs `45117/45132/45133`, cons
 standalone и Node static PASS, hover/gesture/disabled owner gate остаётся.
 Color correction `6ba99966c` также прошла source-fresh compact/expanded static
 PASS с achromatic Value strip; same ColorInput in Node и pointer gate открыты.
+Closing audit открыл UI-015.12: `$ui-dev` не имеет generic background mouse/
+keyboard evidence, а direct CDP/macOS input запрещены. Новый skill slice
+добавляет fail-closed data-only interaction plan на existing exact target,
+после чего выполняет обязательную IntegerInput standalone+Node live matrix,
+Color drag/marker и moved-Link pointer corridor.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
