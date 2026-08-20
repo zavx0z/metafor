@@ -169,3 +169,69 @@
 * Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `fc2c48402b95f83333cd4fd8451a433033718df4e6f69e56a30798acf7b8aedf`.
+
+## node-expanded-ordinary.png
+
+* Источник: `$ui-dev` renderer-activity capture
+  `node-editor/scene/default`, target `809BF08D88E4582CA819EFE847FE1450`.
+* Дата: 2026-08-20; UI-011.5 `8078cf31f`, PID `71855`.
+* Ожидание и факт: expanded `scalar` ordinary, пустое selection, neutral shadow
+  и body border; route/source/controls видны, console `0`, native restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `87371f373153d2dad9ed58084ab6a69f19d990de19fbfa42a25b353ab09e5088`.
+
+## node-expanded-selected.png
+
+* Источник: тот же target, route `node-editor/scene/selected`.
+* Дата и версия: 2026-08-20, UI-011.5 `8078cf31f`.
+* Ожидание и факт: DOM selection `node/scalar`; expanded Node получает tinted
+  soft shadow без clipping/offset, body border остаётся neutral; console `0`,
+  native restored. Orange title является отдельным известным visual state.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `c4da38875622a857217c4dee9da79c6914cebbdd09a2c1e41f7ca1b7468e896e`.
+
+## node-collapsed-ordinary.png
+
+* Источник: тот же target, route `node-editor/collapsed/default`.
+* Дата и версия: 2026-08-20, UI-011.5 `8078cf31f`.
+* Ожидание и факт: collapsed `Compact Mix` ordinary, пустое selection, shadow
+  не обрезан; exact route/source/controls, console `0`, native restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `3d0af5995a06cb4a78d7964f844f5866e9cc9317bd49b27d180b134f7a01f9fe`.
+
+## node-collapsed-selected.png
+
+* Источник: тот же target, route `node-editor/collapsed/selected`.
+* Дата и версия: 2026-08-20, UI-011.5 `8078cf31f`.
+* Ожидание и факт: DOM selection `node/collapsed`; Compact Mix получает tinted
+  soft shadow без clipping/offset, body border neutral; console `0`, native
+  restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `bad31b7ec5ed1e4c0a8226a9cb7c377c22b2b3eba82258f67f90ef55f46b71ce`.
+
+## components-vector-input.png
+
+* Источник: `$ui-dev` renderer-activity capture
+  `vector-input/basic/default`, target `D0775AE44CFF0E299A0C28EECB3872D2`.
+* Дата: 2026-08-20; UI-011.6 `4daabb34f`, PID `71854`.
+* Ожидание и факт: отдельный `Ввод вектора` catalog entry, production XYZ,
+  exact `@ui/components/vector-input` source и controls; console `0`, native
+  restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `0e383873b5aad02c7169e98ebd6ebcf99f6f9a991f102dbe55649aa247fadd3a`.
+
+## components-matrix-input.png
+
+* Источник: тот же target, route `matrix-input/basic/default`.
+* Дата и версия: 2026-08-20, UI-011.6 `4daabb34f`.
+* Ожидание и факт: отдельный `Ввод матрицы` catalog entry, production 2×2
+  `1.00/0.00`, exact `@ui/components/matrix-input` source и controls; console
+  `0`, native restored.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `43ac5ab6b9c53f7292a388fe02547c6821d2e07d2f638936d60abd9307ceffcb`.

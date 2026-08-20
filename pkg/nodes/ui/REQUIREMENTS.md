@@ -141,6 +141,11 @@ format и автоматическое размещение принадлежа
    Comparison сохраняет maintained Blender screenshot и representative live
    Node; asset и Surface не экспортируются production package. Client-side
    смена route повторно применяет layout без fake resize или page reload.
+5. NodeEditor detail stories имеют exact ordinary/selected variants отдельно
+   для развёрнутой и свёрнутой production Node. Route, target Node id, args,
+   controls, preview, source и `NodeEditor` selection образуют одно состояние;
+   legacy default route остаётся ordinary expanded. Выбранное состояние не
+   создаётся manual browser input и не подменяется Frame или Link selection.
 
 ## Источник терминов
 

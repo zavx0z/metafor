@@ -211,11 +211,12 @@ controls, копируемого TypeScript и проверок, а metadata ind
 initial bundle. Внешний Blender catalog остаётся только reference и не
 переносит свои ноды, изображения или examples в MetaFor.
 
-Shared Workbench foundation и эталон `4192` уже существуют. Node UI и Components
-уже используют package-owned stories, concrete sections, production preview и
-постоянную code/copy panel; Elements остаётся последним consumer slice UI-011.
-После его checkpoint общая acceptance matrix подтверждает один действующий
-Workbench contract для всех playground.
+Shared Workbench foundation и эталон `4192` уже существуют. Node UI, Components
+и Elements используют package-owned stories, concrete sections, production
+preview и постоянную code/copy panel. NodeEditor явно показывает ordinary и
+selected expanded/collapsed states, а каждый current public Components input
+leaf имеет отдельную story. UI-011 завершает общую acceptance matrix четырёх
+contours как один действующий Workbench contract.
 
 Действующий `@nodes/layout` пока получает минимальный ELK-like `LayoutGraph` с уже измеренными
 node sizes и port offsets, единолично вычисляет node/compound/gateway/edge
