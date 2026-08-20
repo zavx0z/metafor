@@ -84,7 +84,8 @@ public retained shell. Desktop/mobile proof завершён; отдельным
 [`UI-005 — Зафиксировать единые маршруты playground в декларации`](tasks/UI-005.md)
 устраняет отдельный hash-режим Node: один public route declaration общего
 `@ui/playground` жёстко задаёт pathname для Node, Components, Elements и shared
-fixture, а UI dev больше не выбирает mode отдельно.
+fixture, а UI dev больше не выбирает mode отдельно. Результат реализован и
+ожидает независимой closing review.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
@@ -98,7 +99,7 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-005 | IN_PROGRESS | нет         | [Открыть](tasks/UI-005.md) |
+| UI-005 | REVIEW      | нет         | [Открыть](tasks/UI-005.md) |
 | UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
