@@ -163,6 +163,8 @@ describe("ui-dev registry", () => {
     expect(source).toContain("const errors = consoleErrors(collector.entries)")
     expect(source).toContain("const backgroundInput = await runBackgroundInputMode({")
     expect(source).toContain("focusEmulation: backgroundInput.focusEmulation")
+    expect(source).toContain("runInteractionRenderBarrier({")
+    expect(source).toContain("renderBarriers,")
     expect(source).toContain("const outcome = interactionOutcome(failure)")
     expect(source).toContain("process.exitCode = interactionExitCode(result)")
     expect(source).not.toContain("class CanvasEvidenceRejected")

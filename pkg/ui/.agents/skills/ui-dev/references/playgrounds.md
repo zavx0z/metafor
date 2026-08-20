@@ -167,6 +167,7 @@ are `left | middle | right`.
   "settleMs": 100,
   "steps": [
     {"kind":"pointer-move", "x":310, "y":228},
+    {"kind":"settle", "ms":120},
     {"kind":"checkpoint", "name":"hover", "dom":true},
     {"kind":"pointer-drag", "from":{"x":310,"y":228}, "to":{"x":390,"y":228}, "button":"left", "modifiers":["shift"], "segments":8},
     {"kind":"key-down", "key":"Escape", "code":"Escape"},
@@ -192,6 +193,13 @@ emulation only around the atomic plan, restores it to false in `finally`, and
 reports both states even when input fails. This does not focus an OS window.
 Background CDP input remains synthetic evidence and never implies
 physical-device or owner acceptance.
+
+Every explicit and final settle runs inside the target: it waits the requested
+delay and then at least two animation frames before the next checkpoint. A
+bounded no-frame timeout fails the plan and reports its frame barrier; it never
+navigates or uses a host-side sleep as render evidence. Put an explicit settle
+immediately before each visual checkpoint; top-level `settleMs` remains the
+final post-plan barrier and does not reorder earlier checkpoints.
 
 `canvas` validates the exact encoded artifact: it obtains `toDataURL`, decodes
 that PNG through browser-native ImageBitmap/Blob, then copies the decoded image

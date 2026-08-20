@@ -10,6 +10,7 @@ import {
   interactionOutcome,
   parseInteractionPlan,
   runBackgroundInputMode,
+  runInteractionRenderBarrier,
   validateInteractionInvocation,
   type InteractionCommandHost,
 } from "../scripts/interaction-plan.ts"
@@ -242,5 +243,69 @@ describe("ui-dev data-only interaction plans", () => {
     expect(timedOut.failure).toBeInstanceOf(Error)
     expect((timedOut.failure as Error).message).toBe("CDP command timeout: Input.dispatchMouseEvent")
     expect(timedOut.focusEmulation).toEqual({requested: true, enabledDuringPlan: true, restored: true})
+  })
+
+  test("waits for page time plus two render frames before checkpoints and fails on timeout", async () => {
+    const expressions: Array<Readonly<{source: string; awaitPromise: boolean}>> = []
+    const success = await runInteractionRenderBarrier({
+      async evaluate(source, awaitPromise) {
+        expressions.push({source, awaitPromise})
+        return {requestedMs: 40, frames: 2, timedOut: false, elapsedMs: 48}
+      },
+    }, 40)
+    expect(success).toEqual({requestedMs: 40, frames: 2, timedOut: false, elapsedMs: 48})
+    expect(expressions).toHaveLength(1)
+    expect(expressions[0]?.awaitPromise).toBe(true)
+    expect(expressions[0]?.source).toContain("requestAnimationFrame")
+    expect(expressions[0]?.source).toContain("setTimeout")
+
+    let timeout: unknown = null
+    try {
+      await runInteractionRenderBarrier({
+        async evaluate() {
+          return {requestedMs: 40, frames: 1, timedOut: true, elapsedMs: 2040}
+        },
+      }, 40)
+    } catch (error) {
+      timeout = error
+    }
+    expect(timeout).toMatchObject({
+      message: "interaction render barrier timed out after 1 frames",
+      barrier: {requestedMs: 40, frames: 1, timedOut: true, elapsedMs: 2040},
+    })
+
+    const order: string[] = []
+    const atomic = await runBackgroundInputMode({
+      async setFocusEmulation(enabled) { order.push(`focus:${enabled}`) },
+    }, () => executeInteractionPlan(parseInteractionPlan({
+      version: 1,
+      settleMs: 20,
+      steps: [
+        {kind: "pointer-move", x: 10, y: 20},
+        {kind: "settle", ms: 40},
+        {kind: "checkpoint", name: "after", dom: true},
+      ],
+    }), {
+      viewport: {width: 100, height: 80},
+      async send(_method, params) { order.push(String(params.type)) },
+      async settle(ms) {
+        await runInteractionRenderBarrier({
+          async evaluate() {
+            order.push(`barrier:${ms}`)
+            return {requestedMs: ms, frames: 2, timedOut: false, elapsedMs: ms + 32}
+          },
+        }, ms)
+      },
+      async checkpoint() { order.push("checkpoint"); return {} },
+    }))
+    expect(atomic.failure).toBeNull()
+    expect(order).toEqual([
+      "focus:true",
+      "mouseMoved",
+      "barrier:40",
+      "checkpoint",
+      "barrier:20",
+      "focus:false",
+    ])
   })
 })

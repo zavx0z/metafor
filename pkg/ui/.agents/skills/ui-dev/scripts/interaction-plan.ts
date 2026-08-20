@@ -61,6 +61,22 @@ export type BackgroundInputModeResult<T> = Readonly<{
   failure: unknown
   focusEmulation: BackgroundInputFocusState
 }>
+export type InteractionRenderBarrier = Readonly<{
+  requestedMs: number
+  frames: number
+  timedOut: boolean
+  elapsedMs: number
+}>
+
+export class InteractionRenderBarrierRejected extends Error {
+  readonly barrier: InteractionRenderBarrier
+
+  constructor(barrier: InteractionRenderBarrier) {
+    super(`interaction render barrier timed out after ${barrier.frames} frames`)
+    this.name = "InteractionRenderBarrierRejected"
+    this.barrier = barrier
+  }
+}
 
 const MAX_STEPS = 256
 const MAX_SETTLE_MS = 2_000
@@ -163,6 +179,52 @@ export async function runBackgroundInputMode<T>(
     failure,
     focusEmulation: Object.freeze({requested: true, enabledDuringPlan, restored}),
   })
+}
+
+/** Wait inside the target for the requested delay and two committed frames. */
+export async function runInteractionRenderBarrier(
+  host: Readonly<{evaluate(source: string, awaitPromise: true): Promise<unknown>}>,
+  requested: number,
+): Promise<InteractionRenderBarrier> {
+  const requestedMs = boundedInteger(requested, "interaction render barrier requestedMs", 0, MAX_SETTLE_MS)
+  const timeoutMs = requestedMs + 2_000
+  const source = `new Promise((resolve) => {
+    const requestedMs = ${requestedMs}
+    const timeoutMs = ${timeoutMs}
+    const started = performance.now()
+    let settled = false
+    let frames = 0
+    const finish = (timedOut) => {
+      if (settled) return
+      settled = true
+      clearTimeout(delay)
+      clearTimeout(timeout)
+      resolve({requestedMs, frames, timedOut, elapsedMs: performance.now() - started})
+    }
+    const step = () => {
+      if (settled) return
+      frames++
+      if (frames >= 2) finish(false)
+      else requestAnimationFrame(step)
+    }
+    const delay = setTimeout(() => requestAnimationFrame(step), requestedMs)
+    const timeout = setTimeout(() => finish(true), timeoutMs)
+  })`
+  const raw = exactObject(await host.evaluate(source, true), "interaction render barrier", [
+    "requestedMs",
+    "frames",
+    "timedOut",
+    "elapsedMs",
+  ])
+  const barrier = Object.freeze({
+    requestedMs: boundedInteger(raw.requestedMs, "interaction render barrier requestedMs", 0, MAX_SETTLE_MS),
+    frames: boundedInteger(raw.frames, "interaction render barrier frames", 0, 10_000),
+    timedOut: booleanValue(raw.timedOut, "interaction render barrier timedOut"),
+    elapsedMs: finiteNonNegative(raw.elapsedMs, "interaction render barrier elapsedMs"),
+  })
+  if (barrier.requestedMs !== requestedMs) throw new Error("interaction render barrier returned a different requestedMs")
+  if (barrier.timedOut || barrier.frames < 2) throw new InteractionRenderBarrierRejected(barrier)
+  return barrier
 }
 
 /** Dispatch validated synthetic input in order and release held input on failure. */
@@ -396,6 +458,13 @@ function boundedInteger(value: unknown, label: string, minimum: number, maximum:
 function boundedString(value: unknown, label: string, minimum: number, maximum: number): string {
   if (typeof value !== "string" || value.length < minimum || value.length > maximum) {
     throw new Error(`${label} must contain ${minimum}..${maximum} characters`)
+  }
+  return value
+}
+
+function finiteNonNegative(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`${label} must be a finite non-negative number`)
   }
   return value
 }

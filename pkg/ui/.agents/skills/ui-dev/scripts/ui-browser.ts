@@ -12,10 +12,13 @@ import {
   executeInteractionPlan,
   interactionExitCode,
   interactionOutcome,
+  InteractionRenderBarrierRejected,
   parseInteractionPlan,
   runBackgroundInputMode,
+  runInteractionRenderBarrier,
   validateInteractionInvocation,
   type InteractionPlan,
+  type InteractionRenderBarrier,
 } from "./interaction-plan.ts"
 import {playgroundTargetUrl} from "./target-url.ts"
 
@@ -804,6 +807,7 @@ async function runInteraction(
   }
   const collector = await createConsoleCollector(cdp)
   const captures: CanvasEvidence[] = []
+  const renderBarriers: InteractionRenderBarrier[] = []
   const backgroundInput = await runBackgroundInputMode({
     setFocusEmulation: (enabled) => setFocusEmulation(cdp, enabled),
   }, () => executeInteractionPlan(plan, {
@@ -812,7 +816,14 @@ async function runInteraction(
       await cdp.send(method, params)
     },
     async settle(ms) {
-      await Bun.sleep(ms)
+      try {
+        renderBarriers.push(await runInteractionRenderBarrier({
+          evaluate: (source, awaitPromise) => evaluate<unknown>(cdp, source, awaitPromise),
+        }, ms))
+      } catch (error) {
+        if (error instanceof InteractionRenderBarrierRejected) renderBarriers.push(error.barrier)
+        throw error
+      }
     },
     async checkpoint(step) {
       const checkpoint: JsonObject = {name: step.name}
@@ -864,6 +875,7 @@ async function runInteraction(
     checkpoints,
     console: collector.entries,
     consoleErrors: errors,
+    renderBarriers,
     focusEmulation: backgroundInput.focusEmulation,
     syntheticInput: true,
     backgroundOnly: true,
