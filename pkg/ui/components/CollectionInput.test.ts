@@ -76,6 +76,14 @@ const trigger = (hit: HitCall | undefined): void => {
   hit![4]()
 }
 
+const expectTextInsideRows = (surface: RecordingSurface, rowHeight: number): void => {
+  for (const [, , y, options] of surface.texts) {
+    const rowY = Math.floor(y / rowHeight) * rowHeight
+    expect(y).toBeGreaterThanOrEqual(rowY)
+    expect(y + options.fontPx).toBeLessThanOrEqual(rowY + rowHeight)
+  }
+}
+
 describe("public CollectionInput", () => {
   test("normalizes bounded visible rows and measures MetaFor production rhythm", () => {
     expect(normalizeCollectionInputVisibleRows()).toBe(3)
@@ -114,18 +122,21 @@ describe("public CollectionInput", () => {
     expect(items[2]?.id).toBe("rotation")
   })
 
-  test("preserves regular and compact row typography and renders descriptions", () => {
+  test("keeps regular descriptions and compact single-line text inside exact rows", () => {
     const regular = new RecordingSurface()
     CollectionInput(regular, 0, 0, 180, 108, props([]))
     const regularText = regular.texts.map(([text, , , options]) => ({text, fontPx: options.fontPx}))
     expect(regularText).toContainEqual({text: "Position", fontPx: 12})
     expect(regularText).toContainEqual({text: "Vector attribute", fontPx: 10})
+    expectTextInsideRows(regular, 36)
 
     const compact = new RecordingSurface()
     CollectionInput(compact, 0, 0, 180, 72, props([], {density: "compact"}))
     const compactText = compact.texts.map(([text, , , options]) => ({text, fontPx: options.fontPx}))
     expect(compactText).toContainEqual({text: "Position", fontPx: 11})
-    expect(compactText).toContainEqual({text: "Vector attribute", fontPx: 9})
+    expect(compactText.map(({text}) => text)).not.toContain("Vector attribute")
+    expect(compactText.map(({text}) => text)).not.toContain("Disabled attribute")
+    expectTextInsideRows(compact, 24)
   })
 
   test("keeps add independent while invalid, disabled and read-only state block mutation", () => {

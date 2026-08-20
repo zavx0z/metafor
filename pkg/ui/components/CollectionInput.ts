@@ -149,7 +149,7 @@ function collectionInputListItems(
       button: !disabled && props.onSelect !== undefined,
       disableGutters: false,
     }
-    if (item.description !== undefined) row.secondary = item.description
+    if (!compact && item.description !== undefined) row.secondary = item.description
     if (!disabled && props.onSelect !== undefined) row.onClick = () => props.onSelect!(item.id)
     return row
   })
