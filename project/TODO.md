@@ -82,8 +82,8 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 MatrixInput, ReferenceInput и EnumInput имеют package-owned stories и
 package/live evidence. Текущий срез UI-010.7 добавляет public CollectionInput
 для rows/selection/add/remove commit-ами `059deffc8` + `03b2c252b`; зависимая
-UI-010.8 package-owned story сейчас закрывает completeness/live gate до
-следующего public leaf.
+UI-010.8 story/live `5df1327c5` завершила completeness `7/7`. Следующий public
+leaf ещё не зарегистрирован; reorder остаётся отдельным механизмом.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
