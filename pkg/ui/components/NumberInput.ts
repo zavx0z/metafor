@@ -145,11 +145,11 @@ export function stepNumberInputValue(
   options: NumberInputFormatOptions = {},
 ): number {
   const range = resolveNumberInputSoftRange(value, options)
-  const candidate = Math.min(range.max, Math.max(range.min, value + numberPointerStep(options) * direction))
-  return normalizeNumberInputValue(candidate, {
+  const candidate = normalizeNumberInputValue(value + numberPointerStep(options) * direction, {
     ...options,
     step: numberPointerStep(options),
   })
+  return direction < 0 ? Math.max(range.min, candidate) : Math.min(range.max, candidate)
 }
 
 /** Normalizes a scalar value against the public integer/float and hard-range contract. */

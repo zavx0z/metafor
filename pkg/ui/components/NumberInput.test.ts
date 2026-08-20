@@ -126,6 +126,13 @@ describe("public NumberInput", () => {
     expect(stepNumberInputValue(1, 1, {min: 0, max: 10, step: 0.25})).toBe(1.25)
     expect(stepNumberInputValue(0, -1, {min: -10, max: 20, softMin: 0, softMax: 10, step: 0.25})).toBe(0)
     expect(stepNumberInputValue(10, 1, {min: -10, max: 20, softMin: 0, softMax: 10, step: 0.25})).toBe(10)
+    expect(stepNumberInputValue(15, -1, {min: -10, max: 20, softMin: 0, softMax: 10, step: 0.25})).toBe(14.75)
+    expect(stepNumberInputValue(15, 1, {min: -10, max: 20, softMin: 0, softMax: 10, step: 0.25})).toBe(10)
+    expect(stepNumberInputValue(-5, 1, {min: -10, max: 20, softMin: 0, softMax: 10, step: 0.25})).toBe(-4.75)
+    expect(stepNumberInputValue(-5, -1, {min: -10, max: 20, softMin: 0, softMax: 10, step: 0.25})).toBe(0)
+    expect(stepNumberInputValue(10, 1, {min: -10, max: 20, softMin: 0.1, softMax: 10.1, step: 0.25})).toBe(10.1)
+    expect(stepNumberInputValue(0.2, -1, {min: -10, max: 20, softMin: 0.1, softMax: 10.1, step: 0.25})).toBe(0.1)
+    expect(stepNumberInputValue(10.1, 1, {min: -10, max: 20, softMin: 0.1, softMax: 10.1, step: 0.25})).toBe(10.1)
   })
 
   test("publishes controlled side steps, scrub updates and cancel restoration", () => {
