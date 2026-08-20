@@ -257,6 +257,14 @@ parent transform, а children наследуют `matrixWorld` без повто
 materialization. Visual text, icon, Socket, stroke и chrome масштабируются с
 parent; отдельный screen-space minimum допустим только невидимой hit area.
 
+Production UI поставляется независимыми ESM subpath modules поверх одного
+`@metafor/engine` и одного product-owned `UiRuntime`. Product/release build
+видит Elements, Components и Node UI одним module graph, динамически загружает
+нужные leaf imports и выносит общий Engine/Elements code в shared chunks.
+Отдельные self-contained component bundles с повторной копией runtime либо
+renderer запрещены. Dev Workbench потребляет этот production import contract,
+но не становится его владельцем и не входит product bundle.
+
 Browser-local realtime проекции идёт через versioned `BroadcastChannel`. Это
 не новый Oracle или Force transport: channel не переносит причинные payload,
 signaling, secrets или authority и не заменяет существующие WSS, MessagePort,
