@@ -116,6 +116,9 @@ Baseline на current Components Workbench подтвердил horizontal Vecto
 Grouped source commit `14f440899` получил ownership PASS, но UI-015.5.1
 исправляет active-cell inset, tooltip cursor и завышенные Matrix/Collection
 reference claims до visual acceptance.
+Owner Rotation RED открыл UI-015.5.2: unit должен принадлежать value (`0°`),
+numeric column выравнивается справа с общим caret/selection origin, axis остаётся
+X/Y/Z и использует number text role; Node width/margins ждут exact proof.
 UI-015.7 source checkpoint `13ac398d1` правильно разделил Engine low-level
 picker plane и Components HSVA/popup owner, но independent Blender review
 оставил composition/interaction незавершёнными. UI-015.7.1 после текущего

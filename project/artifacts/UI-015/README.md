@@ -121,6 +121,17 @@
   route, native `1920×1088 @2`, console `0`. X/Y/Z `1/2/3` видимы, white plane
   отсутствует; pointer/owner gates остаются открытыми.
 
+## UI-015.5.2 — Rotation alignment RED
+
+* Источник: owner live screenshot, 2026-08-20.
+* Файл: `components-rotation-alignment-red.png`, `624×214`, `13503` bytes,
+  SHA-256 `d0c6f7a83497846a21ca9890732304c08cb90f0c3cc4d4911583c89d4dfc41cc`.
+* Exact reference:
+  `blender-node-catalog/assets/manual/4.5/node-types_FunctionNodeInputRotation.webp`.
+* Наблюдение: unit приклеен к axes `X°/Y°/Z°`, values left-aligned с большим
+  пустым правым пространством. Target: axes X/Y/Z, values `0°/45°/90°` по общей
+  правой кромке, source-backed number text и доказанные Node margins.
+
 ## UI-015.2.1 — Button size RED baseline
 
 * Источник: owner live screenshot, route `/button/sizes/large`, 2026-08-20.
