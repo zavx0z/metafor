@@ -287,6 +287,22 @@
   Capture `267259` bytes, SHA-256
   `c93e5529e111211aaa2154b6b4a2bc6fe94720818a7db445ae3b99137131c398`.
   Production correction UI-015.8.7 precedes remaining cancel/text/Node matrix.
+* Result commit `8af8989e7`: same saved Shift plan after source-fresh Components
+  PID `39609` gives `3→5`, route preserved, console `0`, focus emulation restored.
+  `integer-components-shift-accumulator.result.json` records the exact result;
+  updated `integer-components-shift-scrub.png` is `267207` bytes, SHA-256
+  `cef91746008c7b72f2c524bda1be6f8602cb9f8311cd4b5e64db79a23c0943dc`.
+
+## UI-015.8.8 — Focus lifecycle owner finding
+
+* Источник: direct owner live finding after numeric interaction matrix.
+* Факт: focused input keeps caret/edit state after click elsewhere; because
+  numeric pointer requires `!active`, subsequent physical drag does not change
+  value until internal focus clears.
+* Scope: all focusable Elements, every public Component consumer and the same
+  controls in expanded Node. This is a Surface focus-owner correction, not
+  Integer-specific styling. Before/after interaction plans and captures are
+  added only after source preparation/patch.
 
 ## UI-015.5.3 — Linked Node measurement RED
 

@@ -225,6 +225,12 @@ left/center/right показывают обе arrows и один active zone. П
 открыла UI-015.8.7: segmented Shift scrub теряет sub-integer delta, потому что
 `rawCurrent` normalize-ится на каждом move. Новый accumulator slice IN_PROGRESS;
 маскировать крупным artificial segment запрещено.
+UI-015.8.7 commit `8af8989e7` хранит continuous raw accumulator; 2/12/60 event
+paths invariant, source-fresh Shift `100px/12 moves` теперь `3→5`, console0.
+Owner затем открыл UI-015.8.8: focus не снимается по outside/sibling click, и
+active numeric control поэтому теряет scrub path. Новый общий Surface focus
+owner проверяет все focusable Elements, Components и те же controls в Node;
+Integer-only blur запрещён.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

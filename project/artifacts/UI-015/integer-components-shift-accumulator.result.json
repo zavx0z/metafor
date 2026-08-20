@@ -1,0 +1,21 @@
+{
+  "sourceCommit": "8af8989e7",
+  "selector": "components",
+  "pid": 39609,
+  "targetId": "D0775AE44CFF0E299A0C28EECB3872D2",
+  "route": "integer-input/basic/labeled",
+  "viewport": [1920, 1088, 2],
+  "scenario": "Shift scrub 100px through 12 pointer moves",
+  "initialValue": 3,
+  "finalValue": 5,
+  "routePreserved": true,
+  "consoleErrors": [],
+  "focusEmulation": {"requested": true, "enabledDuringPlan": true, "restored": true},
+  "canvas": {
+    "path": "integer-components-shift-scrub.png",
+    "bytes": 267207,
+    "sha256": "cef91746008c7b72f2c524bda1be6f8602cb9f8311cd4b5e64db79a23c0943dc"
+  },
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}
