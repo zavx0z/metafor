@@ -12,12 +12,17 @@ export type NumberInputValueOptions = {
   unit?: string
 }
 
-export type NumberInputProps = NumberInputValueOptions & {
+export type NumberInputFormatOptions = NumberInputValueOptions & {
+  precision?: number
+}
+
+export type NumberInputProps = NumberInputFormatOptions & {
   key?: string
   value: number
   disabled?: boolean
   readOnly?: boolean
   density?: NumberInputDensity
+  fontPx?: number
   onChange?(value: number): void
 }
 
@@ -48,6 +53,7 @@ export function NumberInput(
     textFieldProps.fontPx = 11
     textFieldProps.sx = COMPACT_STYLE
   }
+  if (props.fontPx !== undefined) textFieldProps.fontPx = props.fontPx
   if (!disabled && props.onChange !== undefined) {
     textFieldProps.onSubmit = (text) => {
       const value = parseNumberInputValue(text, props)
@@ -94,9 +100,17 @@ export function parseNumberInputValue(
 /** Formats the normalized controlled value with its optional unit suffix. */
 export function formatNumberInputValue(
   value: number,
-  options: NumberInputValueOptions = {},
+  options: NumberInputFormatOptions = {},
 ): string {
-  return `${normalizeNumberInputValue(value, options)}${options.unit ?? ""}`
+  const normalized = normalizeNumberInputValue(value, options)
+  const precision = normalizedPrecision(options.precision)
+  const formatted = precision === undefined ? String(normalized) : normalized.toFixed(precision)
+  return `${formatted}${options.unit ?? ""}`
+}
+
+function normalizedPrecision(value: number | undefined): number | undefined {
+  if (!Number.isFinite(value)) return undefined
+  return Math.min(100, Math.max(0, Math.trunc(value!)))
 }
 
 function finiteBound(value: number | undefined, fallback: number): number {

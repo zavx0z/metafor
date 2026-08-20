@@ -91,6 +91,8 @@ function matrixCellProps(
   const numberProps: NumberInputProps = {
     value: matrix[row]![column]!,
     density: (props.density ?? "regular") as NumberInputDensity,
+    precision: 2,
+    fontPx: props.density === "compact" ? 11 : 9,
   }
   if (props.key !== undefined) numberProps.key = `${props.key}:${row}:${column}`
   if (props.disabled !== undefined) numberProps.disabled = props.disabled

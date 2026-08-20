@@ -17,14 +17,21 @@ import {
 } from "./NumberInput.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type TextCall = Parameters<UiSurface["drawText"]>
 type HitCall = Parameters<UiSurface["hit"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
+  readonly texts: TextCall[] = []
   readonly hits: HitCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
+  }
+
+  override drawText(...args: TextCall): number {
+    this.texts.push(args)
+    return 0
   }
 
   override hit(...args: HitCall): void {
@@ -84,6 +91,21 @@ describe("public NumberInput", () => {
     expect(parseNumberInputValue("1 kg later", options)).toBeNull()
     expect(parseNumberInputValue("Infinity", options)).toBeNull()
     expect(formatNumberInputValue(1.26, options)).toBe("1.25kg")
+  })
+
+  test("keeps default formatting while allowing reusable fixed precision and font size", () => {
+    expect(formatNumberInputValue(1)).toBe("1")
+    expect(formatNumberInputValue(1, {precision: 2})).toBe("1.00")
+    expect(formatNumberInputValue(1.236, {precision: 2, unit: "m"})).toBe("1.24m")
+
+    const surface = new RecordingSurface()
+    NumberInput(surface, 0, 0, 120, 28, {
+      value: 1,
+      precision: 2,
+      fontPx: 9,
+    })
+    expect(surface.texts[0]?.[0]).toBe("1.00")
+    expect(surface.texts[0]?.[3].fontPx).toBe(9)
   })
 
   test("preserves compact production geometry without changing the regular presentation", () => {

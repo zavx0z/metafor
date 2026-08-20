@@ -136,6 +136,8 @@ describe("public MatrixInput", () => {
       {x: 108, y: 36, w: 100, h: 26},
     ])
     expect(regular.roundedRects[0]?.[4].radius).toBe(999)
+    expect(regular.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
+    expect(regular.texts.map((call) => call[3].fontPx)).toEqual([9, 9, 9, 9])
 
     const compact = new RecordingSurface()
     MatrixInput(compact, 4, 6, 123, 47, matrixProps(() => {}, {density: "compact"}))
@@ -146,6 +148,8 @@ describe("public MatrixInput", () => {
       {x: 67, y: 31, w: 60, h: 22},
     ])
     expect(compact.roundedRects[0]?.[4].radius).toBe(3)
+    expect(compact.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
+    expect(compact.texts.map((call) => call[3].fontPx)).toEqual([11, 11, 11, 11])
   })
 
   test("returns the same value standalone and through regular and compact Field", () => {
@@ -180,5 +184,7 @@ describe("public MatrixInput", () => {
     expect(standaloneValues).toEqual([[[1, 4.75], [0, 1]]])
     expect(regularFieldValues).toEqual(standaloneValues)
     expect(compactFieldValues).toEqual(standaloneValues)
+    expect(regularField.texts.slice(-4).map(([text]) => text)).toEqual(standalone.texts.map(([text]) => text))
+    expect(compactField.texts.slice(-4).map(([text]) => text)).toEqual(standalone.texts.map(([text]) => text))
   })
 })
