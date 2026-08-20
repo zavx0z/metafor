@@ -20,6 +20,12 @@ import {
   type MatrixInputDensity,
   type MatrixInputProps,
 } from "./MatrixInput.ts"
+import {
+  ReferenceInput,
+  type ReferenceInputDensity,
+  type ReferenceInputProps,
+  type ReferenceInputValue,
+} from "./ReferenceInput.ts"
 import {SliderControl} from "./SliderControl.ts"
 import {Switcher} from "./Switcher.ts"
 import {TextField} from "./TextField.ts"
@@ -34,7 +40,7 @@ import {
 
 export type FieldColor = ColorInputValue
 export type FieldOption = Readonly<{value: string; label: string; description?: string}>
-export type FieldReference = Readonly<{id: string; label: string; kind?: string}>
+export type FieldReference = ReferenceInputValue
 
 export type FieldBase = Readonly<{
   id: string
@@ -387,16 +393,7 @@ function drawCompactControl(
     return
   }
   if (field.kind === "reference") {
-    Button(host, x, y, width, height, {
-      children: field.value?.label ?? field.placeholder ?? "Не выбрано",
-      variant: "contained",
-      fill: new Color(0.235, 0.235, 0.235, 1),
-      border: new Color(0.11, 0.11, 0.11, 1),
-      radius: metrics.radius,
-      fontPx: metrics.font,
-      disabled,
-      action: () => field.onActivate?.(),
-    })
+    ReferenceInput(host, x, y, width, height, referenceInputProps(field, "compact"))
     return
   }
   const value = field.kind === "readonly" ? String(field.value) : field.value
@@ -664,15 +661,24 @@ function matrixInputProps(field: MatrixFieldDefinition, density: MatrixInputDens
 }
 
 function drawReferenceField(host: UiSurface, x: number, y: number, width: number, height: number, field: ReferenceFieldDefinition): void {
-  const props: Parameters<typeof Button>[5] = {
-    children: field.value?.label ?? field.placeholder ?? "Не выбрано",
-    variant: "outlined",
-    disabled: isFieldDisabled(field),
-    action: () => field.onActivate?.(),
+  ReferenceInput(host, x, y, width, height, referenceInputProps(field, "regular"))
+}
+
+function referenceInputProps(
+  field: ReferenceFieldDefinition,
+  density: ReferenceInputDensity,
+): ReferenceInputProps {
+  const props: ReferenceInputProps = {
+    value: field.value,
+    density,
   }
-  const tooltip = field.value?.kind ?? field.description
-  if (tooltip !== undefined) props.tooltip = tooltip
-  Button(host, x, y, width, height, props)
+  if (field.placeholder !== undefined) props.placeholder = field.placeholder
+  if (field.description !== undefined) props.tooltip = field.description
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onActivate !== undefined) props.onActivate = field.onActivate
+  if (field.onClear !== undefined) props.onClear = field.onClear
+  return props
 }
 
 function drawReadonlyField(host: UiSurface, x: number, y: number, width: number, height: number, field: ReadonlyFieldDefinition): void {
