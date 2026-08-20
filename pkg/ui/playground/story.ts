@@ -108,6 +108,7 @@ export type PlaygroundStoryRegistry = Readonly<{
   index: readonly PlaygroundStoryIndexItem[]
   fallback: string
   find(route: string): PlaygroundStoryIndexItem | undefined
+  variants(route: string): readonly PlaygroundStoryIndexItem[]
   load(route: string): Promise<PlaygroundStoryModule>
 }>
 
@@ -225,6 +226,12 @@ export function definePlaygroundStories(input: PlaygroundStoryCatalogInput): Pla
     fallback,
     find(route: string) {
       return byRoute.get(route)?.index
+    },
+    variants(route: string) {
+      const selected = byRoute.get(route)?.index
+      if (selected === undefined) return Object.freeze([])
+      return Object.freeze(index.filter((item) =>
+        item.componentId === selected.componentId && item.sectionId === selected.sectionId))
     },
     load(route: string) {
       const story = byRoute.get(route)

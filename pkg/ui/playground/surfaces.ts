@@ -2,6 +2,7 @@ import {type Object3D} from "@metafor/engine"
 import {Button, Pane, Typography, type ButtonProps} from "@ui/components"
 import {UiSurface, flexColumn, flexRow, palette, type UiSurfaceRect} from "@ui/elements"
 import {playgroundTheme} from "./theme.ts"
+import type {PlaygroundStoryArgs, PlaygroundStoryControl} from "./story.ts"
 
 export type PlaygroundNavigationGroup = Readonly<{
   id: string
@@ -46,6 +47,25 @@ export type PlaygroundInfoOptions = Readonly<{
   title: string
   lines: readonly PlaygroundInfoLine[]
   status?: string
+}>
+
+export type PlaygroundStoryPanelMode = "controls" | "events"
+
+export type PlaygroundStoryEvent = Readonly<{
+  id: string
+  label: string
+  value: string
+}>
+
+export type PlaygroundStoryPanelOptions = Readonly<{
+  source: string
+  args: PlaygroundStoryArgs
+  controls: readonly PlaygroundStoryControl[]
+  events?: readonly PlaygroundStoryEvent[]
+  mode: PlaygroundStoryPanelMode
+  onModeChange(mode: PlaygroundStoryPanelMode): void
+  onControlChange(key: string, value: unknown): void
+  onCopy(source: string): void | Promise<void>
 }>
 
 export type PlaygroundRetainedOwnerDiagnostics = Readonly<{
@@ -95,9 +115,30 @@ type NormalizedInfoOptions = Readonly<{
   status: string | undefined
 }>
 
+type NormalizedStoryControl = Readonly<{
+  descriptor: PlaygroundStoryControl
+  value: unknown
+}>
+
+type NormalizedStoryPanelOptions = Readonly<{
+  source: string
+  sourceLines: readonly string[]
+  controls: readonly NormalizedStoryControl[]
+  events: readonly PlaygroundStoryEvent[]
+  mode: PlaygroundStoryPanelMode
+  onModeChange(mode: PlaygroundStoryPanelMode): void
+  onControlChange(key: string, value: unknown): void
+  onCopy(source: string): void | Promise<void>
+}>
+
 const PANEL_OWNER = "panel"
 const TITLE_OWNER = "title"
 const STATUS_OWNER = "status"
+const SOURCE_TITLE_OWNER = "source-title"
+const SOURCE_COPY_OWNER = "source-copy"
+const SOURCE_BOX_OWNER = "source-box"
+const SOURCE_CONTROLS_TAB_OWNER = "source-tab:controls"
+const SOURCE_EVENTS_TAB_OWNER = "source-tab:events"
 
 abstract class RetainedPlaygroundSurface extends UiSurface {
   readonly #retainedRoot: Object3D
@@ -578,6 +619,257 @@ export class PlaygroundInfoSurface extends RetainedPlaygroundSurface {
   }
 }
 
+/** Retained source/controls panel for one selected story. Source remains visible in every mode. */
+export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
+  #options: NormalizedStoryPanelOptions
+  #layout: Readonly<{
+    w: number
+    h: number
+    pixelScale: number
+    font: unknown
+    ownerKeys: readonly string[]
+  }> | null = null
+
+  constructor(options: PlaygroundStoryPanelOptions) {
+    super("PlaygroundStoryPanelSurface")
+    this.#options = normalizeStoryPanelOptions(options)
+  }
+
+  setOptions(options: PlaygroundStoryPanelOptions): void {
+    const next = normalizeStoryPanelOptions(options)
+    const previous = this.#options
+    const structureChanged = previous.mode !== next.mode ||
+      previous.sourceLines.length !== next.sourceLines.length ||
+      !sameStrings(previous.controls.map(({descriptor}) => descriptor.key), next.controls.map(({descriptor}) => descriptor.key)) ||
+      !sameStrings(previous.events.map(({id}) => id), next.events.map(({id}) => id))
+    let changed = structureChanged
+
+    for (const [index, line] of next.sourceLines.entries()) {
+      if (previous.sourceLines[index] !== line) {
+        this.markOwnerDirty(sourceLineOwnerKey(index))
+        changed = true
+      }
+    }
+    const previousControls = new Map(previous.controls.map((control) => [control.descriptor.key, control] as const))
+    for (const control of next.controls) {
+      const before = previousControls.get(control.descriptor.key)
+      if (before === undefined || before.descriptor.label !== control.descriptor.label ||
+        before.descriptor.group !== control.descriptor.group || before.descriptor.kind !== control.descriptor.kind ||
+        !Object.is(before.value, control.value)) {
+        this.markOwnerDirty(storyControlOwnerKey(control.descriptor.key))
+        changed = true
+      }
+    }
+    const previousEvents = new Map(previous.events.map((event) => [event.id, event] as const))
+    for (const event of next.events) {
+      const before = previousEvents.get(event.id)
+      if (before?.label !== event.label || before?.value !== event.value) {
+        this.markOwnerDirty(storyEventOwnerKey(event.id))
+        changed = true
+      }
+    }
+    if (previous.mode !== next.mode) {
+      this.markOwnerDirty(SOURCE_CONTROLS_TAB_OWNER)
+      this.markOwnerDirty(SOURCE_EVENTS_TAB_OWNER)
+    }
+    this.#options = next
+    if (structureChanged) this.#layout = null
+    if (changed) this.requestRender()
+  }
+
+  protected override render(): void {
+    if (this.#layoutChanged()) this.#reconcileLayout()
+    this.materializeDirtyOwners((key, frame) => this.#drawOwner(key, frame))
+  }
+
+  #layoutChanged(): boolean {
+    return this.#layout === null || this.#layout.w !== this.rectW || this.#layout.h !== this.rectH ||
+      this.#layout.pixelScale !== this.pixelScale || this.#layout.font !== this.font
+  }
+
+  #reconcileLayout(): void {
+    this.noteLayoutPlan()
+    const forceGeometry = this.#layout !== null &&
+      (this.#layout.pixelScale !== this.pixelScale || this.#layout.font !== this.font)
+    const frames = new Map<string, UiSurfaceRect>()
+    const horizontalPad = 18
+    const headerY = 22
+    const headerH = 34
+    flexRow({
+      x: horizontalPad,
+      y: headerY,
+      w: Math.max(0, this.rectW - horizontalPad * 2),
+      h: headerH,
+      gap: 8,
+      alignItems: "stretch",
+      items: [
+        {width: "grow", height: headerH, draw: (x, y, w, h) => { frames.set(SOURCE_TITLE_OWNER, {x, y, w, h}) }},
+        {width: 96, height: headerH, draw: (x, y, w, h) => { frames.set(SOURCE_COPY_OWNER, {x, y, w, h}) }},
+      ],
+    })
+
+    const codeY = headerY + headerH + 14
+    const codeH = Math.max(180, Math.min(440, this.rectH * 0.46))
+    frames.set(SOURCE_BOX_OWNER, {x: horizontalPad, y: codeY, w: Math.max(0, this.rectW - horizontalPad * 2), h: codeH})
+    const visibleSourceLines = Math.max(1, Math.floor((codeH - 24) / 18))
+    for (const [index] of this.#options.sourceLines.slice(0, visibleSourceLines).entries()) {
+      frames.set(sourceLineOwnerKey(index), {
+        x: horizontalPad + 12,
+        y: codeY + 10 + index * 18,
+        w: Math.max(0, this.rectW - horizontalPad * 2 - 24),
+        h: 16,
+      })
+    }
+
+    const tabsY = codeY + codeH + 14
+    flexRow({
+      x: horizontalPad,
+      y: tabsY,
+      w: Math.max(0, this.rectW - horizontalPad * 2),
+      h: 32,
+      gap: 8,
+      alignItems: "stretch",
+      items: [
+        {width: "grow", height: 32, draw: (x, y, w, h) => { frames.set(SOURCE_CONTROLS_TAB_OWNER, {x, y, w, h}) }},
+        {width: "grow", height: 32, draw: (x, y, w, h) => { frames.set(SOURCE_EVENTS_TAB_OWNER, {x, y, w, h}) }},
+      ],
+    })
+
+    let detailY = tabsY + 44
+    const detailBottom = this.rectH - 22
+    if (this.#options.mode === "controls") {
+      const seenGroups = new Set<string>()
+      for (const control of this.#options.controls) {
+        if (!seenGroups.has(control.descriptor.group)) {
+          seenGroups.add(control.descriptor.group)
+          if (detailY + 20 > detailBottom) break
+          frames.set(storyControlGroupOwnerKey(control.descriptor.group), {
+            x: horizontalPad,
+            y: detailY,
+            w: Math.max(0, this.rectW - horizontalPad * 2),
+            h: 18,
+          })
+          detailY += 24
+        }
+        if (detailY + 34 > detailBottom) break
+        frames.set(storyControlOwnerKey(control.descriptor.key), {
+          x: horizontalPad,
+          y: detailY,
+          w: Math.max(0, this.rectW - horizontalPad * 2),
+          h: 32,
+        })
+        detailY += 40
+      }
+    } else {
+      for (const event of this.#options.events) {
+        if (detailY + 28 > detailBottom) break
+        frames.set(storyEventOwnerKey(event.id), {
+          x: horizontalPad,
+          y: detailY,
+          w: Math.max(0, this.rectW - horizontalPad * 2),
+          h: 24,
+        })
+        detailY += 32
+      }
+    }
+
+    const retainedKeys = new Set<string>([PANEL_OWNER, ...frames.keys()])
+    this.removeMissingOwners(retainedKeys)
+    this.reconcileOwner(PANEL_OWNER, "PlaygroundStoryPanelSurface.panel", {
+      x: 0,
+      y: 0,
+      w: this.frameWidth,
+      h: this.frameHeight,
+    }, forceGeometry)
+    for (const [key, frame] of frames) this.reconcileOwner(key, `PlaygroundStoryPanelSurface.${key}`, frame, forceGeometry)
+    this.setOwnerOrder([PANEL_OWNER, ...frames.keys()])
+    this.#layout = {
+      w: this.rectW,
+      h: this.rectH,
+      pixelScale: this.pixelScale,
+      font: this.font,
+      ownerKeys: [...frames.keys()],
+    }
+  }
+
+  #drawOwner(key: string, frame: UiSurfaceRect): void {
+    if (key === PANEL_OWNER) {
+      drawPanel(this, frame.w, frame.h)
+      return
+    }
+    if (key === SOURCE_TITLE_OWNER) {
+      Typography(this, 0, 0, frame.w, frame.h, {children: "TypeScript", variant: "title"})
+      return
+    }
+    if (key === SOURCE_COPY_OWNER) {
+      Button(this, 0, 0, frame.w, frame.h, {
+        children: "Копировать",
+        variant: "outlined",
+        color: "primary",
+        radius: 999,
+        fontPx: 9,
+        onClick: () => { void this.#options.onCopy(this.#options.source) },
+      })
+      return
+    }
+    if (key === SOURCE_BOX_OWNER) {
+      Pane(this, 0, 0, frame.w, frame.h, {
+        variant: "glass",
+        sx: {background: "rgba(4, 8, 14, 0.64)", borderColor: "rgba(214, 231, 255, 0.10)", borderRadius: 17},
+      })
+      return
+    }
+    if (key === SOURCE_CONTROLS_TAB_OWNER || key === SOURCE_EVENTS_TAB_OWNER) {
+      const mode: PlaygroundStoryPanelMode = key === SOURCE_CONTROLS_TAB_OWNER ? "controls" : "events"
+      Button(this, 0, 0, frame.w, frame.h, {
+        children: mode === "controls" ? "Параметры" : "События",
+        variant: this.#options.mode === mode ? "contained" : "glass",
+        color: "neutral",
+        radius: 999,
+        fontPx: 9,
+        onClick: () => this.#options.onModeChange(mode),
+      })
+      return
+    }
+    if (key.startsWith("source-line:")) {
+      const index = Number.parseInt(key.slice("source-line:".length), 10)
+      const line = this.#options.sourceLines[index]
+      if (line !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: line, variant: "caption", color: index === 0 ? "text" : "muted"})
+      return
+    }
+    if (key.startsWith("source-control-group:")) {
+      Typography(this, 0, 0, frame.w, frame.h, {children: controlGroupForOwnerKey(key), variant: "caption", color: "muted"})
+      return
+    }
+    if (key.startsWith("source-control:")) {
+      const controlKey = key.slice("source-control:".length)
+      const control = this.#options.controls.find(({descriptor}) => descriptor.key === controlKey)
+      if (control === undefined) return
+      const next = nextStoryControlValue(control.descriptor, control.value)
+      Button(this, 0, 0, frame.w, frame.h, {
+        children: `${control.descriptor.label}: ${formatStoryValue(control.value)}`,
+        variant: "glass",
+        color: "neutral",
+        radius: 12,
+        fontPx: 9,
+        disabled: next === undefined,
+        onClick: () => {
+          const current = this.#options.controls.find(({descriptor}) => descriptor.key === controlKey)
+          if (current === undefined) return
+          const nextValue = nextStoryControlValue(current.descriptor, current.value)
+          if (nextValue !== undefined) this.#options.onControlChange(controlKey, nextValue)
+        },
+      })
+      return
+    }
+    if (key.startsWith("source-event:")) {
+      const id = key.slice("source-event:".length)
+      const event = this.#options.events.find((candidate) => candidate.id === id)
+      if (event !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: `${event.label}: ${event.value}`, variant: "caption", color: "muted"})
+    }
+  }
+}
+
 export class PlaygroundBackdropSurface extends UiSurface {
   constructor() {
     super({bgColor: null, borderColor: null})
@@ -659,6 +951,34 @@ export function selectPlaygroundNavigationItems<Route extends string>(
   return Object.freeze({total: view.total, offset: view.offset, items: Object.freeze(items)})
 }
 
+function normalizeStoryPanelOptions(options: PlaygroundStoryPanelOptions): NormalizedStoryPanelOptions {
+  if (options.source.trim().length === 0) throw new Error("Playground story panel source must not be empty")
+  const controlKeys = new Set<string>()
+  const controls = options.controls.map((descriptor): NormalizedStoryControl => {
+    if (controlKeys.has(descriptor.key)) throw new Error(`Duplicate playground story panel control: ${descriptor.key}`)
+    controlKeys.add(descriptor.key)
+    if (!(descriptor.key in options.args)) throw new Error(`Playground story panel args missing control: ${descriptor.key}`)
+    return Object.freeze({descriptor, value: options.args[descriptor.key]})
+  })
+  const eventIds = new Set<string>()
+  const events = (options.events ?? []).map((event) => {
+    if (event.id.length === 0) throw new Error("Playground story event id must not be empty")
+    if (eventIds.has(event.id)) throw new Error(`Duplicate playground story event: ${event.id}`)
+    eventIds.add(event.id)
+    return Object.freeze({...event})
+  })
+  return Object.freeze({
+    source: options.source,
+    sourceLines: Object.freeze(options.source.replaceAll("\r\n", "\n").split("\n")),
+    controls: Object.freeze(controls),
+    events: Object.freeze(events),
+    mode: options.mode,
+    onModeChange: options.onModeChange,
+    onControlChange: options.onControlChange,
+    onCopy: options.onCopy,
+  })
+}
+
 function normalizeInfoOptions(options: PlaygroundInfoOptions): NormalizedInfoOptions {
   const explicitIds = new Set<string>()
   const stringOccurrences = new Map<string, number>()
@@ -678,6 +998,26 @@ function normalizeInfoOptions(options: PlaygroundInfoOptions): NormalizedInfoOpt
 
 function itemOwnerKey(id: string): string {
   return `item:${id}`
+}
+
+function sourceLineOwnerKey(index: number): string {
+  return `source-line:${index}`
+}
+
+function storyControlOwnerKey(key: string): string {
+  return `source-control:${key}`
+}
+
+function storyControlGroupOwnerKey(group: string): string {
+  return `source-control-group:${group}`
+}
+
+function controlGroupForOwnerKey(key: string): string {
+  return key.slice("source-control-group:".length)
+}
+
+function storyEventOwnerKey(id: string): string {
+  return `source-event:${id}`
 }
 
 function groupOwnerKey(id: string): string {
@@ -772,6 +1112,26 @@ function sameNavigationWindow(left: PlaygroundNavigationWindow | undefined, righ
 
 function sameNavigationGroup(left: PlaygroundNavigationGroup | undefined, right: PlaygroundNavigationGroup | undefined): boolean {
   return left?.id === right?.id && left?.label === right?.label
+}
+
+function nextStoryControlValue(control: PlaygroundStoryControl, value: unknown): unknown {
+  if (control.kind === "boolean" && typeof value === "boolean") return !value
+  if (control.kind === "select" && control.options !== undefined && control.options.length > 0) {
+    const currentIndex = control.options.findIndex((option) => option.value === value)
+    return control.options[(currentIndex + 1 + control.options.length) % control.options.length]!.value
+  }
+  return undefined
+}
+
+function formatStoryValue(value: unknown): string {
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return String(value)
+  if (value === null) return "null"
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
 }
 
 function navigationDirection(key: string): "previous" | "next" | "home" | "end" | null {

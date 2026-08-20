@@ -76,6 +76,8 @@ describe("typed playground story registry", () => {
       searchText: "основные кнопка button основное заполненная заполненная кнопка action действие primary",
     }])
     expect(registry.find("button/basic/contained")).toBe(registry.index[0])
+    expect(registry.variants("button/basic/contained")).toEqual(registry.index)
+    expect(registry.variants("missing")).toEqual([])
     expect(Object.isFrozen(registry)).toBeTrue()
     expect(Object.isFrozen(registry.index)).toBeTrue()
     expect(loads).toBe(0)

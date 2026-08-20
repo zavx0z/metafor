@@ -5,6 +5,7 @@ import {
   PlaygroundDockSurface,
   PlaygroundInfoSurface,
   PlaygroundNavigationSurface,
+  PlaygroundStoryPanelSurface,
   selectPlaygroundNavigationItems,
   type PlaygroundNavigationItem,
   type PlaygroundRetainedDiagnostics,
@@ -345,6 +346,72 @@ describe("retained @ui/playground surfaces", () => {
     expect(pressKey(surface, "Enter")).toBe(1)
     expect(calls).toEqual(["third"])
     expectOwnersStable(surface, beforeMove, new Set(["item:first", "item:third"]))
+    surface.dispose()
+  })
+
+  test("keeps source visible while copy, controls and events use exact retained owners", () => {
+    const copied: string[] = []
+    const modes: string[] = []
+    const changes: Array<readonly [string, unknown]> = []
+    const source = [
+      'import {Button} from "@ui/components/button"',
+      "",
+      "Button(surface, x, y, w, h, {",
+      '  variant: "contained",',
+      "  disabled: false,",
+      "})",
+    ].join("\n")
+    const surface = new PlaygroundStoryPanelSurface({
+      source,
+      args: {variant: "contained", disabled: false},
+      controls: [
+        {
+          key: "variant",
+          label: "Вариант",
+          group: "Основные",
+          kind: "select",
+          options: [{value: "contained", label: "Заполненная"}, {value: "outlined", label: "Контурная"}],
+        },
+        {key: "disabled", label: "Недоступна", group: "Состояние", kind: "boolean"},
+      ],
+      events: [{id: "click", label: "Клики", value: "0"}],
+      mode: "controls",
+      onModeChange: (mode) => { modes.push(mode) },
+      onControlChange: (key, value) => { changes.push([key, value]) },
+      onCopy: (value) => { copied.push(value) },
+    })
+    surface.attachCanvas(createFakeRuntime())
+    surface.setRect({x: 0, y: 0, w: 300, h: 900}, 0.001, font)
+    expect(surface.diagnostics.owners.map(({key}) => key)).toEqual([
+      "panel",
+      "source-title",
+      "source-copy",
+      "source-box",
+      "source-line:0",
+      "source-line:1",
+      "source-line:2",
+      "source-line:3",
+      "source-line:4",
+      "source-line:5",
+      "source-tab:controls",
+      "source-tab:events",
+      "source-control-group:Основные",
+      "source-control:variant",
+      "source-control-group:Состояние",
+      "source-control:disabled",
+    ])
+
+    const pointer = {button: 0, preventDefault() {}} as MouseEvent
+    surface.onPointerDown(pointer, 220, 38)
+    surface.onPointerUp(pointer, 220, 38)
+    surface.onPointerDown(pointer, 150, 580)
+    surface.onPointerUp(pointer, 150, 580)
+    surface.onPointerDown(pointer, 220, 514)
+    surface.onPointerUp(pointer, 220, 514)
+    surface.flushPendingRender()
+    expect(copied).toEqual([source])
+    expect(changes).toEqual([["variant", "outlined"]])
+    expect(modes).toEqual(["events"])
     surface.dispose()
   })
 
