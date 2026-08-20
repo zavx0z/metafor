@@ -142,6 +142,7 @@ try {
   }
 
   router.subscribe(applyRoute)
+  runtime.handleResize()
   applyRoute(router.current)
   new ResizeObserver(() => {
     runtime.handleResize()

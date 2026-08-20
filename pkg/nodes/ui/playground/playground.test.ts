@@ -176,6 +176,7 @@ describe("Blender-like Node component playground", () => {
     const applyRoute = client.slice(client.indexOf("const applyRoute"), client.indexOf("router.subscribe(applyRoute)"))
     expect(applyRoute).toContain("runtime.relayout()")
     expect(applyRoute).not.toContain("runtime.handleResize()")
+    expect(client).toContain("router.subscribe(applyRoute)\n  runtime.handleResize()\n  applyRoute(router.current)")
     expect(browser).toContain('cdp.send("Target.createTarget", {url, background: true})')
     expect(browser).toContain('canvas.toDataURL("image/png")')
     expect(browser).toContain('action === "profile"')
