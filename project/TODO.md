@@ -220,6 +220,11 @@ Skill chain `99514eedc` + live corrections `9079df23d/b3234b8cd/ac0a65e1b`
 preserved, console0. Hover checkpoints выявили новый production UI-015.8.6:
 retained hover state меняется, но exact owner не rematerialize-ится, поэтому
 arrows отсутствуют. UI-015.8.6 IN_PROGRESS до продолжения interaction matrix.
+UI-015.8.6 commit `ecb2ddbe3` восстановил exact retained hover redraw; fresh
+left/center/right показывают обе arrows и один active zone. Продолженная matrix
+открыла UI-015.8.7: segmented Shift scrub теряет sub-integer delta, потому что
+`rawCurrent` normalize-ится на каждом move. Новый accumulator slice IN_PROGRESS;
+маскировать крупным artificial segment запрещено.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

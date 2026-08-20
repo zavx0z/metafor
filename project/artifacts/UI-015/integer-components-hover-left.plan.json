@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "settleMs": 0,
+  "steps": [
+    {"kind": "pointer-move", "x": 860, "y": 595},
+    {"kind": "settle", "ms": 80},
+    {"kind": "checkpoint", "name": "hover-left", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-hover-left-final.png"}
+  ]
+}

@@ -1,0 +1,5 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-drag","from":{"x":925,"y":595},"to":{"x":945,"y":595},"button":"left","segments":8},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"scrub","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-scrub.png"}
+]}

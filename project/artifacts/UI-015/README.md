@@ -252,6 +252,41 @@
   `integer-components-left-step.result.json` доказывают тот же hit path:
   left click `3→2`, route preserved, console `0`, focus emulation restored.
   Synthetic evidence не является owner acceptance.
+* Result commit `ecb2ddbe3`, source-fresh PIDs Elements/Components/Node
+  `26097/26116/26112`:
+  * `integer-components-hover-left-final.png` — `268478` bytes, SHA-256
+    `fa7814584fd1eb47a210b996d5d59a5ad0b0aed0880b906d7a2caf6ba6f73bce`;
+  * `integer-components-hover-center-final.png` — `268409` bytes, SHA-256
+    `9dbbec0270415165cf72d8710f096e3596a13978f81fc37522dca3105195e1d7`;
+  * `integer-components-hover-right-final.png` — `268470` bytes, SHA-256
+    `3d509b903906d8ff261b7f7f2eb8a391916deb196b801bfa4c8e1c48cd92690d`.
+  Three data-only plans reload the same route independently; both arrows visible,
+  only left/center/right active zone changes, value remains `3`, console `0`,
+  route preserved, focus emulation restored. Independent review remains open.
+
+## UI-015.8.7 — Integer raw accumulator RED
+
+* `integer-components-interaction.partial.result.json` summarizes source-fresh
+  standalone results on PID `26116`: left/right step `3→2/4`, plain scrub
+  `3→6`, Ctrl `3→10`, Ctrl+Shift `3→4`, console `0`.
+* Accepted plans/captures: `integer-components-right-step.*`,
+  `integer-components-scrub.*`, `integer-components-ctrl-scrub.*`,
+  `integer-components-ctrl-shift-scrub.*`; all use exact target/route and restored
+  focus emulation.
+  * right step — `268382` bytes, SHA-256
+    `ba16b88a6618e3ed8cf6e9aa93e767582b0719554e8a02488e2c611a7434eba6`;
+  * plain scrub — `268423` bytes, SHA-256
+    `bad88b2c141f343baa7b64c5f4a771021759788565f88a5fbda56684f08c83c2`;
+  * Ctrl scrub — `268676` bytes, SHA-256
+    `c0e9a4735337b7fd532689e8ae0325e87d1a4b233e38e290dc6cb3d01c73086a`;
+  * Ctrl+Shift scrub — `268319` bytes, SHA-256
+    `a734f3673e14f9e6d87e45c0ef4f91c6548e0a74cc488534de252572507056e2`.
+* RED: `integer-components-shift-scrub.plan.json` moves `100px` through 12
+  segments but value stays `3`. Equal path must not depend on event count;
+  current integer-normalized `rawCurrent` discards every sub-integer Shift delta.
+  Capture `267259` bytes, SHA-256
+  `c93e5529e111211aaa2154b6b4a2bc6fe94720818a7db445ae3b99137131c398`.
+  Production correction UI-015.8.7 precedes remaining cancel/text/Node matrix.
 
 ## UI-015.5.3 — Linked Node measurement RED
 

@@ -1,0 +1,31 @@
+{
+  "sourceCommit": "ecb2ddbe30419a3933fef0cedb211515bc6cd8c6",
+  "interactionSkillCommit": "ac0a65e1b2a57e243c549c062d46efe490a6a306",
+  "selector": "components",
+  "pid": 26116,
+  "targetId": "D0775AE44CFF0E299A0C28EECB3872D2",
+  "route": "integer-input/basic/labeled",
+  "viewport": [1920, 1088, 2],
+  "routePreserved": true,
+  "consoleErrors": [],
+  "focusEmulationRestored": true,
+  "accepted": {
+    "hoverLeft": {"value": 3, "bothArrows": true, "activeZone": "left"},
+    "hoverCenter": {"value": 3, "bothArrows": true, "activeZone": "center"},
+    "hoverRight": {"value": 3, "bothArrows": true, "activeZone": "right"},
+    "leftStep": {"initial": 3, "final": 2},
+    "rightStep": {"initial": 3, "final": 4},
+    "plainScrub20px": {"initial": 3, "final": 6},
+    "ctrlScrubAfterThreshold": {"initial": 3, "final": 10},
+    "ctrlShiftScrubAfterThreshold": {"initial": 3, "final": 4}
+  },
+  "red": {
+    "shiftScrub100px12Segments": {
+      "expected": "nonzero accumulated integer delta smaller than plain drag",
+      "actual": {"initial": 3, "final": 3},
+      "cause": "rawCurrent is integer-normalized on every mousemove, so sub-integer Shift deltas are discarded"
+    }
+  },
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}
