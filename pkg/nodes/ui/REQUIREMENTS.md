@@ -127,15 +127,20 @@ format и автоматическое размещение принадлежа
    их новая интеграция выполняется после отдельного переписывания layout format.
 3. Package-level tests и component playground являются acceptance этой задачи;
    exact root consumer compile gap фиксируется как вход следующего этапа.
-4. Dev-only component playground является consumer общего `@ui/playground` и
-   показывает один выбранный раздел: полный Node Editor, каталог типов, форм и
-   состояний Socket либо сравнение. Standalone Fields принадлежат playground
-   `@ui/components`; здесь они видны только внутри Node. Раздел сравнения на
-   desktop показывает maintained Blender screenshot и одну representative live
-   Node в равных FlexBox slots; asset и Surface не экспортируются production
-   package. На mobile остаётся только активный preview, а у comparison скрывается
-   reference и сохраняется live Node. Client-side смена route повторно применяет
-   layout всех preview surfaces без fake resize или reload.
+4. Dev-only component playground является desktop consumer общего Workbench
+   `@ui/playground`. Catalog выбирает NodeEditor, Socket и comparison. Для
+   выбранного Socket вторая панель перечисляет все concrete Socket type presets,
+   center показывает один production detail preview, dock — независимые
+   `input | output | bidirectional` variants, а правая панель постоянно хранит
+   exact TypeScript/copy и controls/events того же story state. Aggregate
+   inventory типов, форм или состояний допустим только отдельной documentation
+   story и не заменяет detail route. Story metadata и lazy implementation
+   принадлежат package consumer и импортируют production через exact public
+   subpath; общий Workbench не получает Node vocabulary. Standalone Fields
+   принадлежат playground `@ui/components`; здесь они видны только внутри Node.
+   Comparison сохраняет maintained Blender screenshot и representative live
+   Node; asset и Surface не экспортируются production package. Client-side
+   смена route повторно применяет layout без fake resize или page reload.
 
 ## Источник терминов
 
