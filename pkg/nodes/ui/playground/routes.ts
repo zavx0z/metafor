@@ -22,6 +22,12 @@ export const NODE_PLAYGROUND_ROUTES = Object.freeze([
 export type NodePlaygroundRoute = NodeComponentStoryRoute | NodeSocketStoryRoute
 export type NodePlaygroundGroup = "editor" | "socket" | "comparison"
 
+const NODE_PLAYGROUND_GROUP_LABELS = Object.freeze({
+  editor: "Редактор",
+  socket: "Сокеты",
+  comparison: "Сравнение",
+} satisfies Readonly<Record<NodePlaygroundGroup, string>>)
+
 export const NODE_PLAYGROUND_ROUTE_DECLARATION = definePlaygroundRoutes({
   routes: NODE_PLAYGROUND_ROUTES,
   fallback: NODE_SOCKET_STORIES.fallback as NodeSocketStoryRoute,
@@ -36,11 +42,36 @@ const COMPONENT_ROUTES = Object.freeze({
 } satisfies Readonly<Record<string, NodePlaygroundRoute>>)
 
 export const NODE_PLAYGROUND_CATALOG: readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] = [
-  {id: "node-editor", label: "Редактор нод", route: COMPONENT_ROUTES["node-editor"]},
-  {id: "frame", label: "Frame", route: COMPONENT_ROUTES.frame},
-  {id: "link", label: "Link", route: COMPONENT_ROUTES.link},
-  {id: "socket", label: "Сокет", route: COMPONENT_ROUTES.socket},
-  {id: "comparison", label: "Сравнение", route: COMPONENT_ROUTES.comparison},
+  {
+    id: "node-editor",
+    label: "Редактор нод",
+    route: COMPONENT_ROUTES["node-editor"],
+    group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
+  },
+  {
+    id: "frame",
+    label: "Frame",
+    route: COMPONENT_ROUTES.frame,
+    group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
+  },
+  {
+    id: "link",
+    label: "Link",
+    route: COMPONENT_ROUTES.link,
+    group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
+  },
+  {
+    id: "socket",
+    label: "Сокет",
+    route: COMPONENT_ROUTES.socket,
+    group: {id: "socket", label: NODE_PLAYGROUND_GROUP_LABELS.socket},
+  },
+  {
+    id: "comparison",
+    label: "Сравнение",
+    route: COMPONENT_ROUTES.comparison,
+    group: {id: "comparison", label: NODE_PLAYGROUND_GROUP_LABELS.comparison},
+  },
 ]
 
 const LEGACY_ROUTE_ALIASES: Readonly<Record<string, NodePlaygroundRoute>> = Object.freeze({
@@ -65,9 +96,17 @@ export function nodePlaygroundGroup(route: NodePlaygroundRoute): NodePlaygroundG
 
 export function nodePlaygroundCatalog(
   route: NodePlaygroundRoute,
+  collapsedGroups: ReadonlySet<string> = new Set(),
 ): readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] {
   const componentId = isNodeSocketStoryRoute(route) ? "socket" : nodeComponentStoryIndex(route).componentId
-  return NODE_PLAYGROUND_CATALOG.map((item) => item.id === componentId ? {...item, route} : item)
+  return NODE_PLAYGROUND_CATALOG.map((item) => ({
+    ...item,
+    ...(item.id === componentId ? {route} : {}),
+    ...(item.group === undefined ? {} : {group: {
+      ...item.group,
+      ...(collapsedGroups.has(item.group.id) ? {collapsed: true} : {}),
+    }}),
+  }))
 }
 
 export function nodePlaygroundSections(

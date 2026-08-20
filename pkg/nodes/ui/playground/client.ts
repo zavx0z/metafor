@@ -77,13 +77,15 @@ try {
   let storyArgs: PlaygroundStoryArgs = Object.freeze({})
   let storyPanelMode: PlaygroundStoryPanelMode = "controls"
   let storyRevision = 0
+  let collapsedCatalogGroups = new Set<string>()
 
   const backdrop = new PlaygroundBackdropSurface()
   const catalog = new PlaygroundNavigationSurface<NodePlaygroundRoute>({
     title: "Компоненты нод",
-    items: nodePlaygroundCatalog(router.current),
+    items: nodePlaygroundCatalog(router.current, collapsedCatalogGroups),
     route: nodePlaygroundCatalogRoute(router.current),
     onNavigate: navigate,
+    onGroupToggle: handleCatalogGroupToggle,
   })
   const sections = new PlaygroundNavigationSurface<NodePlaygroundRoute>({
     title: nodePlaygroundSectionTitle(router.current),
@@ -192,7 +194,13 @@ try {
   const applyRoute = async (route: NodePlaygroundRoute): Promise<void> => {
     const revision = ++storyRevision
     const sectionItems = nodePlaygroundSections(route)
-    catalog.setOptions({title: "Компоненты нод", items: nodePlaygroundCatalog(route), route: nodePlaygroundCatalogRoute(route), onNavigate: navigate})
+    catalog.setOptions({
+      title: "Компоненты нод",
+      items: nodePlaygroundCatalog(route, collapsedCatalogGroups),
+      route: nodePlaygroundCatalogRoute(route),
+      onNavigate: navigate,
+      onGroupToggle: handleCatalogGroupToggle,
+    })
     sections.setOptions({title: nodePlaygroundSectionTitle(route), items: sectionItems, route, onNavigate: navigate})
     dock.setOptions({
       title: isNodeSocketStoryRoute(route) ? "Направление" : "Варианты",
@@ -221,6 +229,20 @@ try {
   router.subscribe((route) => {
     void applyRoute(route).catch(publishPlaygroundError)
   })
+
+  function handleCatalogGroupToggle(groupId: string, collapsed: boolean): void {
+    collapsedCatalogGroups = new Set(collapsedCatalogGroups)
+    if (collapsed) collapsedCatalogGroups.add(groupId)
+    else collapsedCatalogGroups.delete(groupId)
+    catalog.setOptions({
+      title: "Компоненты нод",
+      items: nodePlaygroundCatalog(router.current, collapsedCatalogGroups),
+      route: nodePlaygroundCatalogRoute(router.current),
+      onNavigate: navigate,
+      onGroupToggle: handleCatalogGroupToggle,
+    })
+    runtime.relayout()
+  }
   runtime.handleResize()
   await applyRoute(router.current)
   new ResizeObserver(() => {

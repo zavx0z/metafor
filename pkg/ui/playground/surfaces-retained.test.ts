@@ -213,6 +213,28 @@ describe("retained @ui/playground surfaces", () => {
     expect(view.total).toBe(1)
     expect(view.items.map(({id}) => id)).toEqual(["item-777"])
 
+    const searchSurface = new PlaygroundNavigationSurface<Route>({
+      title: "Каталог",
+      items: largeItems,
+      route: "first",
+      query: "needle",
+      window: {offset: 0, limit: 20},
+      searchPlaceholder: "Поиск…",
+      onQueryChange() {},
+      onGroupToggle() {},
+      onNavigate() {},
+    })
+    searchSurface.attachCanvas(createFakeRuntime())
+    searchSurface.setRect({x: 0, y: 0, w: 260, h: 700}, 0.001, font)
+    expect(searchSurface.diagnostics.owners.map(({key}) => key)).toEqual([
+      "panel",
+      "title",
+      "search",
+      "group:values",
+      "item:item-777",
+    ])
+    searchSurface.dispose()
+
     const toggles: Array<readonly [string, boolean]> = []
     const expandedItems = largeItems.map((item) => ({...item, group: {...item.group!, collapsed: false}}))
     const surface = new PlaygroundNavigationSurface<Route>({
@@ -235,6 +257,11 @@ describe("retained @ui/playground surfaces", () => {
       ...Array.from({length: 10}, (_, index) => `item:item-${490 + index}`),
     ])
     expect(surface.diagnostics.materializations).toBe(14)
+    const sectionY = uiShapeMetrics.tightGap + uiShapeMetrics.panelHeaderHeight +
+      uiShapeMetrics.tightGap + uiShapeMetrics.rowHeight + uiShapeMetrics.tightGap
+    expectOwnerOrigin(surface, "group:values", uiShapeMetrics.tightGap * 2, sectionY)
+    expectOwnerOrigin(surface, "item:item-490", uiShapeMetrics.tightGap * 2, sectionY + uiShapeMetrics.rowHeight)
+    expectOwnerOrigin(surface, "item:item-491", uiShapeMetrics.tightGap * 2, sectionY + uiShapeMetrics.rowHeight * 2)
 
     const pointer = {button: 0, preventDefault() {}} as MouseEvent
     surface.onPointerDown(pointer, 100, 65)
@@ -254,7 +281,7 @@ describe("retained @ui/playground surfaces", () => {
     })
     surface.flushPendingRender()
     expect(surface.diagnostics.owners.map(({key}) => key)).toEqual(["panel", "title", "search", "group:values"])
-    expect(surface.focusedItemId).toBeNull()
+    expect(surface.focusedItemId).toBe("values")
     expect(surface.diagnostics.materializations).toBe(15)
 
     surface.onPointerDown(pointer, 100, 65)
@@ -279,8 +306,11 @@ describe("retained @ui/playground surfaces", () => {
       "group:values",
       ...Array.from({length: 10}, (_, index) => `item:item-${490 + index}`),
     ])
+    expect(surface.focusedItemId).toBe("values")
+    surface.onActivate()
+    expect(pressKey(surface, "ArrowRight")).toBe(1)
     expect(surface.focusedItemId).toBe("item-490")
-    expect(surface.diagnostics.materializations).toBe(26)
+    expect(surface.diagnostics.materializations).toBe(29)
     surface.dispose()
   })
 
@@ -391,6 +421,55 @@ describe("retained @ui/playground surfaces", () => {
     transformRoot(surface)
     expect(surface.diagnostics).toEqual(beforeTransform)
     expectOwnersStable(surface, beforeTransformOwners)
+    surface.dispose()
+  })
+
+  test("keeps accordion section disclosure independent from leaf route and keyboard focus", () => {
+    const toggles: Array<readonly [string, boolean]> = []
+    const routes: Route[] = []
+    const grouped: readonly PlaygroundNavigationItem<Route>[] = [
+      {id: "first", label: "First", route: "first", group: {id: "alpha", label: "Alpha"}},
+      {id: "second", label: "Second", route: "second", disabled: true, group: {id: "alpha", label: "Alpha"}},
+      {id: "third", label: "Third", route: "third", group: {id: "beta", label: "Beta", collapsed: true}},
+    ]
+    const options = (items: readonly PlaygroundNavigationItem<Route>[]) => ({
+      title: "Catalog",
+      items,
+      route: "first" as const,
+      onGroupToggle: (id: string, collapsed: boolean) => { toggles.push([id, collapsed]) },
+      onNavigate: (route: Route) => { routes.push(route) },
+    })
+    const surface = new PlaygroundNavigationSurface<Route>(options(grouped))
+    surface.attachCanvas(createFakeRuntime())
+    surface.setRect({x: 0, y: 0, w: 210, h: 640}, 0.001, font)
+    surface.onActivate()
+
+    expect(surface.focusedItemId).toBe("first")
+    expect(pressKey(surface, "ArrowLeft")).toBe(1)
+    expect(surface.focusedItemId).toBe("alpha")
+    expect(routes).toEqual([])
+    expect(pressKey(surface, "ArrowLeft")).toBe(1)
+    expect(toggles).toEqual([["alpha", true]])
+    expect(routes).toEqual([])
+
+    const collapsed = grouped.map((item) => item.group?.id === "alpha"
+      ? {...item, group: {...item.group, collapsed: true}}
+      : item)
+    surface.setOptions(options(collapsed))
+    surface.flushPendingRender()
+    expect(surface.focusedItemId).toBe("alpha")
+    expect(pressKey(surface, "ArrowRight")).toBe(1)
+    expect(toggles).toEqual([["alpha", true], ["alpha", false]])
+
+    surface.setOptions(options(grouped))
+    surface.flushPendingRender()
+    expect(pressKey(surface, "ArrowRight")).toBe(1)
+    expect(surface.focusedItemId).toBe("first")
+    expect(pressKey(surface, "ArrowDown")).toBe(1)
+    expect(surface.focusedItemId).toBe("beta")
+    expect(pressKey(surface, "Enter")).toBe(1)
+    expect(toggles).toEqual([["alpha", true], ["alpha", false], ["beta", false]])
+    expect(routes).toEqual([])
     surface.dispose()
   })
 

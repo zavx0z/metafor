@@ -14,6 +14,7 @@ import {
   NODE_PLAYGROUND_CATALOG,
   NODE_PLAYGROUND_ROUTE_DECLARATION,
   NODE_PLAYGROUND_ROUTES,
+  nodePlaygroundCatalog,
   nodePlaygroundDockItems,
   nodePlaygroundGroup,
   nodePlaygroundSections,
@@ -53,6 +54,20 @@ describe("Blender-like Node component playground", () => {
       "link/orthogonal/selected",
       "socket/boolean/input",
       "comparison/blender/default",
+    ])
+    expect(NODE_PLAYGROUND_CATALOG.map(({group}) => group?.id)).toEqual([
+      "editor",
+      "editor",
+      "editor",
+      "socket",
+      "comparison",
+    ])
+    expect(nodePlaygroundCatalog("comparison/blender/default", new Set(["editor"])).map(({group}) => group?.collapsed === true)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
     ])
     expect(NODE_PLAYGROUND_ROUTES.slice(0, NODE_COMPONENT_STORY_ROUTES.length)).toEqual([...NODE_COMPONENT_STORY_ROUTES])
     expect(NODE_PLAYGROUND_ROUTES).toHaveLength(NODE_COMPONENT_STORY_ROUTES.length + BLENDER_SOCKET_KINDS.length * NODE_SOCKET_DIRECTIONS.length)
