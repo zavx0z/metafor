@@ -85,8 +85,8 @@ Components stories и завершает полную русскую локал�
 
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 параллельно развивает production Components, пока UI-011 владеет всеми
-playground. NumberInput уже вынесен в public leaf; текущий срез создаёт
-ColorInput без преждевременного popup/picker и Node-копий.
+playground. NumberInput и ColorInput уже вынесены в public leaves; текущий срез
+создаёт общий VectorInput для vector/rotation без Node-копий.
 
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: `4192` уже является эталоном, но
