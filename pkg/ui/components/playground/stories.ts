@@ -90,6 +90,11 @@ const loadStandaloneInputStory = (
   return createStandaloneInputStory(component)
 }
 
+const loadReferenceInputStory = async (): Promise<PlaygroundStoryModule> => {
+  const {createReferenceInputStory} = await import("./stories/reference-input.ts")
+  return createReferenceInputStory()
+}
+
 const singleVariant = (
   component: SimpleComponentStory,
   title: string,
@@ -242,6 +247,16 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             label: "2×2",
             title: "MatrixInput · Матрица 2×2",
             load: loadStandaloneInputStory("matrix-input"),
+          }],
+        }]},
+        {id: "reference-input", label: "Выбор ссылки", apiName: "ReferenceInput", tags: ["input", "reference", "ссылка", "ресурс", "выбор"], sections: [{
+          id: "basic",
+          label: "Основной",
+          variants: [{
+            id: "default",
+            label: "Ресурс",
+            title: "ReferenceInput · Выбор ресурса",
+            load: loadReferenceInputStory,
           }],
         }]},
         {id: "checkbox", label: "Флажок", apiName: "Checkbox", sections: [{id: "state", label: "Состояние", variants: [

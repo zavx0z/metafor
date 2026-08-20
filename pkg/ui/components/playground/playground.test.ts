@@ -69,6 +69,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "color-input",
       "vector-input",
       "matrix-input",
+      "reference-input",
       "checkbox",
       "switcher",
       "progress-checkbox",
@@ -90,6 +91,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Ввод цвета",
       "Ввод вектора",
       "Ввод матрицы",
+      "Выбор ссылки",
       "Флажок",
       "Переключатель",
       "Флажок прогресса",
@@ -118,6 +120,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "color-input",
       "matrix-input",
       "number-input",
+      "reference-input",
       "vector-input",
     ])
     const catalog = new Set(componentCatalogItems(new Set()).map(({id}) => id))
@@ -147,6 +150,38 @@ describe("@ui/components package-owned Workbench stories", () => {
     const matrixSource = matrix.source({...matrix.defaultArgs, value: [[1, 2], [3, 4]], disabled: true})
     expect(matrixSource).toContain('from "@ui/components/matrix-input"')
     expect(matrixSource).toContain('value: [[1,2],[3,4]],\n  density: "regular",\n  disabled: true')
+
+    const reference = await COMPONENT_STORIES.load("reference-input/basic/default")
+    expect(reference.defaultArgs).toEqual({
+      value: {id: "texture.brick", label: "Кирпичная текстура", kind: "Texture"},
+      density: "regular",
+      disabled: false,
+      readonly: false,
+      event: "Ожидание",
+    })
+    expect(reference.controls.map(({key, label}) => [key, label])).toEqual([
+      ["value", "Ссылка"],
+      ["density", "Плотность"],
+      ["disabled", "Недоступно"],
+      ["readonly", "Только чтение"],
+      ["event", "Последнее событие"],
+    ])
+    const referenceSource = reference.source({...reference.defaultArgs, value: null, readonly: true})
+    expect(referenceSource).toContain('from "@ui/components/reference-input"')
+    expect(referenceSource).toContain("let value: ReferenceInputValue | null = null")
+    expect(referenceSource).toContain("readOnly: true")
+    expect(referenceSource).toContain("onActivate: openReferencePicker")
+    expect(referenceSource).toContain("onClear: () => setValue(null)")
+
+    const referenceImplementation = await Bun.file(join(playgroundRoot, "stories", "reference-input.ts")).text()
+    expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("value", SAMPLE_REFERENCE)')
+    expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("value", null)')
+    expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onActivate")')
+    expect(referenceImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onClear")')
+
+    const referenceField = await COMPONENT_STORIES.load("field/reference/default")
+    expect(referenceField.source(referenceField.defaultArgs)).toContain('from "@ui/components/field"')
+    expect(referenceField.source(referenceField.defaultArgs)).toContain('kind: "reference"')
   })
 
   test("loads exact public Button, Pane and Field stories lazily", async () => {
@@ -230,8 +265,10 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(entry!.source).not.toContain("function createFieldStory")
     expect(entry!.source).not.toContain("function createSimpleComponentStory")
     expect(entry!.source).not.toContain("function createStandaloneInputStory")
+    expect(entry!.source).not.toContain("function createReferenceInputStory")
     expect(entry!.source).not.toContain('@ui/components/vector-input')
     expect(entry!.source).not.toContain('@ui/components/matrix-input')
+    expect(entry!.source).not.toContain('@ui/components/reference-input')
     expect(outputs.some(({source}) => source.includes("function createButtonStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createFieldStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createSimpleComponentStory"))).toBeTrue()
@@ -239,6 +276,9 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(inputChunk).toBeDefined()
     expect(inputChunk!.source).toContain('@ui/components/vector-input')
     expect(inputChunk!.source).toContain('@ui/components/matrix-input')
+    const referenceInputChunk = outputs.find(({source}) => source.includes("function createReferenceInputStory"))
+    expect(referenceInputChunk).toBeDefined()
+    expect(referenceInputChunk!.source).toContain('@ui/components/reference-input')
   })
 
   test("uses public full-viewport Workbench geometry and the package server", async () => {

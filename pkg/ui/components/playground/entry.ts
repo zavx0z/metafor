@@ -97,6 +97,11 @@ async function startComponentsPlayground(): Promise<void> {
       events: [
         {id: "route", label: "Story", value: storyRoute},
         {id: "changes", label: "Изменения", value: String(controlChanges)},
+        {
+          id: "owner-callback",
+          label: "Событие владельца",
+          value: typeof storyArgs.event === "string" ? storyArgs.event : "—",
+        },
       ],
       mode: storyPanelMode,
       onModeChange(mode) {
