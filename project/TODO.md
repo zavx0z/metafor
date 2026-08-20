@@ -85,8 +85,8 @@ package/live evidence. Текущий срез UI-010.7 добавляет publi
 UI-010.8 story/live `5df1327c5` завершила completeness `7/7`. Следующий public
 leaf ещё не зарегистрирован. Текущий UI-010.9 добавляет owner-controlled
 CollectionInput reorder commit-ом `2404e88ac`; зависимая UI-010.10 story/live
-source `7cae3d28c`, DOM/console готовы, но current non-black capture заблокирован
-hidden WebGPU target; guard сохранил прежний artifact без перезаписи.
+`7cae3d28c` завершена: encoded-PNG guard дал current non-black capture, exact
+source/console и completeness `7/7`.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
@@ -95,9 +95,9 @@ rounded SDF quad со spread/blur в local units, без texture pass. Node cons
 задача в `REVIEW` перед independent closing.
 
 [`UI-014 — Проверять encoded WebGPU PNG в canvas guard`](tasks/UI-014.md)
-исправляет найденный после UI-013 false-black: exact `toDataURL` содержателен,
-но direct WebGPU→2D drawImage probe пуст. Skill будет классифицировать пиксели
-декодированного encoded PNG и останется background-only.
+исправила найденный после UI-013 false-black commit-ом `1d096d997`: skill
+классифицирует декодированный exact PNG, а не direct WebGPU→2D copy. Hidden
+target дал current non-black evidence; задача в `REVIEW`.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
@@ -116,7 +116,7 @@ mobile и явная visual owner acceptance остаются следующим
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
 | UI-012 | REVIEW      | нет         | [Открыть](tasks/UI-012.md) |
-| UI-014 | IN_PROGRESS | нет         | [Открыть](tasks/UI-014.md) |
+| UI-014 | REVIEW      | нет         | [Открыть](tasks/UI-014.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |

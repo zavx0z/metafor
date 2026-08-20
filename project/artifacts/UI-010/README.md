@@ -44,22 +44,17 @@
 * Источник: `$ui-dev` exact background canvas capture
   `collection-input/value/selected`, target
   `D0775AE44CFF0E299A0C28EECB3872D2`.
-* Дата: 2026-08-20; production `059deffc8` + correction `03b2c252b`,
-  package story `5df1327c5`, loaded Components PID `61841`.
+* Дата: 2026-08-20; production base `059deffc8` + `03b2c252b`, reorder
+  `2404e88ac`, package story `5df1327c5` + `7cae3d28c`, loaded Components
+  PID `31537`.
 * Ожидание: concrete `Редактор коллекции`, три production rows, disabled
-  `Нормаль`, selected `Вращение`, соседний plus/minus dock, exact TypeScript/
-  copy/controls; route ready, console `0`, native metrics восстановлены.
-* Фактическое наблюдение: ожидание совпало. Первый idle-black capture
-  (`166111` bytes) отклонён; после explicit same-route `$ui-dev open` сохранён
-  ready non-black canvas `645468` bytes, `3840×2176`, native
-  `1920×1088 @2`. Owner select/add/remove bridge доказан focused story test,
-  не manual browser input.
+  `Нормаль`, selected `Вращение`, соседний dock `+ − ↑ ↓`, exact TypeScript с
+  `onMove`, copy/controls; route ready, console `0`, native metrics восстановлены.
+* Фактическое наблюдение: ожидание совпало. После UI-014 encoded-PNG probe
+  `$ui-dev canvas` на hidden target без focus/ai-macos вернул `written:true`,
+  attempts `1`, nonBlackPixels `16384/16384`; сохранён canvas `649624` bytes,
+  `3840×2176`, native `1920×1088 @2`. `↑` активен, `↓` disabled для последнего
+  выбранного item. Owner reorder bridge доказан focused story test.
 * Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
-  `254ea221ee3040a40a0fe82c47b1b77bd83b360466fd69991bd356cd78872277`.
-
-UI-010.10 reorder follow-up не заменяет этот кадр: на loaded PID `31537` exact
-hidden target после двух bounded probes вернул `starting-or-idle-black`,
-`written:false`, nonBlackPixels `0`. Guard не перезаписал файл; SHA выше остался
-тем же. Поэтому PNG доказывает UI-010.8 add/remove presentation, но не выдаётся
-за current visual evidence operators `↑/↓`.
+  `b0e7acd14f0f08237d371bb4170f5184f58a04011b87ed4c4d62aee83ee97de1`.
