@@ -115,6 +115,7 @@ function initialFieldValue(kind: FieldStoryKind): unknown {
   if (kind === "matrix") return [[1, 0], [0, 1]]
   if (kind === "reference") return {id: "material-1", label: "Material.001", kind: "material"}
   if (kind === "collection") return "rotation"
+  if (kind === "path") return "/textures/source.exr"
   return "Готово"
 }
 
@@ -200,6 +201,14 @@ function createFieldDefinition(
       globalThis.__componentsStoryControlBridge?.("event", `onRemove: ${id}`)
     },
   }
+  if (options.kind === "path") return {
+    ...base,
+    kind: "path",
+    value: typeof args.value === "string" ? args.value : "",
+    placeholder: "Выберите файл",
+    onChange: change,
+    onBrowse: () => globalThis.__componentsStoryControlBridge?.("event", "onBrowse"),
+  }
   return {...base, kind: "readonly", value: String(args.value)}
 }
 
@@ -238,6 +247,7 @@ function sourceFieldDefinition(
     "  onRemove: removeItem,",
   )
   else if (options.kind !== "readonly") properties.push("  onChange: setValue,")
+  if (options.kind === "path") properties.push("  onBrowse: openPathPicker,")
   if (args.disabled) properties.push("  disabled: true,")
   return ["{", ...properties, "}"].join("\n")
 }
@@ -253,6 +263,7 @@ function fieldLabel(kind: FieldStoryKind): string {
   if (kind === "matrix") return "Матрица"
   if (kind === "reference") return "Материал"
   if (kind === "collection") return "Атрибуты"
+  if (kind === "path") return "Файл"
   return "Результат"
 }
 

@@ -33,6 +33,7 @@ export type FieldStoryKind =
   | "matrix"
   | "reference"
   | "collection"
+  | "path"
   | "readonly"
 
 export type SimpleComponentStory =
@@ -63,6 +64,7 @@ export type EnumInputStoryVariant =
   | "disabled"
   | "readonly"
 export type CollectionInputStoryVariant = "selected" | "empty" | "disabled" | "readonly" | "compact"
+export type PathInputStoryVariant = "path" | "empty" | "disabled" | "readonly" | "compact"
 
 const loadButtonStory = (
   section: ButtonStorySection,
@@ -119,6 +121,13 @@ const loadCollectionInputStory = (
 ) => async (): Promise<PlaygroundStoryModule> => {
   const {createCollectionInputStory} = await import("./stories/collection-input.ts")
   return createCollectionInputStory(variant)
+}
+
+const loadPathInputStory = (
+  variant: PathInputStoryVariant,
+) => async (): Promise<PlaygroundStoryModule> => {
+  const {createPathInputStory} = await import("./stories/path-input.ts")
+  return createPathInputStory(variant)
 }
 
 const singleVariant = (
@@ -250,6 +259,7 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             {id: "matrix", label: "Матрица", variants: [{id: "default", label: "2×2", title: "Field · Матрица", load: loadFieldStory("matrix", "default")}]},
             {id: "reference", label: "Ссылка", variants: [{id: "default", label: "Ресурс", title: "Field · Ссылка", load: loadFieldStory("reference", "default")}]},
             {id: "collection", label: "Коллекция", variants: [{id: "default", label: "Элементы", title: "Field · Коллекция", load: loadFieldStory("collection", "default")}]},
+            {id: "path", label: "Путь", variants: [{id: "default", label: "Файл", title: "Field · Путь", load: loadFieldStory("path", "default")}]},
             {id: "readonly", label: "Только чтение", variants: [{id: "default", label: "Результат", title: "Field · Только чтение", load: loadFieldStory("readonly", "default")}]},
           ],
         },
@@ -343,6 +353,31 @@ export const COMPONENT_STORIES = definePlaygroundStories({
             label: "Плотность",
             variants: [
               {id: "compact", label: "Компактная", title: "CollectionInput · Компактная плотность", load: loadCollectionInputStory("compact")},
+            ],
+          },
+        ]},
+        {id: "path-input", label: "Ввод пути", apiName: "PathInput", tags: ["input", "path", "путь", "файл", "выбор"], sections: [
+          {
+            id: "value",
+            label: "Значение",
+            variants: [
+              {id: "path", label: "Путь", title: "PathInput · Путь к файлу", load: loadPathInputStory("path")},
+              {id: "empty", label: "Пусто", title: "PathInput · Пустой путь", load: loadPathInputStory("empty")},
+            ],
+          },
+          {
+            id: "state",
+            label: "Состояние",
+            variants: [
+              {id: "disabled", label: "Недоступно", title: "PathInput · Недоступно", load: loadPathInputStory("disabled")},
+              {id: "readonly", label: "Только чтение", title: "PathInput · Только чтение", load: loadPathInputStory("readonly")},
+            ],
+          },
+          {
+            id: "density",
+            label: "Плотность",
+            variants: [
+              {id: "compact", label: "Компактная", title: "PathInput · Компактная плотность", load: loadPathInputStory("compact")},
             ],
           },
         ]},

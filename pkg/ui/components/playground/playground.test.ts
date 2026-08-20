@@ -4,7 +4,13 @@ import {fileURLToPath} from "node:url"
 import {TrueTypeFont} from "@metafor/engine"
 import {FIELD_KINDS} from "@ui/components/field"
 import {definePlaygroundStoryModule, planPlaygroundShell} from "@ui/playground"
-import {UiSurface as BaseUiSurface, type UiSurface} from "@ui/elements"
+import {
+  createInputEditState,
+  focusInput,
+  insertActiveInputText,
+  UiSurface as BaseUiSurface,
+  type UiSurface,
+} from "@ui/elements"
 import type {UiRuntime} from "@ui/elements/runtime"
 import {
   COMPONENT_STORIES,
@@ -39,6 +45,13 @@ function storyActionHit(surface: StoryActionSurface, label: "↑" | "↓"): HitC
   return surface.hits.find((hit) => {
     const options = hit[5]
     return typeof options === "object" && options !== null && options.key?.endsWith(`:${label}`) === true
+  })
+}
+
+function storyBrowseHit(surface: StoryActionSurface): HitCall | undefined {
+  return surface.hits.find((hit) => {
+    const options = hit[5]
+    return typeof options === "object" && options !== null && options.tooltip?.label === "Выбрать путь"
   })
 }
 
@@ -96,6 +109,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "reference-input",
       "enum-input",
       "collection-input",
+      "path-input",
       "checkbox",
       "switcher",
       "progress-checkbox",
@@ -120,6 +134,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Выбор ссылки",
       "Выбор значения",
       "Редактор коллекции",
+      "Ввод пути",
       "Флажок",
       "Переключатель",
       "Флажок прогресса",
@@ -150,6 +165,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "enum-input",
       "matrix-input",
       "number-input",
+      "path-input",
       "reference-input",
       "vector-input",
     ])
@@ -372,12 +388,75 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onRemove: ${id}`)')
     expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onMove: ${id}, ${moveLabel}`)')
 
+    expect(componentSectionItems("path-input/value/path").map(({id}) => id)).toEqual([
+      "value", "state", "density",
+    ])
+    expect(componentVariantItems("path-input/value/path").map(({id}) => id)).toEqual(["path", "empty"])
+    expect(componentVariantItems("path-input/state/disabled").map(({id}) => id)).toEqual(["disabled", "readonly"])
+    expect(componentVariantItems("path-input/density/compact").map(({id}) => id)).toEqual(["compact"])
+
+    const path = await COMPONENT_STORIES.load("path-input/value/path")
+    expect(path.defaultArgs).toEqual({
+      value: "/textures/source.exr",
+      density: "regular",
+      disabled: false,
+      readonly: false,
+      event: "Ожидание",
+    })
+    expect(path.controls.map(({key, label}) => [key, label])).toEqual([
+      ["value", "Путь"],
+      ["density", "Плотность"],
+      ["disabled", "Недоступно"],
+      ["readonly", "Только чтение"],
+      ["event", "Последнее событие"],
+    ])
+    const pathSource = path.source({...path.defaultArgs, density: "compact", readonly: true})
+    expect(pathSource).toContain('from "@ui/components/path-input"')
+    expect(pathSource).toContain('let value = "/textures/source.exr"')
+    expect(pathSource).toContain('density: "compact"')
+    expect(pathSource).toContain("readOnly: true")
+    expect(pathSource).toContain("onChange: setValue")
+    expect(pathSource).toContain("onBrowse: openPathPicker")
+
+    const pathEvents: [string, unknown][] = []
+    const pathSurface = new StoryActionSurface()
+    globalThis.__componentsStoryControlBridge = (key, value) => pathEvents.push([key, value])
+    try {
+      path.render(pathSurface, path.defaultArgs, {x: 0, y: 0, w: 1024, h: 720})
+      focusInput(pathSurface, "components-story-path-input", createInputEditState("/textures/source.exr"))
+      expect(insertActiveInputText(pathSurface, ".bak")).toBeTrue()
+      const browse = storyBrowseHit(pathSurface)
+      expect(browse).toBeDefined()
+      browse![4]()
+    } finally {
+      globalThis.__componentsStoryControlBridge = undefined
+      pathSurface.dispose()
+    }
+    expect(pathEvents).toEqual([
+      ["value", "/textures/source.exr.bak"],
+      ["event", "onChange: /textures/source.exr.bak"],
+      ["event", "onBrowse"],
+    ])
+
+    const pathEmpty = await COMPONENT_STORIES.load("path-input/value/empty")
+    expect(pathEmpty.defaultArgs).toMatchObject({value: ""})
+    const pathDisabled = await COMPONENT_STORIES.load("path-input/state/disabled")
+    expect(pathDisabled.defaultArgs).toMatchObject({disabled: true})
+    const pathReadonly = await COMPONENT_STORIES.load("path-input/state/readonly")
+    expect(pathReadonly.defaultArgs).toMatchObject({readonly: true})
+    const pathCompact = await COMPONENT_STORIES.load("path-input/density/compact")
+    expect(pathCompact.defaultArgs).toMatchObject({density: "compact"})
+
     const referenceField = await COMPONENT_STORIES.load("field/reference/default")
     expect(referenceField.source(referenceField.defaultArgs)).toContain('from "@ui/components/field"')
     expect(referenceField.source(referenceField.defaultArgs)).toContain('kind: "reference"')
     const collectionField = await COMPONENT_STORIES.load("field/collection/default")
     expect(collectionField.source(collectionField.defaultArgs)).toContain('kind: "collection"')
     expect(collectionField.source(collectionField.defaultArgs)).toContain("onSelect: setSelectedId")
+    const pathField = await COMPONENT_STORIES.load("field/path/default")
+    expect(pathField.source(pathField.defaultArgs)).toContain('kind: "path"')
+    expect(pathField.source(pathField.defaultArgs)).toContain("onChange: setValue")
+    expect(pathField.source(pathField.defaultArgs)).toContain("onBrowse: openPathPicker")
   })
 
   test("reorders CollectionInput story items immutably and preserves the controlled selection", async () => {
@@ -520,11 +599,13 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(entry!.source).not.toContain("function createReferenceInputStory")
     expect(entry!.source).not.toContain("function createEnumInputStory")
     expect(entry!.source).not.toContain("function createCollectionInputStory")
+    expect(entry!.source).not.toContain("function createPathInputStory")
     expect(entry!.source).not.toContain('@ui/components/vector-input')
     expect(entry!.source).not.toContain('@ui/components/matrix-input')
     expect(entry!.source).not.toContain('@ui/components/reference-input')
     expect(entry!.source).not.toContain('@ui/components/enum-input')
     expect(entry!.source).not.toContain('@ui/components/collection-input')
+    expect(entry!.source).not.toContain('@ui/components/path-input')
     expect(outputs.some(({source}) => source.includes("function createButtonStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createFieldStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createSimpleComponentStory"))).toBeTrue()
@@ -541,6 +622,9 @@ describe("@ui/components package-owned Workbench stories", () => {
     const collectionInputChunk = outputs.find(({source}) => source.includes("function createCollectionInputStory"))
     expect(collectionInputChunk).toBeDefined()
     expect(collectionInputChunk!.source).toContain('@ui/components/collection-input')
+    const pathInputChunk = outputs.find(({source}) => source.includes("function createPathInputStory"))
+    expect(pathInputChunk).toBeDefined()
+    expect(pathInputChunk!.source).toContain('@ui/components/path-input')
   })
 
   test("uses public full-viewport Workbench geometry and the package server", async () => {
