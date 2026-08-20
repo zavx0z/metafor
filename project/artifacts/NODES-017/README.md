@@ -106,3 +106,41 @@
 
 * Назначение: per-area Blender/MetaFor matrix с отдельными `match`, project
   divergence, project extension и открытыми gates.
+
+## node-socket-boolean-input.png
+
+* Источник: `$ui-dev` exact canvas capture target
+  `809BF08D88E4582CA819EFE847FE1450`, route `socket/boolean/input`.
+* Дата: 2026-08-20 06:18:29 +0300.
+* Версия проекта: Node story `348453120`, Socket calibration `574de1db6`.
+* Ожидание: 19 concrete Socket types, один Boolean detail, direction variants,
+  TypeScript/copy и controls.
+* Фактическое наблюдение: ожидание совпало; console `0`, canvas `3840×2176`,
+  outer Socket около `20` physical px.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `0dc325a31a98eae001e31b11439417cc762d64e83f24103f089653e14c8c723f`.
+
+## node-editor-story.png
+
+* Источник: `$ui-dev` exact capture `node-editor/scene/default`, тот же target.
+* Дата: 2026-08-20 06:46:07 +0300.
+* Версия проекта: Node stories `77bfa7264`, header `860076720`.
+* Ожидание: пять Node components, expanded/collapsed scene и TypeScript/copy.
+* Фактическое наблюдение: expanded Nodes и collapsed `Compact Mix` видны,
+  console `0`; exact collapsed Mapping fixture отсутствует.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `20b49ef06dc095b59cc3f3a09312cde0a1c7127ecd5ab3a9a817512256441a08`.
+
+## node-comparison-story.png
+
+* Источник: `$ui-dev` exact capture `comparison/blender/default`, тот же target.
+* Дата: 2026-08-20 06:46:07 +0300.
+* Версия проекта: Node stories `77bfa7264`, header `860076720`.
+* Ожидание: maintained Blender reference, live Node и exact story code/copy.
+* Фактическое наблюдение: ожидание совпало; reference/live scale difference
+  остаётся owner acceptance gate.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `458e0f54f78cd75abf10c313631074f21a4730053478adb67a36fcb4a6469d54`.

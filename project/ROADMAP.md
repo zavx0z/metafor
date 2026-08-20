@@ -215,8 +215,8 @@ Shared Workbench foundation и эталон `4192` уже существуют. 
 и Elements используют package-owned stories, concrete sections, production
 preview и постоянную code/copy panel. NodeEditor явно показывает ordinary и
 selected expanded/collapsed states, а каждый current public Components input
-leaf имеет отдельную story. UI-011 завершает общую acceptance matrix четырёх
-contours как один действующий Workbench contract.
+leaf имеет отдельную story. Общая acceptance matrix четырёх contours
+подтверждает один действующий Workbench contract.
 
 Действующий `@nodes/layout` пока получает минимальный ELK-like `LayoutGraph` с уже измеренными
 node sizes и port offsets, единолично вычисляет node/compound/gateway/edge

@@ -28,7 +28,6 @@ flowchart LR
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     UI010["UI-010 · полный набор универсальных полей"]
-    UI011["UI-011 · package playgrounds на Workbench"]
     UI012["UI-012 · мягкая производительная SDF-тень"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -78,20 +77,10 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
-параллельно развивает production Components, пока UI-011 владеет всеми
-playground. NumberInput, ColorInput, VectorInput и MatrixInput уже имеют
-package/live evidence; ReferenceInput production commit `663a81c0b` проходит
-отдельную UI-011.7 story. Текущий production-срез создаёт public EnumInput для
-cycle/expanded и exceptional states без ложного dropdown/popup contract.
-
-[`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
-исправляет незавершённую consumer migration: Node UI, Components и Elements уже
-используют package-owned stories и общий Workbench; selected Node и новые public
-VectorInput/MatrixInput/ReferenceInput/EnumInput представлены отдельными stories.
-Independent closing review подтвердила runtime/matrix, но вернула два findings:
-оставшиеся английские human-facing labels и неполную metadata семи artifacts.
-Оба correction-среза зафиксированы и live-проверены; идёт повторный read-only
-verdict.
+развивает production Components. NumberInput, ColorInput, VectorInput,
+MatrixInput, ReferenceInput и EnumInput имеют package-owned stories и
+package/live evidence; следующий public leaf обязан получить зависимый story
+checkpoint до сдвига acceptance snapshot.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
@@ -115,7 +104,6 @@ mobile и явная visual owner acceptance остаются следующим
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
-| UI-011 | REVIEW      | нет         | [Открыть](tasks/UI-011.md) |
 | UI-012 | REVIEW      | нет         | [Открыть](tasks/UI-012.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |

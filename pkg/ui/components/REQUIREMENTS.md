@@ -43,6 +43,11 @@
    pathname routes и копируемый TypeScript не переводятся. Все действующие
    Components и universal Field kinds представлены явно; отсутствующий
    production export показывается честным status, а не ложным import.
+5. Новый public Components leaf не считается полностью принятым без concrete
+   package-owned story и manifest-completeness checkpoint. Если production и
+   playground принадлежат разным active tasks, production result явно создаёт
+   зависимый playground slice, а следующий public leaf не сдвигает acceptance
+   snapshot до его story/result. Lazy implementation остаётся вне initial entry.
 
 ## Универсальные поля
 

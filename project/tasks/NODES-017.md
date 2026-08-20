@@ -304,7 +304,7 @@ Live evidence: UI-011 через `$ui-dev` перезапустила exact Node
 `24430`, сохранила target `809BF08D88E4582CA819EFE847FE1450` и explicit reload
 `/socket/boolean/input`. DOM ready, `19` concrete sections, `3` variants,
 console `0`, native `1920×1088 @2`, backing canvas `3840×2176`. Exact capture
-[`node-socket-boolean-input.png`](../artifacts/UI-011/node-socket-boolean-input.png)
+[`node-socket-boolean-input.png`](../artifacts/NODES-017/node-socket-boolean-input.png)
 имеет `619169` bytes и SHA-256
 `0dc325a31a98eae001e31b11439417cc762d64e83f24103f089653e14c8c723f`.
 Outer Socket около `20` physical px против примерно `19` reference px; center
@@ -363,13 +363,13 @@ typecheck, boundary `4/4`, delivery `9/9` и clean diff.
 Live evidence: UI-011 выполнила один `$ui-dev` restart, новый PID `38236`,
 сохранила target `809BF08D88E4582CA819EFE847FE1450`, native `1920×1088 @2`,
 backing `3840×2176`, console `0`. Expanded scene capture
-[`node-editor-story.png`](../artifacts/UI-011/node-editor-story.png) — `479576`
+[`node-editor-story.png`](../artifacts/NODES-017/node-editor-story.png) — `479576`
 bytes, SHA-256
 `20b49ef06dc095b59cc3f3a09312cde0a1c7127ecd5ab3a9a817512256441a08`;
 geometric headers/title выровнены. Та же scene содержит collapsed `Compact Mix`
 на общем renderer, но exact collapsed `Mapping` fixture отсутствует и не
 подменяется переименованием. Comparison capture
-[`node-comparison-story.png`](../artifacts/UI-011/node-comparison-story.png) —
+[`node-comparison-story.png`](../artifacts/NODES-017/node-comparison-story.png) —
 `1888116` bytes, SHA-256
 `458e0f54f78cd75abf10c313631074f21a4730053478adb67a36fcb4a6469d54`.
 Reference/live scale difference остаётся owner visual gate; automated capture
