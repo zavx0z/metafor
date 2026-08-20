@@ -180,6 +180,8 @@ Node overlay дали console0/non-black captures.
 Новый UI-015.8.5 регистрирует public `@ui/components/integer-input` и canonical
 integer Field (`Iterations = 3`) поверх shared numeric gesture owner; FLOAT
 остаётся NumberInput, compatibility `numberKind:"integer"` не удаляется.
+Prerequisite UI-015.8.4 Ctrl/Ctrl+Shift linear drag snapping теперь IN_PROGRESS
+на stable aligned numeric baseline.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
