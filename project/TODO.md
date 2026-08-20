@@ -117,6 +117,8 @@ material states на Blender 4.5.5 по mapping от направленного 
 classes + class-specific state resolvers без записи production theme values.
 Вторая узкая amendment добавляет Boolean/Workbench classes, state precedence,
 numeric zones и deep-freeze; production values всё ещё закрыты review gate.
+Raw owner `eb3539420` получил independent PASS. UI-015.8.2 consumer contour
+становится READY после grouped correction и закрытия UI-015.7 import graph.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
