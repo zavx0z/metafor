@@ -47,6 +47,7 @@ describe("Blender-like Node presets", () => {
     ])
     expect(Object.keys(BLENDER_SOCKET_PRESETS).sort()).toEqual([...BLENDER_SOCKET_KINDS].sort())
     expect(blenderSocketPreset("float").defaultFieldKind).toBe("number")
+    expect(blenderSocketPreset("integer").defaultFieldKind).toBe("integer")
     expect(blenderSocketPreset("geometry").defaultFieldKind).toBeUndefined()
   })
 
@@ -91,6 +92,46 @@ describe("Blender-like Node presets", () => {
     expect("renderForeground" in renderers.node).toBeFalse()
     expect(typeof renderers.socket.render).toBe("function")
     expect(typeof renderers.link.render).toBe("function")
+  })
+
+  test("renders canonical INT through public Field without a local Node control", async () => {
+    const surface = new RetainedHeaderSurface()
+    try {
+      surface.setRect({x: 0, y: 0, w: 240, h: 120}, HEADER_PIXEL_SCALE, projectFont)
+      const parent = surface.createParent()
+      const node: BlenderNode = {
+        id: "integer-node",
+        title: "Integer owner",
+        parameters: [{
+          id: "iterations",
+          label: "Iterations",
+          field: {id: "iterations", label: "Iterations", kind: "integer", value: 3, min: 0, max: 100},
+        }],
+        sockets: [{
+          id: "iterations",
+          label: "Iterations",
+          direction: "input",
+          socketType: "integer",
+          parameterId: "iterations",
+          side: "left",
+        }],
+      }
+      const rect = {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height}
+      const entry = positionBlenderNode(node, rect)
+      const plan = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(), selected: false})
+      surface.materialize(parent, () => blenderNodeRenderer.render({
+        host: surface,
+        entry,
+        plan,
+        connectedSocketIds: new Set(),
+        selected: false,
+      }))
+      expect(cachedTextValues(parent)).toEqual(expect.arrayContaining(["Iterations", "3"]))
+      const source = await Bun.file(new URL("./blender-node.ts", import.meta.url)).text()
+      expect(source).not.toContain("IntegerInput(")
+    } finally {
+      surface.dispose()
+    }
   })
 
   test("uses one intrinsic symmetric shadow as the Node selection carrier", () => {

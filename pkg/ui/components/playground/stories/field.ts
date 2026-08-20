@@ -100,7 +100,7 @@ function fieldControls(kind: FieldStoryKind): readonly PlaygroundStoryControl<ke
         key: "value",
         label: kind === "color" ? "RGBA" : "Значение",
         group: "Значение",
-        kind: kind === "number" ? "number" : kind === "color" ? "color" : kind === "text" ? "text" : "custom",
+        kind: kind === "number" || kind === "integer" ? "number" : kind === "color" ? "color" : kind === "text" ? "text" : "custom",
       }
   return [
     valueControl,
@@ -121,6 +121,7 @@ function fieldControls(kind: FieldStoryKind): readonly PlaygroundStoryControl<ke
 function initialFieldValue(kind: FieldStoryKind): unknown {
   if (kind === "text") return "Компонент UI"
   if (kind === "number") return 0.625
+  if (kind === "integer") return 3
   if (kind === "boolean") return true
   if (kind === "enum") return "multiply"
   if (kind === "color") return {r: 0.18, g: 0.58, b: 0.92, a: 1}
@@ -148,6 +149,14 @@ function createFieldDefinition(
     min: 0,
     max: 1,
     step: 0.025,
+    onChange: change,
+  }
+  if (options.kind === "integer") return {
+    ...base,
+    kind: "integer",
+    value: Math.round(finiteNumber(args.value, 3)),
+    min: 0,
+    max: 100,
     onChange: change,
   }
   if (options.kind === "boolean") return {
@@ -240,11 +249,14 @@ function sourceFieldDefinition(
     `  selectedId: ${JSON.stringify(collectionSelectedId(args.value))},`,
     "  visibleRows: 3,",
   )
-  else properties.push(`  value: ${JSON.stringify(args.value)},`)
+  else properties.push(`  value: ${JSON.stringify(
+    options.kind === "integer" ? Math.round(finiteNumber(args.value, 3)) : args.value,
+  )},`)
   if (options.kind === "number") {
     properties.push(`  presentation: ${JSON.stringify(options.presentation === "slider" ? "slider" : "input")},`)
     properties.push("  min: 0,", "  max: 1,", "  step: 0.025,")
   }
+  if (options.kind === "integer") properties.push("  min: 0,", "  max: 100,")
   if (options.kind === "boolean") properties.push('  presentation: "switch",')
   if (options.kind === "enum") properties.push(
     "  options: [",
@@ -273,6 +285,7 @@ function sourceFieldDefinition(
 function fieldLabel(kind: FieldStoryKind): string {
   if (kind === "text") return "Текст"
   if (kind === "number") return "Число"
+  if (kind === "integer") return "Итерации"
   if (kind === "boolean") return "Нормализовать"
   if (kind === "enum") return "Операция"
   if (kind === "color") return "Цвет"

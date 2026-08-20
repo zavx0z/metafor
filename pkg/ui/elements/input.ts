@@ -732,36 +732,39 @@ function drawNumericInputZone(
   groupedAppearance: GroupedCellAppearance | null,
 ): void {
   if (kind === "text") return
-  const zone = resolveNumericZoneColors(kind, state)
-  if (zone === null) return
+  if (!state.numericZone || !state.hovered || state.textInput) return
   const handleWidth = Math.min(chrome.width / 3, chrome.height * 0.7)
-  const x = zone.zone === "left"
-    ? chrome.x
-    : zone.zone === "right"
-      ? chrome.x + chrome.width - handleWidth
-      : chrome.x + handleWidth
-  const width = zone.zone === "center" ? Math.max(0, chrome.width - handleWidth * 2) : handleWidth
   const cellRadii = groupedCellCornerRadii(groupedAppearance)
-  const radius = zone.zone === "left"
-    ? {tl: cellRadii.tl, tr: 0, br: 0, bl: cellRadii.bl}
-    : zone.zone === "right"
-      ? {tl: 0, tr: cellRadii.tr, br: cellRadii.br, bl: 0}
-      : 0
-  surface.drawRoundedRect(x, chrome.y, width, chrome.height, {
-    radius,
-    fill: blenderRgba8ToColor(zone.colors.inner),
-    border: null,
-    borderWidth: 0,
-    z: Z.ELEMENT + 0.01,
-  })
-  if (zone.zone !== "center") {
-    drawIconCentered(
-      surface,
-      zone.zone === "left" ? uiIcons.chevronLeft : uiIcons.chevronRight,
-      x + width / 2,
-      chrome.y + chrome.height / 2,
-      Math.min(uiShapeMetrics.iconGlyphSize, width, chrome.height),
-      {tint: blenderRgba8ToColor(zone.colors.item), z: Z.TEXT},
-    )
+  for (const target of ["left", "center", "right"] as const) {
+    const zone = resolveNumericZoneColors(kind, state, target)
+    if (zone === null) continue
+    const x = target === "left"
+      ? chrome.x
+      : target === "right"
+        ? chrome.x + chrome.width - handleWidth
+        : chrome.x + handleWidth
+    const width = target === "center" ? Math.max(0, chrome.width - handleWidth * 2) : handleWidth
+    const radius = target === "left"
+      ? {tl: cellRadii.tl, tr: 0, br: 0, bl: cellRadii.bl}
+      : target === "right"
+        ? {tl: 0, tr: cellRadii.tr, br: cellRadii.br, bl: 0}
+        : 0
+    surface.drawRoundedRect(x, chrome.y, width, chrome.height, {
+      radius,
+      fill: blenderRgba8ToColor(zone.colors.inner),
+      border: null,
+      borderWidth: 0,
+      z: Z.ELEMENT + 0.01,
+    })
+    if (target !== "center") {
+      drawIconCentered(
+        surface,
+        target === "left" ? uiIcons.chevronLeft : uiIcons.chevronRight,
+        x + width / 2,
+        chrome.y + chrome.height / 2,
+        Math.min(uiShapeMetrics.iconGlyphSize, width, chrome.height),
+        {tint: blenderRgba8ToColor(zone.colors.item), z: Z.TEXT},
+      )
+    }
   }
 }

@@ -17,6 +17,7 @@
     "./text-field": "./TextField.ts",
     "./control-group": "./ControlGroup.ts",
     "./number-input": "./NumberInput.ts",
+    "./integer-input": "./IntegerInput.ts",
     "./color-input": "./ColorInput.ts",
     "./vector-input": "./VectorInput.ts",
     "./matrix-input": "./MatrixInput.ts",

@@ -11,6 +11,7 @@ import {
 } from "./input.ts"
 import {blenderRgba8ToColor, blenderTheme, resolveNumericZoneColors, resolveWidgetColors} from "./blender-theme.ts"
 import {uiShapeMetrics} from "./shape.ts"
+import {uiIcons} from "./icons.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
 type RectCall = Parameters<UiSurface["drawRect"]>
@@ -260,16 +261,30 @@ describe("input visible geometry", () => {
     for (const [zone, pointerX] of [["left", 4], ["center", 50], ["right", 96]] as const) {
       const surface = new NumericHoverSurface(pointerX)
       input(surface, 0, 0, 100, 22, {key: zone, type: "number", value: "1"})
-      const expected = resolveNumericZoneColors("number", {hovered: true, numericZone: zone})
-      expect(expected).not.toBeNull()
-      expect(surface.roundedRects[1]?.[4].fill).toEqual(blenderRgba8ToColor(expected!.colors.inner))
-      if (zone === "center") expect(surface.images).toHaveLength(0)
-      else expect(surface.images[0]![5]!.tint).toEqual(blenderRgba8ToColor(expected!.colors.item))
+      const state = {hovered: true, numericZone: zone} as const
+      expect(surface.roundedRects.slice(1).map((call) => call[4].fill)).toEqual(
+        (["left", "center", "right"] as const).map((target) => blenderRgba8ToColor(
+          resolveNumericZoneColors("number", state, target)!.colors.inner,
+        )),
+      )
+      expect(surface.images).toHaveLength(2)
+      expect(surface.images.map(([src]) => src)).toEqual([uiIcons.chevronLeft, uiIcons.chevronRight])
+      expect(surface.images[0]![5]!.tint).toEqual(blenderRgba8ToColor(
+        resolveNumericZoneColors("number", state, "left")!.colors.item,
+      ))
+      expect(surface.images[1]![5]!.tint).toEqual(blenderRgba8ToColor(
+        resolveNumericZoneColors("number", state, "right")!.colors.item,
+      ))
     }
+
+    const idle = new RecordingSurface()
+    input(idle, 0, 0, 100, 22, {key: "idle-arrows", type: "number", value: "1"})
+    expect(idle.images).toHaveLength(0)
 
     const editing = new NumericHoverSurface(4)
     input(editing, 0, 0, 100, 22, {key: "editing", type: "number", value: "1", active: true, cursorVisible: false})
     expect(editing.roundedRects).toHaveLength(1)
+    expect(editing.images).toHaveLength(0)
     expect(editing.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(
       resolveWidgetColors("number", {hovered: true, selected: true, textInput: true, numericZone: "left"}).inner,
     ))

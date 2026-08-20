@@ -25,6 +25,7 @@ export type ButtonStoryVariant =
 export type FieldStoryKind =
   | "text"
   | "number"
+  | "integer"
   | "boolean"
   | "enum"
   | "color"
@@ -68,6 +69,7 @@ export type EnumInputStoryVariant =
 export type CollectionInputStoryVariant = "selected" | "empty" | "disabled" | "readonly" | "compact"
 export type PathInputStoryVariant = "path" | "empty" | "disabled" | "readonly" | "compact"
 export type ColorInputStoryVariant = "closed" | "open" | "expanded"
+export type IntegerInputStoryVariant = "value" | "labeled" | "disabled" | "readonly"
 
 const loadButtonStory = (
   section: ButtonStorySection,
@@ -122,6 +124,13 @@ const loadColorInputStory = (
 ) => async (): Promise<PlaygroundStoryModule> => {
   const {createColorInputStory} = await import("./stories/color-input.ts")
   return createColorInputStory(variant)
+}
+
+const loadIntegerInputStory = (
+  variant: IntegerInputStoryVariant,
+) => async (): Promise<PlaygroundStoryModule> => {
+  const {createIntegerInputStory} = await import("./stories/integer-input.ts")
+  return createIntegerInputStory(variant)
 }
 
 const loadEnumInputStory = (
@@ -282,6 +291,7 @@ export const COMPONENT_STORIES = definePlaygroundStories({
               {id: "input", label: "Ввод", title: "Field · Числовой ввод", load: loadFieldStory("number", "input")},
               {id: "slider", label: "Слайдер", title: "Field · Числовой слайдер", load: loadFieldStory("number", "slider")},
             ]},
+            {id: "integer", label: "Целое", variants: [{id: "input", label: "Iterations", title: "Field · Целое", load: loadFieldStory("integer", "input")}]},
             {id: "boolean", label: "Переключатель", variants: [{id: "switch", label: "Switcher", title: "Field · Переключатель", load: loadFieldStory("boolean", "switch")}]},
             {id: "enum", label: "Выбор", variants: [{id: "default", label: "Основной", title: "Field · Выбор", load: loadFieldStory("enum", "default")}]},
             {id: "color", label: "Цвет", variants: [{id: "input", label: "RGBA", title: "Field · Цвет", load: loadFieldStory("color", "input")}]},
@@ -296,6 +306,16 @@ export const COMPONENT_STORIES = definePlaygroundStories({
         },
         {id: "text-field", label: "Текстовый ввод", apiName: "TextField", sections: [{id: "basic", label: "Основной", variants: singleVariant("text-field", "TextField · Основной")} ]},
         {id: "number-input", label: "Числовой ввод", apiName: "NumberInput", sections: [{id: "basic", label: "Основной", variants: singleVariant("number-input", "NumberInput · Основной")} ]},
+        {id: "integer-input", label: "Целочисленный ввод", apiName: "IntegerInput", sections: [
+          {id: "basic", label: "Основной", variants: [
+            {id: "value", label: "Значение", title: "IntegerInput · Значение", load: loadIntegerInputStory("value")},
+            {id: "labeled", label: "С подписью", title: "IntegerInput · Iterations", load: loadIntegerInputStory("labeled")},
+          ]},
+          {id: "state", label: "Состояние", variants: [
+            {id: "disabled", label: "Недоступен", title: "IntegerInput · Недоступен", load: loadIntegerInputStory("disabled")},
+            {id: "readonly", label: "Только чтение", title: "IntegerInput · Только чтение", load: loadIntegerInputStory("readonly")},
+          ]},
+        ]},
         {id: "color-input", label: "Ввод цвета", apiName: "ColorInput", sections: [
           {id: "basic", label: "Основной", variants: [{
             id: "color-input",

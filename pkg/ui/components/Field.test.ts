@@ -14,6 +14,7 @@ import {
   measureFieldHeight,
   nextEnumFieldValue,
   normalizeFieldColor,
+  normalizeIntegerFieldValue,
   normalizeMatrixFieldValue,
   normalizeNumberFieldValue,
   normalizeVectorFieldValue,
@@ -34,6 +35,7 @@ class RecordingSurface extends BaseUiSurface {
 
   override drawRoundedRect(...args: RoundedRectCall): void { this.roundedRects.push(args) }
   override drawText(...args: TextCall): number { this.texts.push(args); return 0 }
+  override measureText(value: string, _fontPx?: number): number { return value.length * 6 }
   override hit(...args: HitCall): void { this.hits.push(args) }
   override pushClip(): void {}
   override popClip(): void {}
@@ -64,6 +66,7 @@ describe("universal UI fields", () => {
     expect(FIELD_KINDS).toEqual([
       "text",
       "number",
+      "integer",
       "boolean",
       "enum",
       "color",
@@ -75,6 +78,23 @@ describe("universal UI fields", () => {
       "path",
       "readonly",
     ])
+  })
+
+  test("maps canonical integer Field to one labeled IntegerInput control", () => {
+    const regular = new RecordingSurface()
+    Field(regular, 0, 0, 200, {id: "iterations", label: "Iterations", kind: "integer", value: 3})
+    expect(regular.texts.map(([value]) => value)).toEqual(["3", "Iterations"])
+    expect(regular.hits).toHaveLength(1)
+
+    const compactHidden = new RecordingSurface()
+    Field(compactHidden, 0, 0, 146, {
+      id: "iterations-hidden",
+      label: "Iterations",
+      compactLabel: "hidden",
+      kind: "integer",
+      value: 3,
+    }, {density: "compact"})
+    expect(compactHidden.texts.map(([value]) => value)).toEqual(["3"])
   })
 
   test("allows owner-scoped render keys without changing semantic field ids", () => {
@@ -186,6 +206,7 @@ describe("universal UI fields", () => {
     expect(normalizeNumberFieldValue(13, {min: 0, max: 10})).toBe(10)
     expect(normalizeNumberFieldValue(0.74, {min: 0, max: 1, step: 0.25})).toBe(0.75)
     expect(normalizeNumberFieldValue(Number.NaN, {min: 2})).toBe(2)
+    expect(normalizeIntegerFieldValue(3.8)).toBe(4)
   })
 
   test("cycles stable enum values in both directions", () => {
@@ -220,6 +241,7 @@ describe("universal UI fields", () => {
     const fields: FieldDefinition[] = [
       {id: "text", label: "Text", kind: "text", value: "A"},
       {id: "number", label: "Number", kind: "number", value: 1},
+      {id: "integer", label: "Integer", kind: "integer", value: 3},
       {id: "slider", label: "Slider", kind: "number", presentation: "slider", value: 1, max: 2},
       {id: "boolean", label: "Boolean", kind: "boolean", value: true},
       {id: "enum", label: "Enum", kind: "enum", value: "a", options: [{value: "a", label: "A"}]},
@@ -236,11 +258,13 @@ describe("universal UI fields", () => {
     expect(measureFieldHeight(fields[1]!)).toBe(uiShapeMetrics.rowHeight)
     expect(measureFieldHeight(fields[2]!)).toBe(uiShapeMetrics.rowHeight)
     expect(measureFieldHeight(fields[3]!)).toBe(uiShapeMetrics.rowHeight)
+    expect(measureFieldHeight(fields[4]!)).toBe(uiShapeMetrics.rowHeight)
     expect(measureFieldHeight(fields[1]!, {density: "compact"})).toBe(22)
     expect(measureFieldHeight(fields[2]!, {density: "compact"})).toBe(22)
-    expect(measureFieldHeight(fields[6]!, {density: "compact"})).toBe(91)
-    expect(measureFieldHeight(fields[8]!, {density: "compact"})).toBe(69)
-    const collection = fields[10]! as CollectionFieldDefinition
+    expect(measureFieldHeight(fields[3]!, {density: "compact"})).toBe(22)
+    expect(measureFieldHeight(fields[7]!, {density: "compact"})).toBe(91)
+    expect(measureFieldHeight(fields[9]!, {density: "compact"})).toBe(69)
+    const collection = fields[11]! as CollectionFieldDefinition
     expect(measureFieldHeight(collection)).toBe(97)
     expect(measureFieldHeight(collection, {density: "compact"})).toBe(97)
     expect(measureFieldHeight({...collection, compactLabel: "hidden"}, {density: "compact"})).toBe(72)
@@ -251,7 +275,7 @@ describe("universal UI fields", () => {
     expect(measureFieldHeight(reorder)).toBe(122)
     expect(measureFieldHeight(reorder, {density: "compact"})).toBe(122)
     expect(measureFieldHeight({...reorder, compactLabel: "hidden"}, {density: "compact"})).toBe(97)
-    expect(measureFieldHeight(fields[11]!)).toBe(uiShapeMetrics.rowHeight)
-    expect(measureFieldHeight(fields[11]!, {density: "compact"})).toBe(22)
+    expect(measureFieldHeight(fields[12]!)).toBe(uiShapeMetrics.rowHeight)
+    expect(measureFieldHeight(fields[12]!, {density: "compact"})).toBe(22)
   })
 })

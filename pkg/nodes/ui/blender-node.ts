@@ -120,7 +120,7 @@ export type BlenderNodePlan = Readonly<{
 export const BLENDER_SOCKET_PRESETS: Readonly<Record<BlenderSocketKind, BlenderSocketPreset>> = Object.freeze({
   boolean: preset("boolean", "Boolean", [0.86, 0.33, 0.52], "circle", "boolean"),
   float: preset("float", "Float", [0.62, 0.62, 0.62], "circle", "number"),
-  integer: preset("integer", "Integer", [0.36, 0.62, 0.42], "circle", "number"),
+  integer: preset("integer", "Integer", [0.36, 0.62, 0.42], "circle", "integer"),
   vector: preset("vector", "Vector", [0.39, 0.54, 0.92], "circle", "vector"),
   rotation: preset("rotation", "Rotation", [0.58, 0.42, 0.88], "diamond", "rotation"),
   color: preset("color", "Color", [0.92, 0.78, 0.24], "circle", "color"),

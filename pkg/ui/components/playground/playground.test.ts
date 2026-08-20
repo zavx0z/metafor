@@ -106,6 +106,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "field",
       "text-field",
       "number-input",
+      "integer-input",
       "color-input",
       "vector-input",
       "matrix-input",
@@ -132,6 +133,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Поле",
       "Текстовый ввод",
       "Числовой ввод",
+      "Целочисленный ввод",
       "Ввод цвета",
       "Ввод вектора",
       "Ввод матрицы",
@@ -167,6 +169,7 @@ describe("@ui/components package-owned Workbench stories", () => {
       "collection-input",
       "color-input",
       "enum-input",
+      "integer-input",
       "matrix-input",
       "number-input",
       "path-input",
@@ -183,6 +186,15 @@ describe("@ui/components package-owned Workbench stories", () => {
 
     const vector = await COMPONENT_STORIES.load("vector-input/basic/default")
     expect(vector.defaultArgs).toEqual({value: [1, 2, 3], density: "regular", disabled: false})
+
+    const integer = await COMPONENT_STORIES.load("integer-input/basic/labeled")
+    expect(integer.defaultArgs).toEqual({label: "Iterations", value: 3, disabled: false, "read-only": false})
+    expect(integer.source(integer.defaultArgs)).toContain('from "@ui/components/integer-input"')
+    expect(integer.source(integer.defaultArgs)).toContain('label: "Iterations"')
+
+    const integerField = await COMPONENT_STORIES.load("field/integer/input")
+    expect(integerField.defaultArgs).toMatchObject({value: 3, density: "regular", disabled: false})
+    expect(integerField.source(integerField.defaultArgs)).toContain('kind: "integer"')
     expect(vector.controls.map(({key, label}) => [key, label])).toEqual([
       ["value", "Координаты"],
       ["density", "Плотность"],
@@ -648,6 +660,7 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(entry!.source).not.toContain("function createEnumInputStory")
     expect(entry!.source).not.toContain("function createCollectionInputStory")
     expect(entry!.source).not.toContain("function createPathInputStory")
+    expect(entry!.source).not.toContain("function createIntegerInputStory")
     expect(entry!.source).not.toContain('@ui/components/vector-input')
     expect(entry!.source).not.toContain('@ui/components/matrix-input')
     expect(entry!.source).not.toContain('@ui/components/reference-input')
@@ -657,6 +670,9 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(outputs.some(({source}) => source.includes("function createButtonStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createFieldStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createSimpleComponentStory"))).toBeTrue()
+    const integerInputChunk = outputs.find(({source}) => source.includes("function createIntegerInputStory"))
+    expect(integerInputChunk).toBeDefined()
+    expect(integerInputChunk!.source).toContain('@ui/components/integer-input')
     const inputChunk = outputs.find(({source}) => source.includes("function createStandaloneInputStory"))
     expect(inputChunk).toBeDefined()
     expect(inputChunk!.source).toContain('@ui/components/vector-input')

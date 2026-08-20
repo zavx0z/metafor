@@ -516,8 +516,9 @@ export function resolveWidgetColors(
 export function resolveNumericZoneColors(
   kind: "number" | "numberSlider",
   state: BlenderWidgetState,
+  targetZone: "left" | "center" | "right" | null = state.numericZone ?? null,
 ): ResolvedBlenderNumericZone | null {
-  if (!state.numericZone || !state.hovered || state.textInput) return null
+  if (!state.numericZone || targetZone === null || !state.hovered || state.textInput) return null
 
   const base = resolveWidgetColors(kind, state)
   const colors: MutableWidgetColorSet = {
@@ -530,10 +531,10 @@ export function resolveNumericZoneColors(
     roundness: base.roundness,
   }
   copyRgb(colors.item, colors.text)
-  applyActiveColors(colors)
+  if (targetZone === state.numericZone) applyActiveColors(colors)
 
   return Object.freeze({
-    zone: state.numericZone,
+    zone: targetZone,
     colors: freezeResolved(colors),
   })
 }

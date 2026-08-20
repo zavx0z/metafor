@@ -1,5 +1,18 @@
-import type {InputAppearance, InputNumericGesture, StyleProps, UiSurface} from "@ui/elements"
+import {
+  blenderRgba8ToColor,
+  boxPadding,
+  flexRow,
+  px,
+  resolveWidgetColors,
+  uiShapeMetrics,
+  type InputAppearance,
+  type InputNumericGesture,
+  type StyleProps,
+  type UiSurface,
+} from "@ui/elements"
 import {TextField} from "./TextField.ts"
+import {Typography} from "./Typography.ts"
+import {numberInputLabel, type NumberInputInternalProps} from "./number-input-internal.ts"
 
 export type NumberInputKind = "float" | "integer"
 export type NumberInputDensity = "regular" | "compact"
@@ -56,6 +69,10 @@ export function NumberInput(
 ): void {
   const disabled = props.disabled === true || props.readOnly === true
   const key = props.key ?? `number-input:${x}:${y}:${width}:${height}`
+  const internalLabel = (props as NumberInputProps & NumberInputInternalProps)[numberInputLabel]
+  const labelPlan = internalLabel === undefined
+    ? null
+    : planNumberInputLabel(host, width, height, internalLabel.text, props.fontPx, props.sx)
   const textFieldProps: Parameters<typeof TextField>[5] = {
     key,
     value: formatNumberInputValue(props.value, props),
@@ -65,7 +82,8 @@ export function NumberInput(
   }
   if (props.fontPx !== undefined) textFieldProps.fontPx = props.fontPx
   if (props.appearance !== undefined) textFieldProps.appearance = props.appearance
-  if (props.sx !== undefined) textFieldProps.sx = props.sx
+  if (labelPlan !== null) textFieldProps.sx = labelPlan.inputStyle
+  else if (props.sx !== undefined) textFieldProps.sx = props.sx
   if (!disabled && props.onChange !== undefined) {
     textFieldProps.onSubmit = (text) => {
       const value = parseNumberInputValue(text, props)
@@ -76,6 +94,69 @@ export function NumberInput(
     textFieldProps.onNumericGesture = (gesture) => handleNumberPointerGesture(host, key, props, gesture)
   }
   TextField(host, x, y, width, height, textFieldProps)
+  if (labelPlan !== null && labelPlan.width > 0) {
+    const hit = host.hitState(x, y, width, height, key)
+    const colors = resolveWidgetColors("number", {
+      hovered: hit.hovered,
+      pressed: hit.pressed,
+      disabled,
+    })
+    flexRow({
+      x: x + labelPlan.x,
+      y,
+      w: labelPlan.width,
+      h: height,
+      items: [{
+        width: "grow",
+        height,
+        draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+          children: labelPlan.text,
+          fontPx: labelPlan.fontPx,
+          color: blenderRgba8ToColor(colors.text),
+        }),
+      }],
+    })
+  }
+}
+
+type NumberInputLabelPlan = Readonly<{
+  text: string
+  x: number
+  width: number
+  fontPx: number
+  inputStyle: StyleProps
+}>
+
+function planNumberInputLabel(
+  host: UiSurface,
+  width: number,
+  height: number,
+  text: string,
+  fontPx = uiShapeMetrics.compactFontPx,
+  sx: StyleProps = {},
+): NumberInputLabelPlan {
+  const visibleHeight = Math.min(Math.max(0, height), Math.max(0, px(sx.height, uiShapeMetrics.controlHeight)))
+  const handleWidth = Math.min(Math.max(0, width) / 3, visibleHeight * 0.7)
+  const gap = uiShapeMetrics.tightGap
+  const labelX = handleWidth + gap
+  const rightInset = handleWidth + gap
+  const availableLabelWidth = Math.max(
+    0,
+    width - labelX - rightInset - gap - uiShapeMetrics.iconActionSlot,
+  )
+  const labelWidth = Math.min(availableLabelWidth, host.measureText(text, fontPx))
+  const padding = boxPadding(sx)
+  return Object.freeze({
+    text,
+    x: labelX,
+    width: labelWidth,
+    fontPx,
+    inputStyle: Object.freeze({
+      ...sx,
+      paddingLeft: Math.max(padding.left, labelX + labelWidth + gap),
+      paddingRight: Math.max(padding.right, rightInset),
+    }),
+  })
 }
 
 /** Resolves finite ordered pointer-only bounds within the hard value range. */

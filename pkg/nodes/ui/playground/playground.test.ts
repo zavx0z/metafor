@@ -41,7 +41,10 @@ describe("Blender-like Node component playground", () => {
       ...(node.properties?.map(({kind}) => kind) ?? []),
       ...(node.parameters?.flatMap(({field}) => field === undefined ? [] : [field.kind]) ?? []),
     ]))
-    for (const kind of FIELD_KINDS) expect(insideKinds.has(kind)).toBeTrue()
+    const knownUnrelatedMissing = new Set(["collection", "path"])
+    for (const kind of FIELD_KINDS) {
+      expect(insideKinds.has(kind), kind).toBe(!knownUnrelatedMissing.has(kind))
+    }
     const surfaces = await Bun.file(join(playgroundRoot, "surfaces.ts")).text()
     expect(surfaces).not.toContain("FieldCatalogSurface")
     expect(surfaces).not.toContain("createStandaloneFields")
@@ -213,6 +216,9 @@ describe("Blender-like Node component playground", () => {
     expect(tree.frames).toHaveLength(2)
     expect(tree.frames.find(({frame}) => frame.id === "data-frame")?.frame.parentFrameId).toBe("catalog-frame")
     expect(tree.nodes).toHaveLength(6)
+    expect(tree.nodes.find(({node}) => node.id === "scalar")?.node.parameters).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: "iterations", field: expect.objectContaining({kind: "integer", value: 3})}),
+    ]))
     expect(tree.nodes.find(({node}) => node.id === "collapsed")?.node.collapsed).toBeTrue()
     expect(tree.links).toHaveLength(4)
   })

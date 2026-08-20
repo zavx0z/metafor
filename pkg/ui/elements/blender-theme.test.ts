@@ -213,6 +213,16 @@ describe("Blender 4.5.5 raw theme", () => {
         roundness: 0.2,
       },
     })
+    expect(resolveNumericZoneColors("number", {hovered: true, numericZone: "left"}, "right")).toEqual({
+      zone: "right",
+      colors: {
+        outline: [70, 70, 70, 255],
+        inner: [101, 101, 101, 255],
+        item: [255, 255, 255, 255],
+        text: [255, 255, 255, 255],
+        roundness: 0.2,
+      },
+    })
   })
 
   test("deep-freezes raw and resolved tuples while converting Engine colors separately", () => {

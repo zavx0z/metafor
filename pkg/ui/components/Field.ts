@@ -28,6 +28,10 @@ import {
   type EnumInputProps,
 } from "./EnumInput.ts"
 import {
+  IntegerInput,
+  type IntegerInputProps,
+} from "./IntegerInput.ts"
+import {
   MatrixInput,
   measureMatrixInputHeight,
   type MatrixInputDensity,
@@ -92,6 +96,18 @@ export type NumberFieldDefinition = FieldBase & Readonly<{
   softMax?: number
   step?: number
   precision?: number
+  unit?: string
+  onChange?(value: number): void
+}>
+
+export type IntegerFieldDefinition = FieldBase & Readonly<{
+  kind: "integer"
+  value: number
+  min?: number
+  max?: number
+  softMin?: number
+  softMax?: number
+  step?: number
   unit?: string
   onChange?(value: number): void
 }>
@@ -179,6 +195,7 @@ export type ReadonlyFieldDefinition = FieldBase & Readonly<{
 export type FieldDefinition =
   | TextFieldDefinition
   | NumberFieldDefinition
+  | IntegerFieldDefinition
   | BooleanFieldDefinition
   | EnumFieldDefinition
   | ColorFieldDefinition
@@ -206,6 +223,7 @@ export type FieldLayoutMetrics = Readonly<{
 export const FIELD_KINDS = Object.freeze([
   "text",
   "number",
+  "integer",
   "boolean",
   "enum",
   "color",
@@ -289,6 +307,7 @@ type ScalarFieldDefinition = Exclude<
 function isScalarField(definition: FieldDefinition): definition is ScalarFieldDefinition {
   return definition.kind === "text"
     || definition.kind === "number"
+    || definition.kind === "integer"
     || definition.kind === "enum"
     || definition.kind === "color"
     || definition.kind === "reference"
@@ -334,6 +353,10 @@ function drawScalarFieldRow(
   field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition | CollectionFieldDefinition>,
   density: "regular" | "compact",
 ): void {
+  if (field.kind === "integer") {
+    drawScalarControl(host, x, y, width, height, field, density)
+    return
+  }
   if (density === "compact" && field.compactLabel === "hidden") {
     drawScalarControl(host, x, y, width, height, field, density)
     return
@@ -368,6 +391,10 @@ function drawScalarControl(
   const disabled = isFieldDisabled(field)
   if (field.kind === "number") {
     NumberInput(host, x, y, width, height, numberInputProps(field, density))
+    return
+  }
+  if (field.kind === "integer") {
+    IntegerInput(host, x, y, width, height, integerInputProps(field, density))
     return
   }
   if (field.kind === "enum") {
@@ -481,6 +508,8 @@ export function normalizeNumberFieldValue(
   return normalizeNumberInputValue(value, options)
 }
 
+export {normalizeIntegerInputValue as normalizeIntegerFieldValue} from "./IntegerInput.ts"
+
 export {nextEnumInputValue as nextEnumFieldValue} from "./EnumInput.ts"
 
 export {
@@ -514,6 +543,25 @@ function numberInputProps(field: NumberFieldDefinition, density: NumberInputDens
   if (field.softMax !== undefined) props.softMax = field.softMax
   if (field.step !== undefined) props.step = field.step
   if (field.precision !== undefined) props.precision = field.precision
+  if (field.unit !== undefined) props.unit = field.unit
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onChange !== undefined) props.onChange = field.onChange
+  return props
+}
+
+function integerInputProps(field: IntegerFieldDefinition, density: NumberInputDensity): IntegerInputProps {
+  const props: IntegerInputProps = {
+    key: fieldKey(field),
+    value: field.value,
+    density,
+    ...(density === "compact" && field.compactLabel === "hidden" ? {} : {label: field.label}),
+  }
+  if (field.min !== undefined) props.min = field.min
+  if (field.max !== undefined) props.max = field.max
+  if (field.softMin !== undefined) props.softMin = field.softMin
+  if (field.softMax !== undefined) props.softMax = field.softMax
+  if (field.step !== undefined) props.step = field.step
   if (field.unit !== undefined) props.unit = field.unit
   if (field.disabled !== undefined) props.disabled = field.disabled
   if (field.readOnly !== undefined) props.readOnly = field.readOnly

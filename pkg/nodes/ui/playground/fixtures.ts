@@ -85,9 +85,11 @@ export function createCatalogNodeTree(
     },
   ], [
     parameter({id: "factor", label: "Коэффициент", kind: "number", presentation: "slider", value: 0.65, min: 0, max: 1, step: 0.01}),
+    parameter({id: "iterations", label: "Iterations", kind: "integer", value: 3, min: 0, max: 100}),
     parameter({id: "clamp", label: "Ограничение", kind: "boolean", value: true}),
   ], [
     socket("value", "Коэффициент", "input", "float", "factor", "left"),
+    socket("iterations", "Iterations", "input", "integer", "iterations", "left"),
     socket("enabled", "Ограничение", "input", "boolean", "clamp", "left"),
     socket("result", "Результат", "output", "float"),
   ])

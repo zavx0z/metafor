@@ -49,6 +49,7 @@ const productionExports = Object.freeze({
     "./text-field": "./TextField.ts",
     "./control-group": "./ControlGroup.ts",
     "./number-input": "./NumberInput.ts",
+    "./integer-input": "./IntegerInput.ts",
     "./color-input": "./ColorInput.ts",
     "./vector-input": "./VectorInput.ts",
     "./matrix-input": "./MatrixInput.ts",
@@ -142,6 +143,7 @@ describe("production UI delivery baseline", () => {
       "exact-components-field.fixture.ts",
       "exact-components-control-group.fixture.ts",
       "exact-components-number-input.fixture.ts",
+      "exact-components-integer-input.fixture.ts",
       "exact-components-color-input.fixture.ts",
       "exact-components-vector-input.fixture.ts",
       "exact-components-matrix-input.fixture.ts",
@@ -178,6 +180,18 @@ describe("production UI delivery baseline", () => {
     expect(graph).not.toContain("NodeEditor")
     expect(graph).not.toContain("@ui/playground")
     expect(graph).not.toContain("definePlaygroundRoutes")
+  })
+
+  test("keeps the exact IntegerInput leaf on the shared NumberInput engine", async () => {
+    const fixture = join(uiRoot, "delivery/fixtures/exact-components-integer-input.fixture.ts")
+    const graph = (await outputSources(await buildBrowser([fixture], false)))
+      .map(({source}) => source)
+      .join("\n")
+    expect(graph).toContain("function IntegerInput")
+    expect(graph).toContain("function NumberInput")
+    expect(graph).toContain("function handleNumberPointerGesture")
+    expect(graph).not.toContain("@nodes/ui")
+    expect(graph).not.toContain("@ui/playground")
   })
 
   test("keeps the exact popover leaf generic and independent from Components", async () => {
