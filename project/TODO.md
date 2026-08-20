@@ -86,8 +86,9 @@ owner-supplied browse/clear actions без Node-копии и скрытого p
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: Node UI, Components и Elements уже
 используют package-owned stories и общий Workbench; selected Node и новые public
-VectorInput/MatrixInput представлены отдельными stories. Текущий финальный срез
-проверяет `4016`, `4017`, `7901` и эталон `4192` как один interaction contract.
+VectorInput/MatrixInput представлены отдельными stories. Текущий срез добавляет
+новый public ReferenceInput; затем final matrix проверит `4016`, `4017`, `7901`
+и эталон `4192` как один interaction contract.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
