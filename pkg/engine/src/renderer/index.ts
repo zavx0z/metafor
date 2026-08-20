@@ -1718,8 +1718,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
       // явно (см. shader). Передаём в порядке tl/tr/br/bl, в шейдере
       // комментарий описывает соответствие.
       this.perObjectDataCPU!.set(material.radii, offsetFloats + 44)
-      // params: borderWidth, opacity, 0, 0 @ 48..51
-      this.writePerObjectVec4(offsetFloats + 48, material.borderWidth, clamp01(material.opacity), 0, 0)
+      // params: borderWidth, opacity, shadowBlur, shadowSpread @ 48..51
+      this.writePerObjectVec4(
+        offsetFloats + 48,
+        material.borderWidth,
+        clamp01(material.opacity),
+        material.shadowBlur,
+        material.shadowSpread,
+      )
       // clipBounds @ 52..55 (zeros disable clip).
       if (material.clipBounds !== null) {
         this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 52)

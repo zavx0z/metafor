@@ -4,9 +4,10 @@ import { Material, type MaterialParameters } from "./Material"
 /**
  * Параметры RoundedRectMaterial.
  *
- * Все размеры — в WORLD-units (тех же что у PlaneGeometry, к которому
- * привязан меш). Caller сам пересчитывает logical-px → world через свой
- * pixelScale (например `cw * pixelScale` в Pane.drawRect).
+ * Все размеры — в WORLD-units. Caller сам пересчитывает logical-px → world
+ * через свой pixelScale. Для обычного rounded rect `width`/`height` совпадают
+ * с PlaneGeometry; analytical shadow сохраняет в них исходную inner shape,
+ * а сам quad симметрично расширяется на `shadowSpread + shadowBlur`.
  *
  * `radius` — единое значение либо per-corner кортеж {tl, tr, br, bl}.
  * `borderWidth` = 0 даёт чистую заливку без рамки.
@@ -15,7 +16,7 @@ import { Material, type MaterialParameters } from "./Material"
  * от размера меша и pixelRatio, даёт стабильный 1-px переход на любой DPR.
  */
 export interface RoundedRectMaterialParameters extends MaterialParameters {
-  /** Полный размер прямоугольника в world-units (width, height меша). */
+  /** Размер исходной SDF-формы в world-units. */
   width: number
   height: number
   /** Радиус скругления (world-units). Может быть single number или per-corner. */
@@ -28,7 +29,14 @@ export interface RoundedRectMaterialParameters extends MaterialParameters {
   borderWidth?: number
   /** 0..1, домножается на alpha. Default 1. */
   opacity?: number
+  /** Local half-width of the analytical shadow fade. Default 0. */
+  shadowBlur?: number
+  /** Local solid expansion before the analytical shadow fade. Default 0. */
+  shadowSpread?: number
 }
+
+const finiteNonNegative = (value: number | undefined): number =>
+  value !== undefined && Number.isFinite(value) ? Math.max(0, value) : 0
 
 export class RoundedRectMaterial extends Material {
   public readonly isRoundedRectMaterial: true = true
@@ -41,6 +49,8 @@ export class RoundedRectMaterial extends Material {
   public border: Color
   public borderWidth: number
   public opacity: number
+  public shadowBlur: number
+  public shadowSpread: number
   public clipBounds: [number, number, number, number] | null = null
 
   constructor(parameters: RoundedRectMaterialParameters) {
@@ -68,5 +78,7 @@ export class RoundedRectMaterial extends Material {
 
     this.borderWidth = Math.max(0, parameters.borderWidth ?? 0)
     this.opacity = parameters.opacity ?? 1
+    this.shadowBlur = finiteNonNegative(parameters.shadowBlur)
+    this.shadowSpread = finiteNonNegative(parameters.shadowSpread)
   }
 }

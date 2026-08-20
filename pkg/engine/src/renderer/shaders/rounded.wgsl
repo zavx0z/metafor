@@ -7,7 +7,7 @@
 //   border rgba     [offsetFloats + 36 .. +39]
 //   size.xy + pad   [offsetFloats + 40 .. +43] (vec4: w, h, 0, 0 — world-units)
 //   radii tl/tr/br/bl [offsetFloats + 44 .. +47]
-//   borderWidth + opacity + 2 pad [offsetFloats + 48 .. +51]
+//   borderWidth + opacity + shadowBlur + shadowSpread [offsetFloats + 48 .. +51]
 //   clipBounds      [offsetFloats + 52 .. +55] (xMin, yMin, xMax, yMax screen-px)
 //
 // Антиалиасинг — fwidth(sdf) даёт screen-correct ширину перехода в 1 px
@@ -89,6 +89,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let borderWidth = perObject.params.x;
     let opacity = perObject.params.y;
+    let shadowBlur = perObject.params.z;
+    let shadowSpread = perObject.params.w;
 
     let p = in.localPos;
     let dOuter = sdRoundBox(p, halfSize, radii);
@@ -98,6 +100,24 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // dpr и зума.
     let aa = max(fwidth(dOuter), 0.00001);
     let outerMask = 1.0 - smoothstep(-aa, aa, dOuter);
+
+    if (shadowBlur > 0.0 || shadowSpread > 0.0) {
+        // One expanded quad still measures the original inner rounded rect.
+        // spread moves the shadow edge outwards; blur fades symmetrically
+        // around that edge and reaches zero at spread + blur.
+        let shadowDistance = dOuter - shadowSpread;
+        var shadowMask: f32;
+        if (shadowBlur > 0.0) {
+            // A positive blur remains purely local and receives no screen-space floor.
+            shadowMask = 1.0 - smoothstep(-shadowBlur, shadowBlur, shadowDistance);
+        } else {
+            // A spread-only hard edge keeps the ordinary derivative AA.
+            shadowMask = 1.0 - smoothstep(-aa, aa, shadowDistance);
+        }
+        let a = perObject.fill.a * shadowMask * opacity;
+        if (a <= 0.0) { discard; }
+        return vec4<f32>(perObject.fill.rgb, a);
+    }
 
     if (borderWidth <= 0.0) {
         // Только заливка — без border.

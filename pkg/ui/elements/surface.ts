@@ -1364,6 +1364,71 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.#currentLayer().add(mesh)
   }
 
+  /**
+   * Draws one analytical rounded shadow around an original local rectangle.
+   * The PlaneGeometry is expanded symmetrically by `spread + blur`, while the
+   * RoundedRectMaterial keeps measuring the unexpanded inner shape. A zero
+   * total expansion is a no-op instead of an occluded ordinary fill draw.
+   */
+  drawRoundedShadow(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    opts: {
+      radius: number | {tl: number; tr: number; br: number; bl: number}
+      blur: number
+      spread: number
+      color: Color
+      opacity?: number
+      z?: number
+    },
+  ): void {
+    if (![x, y, w, h].every(Number.isFinite) || w <= 0 || h <= 0) return
+    const boundedSize = (value: number): number => Number.isFinite(value) ? Math.max(0, value) : 0
+    const blur = boundedSize(opts.blur)
+    const spread = boundedSize(opts.spread)
+    const padding = blur + spread
+    if (padding <= 0) return
+    const paddedWidth = w + padding * 2
+    const paddedHeight = h + padding * 2
+    if (![padding, paddedWidth, paddedHeight].every(Number.isFinite)) return
+    const ps = this.pixelScale
+    const radiusMax = Math.min(w, h) / 2
+    const boundedRadius = (value: number): number => Math.min(radiusMax, boundedSize(value)) * ps
+    const radius = typeof opts.radius === "number"
+      ? boundedRadius(opts.radius)
+      : {
+          tl: boundedRadius(opts.radius.tl),
+          tr: boundedRadius(opts.radius.tr),
+          br: boundedRadius(opts.radius.br),
+          bl: boundedRadius(opts.radius.bl),
+        }
+    const material = new RoundedRectMaterial({
+      width: w * ps,
+      height: h * ps,
+      radius,
+      fill: opts.color,
+      border: null,
+      opacity: clamp01(opts.opacity ?? 1),
+      shadowBlur: blur * ps,
+      shadowSpread: spread * ps,
+    })
+    this.#applyRoundedClipTo(material)
+    const mesh = new Mesh(
+      new PlaneGeometry({
+        width: paddedWidth * ps,
+        height: paddedHeight * ps,
+      }),
+      material,
+    )
+    mesh.position.x = (x + w / 2) * ps
+    mesh.position.y = -(y + h / 2) * ps
+    mesh.position.z = opts.z !== undefined && Number.isFinite(opts.z) ? opts.z : Z.CONTAINER
+    mesh.updateMatrix()
+    this.#currentLayer().add(mesh)
+  }
+
   /** Точное измерение ширины текста через font advance + letter-spacing.
    *  fontPx интерпретируется как reference-px (если referenceHeight задан) —
    *  возвращаемая ширина уже в canvas-px (после умножения на pageScaleFactor).
