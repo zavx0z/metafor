@@ -136,6 +136,9 @@ RoundedRectMaterial становится white alpha1. UI-015.7.6 исправл
 transparent fill до overlay portal. Select gate также расширен exact Blender
 header + separator contract; icon-column semantics принадлежат Components
 EnumInput через generic Select content hooks, не Elements Select.
+Engine fix `90d4b4569` + grouped fix `b88773252` прошли clean Vector restart:
+X/Y/Z `1/2/3` видимы, white plane исчезла, console `0`; overlay portal снова
+разблокирован.
 Owner отменил сохранение MetaFor palette: UI-015.8 переводит base colors и
 material states на Blender 4.5.5 по mapping от направленного Blender UI
 помощника. UI-015.5/.7 source сохранён на pause до этого mapping.

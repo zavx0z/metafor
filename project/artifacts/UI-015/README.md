@@ -109,6 +109,12 @@
 * Наблюдение: preview показывает сплошную белую plane без X/Y/Z/value; blue
   `XYZ` снизу является variant dock, не control. Кадр предшествует clean reload
   final commit `f1a6a75c1` и поэтому является RED baseline, а не verdict commit.
+* Clean after: `components-vector-grouped-after.png`, `3840×2176`, `274224`
+  bytes, SHA-256
+  `2bc4507eee93fba3b383210b71575027eefeb468a92791ac6ce2ca0136ce3ec6`.
+  Components PID `79977`, target `D0775AE44CFF0E299A0C28EECB3872D2`, same
+  route, native `1920×1088 @2`, console `0`. X/Y/Z `1/2/3` видимы, white plane
+  отсутствует; pointer/owner gates остаются открытыми.
 
 ## UI-015.2.1 — Button size RED baseline
 
