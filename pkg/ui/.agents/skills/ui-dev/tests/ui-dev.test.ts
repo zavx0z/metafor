@@ -136,6 +136,8 @@ describe("ui-dev registry", () => {
     expect(source).toContain("ambiguous ${config.selector} targets")
     expect(source).toContain('cdp.send<{success?: boolean}>("Target.closeTarget", {targetId})')
     expect(source).toContain('canvas.toDataURL("image/png")')
+    expect(source).toContain('context.getImageData(0, 0, probe.width, probe.height)')
+    expect(source).toContain('retryAfterBlack: () => navigateAndWait(cdp, config.targetUrl, config.ready)')
     expect(source).toContain('("Performance.getMetrics")')
     expect(source).toContain('("Runtime.getHeapUsage")')
   })

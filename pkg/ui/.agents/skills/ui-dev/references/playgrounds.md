@@ -104,6 +104,15 @@ For an exact URL outside the registry, pass the URL in place of a selector and
 provide `--canvas-selector` when canvas capture is needed. This does not grant
 lifecycle ownership of that origin.
 
+`canvas` validates real pixels by copying the WebGPU canvas into a bounded 2D
+RGB/alpha probe. A first `starting-or-idle-black` snapshot is rejected, then the
+same target receives exactly one same-route `Page.navigate` plus ready wait to
+create renderer activity. A non-black second snapshot is written atomically and
+reports `attempts:2`, the rejected first probe, and
+`rendererActivity:"same-route-navigation"`. A second black snapshot returns
+`kind:"starting-or-idle-black"`, `written:false`, exits nonzero, and does not
+write or remove the destination. There is no further retry.
+
 ## Viewports and Node touch
 
 ```bash
@@ -115,7 +124,9 @@ bun "$SKILL/scripts/ui-browser.ts" touch "$PWD" node-ui
 
 `viewports` records native desktop metrics, verifies portrait `390x844 @2` and
 landscape `844x390 @2`, captures optional exact canvas PNGs, and force-clears
-device/touch emulation in `finally`. Final native metrics must equal the initial
+device/touch emulation in `finally`. Each viewport reload already supplies
+renderer activity, so a black viewport capture is rejected with the same typed
+outcome and no additional retry. Final native metrics must equal the initial
 metrics. `touch` is available only for a registry canvas with `touch:true`; its
 one-touch pan and two-touch pinch are one atomic page evaluation and remain
 synthetic evidence.
@@ -133,7 +144,7 @@ file. No old node-local skill directory or compatibility route exists.
 | Registry/lifecycle tests | Exact supported commands and process ownership | Browser rendering |
 | Fresh in-memory build | Current disk source and manifests resolve | Old process and loaded document |
 | DOM and console | State of one route-specific background target | Visual quality |
-| Canvas PNG | Exact canvas pixels for that target and viewport | Browser chrome and owner judgment |
+| Accepted non-black Canvas PNG | Pixel-probed exact canvas for that target and viewport | Browser chrome and owner judgment |
 | Mobile emulation or synthetic touch | Responsive/handler path | Physical-device proof |
 | Structured profile | Sampled CPU/frame/heap interval | GPU pass timing and owner acceptance |
 | External Inspector capture | Recorded GPU objects/commands/validation | Owner acceptance |

@@ -1,7 +1,11 @@
 #!/usr/bin/env bun
 
-import {mkdir} from "node:fs/promises"
-import {dirname, join, resolve} from "node:path"
+import {join, resolve} from "node:path"
+import {
+  acceptCanvasEvidence,
+  type CanvasEvidence,
+  type RawCanvasSnapshot,
+} from "./canvas-evidence.ts"
 import {playgroundTargetUrl} from "./target-url.ts"
 
 type JsonObject = Record<string, unknown>
@@ -122,9 +126,13 @@ else await withPage(target, async (cdp) => {
   } else if (action === "canvas") {
     await waitReady(cdp, config.ready)
     const destination = options.output ?? fail("canvas requires --output <png>")
-    output({action, ...targetResult(config, target), capture: await captureCanvas(cdp, config.canvas.selector, destination)})
+    const capture = await captureCanvas(cdp, config, destination, true)
+    output({action, ...targetResult(config, target), capture})
+    if (!capture.written) process.exitCode = 1
   } else if (action === "viewports") {
-    output(await runViewports(cdp, config, target, options))
+    const result = await runViewports(cdp, config, target, options)
+    output(result)
+    if (result.outcome === "starting-or-idle-black") process.exitCode = 1
   } else if (action === "touch") {
     if (!config.canvas.touch) fail(`touch is unsupported for ${config.selector ?? config.targetUrl}`)
     output(await runTouch(cdp, config, target))
@@ -468,18 +476,45 @@ async function readDom(cdp: CdpConnection, canvasSelector: string): Promise<Json
   })()`)
 }
 
-async function captureCanvas(cdp: CdpConnection, selector: string, outputPath: string): Promise<JsonObject> {
-  const dataUrl = await evaluate<string | null>(cdp, `(() => {
+async function readCanvasSnapshot(cdp: CdpConnection, selector: string): Promise<RawCanvasSnapshot> {
+  return evaluate<RawCanvasSnapshot>(cdp, `(() => {
     const canvas = document.querySelector(${JSON.stringify(selector)})
-    return canvas instanceof HTMLCanvasElement ? canvas.toDataURL("image/png") : null
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.width < 1 || canvas.height < 1) {
+      return {dataUrl:null, probe:null}
+    }
+    const probe = document.createElement("canvas")
+    probe.width = Math.min(128, canvas.width)
+    probe.height = Math.min(128, canvas.height)
+    const context = probe.getContext("2d", {willReadFrequently:true})
+    if (context === null) return {dataUrl:null, probe:null}
+    context.drawImage(canvas, 0, 0, probe.width, probe.height)
+    return {
+      dataUrl:canvas.toDataURL("image/png"),
+      probe:{
+        width:probe.width,
+        height:probe.height,
+        rgba:Array.from(context.getImageData(0, 0, probe.width, probe.height).data),
+      },
+    }
   })()`)
-  if (!dataUrl?.startsWith("data:image/png;base64,")) throw new Error(`canvas PNG is unavailable: ${selector}`)
-  const bytes = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64")
-  if (!bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) throw new Error("decoded canvas is not PNG")
-  const destination = resolve(outputPath)
-  await mkdir(dirname(destination), {recursive: true})
-  await Bun.write(destination, bytes)
-  return {path: destination, bytes: bytes.length, kind: "exact-canvas-png"}
+}
+
+async function captureCanvas(
+  cdp: CdpConnection,
+  config: TargetConfig,
+  outputPath: string,
+  retryStartingBlack: boolean,
+): Promise<CanvasEvidence> {
+  const common = {
+    destination: outputPath,
+    snapshot: () => readCanvasSnapshot(cdp, config.canvas.selector),
+  }
+  return retryStartingBlack
+    ? acceptCanvasEvidence({
+        ...common,
+        retryAfterBlack: () => navigateAndWait(cdp, config.targetUrl, config.ready),
+      })
+    : acceptCanvasEvidence(common)
 }
 
 async function createConsoleCollector(cdp: CdpConnection) {
@@ -558,7 +593,9 @@ async function runViewports(cdp: CdpConnection, config: TargetConfig, target: Ta
     if (consoleErrors(desktopEntries).length > 0) throw new Error(`desktop: console errors ${JSON.stringify(consoleErrors(desktopEntries))}`)
     result.desktop = {dom: native, console: desktopEntries}
     if (options.outputDir) {
-      captures.desktop = await captureCanvas(cdp, config.canvas.selector, join(options.outputDir, "desktop.png"))
+      const capture = await captureCanvas(cdp, config, join(options.outputDir, "desktop.png"), false)
+      captures.desktop = capture
+      if (!capture.written) throw new CanvasEvidenceRejected(capture)
     }
 
     for (const [label, width, height] of [["portrait", 390, 844], ["landscape", 844, 390]] as const) {
@@ -571,7 +608,9 @@ async function runViewports(cdp: CdpConnection, config: TargetConfig, target: Ta
       if (consoleErrors(entries).length > 0) throw new Error(`${label}: console errors ${JSON.stringify(consoleErrors(entries))}`)
       result[label] = {dom, console: entries}
       if (options.outputDir) {
-        captures[label] = await captureCanvas(cdp, config.canvas.selector, join(options.outputDir, `${label}.png`))
+        const capture = await captureCanvas(cdp, config, join(options.outputDir, `${label}.png`), false)
+        captures[label] = capture
+        if (!capture.written) throw new CanvasEvidenceRejected(capture)
       }
     }
   } catch (error) {
@@ -591,8 +630,22 @@ async function runViewports(cdp: CdpConnection, config: TargetConfig, target: Ta
     collector.stop()
     await setFocusEmulation(cdp, false)
   }
+  if (failure instanceof CanvasEvidenceRejected) {
+    result.outcome = failure.evidence.kind
+    result.written = false
+    return result
+  }
   if (failure !== null) throw failure
   return result
+}
+
+class CanvasEvidenceRejected extends Error {
+  readonly evidence: CanvasEvidence
+
+  constructor(evidence: CanvasEvidence) {
+    super(evidence.kind)
+    this.evidence = evidence
+  }
 }
 
 async function runTouch(cdp: CdpConnection, config: TargetConfig, target: Target): Promise<JsonObject> {
