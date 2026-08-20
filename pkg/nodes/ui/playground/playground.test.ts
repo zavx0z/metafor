@@ -101,17 +101,19 @@ describe("Blender-like Node component playground", () => {
   })
 
   test("publishes one controlled route, args and source state for expanded and collapsed Nodes", async () => {
-    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 6)).toEqual([
+    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 8)).toEqual([
       "node-editor/scene/default",
       "node-editor/scene/selected",
       "node-editor/scene/rotation-linked",
       "node-editor/scene/translation-unlinked",
+      "node-editor/scene/output-only",
+      "node-editor/scene/mixed-sides",
       "node-editor/collapsed/default",
       "node-editor/collapsed/selected",
     ])
     expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "collapsed", "popup"])
     expect(nodePlaygroundDockItems("node-editor/scene/default").map(({id}) => id)).toEqual([
-      "default", "selected", "rotation-linked", "translation-unlinked",
+      "default", "selected", "rotation-linked", "translation-unlinked", "output-only", "mixed-sides",
     ])
     expect(nodePlaygroundDockItems("node-editor/collapsed/selected").map(({id}) => id)).toEqual(["default", "selected"])
     expect(nodePlaygroundDockItems("node-editor/popup/select-open").map(({id}) => id)).toEqual(["select-open"])
@@ -179,6 +181,29 @@ describe("Blender-like Node component playground", () => {
       const story = await NODE_COMPONENT_STORIES.load(route)
       expect(nodeEditorStoryState(story.defaultArgs).nodeId).toBe("scalar")
     }
+  })
+
+  test("publishes output-only and mixed-side one-Field label evidence variants", async () => {
+    const outputStory = await NODE_COMPONENT_STORIES.load("node-editor/scene/output-only")
+    const mixedStory = await NODE_COMPONENT_STORIES.load("node-editor/scene/mixed-sides")
+    expect(nodeEditorStoryState(outputStory.defaultArgs).nodeId).toBe("transform")
+    expect(nodeEditorStoryState(mixedStory.defaultArgs).nodeId).toBe("matrix")
+
+    const outputTree = createCatalogNodeTree({rotationOutput: true})
+    const outputNode = outputTree.nodes.find(({node}) => node.id === "transform")!.node
+    expect(outputNode.sockets?.find(({id}) => id === "rotation")).toMatchObject({
+      direction: "output",
+      side: "right",
+      parameterId: "rotation",
+    })
+    expect(outputNode.parameters?.filter(({id}) => id === "rotation")).toHaveLength(1)
+
+    const mixedTree = createCatalogNodeTree()
+    const mixedNode = mixedTree.nodes.find(({node}) => node.id === "matrix")!.node
+    expect(mixedNode.parameters?.filter(({id}) => id === "matrix-value")).toHaveLength(1)
+    expect(mixedNode.sockets?.filter(({parameterId}) => parameterId === "matrix-value").map(({side}) => side)).toEqual([
+      "left", "right",
+    ])
   })
 
   test("applies NodeEditor story args through one production selection and DOM adapter", () => {

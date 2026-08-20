@@ -53,6 +53,8 @@ export type NodeEditorStoryRoute =
   | "node-editor/scene/selected"
   | "node-editor/scene/rotation-linked"
   | "node-editor/scene/translation-unlinked"
+  | "node-editor/scene/output-only"
+  | "node-editor/scene/mixed-sides"
   | "node-editor/collapsed/default"
   | "node-editor/collapsed/selected"
   | "node-editor/popup/select-open"
@@ -118,6 +120,8 @@ const loadNodeComponentStory = (
     selectOpen?: boolean
     translationLinked?: boolean
     rotationLinked?: boolean
+    rotationOutput?: boolean
+    nodeId?: string
   }>,
 ) => async (): Promise<PlaygroundStoryModule> => {
   await import("@nodes/ui/node-editor")
@@ -203,6 +207,29 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
                 target: "expanded",
                 selected: false,
                 translationLinked: false,
+              }),
+            },
+            {
+              id: "output-only",
+              label: "Output-only",
+              title: "Редактор нод · Rotation output-only",
+              tags: ["expanded", "output", "rotation", "evidence"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "transform",
+                rotationOutput: true,
+              }),
+            },
+            {
+              id: "mixed-sides",
+              label: "Left + right",
+              title: "Редактор нод · Matrix mixed sockets",
+              tags: ["expanded", "input", "output", "matrix", "evidence"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "matrix",
               }),
             },
           ],
@@ -337,7 +364,9 @@ export function nodeEditorStoryState(args: Readonly<Record<string, unknown>>): N
   if (typeof args.selected !== "boolean") {
     throw new Error(`Invalid NodeEditor selected state: ${String(args.selected)}`)
   }
-  const nodeId = NODE_EDITOR_STORY_NODE_IDS[target]
+  const nodeId = typeof args["target-node-id"] === "string"
+    ? args["target-node-id"]
+    : NODE_EDITOR_STORY_NODE_IDS[target]
   return Object.freeze({
     target,
     selected: args.selected,

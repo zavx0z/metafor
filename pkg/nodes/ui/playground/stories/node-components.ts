@@ -1,5 +1,6 @@
 import {definePlaygroundStoryModule, type PlaygroundStoryArgs, type PlaygroundStoryModule} from "@ui/playground/stories"
 import {
+  NODE_EDITOR_STORY_NODE_IDS,
   NODE_EDITOR_STORY_TARGETS,
   nodeEditorStoryState,
   type NodeComponentId,
@@ -13,6 +14,8 @@ type NodeComponentStoryArgs = PlaygroundStoryArgs & Readonly<{
   "select-open": boolean
   "translation-linked": boolean
   "rotation-linked": boolean
+  "rotation-output": boolean
+  "target-node-id": string
 }>
 
 const COMPONENT_LABELS: Readonly<Record<NodeComponentId, string>> = Object.freeze({
@@ -30,6 +33,8 @@ export function createNodeComponentStory(
     selectOpen?: boolean
     translationLinked?: boolean
     rotationLinked?: boolean
+    rotationOutput?: boolean
+    nodeId?: string
   }>,
 ): PlaygroundStoryModule {
   if (component === "node-editor" && initialState === undefined) {
@@ -42,6 +47,8 @@ export function createNodeComponentStory(
       "select-open": initialState?.selectOpen === true,
       "translation-linked": initialState?.translationLinked !== false,
       "rotation-linked": initialState?.rotationLinked === true,
+      "rotation-output": initialState?.rotationOutput === true,
+      "target-node-id": initialState?.nodeId ?? NODE_EDITOR_STORY_NODE_IDS[initialState?.target ?? "expanded"],
       ...(initialState === undefined ? {} : {target: initialState.target}),
     },
     controls: component === "node-editor"

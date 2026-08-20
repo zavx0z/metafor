@@ -418,11 +418,13 @@ describe("Blender-like Node presets", () => {
               selected: false,
             }))
             const texts = cachedTextValues(parent)
-            expect(texts).toContain("Rotation:")
-            expect(texts.filter((value) => value === "Rotation:")).toHaveLength(1)
-            const labelCall = surface.texts.find(([value]) => value === "Rotation:")!
+            const expectedLabel = state === "output" ? "Rotation" : "Rotation:"
+            expect(texts).toContain(expectedLabel)
+            expect(texts.filter((value) => value === expectedLabel)).toHaveLength(1)
+            const labelCall = surface.texts.find(([value]) => value === expectedLabel)!
             if (state === "output") {
-              expect(labelCall[1] + surface.measureText("Rotation:", 11)).toBeCloseTo(183)
+              expect(texts).not.toContain("Rotation:")
+              expect(labelCall[1] + surface.measureText("Rotation", 11)).toBeCloseTo(183)
             } else {
               expect(labelCall[1]).toBeCloseTo(37)
             }

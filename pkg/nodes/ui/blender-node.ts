@@ -454,7 +454,7 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
       for (const {parameter, rect: slot, side, separateLabel} of plan.parameters) {
         if (parameter.field !== undefined && !separateLabel && !hiddenParameterIds.has(parameter.id)) continue
         Typography(host, slot.x, slot.y, slot.w, slot.h, {
-          children: side === undefined ? parameter.label : socketPropertyLabel(parameter.label),
+          children: side === undefined ? parameter.label : socketPropertyLabel(parameter.label, side),
           fontPx: 11,
           sx: {textAlign: side ?? "center"},
         })
@@ -552,8 +552,9 @@ function parameterLabelSide(sockets: readonly BlenderSocket[]): SocketSide {
   return sockets.every((socket) => socketSide(socket) === "right") ? "right" : "left"
 }
 
-function socketPropertyLabel(label: string): string {
+function socketPropertyLabel(label: string, side: SocketSide): string {
   const value = label.trimEnd()
+  if (side === "right") return value.endsWith(":") ? value.slice(0, -1).trimEnd() : value
   return value.endsWith(":") ? value : `${value}:`
 }
 

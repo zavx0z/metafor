@@ -61,7 +61,12 @@ export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, Ble
 }
 
 export function createCatalogNodeTree(
-  options: Readonly<{openSelect?: boolean; translationLinked?: boolean; rotationLinked?: boolean}> = {},
+  options: Readonly<{
+    openSelect?: boolean
+    translationLinked?: boolean
+    rotationLinked?: boolean
+    rotationOutput?: boolean
+  }> = {},
 ): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
   const frame: BlenderFrame = {id: "catalog-frame", label: "Система компонентов нод"}
   const nestedFrame: BlenderFrame = {
@@ -98,7 +103,14 @@ export function createCatalogNodeTree(
     parameter({id: "rotation", label: "Вращение", kind: "rotation", value: [0, 45, 90]}),
   ], [
     socket("vector", "Перемещение", "input", "vector", "translation", "left"),
-    socket("rotation", "Вращение", "input", "rotation", "rotation", "left"),
+    socket(
+      "rotation",
+      "Вращение",
+      options.rotationOutput === true ? "output" : "input",
+      "rotation",
+      "rotation",
+      options.rotationOutput === true ? "right" : "left",
+    ),
     socket("matrix", "Матрица", "output", "matrix"),
   ])
   const shader = blenderNode("shader", "Principled", "Shader", [

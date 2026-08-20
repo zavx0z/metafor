@@ -303,6 +303,7 @@ try {
       openSelect: isNodeEditorStoryRoute(route) && storyArgs["select-open"] === true,
       translationLinked: storyArgs["translation-linked"] !== false,
       rotationLinked: storyArgs["rotation-linked"] === true,
+      rotationOutput: storyArgs["rotation-output"] === true,
     }))
     if (isNodeSocketStoryRoute(route)) return
     if (isNodeEditorStoryRoute(route)) {
