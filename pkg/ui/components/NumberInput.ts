@@ -36,7 +36,7 @@ type NumberPointerState = {
   origin: number
   current: number
   changed: boolean
-  softRange: NumberInputSoftRange
+  dragRange: NumberInputSoftRange
 }
 
 const numberPointerStates = new WeakMap<UiSurface, Map<string, NumberPointerState>>()
@@ -144,7 +144,9 @@ export function stepNumberInputValue(
   direction: -1 | 1,
   options: NumberInputFormatOptions = {},
 ): number {
-  return normalizeNumberInputValue(value + numberPointerStep(options) * direction, {
+  const range = resolveNumberInputSoftRange(value, options)
+  const candidate = Math.min(range.max, Math.max(range.min, value + numberPointerStep(options) * direction))
+  return normalizeNumberInputValue(candidate, {
     ...options,
     step: numberPointerStep(options),
   })
@@ -208,7 +210,7 @@ function handleNumberPointerGesture(
       origin: value,
       current: value,
       changed: false,
-      softRange: resolveNumberInputSoftRange(value, props),
+      dragRange: resolveNumberInputDragRange(value, props),
     })
     return
   }
@@ -227,14 +229,14 @@ function handleNumberPointerGesture(
     origin: normalizeNumberInputValue(props.value, props),
     current: normalizeNumberInputValue(props.value, props),
     changed: false,
-    softRange: resolveNumberInputSoftRange(props.value, props),
+    dragRange: resolveNumberInputDragRange(props.value, props),
   }
   const next = gesture.kind === "step"
     ? stepNumberInputValue(current.current, gesture.direction, props)
     : scrubNumberInputValue(current.current, gesture.deltaX, gesture.distanceX, {
       ...props,
-      softMin: current.softRange.min,
-      softMax: current.softRange.max,
+      softMin: current.dragRange.min,
+      softMax: current.dragRange.max,
     }, gesture.shiftKey)
   if (next === current.current) return
   current.current = next

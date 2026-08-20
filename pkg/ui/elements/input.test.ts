@@ -279,13 +279,12 @@ describe("number input pointer gesture dispatch", () => {
     const options = surface.hits[0]![5] as HitOptions
     options.onPointerDown?.(50, 11, pointer())
     options.onPointerMove?.(53, 11, pointer())
-    options.onPointerMove?.(55, 11, pointer({shiftKey: true}))
-    options.onPointerMove?.(65, 11, pointer({shiftKey: true}))
+    options.onPointerMove?.(54, 11, pointer({shiftKey: true}))
+    options.onPointerMove?.(64, 11, pointer({shiftKey: true}))
     options.onPointerUp?.(pointer())
     expect(events).toEqual([
       {kind: "start", zone: "center"},
-      {kind: "scrub", zone: "center", deltaX: 5, distanceX: 5, shiftKey: true},
-      {kind: "scrub", zone: "center", deltaX: 10, distanceX: 15, shiftKey: true},
+      {kind: "scrub", zone: "center", deltaX: 10, distanceX: 10, shiftKey: true},
       {kind: "end"},
     ])
     expect(surfaceHasActiveInput(surface)).toBeFalse()

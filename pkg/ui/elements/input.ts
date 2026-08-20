@@ -312,10 +312,17 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
         const numeric = runtime.numericDrag
         if (numeric?.key === key) {
           const distanceX = localX - numeric.startX
-          if (!numeric.dragging && Math.abs(distanceX) < INPUT_NUMERIC_DRAG_THRESHOLD_PX) return
+          if (!numeric.dragging) {
+            if (Math.abs(distanceX) < INPUT_NUMERIC_DRAG_THRESHOLD_PX) return
+            numeric.dragging = true
+            numeric.startX = localX
+            numeric.lastX = localX
+            props.onPointerMove?.(localX, localY, event)
+            surface.requestKeyedRender(key)
+            return
+          }
           const deltaX = localX - numeric.lastX
           if (deltaX === 0) return
-          numeric.dragging = true
           numeric.lastX = localX
           runtime.configs.get(key)?.onNumericGesture?.({
             kind: "scrub",

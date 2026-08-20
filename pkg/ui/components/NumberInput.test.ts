@@ -124,6 +124,8 @@ describe("public NumberInput", () => {
     expect(scrubNumberInputValue(500, 50, 50, {min: 0, max: 1000, step: 0.01})).toBe(502)
     expect(stepNumberInputValue(1, -1, {min: 0, max: 10, step: 0.25})).toBe(0.75)
     expect(stepNumberInputValue(1, 1, {min: 0, max: 10, step: 0.25})).toBe(1.25)
+    expect(stepNumberInputValue(0, -1, {min: -10, max: 20, softMin: 0, softMax: 10, step: 0.25})).toBe(0)
+    expect(stepNumberInputValue(10, 1, {min: -10, max: 20, softMin: 0, softMax: 10, step: 0.25})).toBe(10)
   })
 
   test("publishes controlled side steps, scrub updates and cancel restoration", () => {
@@ -162,9 +164,31 @@ describe("public NumberInput", () => {
       scrubOptions.onPointerMove?.(55, 11, pointer())
       scrubOptions.onPointerMove?.(65, 11, pointer())
     }
-    expect(scrubbed).toEqual([5.1, 5.3])
+    expect(scrubbed).toEqual([5.2])
     expect(handleActiveInputKey(scrub, escape())).toBeTrue()
-    expect(scrubbed).toEqual([5.1, 5.3, 5])
+    expect(scrubbed).toEqual([5.2, 5])
+  })
+
+  test("freezes the capped adaptive drag range from gesture origin", () => {
+    const values: number[] = []
+    const surface = new RecordingSurface()
+    NumberInput(surface, 0, 0, 100, 22, {
+      key: "frozen-range",
+      value: 500,
+      min: 0,
+      max: 1000,
+      step: 0.01,
+      onChange: (value) => values.push(value),
+    })
+    const options = surface.hits[0]![5]
+    if (typeof options === "object") {
+      options.onPointerDown?.(50, 11, pointer())
+      options.onPointerMove?.(54, 11, pointer())
+      options.onPointerMove?.(554, 11, pointer())
+      options.onPointerMove?.(654, 11, pointer())
+      options.onPointerUp?.(pointer())
+    }
+    expect(values).toEqual([600])
   })
 
   test("enters text on center release and Ctrl press without changing the number", () => {
@@ -314,6 +338,7 @@ describe("public NumberInput", () => {
       const center = hit[0] + hit[2] / 2
       options.onPointerDown?.(center, hit[1] + hit[3] / 2, pointer())
       options.onPointerMove?.(center + 50, hit[1] + hit[3] / 2, pointer())
+      options.onPointerMove?.(center + 100, hit[1] + hit[3] / 2, pointer())
       options.onPointerUp?.(pointer())
     }
     const standaloneValues: number[] = []
