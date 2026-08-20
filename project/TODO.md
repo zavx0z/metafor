@@ -145,6 +145,10 @@ linked height `225→156`, later Link endpoint/hit re-anchor-ится к под�
 Socket без изменения ортогональной topology, unlink восстанавливает editor;
 source-fresh routes console0 и independent PASS. UI-015.5.4 теперь IN_PROGRESS;
 live pointer corridor .5.3 остаётся parent interaction gate.
+UI-015.5.4 закрыта source/static commits `16d5caa63` + `d770cf0fe`: input label
+left с `:`, output right raw без `:`, mixed sides используют один Field;
+source-fresh input/output/mixed routes console0 и independent PASS. UI-015.5.5
+default content width теперь IN_PROGRESS; parent owner acceptance остаётся.
 UI-015.7 source checkpoint `13ac398d1` правильно разделил Engine low-level
 picker plane и Components HSVA/popup owner, но independent Blender review
 оставил composition/interaction незавершёнными. UI-015.7.1 после текущего

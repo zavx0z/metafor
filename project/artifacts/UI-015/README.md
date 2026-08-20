@@ -263,4 +263,21 @@
   editors/body. Independent SOURCE/INTEGRATION/STATIC VISUAL PASS; pointer hit
   moved corridor остаётся live gate, labels/default width — .5.4/.5.
 
+## UI-015.5.4 — Side-aware Socket label result
+
+* Source commits `16d5caa63` + `d770cf0fe`, Node PID `62982`, target `809…`,
+  native `1920×1088 @2`, console `0`:
+  * `node-transform-labels-linked-after.png` — `404655` bytes, SHA-256
+    `7474f5ca058bf00ea7faa83df740fde2a3b94cc305d883084c334e6a01f07bcc`;
+  * `node-transform-labels-unlinked-after.png` — `406370` bytes, SHA-256
+    `b1c67c5e9aafd1038e0b13f1e6cb2f22aa795b2175ddc32e07d4792d1c694291`;
+  * `node-transform-output-label-after.png` — `407110` bytes, SHA-256
+    `ba35167ed104155b9a4aab4e12e7c9fc80c27a934c553062c5deac4e194acefe`;
+  * `node-matrix-mixed-labels-after.png` — `406783` bytes, SHA-256
+    `342f87bc32f057bebb7ba3edffb701e97bf5b94cd2276b1d839c38bc2b490095`.
+* Факт: input `Перемещение:`/`Вращение:` left; output `Вращение` right без
+  colon; mixed Matrix имеет один left property label, оба Socket и один editor.
+  Socket anchors и connection-aware height/Links не меняются. Independent
+  SOURCE/STATIC VISUAL PASS; default width остаётся UI-015.5.5.
+
 Automated captures prove exact canvas state, not explicit owner acceptance.
