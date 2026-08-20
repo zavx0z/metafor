@@ -102,6 +102,8 @@ UI-015.3/.4 завершили dense scalar rows и настоящий Elements 
 повторный material-only Button press. UI-015.6 commit `cd85f9614` удалил exact
 Workbench overrides `999/12/34/36`; live before/after и Node regression зелёные.
 Следующий UI-015.5 переводит Vector/Rotation/Matrix/Collection grouped editors.
+Baseline на current Components Workbench подтвердил horizontal Vector,
+раздельную Matrix и oversized Collection; UI-015.5 уже IN_PROGRESS.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
