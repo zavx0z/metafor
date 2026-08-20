@@ -87,9 +87,9 @@ cycle/expanded и exceptional states без ложного dropdown/popup contra
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: Node UI, Components и Elements уже
 используют package-owned stories и общий Workbench; selected Node и новые public
-VectorInput/MatrixInput/ReferenceInput представлены отдельными stories. Текущий
-срез добавляет новый public EnumInput; затем final matrix проверит `4016`,
-`4017`, `7901` и эталон `4192` как один interaction contract.
+VectorInput/MatrixInput/ReferenceInput/EnumInput представлены отдельными stories.
+Готовый result и общая matrix четырёх contours переданы на independent closing
+review.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
@@ -113,7 +113,7 @@ mobile и явная visual owner acceptance остаются следующим
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
-| UI-011 | IN_PROGRESS | нет         | [Открыть](tasks/UI-011.md) |
+| UI-011 | REVIEW      | нет         | [Открыть](tasks/UI-011.md) |
 | UI-012 | REVIEW      | нет         | [Открыть](tasks/UI-012.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |

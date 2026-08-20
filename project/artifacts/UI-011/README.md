@@ -235,3 +235,52 @@
 * Чувствительные сведения: отсутствуют.
 * Контрольная сумма: SHA-256
   `43ac5ab6b9c53f7292a388fe02547c6821d2e07d2f638936d60abd9307ceffcb`.
+
+## components-reference-input.png
+
+* Источник: `$ui-dev` renderer-activity desktop capture
+  `reference-input/basic/default`, target `D0775AE44CFF0E299A0C28EECB3872D2`.
+* Дата: 2026-08-20; production `663a81c0b`, UI-011.7 `4c57b33c9`,
+  loaded PID `1163`.
+* Ожидание и факт: отдельный `Выбор ссылки`, selected opaque resource,
+  activate/clear, exact TypeScript/copy, controls/events; route ready, console
+  `0`, native metrics восстановлены.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `27d25b64062dab87815339a309c33d57e13653742668aea0031005a1bdc0781e`.
+
+## components-enum-input-cycle.png
+
+* Источник: `$ui-dev` renderer-activity capture
+  `enum-input/presentation/cycle`, тот же target.
+* Дата: 2026-08-20; production `1f6e8b394`, UI-011.8 `0ea692dda`,
+  loaded PID `11092`.
+* Ожидание и факт: отдельный `Выбор значения`, cycle presentation со значением
+  `multiply`, exact TypeScript/copy и четыре sections; console `0`, native
+  metrics восстановлены.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `f121f4c90d2aafc82ab03c4931fc6d0654424402ff9c9face3854c76d49db7ca`.
+
+## components-enum-input-expanded.png
+
+* Источник: тот же target, route `enum-input/presentation/expanded`.
+* Дата и версия: 2026-08-20, UI-011.8 `0ea692dda`.
+* Ожидание и факт: inline-expanded production choices
+  `Сложение / Умножение / Вычитание`, exact source/controls/events; console `0`,
+  native metrics восстановлены.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `af1587f2ff46dd21b9a9862ce11c91a09917762af5d8aaa9236f383b986b8035`.
+
+## workbench-overview.png
+
+* Источник: `$ui-dev` renderer-activity desktop capture `4192/overview`, target
+  `1AFE2E4404B88E32A4CBA6C26AF4C633`, PID `87410`.
+* Дата: 2026-08-20; current shared Workbench contract.
+* Ожидание и факт: эталонная пятизонная desktop-композиция, Button preview,
+  variants, TypeScript/copy и controls/events; ready, console `0`, non-black,
+  native `1920×1088 @2` восстановлен.
+* Чувствительные сведения: отсутствуют.
+* Контрольная сумма: SHA-256
+  `5805fe6e281c1d7d3931e163f3f90aeaf5f53d836e0ef876329a1dde3a96e943`.
