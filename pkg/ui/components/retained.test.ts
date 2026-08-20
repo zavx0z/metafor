@@ -6,8 +6,10 @@ import {
   divScrollTo,
   focusInput,
   handleActiveInputKey,
+  type DrawImageOpts,
   type UiRuntime,
   UiSurface,
+  Z,
 } from "@ui/elements"
 import {Button} from "./Button.ts"
 import {Field, type FieldDefinition} from "./Field.ts"
@@ -190,6 +192,91 @@ class RetainedComponentsSurface extends UiSurface {
   }
 }
 
+type RetainedNumberOwner = "enabled" | "disabled" | "readOnly"
+type RetainedNumberVisual = Readonly<{
+  icons: readonly string[]
+  zones: readonly Readonly<{x: number; width: number; fill: readonly number[] | null}>[]
+}>
+
+class RetainedNumberHoverSurface extends UiSurface {
+  readonly owners: Record<RetainedNumberOwner | "sibling", Object3D>
+  readonly materializations: Record<RetainedNumberOwner | "sibling", number> = {
+    enabled: 0,
+    disabled: 0,
+    readOnly: 0,
+    sibling: 0,
+  }
+  readonly visuals = {} as Record<RetainedNumberOwner, RetainedNumberVisual>
+  readonly changes: number[] = []
+  surfaceRenderPasses = 0
+  #mounted = false
+  #recording: RetainedNumberOwner | null = null
+  #icons: string[] = []
+  #zones: Array<{x: number; width: number; fill: readonly number[] | null}> = []
+
+  constructor() {
+    super({bgColor: null, borderColor: null})
+    this.owners = {
+      enabled: this.createRetainedParent(),
+      disabled: this.createRetainedParent(),
+      readOnly: this.createRetainedParent(),
+      sibling: this.createRetainedParent(),
+    }
+  }
+
+  override drawImage(src: string, x: number, y: number, w: number, h: number, opts: DrawImageOpts = {}): void {
+    if (this.#recording !== null) this.#icons.push(src)
+    super.drawImage(src, x, y, w, h, opts)
+  }
+
+  override drawRoundedRect(
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    opts: Parameters<UiSurface["drawRoundedRect"]>[4],
+  ): void {
+    if (this.#recording !== null && opts.z === Z.ELEMENT + 0.01) {
+      this.#zones.push({x, width: w, fill: colorTuple(opts.fill)})
+    }
+    super.drawRoundedRect(x, y, w, h, opts)
+  }
+
+  protected render(): void {
+    this.surfaceRenderPasses += 1
+    if (this.#mounted) return
+    this.#mounted = true
+    this.#materializeNumber("enabled", 20)
+    this.#materializeNumber("disabled", 60)
+    this.#materializeNumber("readOnly", 100)
+    this.materializeRetainedParent(this.owners.sibling, () => {
+      this.materializations.sibling += 1
+      this.drawRect(200, 20, 32, 102, new Color(0.8, 0.3, 0.2, 1))
+    })
+  }
+
+  #materializeNumber(owner: RetainedNumberOwner, y: number): void {
+    this.materializeRetainedParent(this.owners[owner], () => {
+      this.materializations[owner] += 1
+      this.#recording = owner
+      this.#icons = []
+      this.#zones = []
+      NumberInput(this, 20, y, 146, 22, {
+        key: `retained-number:${owner}`,
+        value: 3,
+        disabled: owner === "disabled",
+        readOnly: owner === "readOnly",
+        onChange: (value) => { this.changes.push(value) },
+      })
+      this.visuals[owner] = Object.freeze({
+        icons: Object.freeze([...this.#icons]),
+        zones: Object.freeze(this.#zones.map((zone) => Object.freeze({...zone}))),
+      })
+      this.#recording = null
+    })
+  }
+}
+
 const createFakeRuntime = (): UiRuntime => ({
   canvas: {style: {}},
   renderer: {
@@ -257,6 +344,67 @@ beforeAll(async () => {
 })
 
 describe("retained UI Components boundary", () => {
+  test("rematerializes only the retained numeric owner through every hover zone", () => {
+    const originalSetInterval = globalThis.setInterval
+    globalThis.setInterval = (() => 1) as unknown as typeof setInterval
+    const surface = new RetainedNumberHoverSurface()
+    try {
+      surface.attachCanvas(createFakeRuntime())
+      surface.setRect({x: 0, y: 0, w: 260, h: 150}, 0.001, font)
+      const ownerIdentities = {...surface.owners}
+      const siblingChildren = [...surface.owners.sibling.children]
+      const siblingGeometry = (siblingChildren[0] as {geometry?: BufferGeometry}).geometry
+      const disabledChildren = [...surface.owners.disabled.children]
+      const readOnlyChildren = [...surface.owners.readOnly.children]
+      expect(surface.visuals.enabled).toEqual({icons: [], zones: []})
+
+      const pointer = {button: 0, preventDefault() {}} as MouseEvent
+      for (const [x, expectedZone] of [[25, 0], [90, 1], [158, 2]] as const) {
+        const before = surface.materializations.enabled
+        surface.onPointerMove(pointer, x, 31)
+        surface.flushPendingRender()
+        expect(surface.materializations.enabled).toBe(before + 1)
+        expect(surface.visuals.enabled.icons).toHaveLength(2)
+        expect(new Set(surface.visuals.enabled.icons).size).toBe(2)
+        expect(surface.visuals.enabled.zones).toHaveLength(3)
+        expect(activeNumericZone(surface.visuals.enabled)).toBe(expectedZone)
+        expect(surface.owners).toEqual(ownerIdentities)
+        expect(surface.owners.sibling.children).toEqual(siblingChildren)
+        expect((surface.owners.sibling.children[0] as {geometry?: BufferGeometry}).geometry).toBe(siblingGeometry)
+      }
+
+      const beforeLeave = surface.materializations.enabled
+      surface.onPointerMove(pointer, 190, 31)
+      surface.flushPendingRender()
+      expect(surface.materializations.enabled).toBe(beforeLeave + 1)
+      expect(surface.visuals.enabled).toEqual({icons: [], zones: []})
+
+      surface.onPointerMove(pointer, 25, 71)
+      surface.flushPendingRender()
+      surface.onPointerMove(pointer, 25, 111)
+      surface.flushPendingRender()
+      expect(surface.materializations.disabled).toBe(1)
+      expect(surface.materializations.readOnly).toBe(1)
+      expect(surface.visuals.disabled).toEqual({icons: [], zones: []})
+      expect(surface.visuals.readOnly).toEqual({icons: [], zones: []})
+      expect(surface.owners.disabled.children).toEqual(disabledChildren)
+      expect(surface.owners.readOnly.children).toEqual(readOnlyChildren)
+
+      focusInput(surface, "retained-number:enabled", createInputEditState("3", 1))
+      surface.flushPendingRender()
+      surface.onPointerMove(pointer, 90, 31)
+      surface.flushPendingRender()
+      expect(surface.visuals.enabled).toEqual({icons: [], zones: []})
+      expect(surface.changes).toEqual([])
+      expect(surface.materializations.sibling).toBe(1)
+      expect(surface.owners).toEqual(ownerIdentities)
+      expect(surface.owners.sibling.children).toEqual(siblingChildren)
+    } finally {
+      surface.dispose()
+      globalThis.setInterval = originalSetInterval
+    }
+  })
+
   test("keeps consumer parents stable and rematerializes only the exact dirty Component", () => {
     const originalRequestAnimationFrame = globalThis.requestAnimationFrame
     const originalCancelAnimationFrame = globalThis.cancelAnimationFrame
@@ -455,3 +603,12 @@ describe("retained UI Components boundary", () => {
     }
   })
 })
+
+function colorTuple(color: Color | null | undefined): readonly number[] | null {
+  return color === null || color === undefined ? null : [color.r, color.g, color.b, color.a]
+}
+
+function activeNumericZone(visual: RetainedNumberVisual): number {
+  const fills = visual.zones.map(({fill}) => JSON.stringify(fill))
+  return fills.findIndex((fill) => fills.filter((candidate) => candidate === fill).length === 1)
+}

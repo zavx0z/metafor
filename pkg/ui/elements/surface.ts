@@ -824,10 +824,13 @@ export abstract class UiSurface implements UiSurfaceNode {
    */
   requestKeyedRender(key: string): void {
     const parent = this.#retainedParentForKey(key)
-    if (parent === null || !this.#retainedDraws.has(parent) || this.font === null) {
+    if (parent === null || !this.#queueRetainedParentRender(parent)) {
       this.requestRender()
-      return
     }
+  }
+
+  #queueRetainedParentRender(parent: Object3D): boolean {
+    if (!this.#retainedParents.has(parent) || !this.#retainedDraws.has(parent) || this.font === null) return false
     this.#keyedRerenderParents.add(parent)
     if (this.#keyedRerenderRafId === null) {
       this.#keyedRerenderRafId = scheduleUiFrame(() => {
@@ -836,6 +839,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       })
     }
     this.canvas?.requestRender()
+    return true
   }
 
   /** Subclasses can dirty the exact existing component parent without a second graph. */
@@ -2392,6 +2396,10 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (this.hoveredHit?.key === hit?.key) {
       this.hoveredHit = hit
       this.#hoveredHitKey = hit?.key ?? null
+      const retained = hit as ResolvedHitBox | null
+      if (retained?.retainedParent !== undefined) {
+        this.#notifyRetainedInteraction(retained.retainedParent, retained.key)
+      }
       return
     }
     const previous = this.hoveredHit as ResolvedHitBox | null
@@ -2510,6 +2518,7 @@ export abstract class UiSurface implements UiSurfaceNode {
     if (!this.#retainedParents.has(parent)) return
     this.#lastRetainedInteraction = {key, parent}
     this.onRetainedInteractionChange(parent)
+    if (this.#retainedRenderKeys.get(parent)?.has(key)) this.#queueRetainedParentRender(parent)
   }
 
   #releaseRetainedHitState(parent: Object3D): void {
