@@ -94,8 +94,9 @@ rounded SDF quad со spread/blur в local units, без texture pass. Node cons
 [`UI-013 — Восстанавливать UI playground после перезапуска Codex`](tasks/UI-013.md)
 добавила session-resume audit и exact-selector `ensure` commit-ом `ed06fbc57`:
 после потери foreground PTY skill сам сообщает stopped contour и восстанавливает
-его без скрытого launchd/iTerm daemon. Текущий отдельный срез отклоняет
-idle-black canvas evidence.
+его без скрытого launchd/iTerm daemon. Canvas guard `9b3663b1b` + corrections
+`983ea4fb2`/`a11c979be` отклоняет idle-black evidence без записи и OS focus;
+задача в `REVIEW`.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
@@ -114,7 +115,7 @@ mobile и явная visual owner acceptance остаются следующим
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
 | UI-012 | REVIEW      | нет         | [Открыть](tasks/UI-012.md) |
-| UI-013 | IN_PROGRESS | нет         | [Открыть](tasks/UI-013.md) |
+| UI-013 | REVIEW      | нет         | [Открыть](tasks/UI-013.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
