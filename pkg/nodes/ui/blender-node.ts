@@ -162,6 +162,22 @@ export const BLENDER_SOCKET_VISUAL_POLICY: BlenderSocketVisualPolicy = Object.fr
 })
 
 const NODE_HEADER_HEIGHT = 24
+const BLENDER_NODE_RADIUS = 6
+
+/**
+ * Intrinsic Node shadow mapped from Blender's `node_draw_shadow` law.
+ *
+ * Blender uses `shadow_width = 0.6 × widget_unit` and alpha `0.5`. MetaFor's
+ * local widget rhythm is 20, so the complete soft fade is 12 local units.
+ * Blender does not define a separate solid spread for this shadow, therefore
+ * the analytical SDF keeps spread at zero. The retained Node parent scales the
+ * same local values continuously; there is no fixture offset or screen floor.
+ */
+const BLENDER_NODE_SHADOW_VISUAL_POLICY = Object.freeze({
+  blur: 0.6 * 20,
+  spread: 0,
+  opacity: 0.5,
+})
 const BLENDER_NODE_HEADER_VISUAL_POLICY = Object.freeze({
   leftPadding: 8,
   rightPadding: 6,
@@ -309,21 +325,23 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
   render({host, entry, connectedSocketIds, selected, plan}) {
     const {rect, node} = entry
     const header = nodeHeaderColor(node)
-    host.drawRoundedRect(rect.x + 3, rect.y + 5, rect.w, rect.h, {
-      radius: 6,
-      fill: new Color(0, 0, 0, 0.34),
-      border: null,
+    host.drawRoundedShadow(rect.x, rect.y, rect.w, rect.h, {
+      radius: BLENDER_NODE_RADIUS,
+      blur: BLENDER_NODE_SHADOW_VISUAL_POLICY.blur,
+      spread: BLENDER_NODE_SHADOW_VISUAL_POLICY.spread,
+      color: selected ? header : new Color(0, 0, 0, 1),
+      opacity: BLENDER_NODE_SHADOW_VISUAL_POLICY.opacity,
       z: Z.ELEMENT - 0.02,
     })
     host.drawRoundedRect(rect.x, rect.y, rect.w, rect.h, {
-      radius: 6,
+      radius: BLENDER_NODE_RADIUS,
       fill: new Color(0.188, 0.188, 0.188, 1),
-      border: selected ? palette.orange : new Color(0.075, 0.075, 0.075, 1),
-      borderWidth: selected ? 2 : 1,
+      border: new Color(0.075, 0.075, 0.075, 1),
+      borderWidth: 1,
       z: Z.ELEMENT,
     })
     host.drawRoundedRect(plan.header.x, plan.header.y, plan.header.w, plan.header.h, {
-      radius: 6,
+      radius: BLENDER_NODE_RADIUS,
       fill: fade(header, 0.82),
       border: null,
       z: Z.ELEMENT + 0.01,

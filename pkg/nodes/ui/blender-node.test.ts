@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import {createUiPolylineStrokeGeometry} from "@ui/elements"
+import type {Color} from "@metafor/engine"
+import {Z, createUiPolylineStrokeGeometry} from "@ui/elements"
 import {
   BLENDER_SOCKET_KINDS,
   BLENDER_SOCKET_PRESETS,
@@ -82,6 +83,58 @@ describe("Blender-like Node presets", () => {
     expect("renderForeground" in renderers.node).toBeFalse()
     expect(typeof renderers.socket.render).toBe("function")
     expect(typeof renderers.link.render).toBe("function")
+  })
+
+  test("uses one intrinsic symmetric shadow as the Node selection carrier", () => {
+    const states = [
+      paintedNodeShadow(false, false),
+      paintedNodeShadow(false, true),
+      paintedNodeShadow(true, false),
+      paintedNodeShadow(true, true),
+    ]
+
+    for (const state of states) {
+      const shadows = state.calls.filter((call) => call.kind === "shadow")
+      const rects = state.calls.filter((call) => call.kind === "rect")
+      expect(shadows).toHaveLength(1)
+      expect(state.calls[0]).toBe(shadows[0])
+      expect(shadows[0]).toEqual({
+        kind: "shadow",
+        ...state.rect,
+        options: {
+          radius: 6,
+          blur: 12,
+          spread: 0,
+          color: state.selected ? [0.22, 0.48, 0.74, 0.8] : [0, 0, 0, 1],
+          opacity: 0.5,
+          z: Z.ELEMENT - 0.02,
+        },
+      })
+      expect("scale" in shadows[0]!.options).toBeFalse()
+
+      const body = rects[0]!
+      expect({x: body.x, y: body.y, w: body.w, h: body.h}).toEqual(state.rect)
+      expect(body.options.border).toEqual([0.075, 0.075, 0.075, 1])
+      expect(body.options.borderWidth).toBe(1)
+      expect(rects.some((call) =>
+        call.x === state.rect.x + 3
+        && call.y === state.rect.y + 5
+        && call.w === state.rect.w
+        && call.h === state.rect.h)).toBeFalse()
+
+      for (const parentScale of [0.16, 0.5, 1, 2]) {
+        expect(shadows[0]!.options.blur * parentScale).toBeCloseTo(12 * parentScale)
+      }
+    }
+
+    for (const collapsed of [false, true]) {
+      const ordinary = states.find((state) => state.collapsed === collapsed && !state.selected)!
+      const selected = states.find((state) => state.collapsed === collapsed && state.selected)!
+      const ordinaryBody = ordinary.calls.find((call) => call.kind === "rect")!
+      const selectedBody = selected.calls.find((call) => call.kind === "rect")!
+      expect(selectedBody.options.border).toEqual(ordinaryBody.options.border)
+      expect(selectedBody.options.borderWidth).toBe(ordinaryBody.options.borderWidth)
+    }
   })
 
   test("draws one intrinsic geometric chevron and shared title slot in both header states", () => {
@@ -293,6 +346,134 @@ type PaintedNodeHeader = Readonly<{
   }>
 }>
 
+type NodeShadowCall = Readonly<{
+  kind: "shadow"
+  x: number
+  y: number
+  w: number
+  h: number
+  options: Readonly<{
+    radius: number
+    blur: number
+    spread: number
+    color: readonly [number, number, number, number]
+    opacity: number
+    z: number
+  }>
+}>
+
+type NodeRectCall = Readonly<{
+  kind: "rect"
+  x: number
+  y: number
+  w: number
+  h: number
+  options: Readonly<{
+    radius: number
+    fill: readonly [number, number, number, number] | null
+    border: readonly [number, number, number, number] | null
+    borderWidth: number
+    z: number
+  }>
+}>
+
+type NodeVisualCall = NodeShadowCall | NodeRectCall
+
+function paintedNodeShadow(collapsed: boolean, selected: boolean): Readonly<{
+  collapsed: boolean
+  selected: boolean
+  rect: Readonly<{x: number; y: number; w: number; h: number}>
+  calls: readonly NodeVisualCall[]
+}> {
+  const node: BlenderNode = {
+    id: `shadow-${collapsed ? "collapsed" : "expanded"}-${selected ? "selected" : "ordinary"}`,
+    title: "Shadow",
+    collapsed,
+    headerColor: {r: 0.22, g: 0.48, b: 0.74, a: 0.8},
+  }
+  const rect = {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height}
+  const entry = positionBlenderNode(node, rect)
+  const plan = planBlenderNode(node, rect)
+  const calls: NodeVisualCall[] = []
+  const material = {}
+  const host = {
+    materials: {text: material, orange: material},
+    drawRoundedShadow(
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      options: {radius: number; blur: number; spread: number; color: Color; opacity?: number; z?: number},
+    ) {
+      calls.push({
+        kind: "shadow",
+        x,
+        y,
+        w,
+        h,
+        options: {
+          radius: options.radius,
+          blur: options.blur,
+          spread: options.spread,
+          color: requiredColorTuple(options.color),
+          opacity: options.opacity ?? 1,
+          z: options.z ?? Z.CONTAINER,
+        },
+      })
+    },
+    drawRoundedRect(
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      options: {
+        radius: number
+        fill?: Color | null
+        border?: Color | null
+        borderWidth?: number
+        z?: number
+      },
+    ) {
+      calls.push({
+        kind: "rect",
+        x,
+        y,
+        w,
+        h,
+        options: {
+          radius: options.radius,
+          fill: colorTuple(options.fill ?? null),
+          border: colorTuple(options.border ?? null),
+          borderWidth: options.borderWidth ?? 0,
+          z: options.z ?? Z.ELEMENT,
+        },
+      })
+    },
+    drawPolyline() {},
+    drawText() {
+      return 0
+    },
+  } as unknown as Parameters<typeof blenderNodeRenderer.render>[0]["host"]
+
+  blenderNodeRenderer.render({
+    host,
+    entry,
+    plan,
+    connectedSocketIds: new Set(),
+    selected,
+  })
+
+  return {collapsed, selected, rect, calls}
+}
+
+function colorTuple(color: Color | null): readonly [number, number, number, number] | null {
+  return color === null ? null : [color.r, color.g, color.b, color.a]
+}
+
+function requiredColorTuple(color: Color): readonly [number, number, number, number] {
+  return [color.r, color.g, color.b, color.a]
+}
+
 function paintedNodeHeader(collapsed: boolean): PaintedNodeHeader {
   const node: BlenderNode = {id: "mapping", title: "Mapping", collapsed}
   const rect = {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height}
@@ -313,6 +494,7 @@ function paintedNodeHeader(collapsed: boolean): PaintedNodeHeader {
   const material = {}
   const host = {
     materials: {text: material, orange: material},
+    drawRoundedShadow() {},
     drawRoundedRect(x: number, y: number, w: number, h: number, opts: {radius: number}) {
       rounded.push({x, y, w, h, radius: opts.radius})
     },
