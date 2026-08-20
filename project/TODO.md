@@ -79,14 +79,16 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 параллельно развивает production Components, пока UI-011 владеет всеми
-playground. NumberInput, ColorInput и VectorInput уже вынесены и доказаны на
-live Workbench; текущий срез создаёт public MatrixInput без Node-копии.
+playground. NumberInput, ColorInput, VectorInput и MatrixInput уже вынесены и
+доказаны package/live evidence; текущий срез создаёт public ReferenceInput с
+owner-supplied browse/clear actions без Node-копии и скрытого popup lifecycle.
 
 [`UI-011 — Перевести все package playgrounds на Workbench`](tasks/UI-011.md)
 исправляет незавершённую consumer migration: Node UI, Components и Elements уже
-используют package-owned stories и общий Workbench. Текущий срез добавляет
-отсутствующее controlled selected Node state; после него общая матрица проверит
-`4016`, `4017`, `7901` и эталон `4192` как один interaction contract.
+используют package-owned stories и общий Workbench. Текущие независимые срезы
+добавляют controlled selected Node state и отдельные stories новых public
+VectorInput/MatrixInput; затем общая матрица проверит `4016`, `4017`, `7901` и
+эталон `4192` как один interaction contract.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
