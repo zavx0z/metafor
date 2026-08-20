@@ -8,6 +8,7 @@ import {
 } from "@ui/elements"
 import {
   Field,
+  measureFieldLayout,
   FIELD_KINDS,
   fieldColorToHex,
   measureFieldHeight,
@@ -19,6 +20,7 @@ import {
   parseFieldColor,
   type CollectionFieldDefinition,
   type FieldDefinition,
+  type RotationFieldDefinition,
 } from "./Field.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
@@ -39,6 +41,25 @@ class RecordingSurface extends BaseUiSurface {
 }
 
 describe("universal UI fields", () => {
+  test("publishes one grouped label/control layout with intrinsic Vector width", () => {
+    const rotation: RotationFieldDefinition = {id: "rotation-layout", label: "Rotation", kind: "rotation", value: [0, 45, 90]}
+    expect(measureFieldLayout(rotation, {density: "compact"})).toEqual({
+      height: 91,
+      labelRowHeight: 22,
+      labelControlGap: 3,
+      controlOffsetY: 25,
+      controlHeight: 66,
+      intrinsicWidth: 146,
+    })
+    expect(measureFieldLayout({...rotation, compactLabel: "hidden"}, {density: "compact"})).toEqual({
+      height: 66,
+      labelRowHeight: 0,
+      labelControlGap: 0,
+      controlOffsetY: 0,
+      controlHeight: 66,
+      intrinsicWidth: 146,
+    })
+  })
   test("publishes node-independent field kinds", () => {
     expect(FIELD_KINDS).toEqual([
       "text",

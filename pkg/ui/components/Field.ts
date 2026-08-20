@@ -50,6 +50,7 @@ import {TextField} from "./TextField.ts"
 import {Typography} from "./Typography.ts"
 import {
   measureVectorInputHeight,
+  measureVectorInputWidth,
   VectorInput,
   type VectorInputDensity,
   type VectorInputDimension,
@@ -126,6 +127,7 @@ export type VectorFieldDefinition = FieldBase & Readonly<{
   min?: number
   max?: number
   step?: number
+  precision?: number
   unit?: string
   onChange?(value: readonly number[]): void
 }>
@@ -192,6 +194,15 @@ export type FieldRenderOptions = Readonly<{
   density?: "regular" | "compact"
 }>
 
+export type FieldLayoutMetrics = Readonly<{
+  height: number
+  labelRowHeight: number
+  labelControlGap: number
+  controlOffsetY: number
+  controlHeight: number
+  intrinsicWidth: number | null
+}>
+
 export const FIELD_KINDS = Object.freeze([
   "text",
   "number",
@@ -235,9 +246,39 @@ export function Field(
 }
 
 export function measureFieldHeight(definition: FieldDefinition, options: FieldRenderOptions = {}): number {
-  if (options.density === "compact") return compactFieldHeight(definition)
-  if (isScalarField(definition) || definition.kind === "boolean") return uiShapeMetrics.rowHeight
-  return measureGroupedFieldHeight(definition, "regular")
+  return measureFieldLayout(definition, options).height
+}
+
+/** Measures the shared label/control composition consumed by Field and Node layout. */
+export function measureFieldLayout(definition: FieldDefinition, options: FieldRenderOptions = {}): FieldLayoutMetrics {
+  if (!isGroupedField(definition)) {
+    const height = options.density === "compact" ? uiShapeMetrics.controlHeight : uiShapeMetrics.rowHeight
+    return Object.freeze({
+      height,
+      labelRowHeight: 0,
+      labelControlGap: 0,
+      controlOffsetY: 0,
+      controlHeight: height,
+      intrinsicWidth: null,
+    })
+  }
+  const density = options.density ?? "regular"
+  const controlHeight = groupedFieldControlHeight(definition, density)
+  const labelRowHeight = density === "compact" && definition.compactLabel === "hidden"
+    ? 0
+    : uiShapeMetrics.controlHeight
+  const labelControlGap = labelRowHeight === 0 ? 0 : uiShapeMetrics.tightGap
+  const controlOffsetY = labelRowHeight + labelControlGap
+  return Object.freeze({
+    height: controlOffsetY + controlHeight,
+    labelRowHeight,
+    labelControlGap,
+    controlOffsetY,
+    controlHeight,
+    intrinsicWidth: definition.kind === "vector" || definition.kind === "rotation"
+      ? measureVectorInputWidth()
+      : null,
+  })
 }
 
 type ScalarFieldDefinition = Exclude<
@@ -256,8 +297,7 @@ function isScalarField(definition: FieldDefinition): definition is ScalarFieldDe
 }
 
 function compactFieldHeight(definition: FieldDefinition): number {
-  if (isGroupedField(definition)) return measureGroupedFieldHeight(definition, "compact")
-  return uiShapeMetrics.controlHeight
+  return measureFieldLayout(definition, {density: "compact"}).height
 }
 
 function drawCompactField(
@@ -370,15 +410,6 @@ function isGroupedField(definition: FieldDefinition): definition is GroupedField
     || definition.kind === "collection"
 }
 
-function measureGroupedFieldHeight(
-  field: GroupedFieldDefinition,
-  density: "regular" | "compact",
-): number {
-  const controlHeight = groupedFieldControlHeight(field, density)
-  if (density === "compact" && field.compactLabel === "hidden") return controlHeight
-  return uiShapeMetrics.controlHeight + uiShapeMetrics.tightGap + controlHeight
-}
-
 function groupedFieldControlHeight(
   field: GroupedFieldDefinition,
   density: "regular" | "compact",
@@ -399,15 +430,19 @@ function drawGroupedField(
   field: GroupedFieldDefinition,
   density: "regular" | "compact",
 ): void {
-  const controlHeight = groupedFieldControlHeight(field, density)
+  const layout = measureFieldLayout(field, {density})
+  const controlHeight = layout.controlHeight
+  const intrinsicWidth = layout.intrinsicWidth ?? width
+  const fieldWidth = Math.min(Math.max(0, width), intrinsicWidth)
+  const fieldX = x + (width - fieldWidth) / 2
   if (density === "compact" && field.compactLabel === "hidden") {
-    drawGroupedFieldControl(host, x, y, width, controlHeight, field, density)
+    drawGroupedFieldControl(host, fieldX, y, fieldWidth, controlHeight, field, density)
     return
   }
   flexColumn({
-    x,
+    x: fieldX,
     y,
-    w: width,
+    w: fieldWidth,
     h: height,
     gap: uiShapeMetrics.tightGap,
     items: [
@@ -578,13 +613,18 @@ function vectorInputProps(
     density,
   }
   if (field.dimensions !== undefined) props.dimensions = field.dimensions
-  const axes = field.axes ?? (field.kind === "rotation" ? ["X°", "Y°", "Z°", "W°"] : undefined)
-  if (axes !== undefined) props.axes = axes
+  if (field.axes !== undefined) props.axes = field.axes
   if (field.numberKind !== undefined) props.numberKind = field.numberKind
   if (field.min !== undefined) props.min = field.min
   if (field.max !== undefined) props.max = field.max
   if (field.step !== undefined) props.step = field.step
-  if (field.unit !== undefined) props.unit = field.unit
+  if (field.kind === "rotation") {
+    props.precision = field.precision ?? 0
+    props.unit = field.unit === undefined ? "°" : field.unit
+  } else {
+    if (field.precision !== undefined) props.precision = field.precision
+    if (field.unit !== undefined) props.unit = field.unit
+  }
   if (field.disabled !== undefined) props.disabled = field.disabled
   if (field.readOnly !== undefined) props.readOnly = field.readOnly
   if (field.onChange !== undefined) props.onChange = field.onChange

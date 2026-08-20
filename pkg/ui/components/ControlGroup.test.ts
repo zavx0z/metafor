@@ -71,7 +71,21 @@ describe("public ControlGroup", () => {
       expect(surface.roundedRects.at(-1)?.[4].border).toEqual(blenderRgba8ToColor(colors.outline))
       expect(surface.roundedRects.find((call) => call[4].radius === 0)?.[4].fill).toEqual(blenderRgba8ToColor(colors.outline))
       expect(context?.buttonAppearance).toBe(buttonAppearance)
+      expect(context?.textColor).toEqual(blenderRgba8ToColor(colors.text))
     }
+  })
+
+  test("passes disabled class colors through the same generic group role", () => {
+    const surface = new RecordingSurface()
+    let context: ControlGroupContext | undefined
+    ControlGroup(surface, 0, 0, 100, 22, {
+      appearance: "number",
+      disabled: true,
+      children: (value) => { context = value },
+    })
+    const colors = resolveWidgetColors("number", {disabled: true})
+    expect(context?.textColor).toEqual(blenderRgba8ToColor(colors.text))
+    expect(surface.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(colors.inner))
   })
 
   test("owns one low-radius outer chrome and exact row and column separators", () => {

@@ -8,6 +8,7 @@ import {
   Z,
   type ButtonElementAppearance,
   type BlenderWidgetClass,
+  type CssColor,
   type GroupedCellAppearance,
   type StyleProps,
   type UiSurface,
@@ -16,6 +17,7 @@ import {
 export type ControlGroupContext = Readonly<{
   cellStyle: Readonly<StyleProps>
   buttonAppearance: ButtonElementAppearance
+  textColor: CssColor
   cell(row: number, column: number, contact?: ControlGroupCellContact): ControlGroupCellContext
 }>
 
@@ -38,6 +40,7 @@ export type ControlGroupProps = Readonly<{
   rows?: number
   columns?: number | readonly ControlGroupTrack[]
   appearance?: ControlGroupAppearance
+  disabled?: boolean
   children?(context: ControlGroupContext): void
 }>
 
@@ -64,7 +67,7 @@ export function ControlGroup(
   const columns = columnTracks.length
   const appearance = props.appearance ?? "pointer"
   const widgetClass = controlGroupWidgetClass(appearance)
-  const colors = resolveWidgetColors(widgetClass)
+  const colors = resolveWidgetColors(widgetClass, {disabled: props.disabled === true})
   const fill = blenderRgba8ToColor(colors.inner)
   const outline = blenderRgba8ToColor(colors.outline)
 
@@ -78,7 +81,12 @@ export function ControlGroup(
     },
   })
 
-  props.children?.(controlGroupContext(rows, columns, controlGroupButtonAppearance(appearance)))
+  props.children?.(controlGroupContext(
+    rows,
+    columns,
+    controlGroupButtonAppearance(appearance),
+    blenderRgba8ToColor(colors.text),
+  ))
 
   drawControlGroupRowRules(surface, x, y, width, height, rows, outline)
   drawControlGroupColumnRules(surface, x, y, width, height, columnTracks, outline)
@@ -98,10 +106,12 @@ function controlGroupContext(
   rows: number,
   columns: number,
   buttonAppearance: ButtonElementAppearance,
+  textColor: CssColor,
 ): ControlGroupContext {
   return Object.freeze({
     cellStyle: controlGroupCellStyle,
     buttonAppearance,
+    textColor,
     cell(row, column, contact = {}) {
       const top = contact.top ?? true
       const right = contact.right ?? true

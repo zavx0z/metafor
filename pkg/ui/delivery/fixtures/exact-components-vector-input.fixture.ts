@@ -1,5 +1,6 @@
 export {
   measureVectorInputHeight,
+  measureVectorInputWidth,
   normalizeVectorInputValue,
   VectorInput,
   type VectorInputDensity,

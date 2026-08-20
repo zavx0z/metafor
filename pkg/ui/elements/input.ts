@@ -1,7 +1,7 @@
 import type {HitOptions, UiSurface} from "./surface.ts"
 import {div, type DivProps} from "./div.ts"
 import {controlChromePadding, controlChromeRect} from "./control-shape.ts"
-import {mergeStyle, px, textMaterial, type StyleProps} from "./style.ts"
+import {mergeStyle, px, textMaterial, type CssTextAlign, type StyleProps} from "./style.ts"
 import {uiShapeMetrics} from "./shape.ts"
 import {Z} from "./surface.ts"
 import {drawIconCentered} from "./icon.ts"
@@ -40,6 +40,13 @@ export type InputKeyOptions = {
   submitOnEnter?: boolean
   allowTab?: boolean
 }
+
+export type InputTextLayout = Readonly<{
+  start: number
+  text: string
+  width: number
+  originX: number
+}>
 
 export type InputGroupedCellCorners = GroupedCellCorners
 export type InputGroupedCellAppearance = GroupedCellAppearance
@@ -247,7 +254,8 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   const selectionAnchor = state.selectionAnchor
   const contentX = chrome.x + padding.left
   const contentW = Math.max(1, chrome.width - padding.left - padding.right)
-  const view = inputTextView(surface, value, cursor, fontPx, contentW)
+  const textAlign = style.textAlign ?? (props.type === "number" ? "right" : "left")
+  const view = planInputTextLayout(surface, value, cursor, fontPx, contentX, contentW, textAlign)
   if (active && props.cursorVisible !== false) ensureInputBlink(surface, runtime, key)
   runtime.configs.set(key, {
     controlled,
@@ -335,8 +343,8 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
         }
         if (runtime.drag?.key !== key) return
         const current = inputStateFor(runtime, key, initialValue, controlled, props)
-        const currentView = inputTextView(surface, current.value, current.cursor, fontPx, contentW)
-        const nextCursor = inputIndexFromX(surface, current.value, currentView.start, fontPx, localX - contentX)
+        const currentView = planInputTextLayout(surface, current.value, current.cursor, fontPx, contentX, contentW, textAlign)
+        const nextCursor = inputIndexFromX(surface, current.value, currentView.start, fontPx, localX - currentView.originX)
         if (nextCursor === current.cursor && current.selectionAnchor === runtime.drag.anchor) return
         applyInputResult(surface, key, {value: current.value, cursor: nextCursor, selectionAnchor: runtime.drag.anchor}, runtime.configs.get(key))
         resetInputBlink(surface, runtime, key)
@@ -393,8 +401,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
     value,
     selectionAnchor,
     cursor,
-    view.start,
-    contentX,
+    view,
     chrome.y,
     chrome.height,
     fontPx,
@@ -402,9 +409,13 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   )
 
   const hasValue = value.length > 0
-  const text = hasValue ? view.text : props.placeholder ?? ""
+  const placeholder = props.placeholder ?? ""
+  const display = hasValue
+    ? view
+    : planInputTextLayout(surface, placeholder, 0, fontPx, contentX, contentW, textAlign)
+  const text = hasValue ? display.text : placeholder
   if (text.length > 0) {
-    surface.drawText(text, contentX, chrome.y + (chrome.height - fontPx) / 2, {
+    surface.drawText(text, display.originX, chrome.y + (chrome.height - fontPx) / 2, {
       fontPx,
       material: textMaterial(surface, style.color ?? blenderRgba8ToColor(
         hasValue ? colors.text : resolveWidgetColors(widgetClass, {inactive: true}).text,
@@ -415,7 +426,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   }
 
   if (active && props.cursorVisible !== false && runtime.caretVisible) {
-    const cursorX = contentX + surface.measureText(value.slice(view.start, cursor), fontPx)
+    const cursorX = view.originX + surface.measureText(value.slice(view.start, cursor), fontPx)
     surface.drawRect(
       Math.round(cursorX),
       Math.round(chrome.y + (chrome.height - fontPx) / 2),
@@ -570,6 +581,24 @@ function moveInputCursor(state: InputEditState, cursor: number, extendSelection:
   }
 }
 
+/** Resolves one horizontal origin shared by text, caret, selection and pointer indexing. */
+export function planInputTextLayout(
+  surface: UiSurface,
+  value: string,
+  cursor: number,
+  fontPx: number,
+  contentX: number,
+  contentW: number,
+  align: CssTextAlign = "left",
+): InputTextLayout {
+  const availableWidth = Math.max(0, contentW)
+  const view = inputTextView(surface, value, cursor, fontPx, availableWidth)
+  const width = Math.min(availableWidth, surface.measureText(view.text, fontPx))
+  const free = Math.max(0, availableWidth - width)
+  const originX = contentX + (align === "right" ? free : align === "center" ? free / 2 : 0)
+  return Object.freeze({...view, width, originX})
+}
+
 function inputTextView(surface: UiSurface, value: string, cursor: number, fontPx: number, contentW: number): {start: number; text: string} {
   if (value.length === 0) return {start: 0, text: ""}
   let start = 0
@@ -604,18 +633,17 @@ function drawInputSelection(
   value: string,
   anchor: number | null,
   cursor: number,
-  viewStart: number,
-  x: number,
+  layout: InputTextLayout,
   y: number,
   h: number,
   fontPx: number,
   color: ReturnType<typeof blenderRgba8ToColor>,
 ): void {
   if (anchor === null || anchor === cursor) return
-  const start = Math.max(viewStart, Math.min(anchor, cursor))
+  const start = Math.max(layout.start, Math.min(anchor, cursor))
   const end = Math.max(start, Math.max(anchor, cursor))
-  if (end <= viewStart) return
-  const sx = x + surface.measureText(value.slice(viewStart, start), fontPx)
+  if (end <= layout.start) return
+  const sx = layout.originX + surface.measureText(value.slice(layout.start, start), fontPx)
   const sw = surface.measureText(value.slice(start, end), fontPx)
   if (sw <= 0) return
   surface.drawRect(sx, y + 4, sw, Math.max(1, h - 8), color, Z.ELEMENT + 0.01)
@@ -665,12 +693,15 @@ function activateInputText(
   notifyPointerDown = true,
 ): void {
   const next = {...inputStateFor(runtime, key, initialValue, controlled, props)}
+  const style = mergeStyle(props)
+  const align = style.textAlign ?? (props.type === "number" ? "right" : "left")
+  const layout = planInputTextLayout(surface, next.value, next.cursor, fontPx, contentX, contentW, align)
   const nextCursor = inputIndexFromX(
     surface,
     next.value,
-    inputTextView(surface, next.value, next.cursor, fontPx, contentW).start,
+    layout.start,
     fontPx,
-    localX - contentX,
+    localX - layout.originX,
   )
   const anchor = event?.shiftKey === true ? next.selectionAnchor ?? next.cursor : null
   runtime.activeKey = key

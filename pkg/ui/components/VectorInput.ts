@@ -29,6 +29,7 @@ export type VectorInputProps = VectorInputValueOptions & {
 }
 
 const DEFAULT_AXES = Object.freeze(["X", "Y", "Z", "W"])
+const VECTOR_INPUT_INTRINSIC_WIDTH = 146
 
 /** Draws one controlled 2–4-axis numeric editor without owning consumer state. */
 export function VectorInput(
@@ -42,14 +43,17 @@ export function VectorInput(
   const dimensions = vectorInputDimensions(props.value, props.dimensions)
   const values = normalizeVectorInputValue(props.value, dimensions, props)
   const axes = props.axes ?? DEFAULT_AXES
-  ControlGroup(host, x, y, width, height, {
+  const controlWidth = Math.min(Math.max(0, width), measureVectorInputWidth())
+  const controlX = x + (width - controlWidth) / 2
+  ControlGroup(host, controlX, y, controlWidth, height, {
     appearance: "number",
+    disabled: props.disabled === true || props.readOnly === true,
     rows: dimensions,
     children: (group) => {
       flexColumn({
-        x,
+        x: controlX,
         y,
-        w: width,
+        w: controlWidth,
         h: height,
         gap: 0,
         items: Array.from({length: dimensions}, (_, index) => ({
@@ -61,6 +65,11 @@ export function VectorInput(
       })
     },
   })
+}
+
+/** Returns the approved intrinsic width shared by standalone, Field and Node consumers. */
+export function measureVectorInputWidth(): number {
+  return VECTOR_INPUT_INTRINSIC_WIDTH
 }
 
 /** Returns the intrinsic height of the joined 2–4-axis stack in either density. */
@@ -106,7 +115,8 @@ function drawVectorInputAxis(
       {width: uiShapeMetrics.iconActionSlot, height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
         children: axes[index] ?? String(index),
         fontPx: uiShapeMetrics.compactFontPx,
-        color: "muted",
+        color: group.textColor,
+        sx: {textAlign: "center"},
       })},
       {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
         NumberInput(host, slotX, slotY, slotW, slotH, numberProps)
@@ -132,7 +142,7 @@ function vectorAxisNumberProps(
   if (props.softMin !== undefined) numberProps.softMin = props.softMin
   if (props.softMax !== undefined) numberProps.softMax = props.softMax
   if (props.step !== undefined) numberProps.step = props.step
-  if (props.precision !== undefined) numberProps.precision = props.precision
+  numberProps.precision = props.precision ?? 3
   if (props.unit !== undefined) numberProps.unit = props.unit
   if (props.disabled !== undefined) numberProps.disabled = props.disabled
   if (props.readOnly !== undefined) numberProps.readOnly = props.readOnly

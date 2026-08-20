@@ -317,6 +317,69 @@ describe("Blender-like Node presets", () => {
       expect(right.x + right.w - (rect.x + rect.w), `${shape} right outside`).toBeCloseTo(BLENDER_SOCKET_VISUAL_POLICY.diameter / 2)
     }
   })
+
+  test("anchors Rotation sockets to the label row for input, output, linked and hide-value states", () => {
+    for (const state of ["input", "output", "linked", "hidden"] as const) {
+      for (const shape of BLENDER_SOCKET_SHAPES) {
+        const socket: BlenderSocket = {
+          id: `rotation-${state}-${shape}`,
+          label: "Rotation",
+          direction: state === "output" ? "output" : "input",
+          socketType: "rotation",
+          parameterId: "rotation",
+          side: state === "output" ? "right" : "left",
+          shape,
+          ...(state === "hidden" ? {hideValue: true} : {}),
+        }
+        const node: BlenderNode = {
+          id: `rotation-${state}`,
+          title: "Rotation owner",
+          parameters: [{
+            id: "rotation",
+            label: "Rotation",
+            field: {id: "rotation", label: "Rotation", kind: "rotation", value: [0, 45, 90]},
+          }],
+          sockets: [socket],
+        }
+        const rect = {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height}
+        const connected = new Set(state === "linked" ? [socket.id] : [])
+        const entry = positionBlenderNode(node, rect)
+        const plan = blenderNodeRenderer.plan({entry, connectedSocketIds: connected, selected: false})
+        const field = plan.fields[0]!
+        const label = plan.parameters[0]!.rect
+        const positioned = plan.sockets[0]!
+
+        expect(field.rect).toEqual({x: 37, y: 62, w: 146, h: 91})
+        expect(label).toEqual({x: 37, y: 62, w: 146, h: 22})
+        expect(field.editorVisible).toBe(state === "input" || state === "output")
+        expect(positioned.center).toEqual({x: state === "output" ? 200 : 20, y: 73})
+
+        if (shape === BLENDER_SOCKET_SHAPES[0]) {
+          const surface = new RetainedHeaderSurface()
+          try {
+            surface.setRect({x: 0, y: 0, w: 240, h: 180}, HEADER_PIXEL_SCALE, projectFont)
+            const parent = surface.createParent()
+            surface.materialize(parent, () => blenderNodeRenderer.render({
+              host: surface,
+              entry,
+              plan,
+              connectedSocketIds: connected,
+              selected: false,
+            }))
+            const texts = cachedTextValues(parent)
+            expect(texts).toContain("Rotation")
+            if (state === "input" || state === "output") {
+              expect(texts).toEqual(expect.arrayContaining(["X", "Y", "Z", "0°", "45°", "90°"]))
+            } else {
+              expect(texts).not.toEqual(expect.arrayContaining(["X", "0°"]))
+            }
+          } finally {
+            surface.dispose()
+          }
+        }
+      }
+    }
+  })
 })
 
 function paintedSocketBounds(
@@ -595,6 +658,14 @@ function findCachedText(parent: Object3D, value: string): CachedText {
   })
   if (result === undefined) throw new Error(`Missing materialized title: ${value}`)
   return result
+}
+
+function cachedTextValues(parent: Object3D): readonly string[] {
+  const values: string[] = []
+  parent.traverse((object) => {
+    if (object instanceof CachedText) values.push(object.text)
+  })
+  return values
 }
 
 function cachedTextWorldCenterY(surface: UiSurface, text: CachedText): number {

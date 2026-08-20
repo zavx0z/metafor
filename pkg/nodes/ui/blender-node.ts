@@ -3,6 +3,7 @@ import {
   Field,
   Typography,
   measureFieldHeight,
+  measureFieldLayout,
   type FieldColor,
   type FieldDefinition,
 } from "@ui/components"
@@ -83,6 +84,7 @@ export type BlenderSocket = Socket & Readonly<{
   shape?: BlenderSocketShape
   side?: SocketSide
   description?: string
+  hideValue?: boolean
 }>
 
 export type BlenderParameter = Parameter & Readonly<{
@@ -110,7 +112,7 @@ export type BlenderLink = Link & Readonly<{
 export type BlenderNodePlan = Readonly<{
   header: NodeRect
   body: NodeRect
-  fields: readonly Readonly<{field: FieldDefinition; rect: NodeRect; parameterId?: string}>[]
+  fields: readonly Readonly<{field: FieldDefinition; rect: NodeRect; parameterId?: string; editorVisible: boolean}>[]
   parameters: readonly Readonly<{parameter: BlenderParameter; rect: NodeRect}>[]
   sockets: readonly PositionedSocket<BlenderSocket>[]
 }>
@@ -192,6 +194,7 @@ const NODE_PADDING = 8
 const NODE_GAP = 3
 const NODE_MIN_WIDTH = 180
 const NODE_MIN_HEIGHT = 52
+const EMPTY_CONNECTED_SOCKET_IDS: ReadonlySet<string> = new Set()
 
 export function blenderSocketPreset(kind: BlenderSocketKind): BlenderSocketPreset {
   return BLENDER_SOCKET_PRESETS[kind]
@@ -216,10 +219,14 @@ export function measureBlenderNode(node: BlenderNode): Readonly<{width: number; 
 }
 
 /** Plans Standard Node child slots and exact Socket anchors through shared Flex. */
-export function planBlenderNode(node: BlenderNode, frame: NodeRect): BlenderNodePlan {
+export function planBlenderNode(
+  node: BlenderNode,
+  frame: NodeRect,
+  connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
+): BlenderNodePlan {
   if (node.collapsed) return planCollapsedBlenderNode(node, frame)
   const regions = blenderNodeRegions(frame)
-  const fields: Array<{field: FieldDefinition; rect: NodeRect; parameterId?: string}> = []
+  const fields: Array<{field: FieldDefinition; rect: NodeRect; parameterId?: string; editorVisible: boolean}> = []
   const parameters: Array<{parameter: BlenderParameter; rect: NodeRect}> = []
   const sockets: PositionedSocket<BlenderSocket>[] = []
   const rows = blenderNodeRows(node)
@@ -234,17 +241,25 @@ export function planBlenderNode(node: BlenderNode, frame: NodeRect): BlenderNode
     items: rows.map((row) => ({
       height: rowHeight(row),
       draw: (x: number, y: number, w: number, h: number) => {
-        const rect = {x, y, w, h}
+        const layout = row.field === undefined ? null : measureFieldLayout(row.field, {density: "compact"})
+        const intrinsicWidth = layout?.intrinsicWidth ?? w
+        const fieldWidth = Math.min(w, intrinsicWidth)
+        const fieldRect = {x: x + (w - fieldWidth) / 2, y, w: fieldWidth, h}
+        const labelRect = layout !== null && layout.labelRowHeight > 0
+          ? {x: fieldRect.x, y: fieldRect.y, w: fieldRect.w, h: layout.labelRowHeight}
+          : fieldRect
+        const editorVisible = rowFieldEditorVisible(row, connectedSocketIds)
         if (row.field !== undefined) fields.push({
           field: row.field,
-          rect,
+          rect: fieldRect,
+          editorVisible,
           ...(row.parameter === undefined ? {} : {parameterId: row.parameter.id}),
         })
-        if (row.parameter !== undefined) parameters.push({parameter: row.parameter, rect})
+        if (row.parameter !== undefined) parameters.push({parameter: row.parameter, rect: labelRect})
         for (const socket of row.sockets) sockets.push({
           socket,
           side: socketSide(socket),
-          center: socketCenter(frame, rect, socket),
+          center: socketCenter(frame, labelRect, socket),
         })
       },
     })),
@@ -319,10 +334,10 @@ export const blenderFrameRenderer: FrameRenderer<BlenderFrame> = Object.freeze({
 
 export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, BlenderNodePlan> = Object.freeze({
   measure: measureBlenderNode,
-  plan({entry}) {
-    return planBlenderNode(entry.node, entry.rect)
+  plan({entry, connectedSocketIds}) {
+    return planBlenderNode(entry.node, entry.rect, connectedSocketIds)
   },
-  render({host, entry, connectedSocketIds, selected, plan}) {
+  render({host, entry, selected, plan}) {
     const {rect, node} = entry
     const header = nodeHeaderColor(node)
     host.drawRoundedShadow(rect.x, rect.y, rect.w, rect.h, {
@@ -375,15 +390,15 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
         })},
       ],
     })
-    const connectedParameterIds = new Set((node.sockets ?? []).flatMap((socket) =>
-      socket.parameterId !== undefined && connectedSocketIds.has(socket.id) ? [socket.parameterId] : []))
+    const hiddenParameterIds = new Set(plan.fields.flatMap(({parameterId, editorVisible}) =>
+      parameterId !== undefined && !editorVisible ? [parameterId] : []))
     if (!node.collapsed) {
-      for (const {field, rect: slot, parameterId} of plan.fields) {
-        if (parameterId !== undefined && connectedParameterIds.has(parameterId)) continue
+      for (const {field, rect: slot, editorVisible} of plan.fields) {
+        if (!editorVisible) continue
         Field(host, slot.x, slot.y, slot.w, {...field, key: `${node.id}:${field.id}`}, {density: "compact"})
       }
       for (const {parameter, rect: slot} of plan.parameters) {
-        if (parameter.field !== undefined && !connectedParameterIds.has(parameter.id)) continue
+        if (parameter.field !== undefined && !hiddenParameterIds.has(parameter.id)) continue
         Typography(host, slot.x, slot.y, slot.w, slot.h, {
           children: parameter.label,
           fontPx: 11,
@@ -457,6 +472,16 @@ function blenderNodeRows(node: BlenderNode): readonly BlenderNodeRow[] {
 
 function rowHeight(row: BlenderNodeRow): number {
   return row.field === undefined ? 22 : measureFieldHeight(row.field, {density: "compact"})
+}
+
+function rowFieldEditorVisible(
+  row: BlenderNodeRow,
+  connectedSocketIds: ReadonlySet<string>,
+): boolean {
+  if (row.field === undefined || row.parameter === undefined || row.sockets.length === 0) return true
+  return row.sockets.some((socket) =>
+    socket.hideValue !== true
+    && (socket.direction === "output" || !connectedSocketIds.has(socket.id)))
 }
 
 function socketSide(socket: BlenderSocket): SocketSide {

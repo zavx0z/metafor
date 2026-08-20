@@ -212,6 +212,44 @@ describe("input visible geometry", () => {
     expect(surface.rects[1]?.[4]).toEqual(blenderRgba8ToColor(blenderTheme.material.widgetTextCursor))
   })
 
+  test("uses one right numeric origin for text, selection, caret and pointer index", () => {
+    const active = new RecordingSurface()
+    input(active, 0, 0, 100, 22, {
+      key: "right-active",
+      type: "number",
+      value: "12°",
+      active: true,
+      cursor: 2,
+      selectionAnchor: 0,
+      onChange() {},
+    })
+
+    expect(active.texts[0]?.slice(0, 3)).toEqual(["12°", 76, 5.5])
+    expect(active.rects[0]?.slice(0, 4)).toEqual([76, 4, 12, 14])
+    expect(active.rects[1]?.slice(0, 4)).toEqual([88, 6, 2, 13])
+
+    const pointerStates: Array<Readonly<{cursor: number; selectionAnchor: number | null}>> = []
+    const pointerSurface = new RecordingSurface()
+    input(pointerSurface, 0, 0, 100, 22, {
+      key: "right-pointer",
+      type: "number",
+      value: "12°",
+      onChange: (_value, state) => pointerStates.push({cursor: state.cursor, selectionAnchor: state.selectionAnchor}),
+    })
+    const pointerHit = pointerSurface.hits[0]?.[5]
+    if (typeof pointerHit === "object") pointerHit.onPointerDown?.(83, 11, pointer())
+    expect(pointerStates.at(-1)).toEqual({cursor: 1, selectionAnchor: null})
+
+    const explicitLeft = new RecordingSurface()
+    input(explicitLeft, 0, 0, 100, 22, {
+      key: "explicit-left",
+      type: "number",
+      value: "12°",
+      style: {textAlign: "left"},
+    })
+    expect(explicitLeft.texts[0]?.[1]).toBe(6)
+  })
+
   test("draws left, center and right numeric hover zones as secondary results", () => {
     class NumericHoverSurface extends RecordingSurface {
       constructor(readonly pointerX: number) { super() }

@@ -1,8 +1,10 @@
 import {describe, expect, test} from "bun:test"
 import {
+  blenderRgba8ToColor,
   createInputEditState,
   focusInput,
   handleActiveInputKey,
+  resolveWidgetColors,
   uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
@@ -15,6 +17,7 @@ import {
 } from "./Field.ts"
 import {
   measureVectorInputHeight,
+  measureVectorInputWidth,
   normalizeVectorInputValue,
   VectorInput,
   type VectorInputProps,
@@ -43,6 +46,14 @@ class RecordingSurface extends BaseUiSurface {
     this.texts.push(args)
     return 0
   }
+
+  override drawTextCentered(value: string, cx: number, cy: number, opts: TextCall[3]): number {
+    const width = this.measureText(value, opts.fontPx)
+    this.texts.push([value, cx - width / 2, cy - opts.fontPx / 2, opts])
+    return width
+  }
+
+  override measureText(value: string, _fontPx?: number): number { return value.length * 6 }
 
   override hit(...args: HitCall): void {
     this.hits.push(args)
@@ -86,6 +97,52 @@ const vectorProps = (
 })
 
 describe("public VectorInput", () => {
+  test("uses intrinsic width, centered axes, source number roles and one right value edge", () => {
+    expect(measureVectorInputWidth()).toBe(146)
+    const surface = new RecordingSurface()
+    VectorInput(surface, 10, 4, 300, 66, {value: [1, 2, 3], dimensions: 3})
+
+    const byValue = new Map(surface.texts.map((call) => [call[0], call]))
+    expect(byValue.get("X")?.[1]).toBe(95)
+    expect(byValue.get("1.000")?.[1]).toBe(197)
+    expect(byValue.get("2.000")?.[1]).toBe(197)
+    expect(byValue.get("3.000")?.[1]).toBe(197)
+    expect(byValue.get("X")?.[3].material.color).toEqual(blenderRgba8ToColor(resolveWidgetColors("number").text))
+    expect(surface.hits.map((call) => call.slice(0, 4))).toEqual([
+      [109, 4, 124, 22],
+      [109, 26, 124, 22],
+      [109, 48, 124, 22],
+    ])
+
+    const disabled = new RecordingSurface()
+    VectorInput(disabled, 0, 0, 146, 66, {value: [1, 2, 3], disabled: true})
+    const disabledAxis = disabled.texts.find(([value]) => value === "X")
+    expect(disabledAxis?.[3].material.color).toEqual(blenderRgba8ToColor(
+      resolveWidgetColors("number", {disabled: true}).text,
+    ))
+  })
+
+  test("maps plain Vector to precision 3 and Rotation to value-owned degree precision 0", () => {
+    const vector = new RecordingSurface()
+    Field(vector, 0, 0, 300, {id: "vector-default", label: "Vector", kind: "vector", value: [1, 2, 3]})
+    expect(vector.texts.map(([value]) => value)).toEqual(expect.arrayContaining(["X", "Y", "Z", "1.000", "2.000", "3.000"]))
+
+    const rotation = new RecordingSurface()
+    Field(rotation, 0, 0, 300, {id: "rotation-default", label: "Rotation", kind: "rotation", value: [0, 45, 90]})
+    expect(rotation.texts.map(([value]) => value)).toEqual(expect.arrayContaining(["X", "Y", "Z", "0°", "45°", "90°"]))
+    expect(rotation.texts.map(([value]) => value)).not.toEqual(expect.arrayContaining(["X°", "Y°", "Z°"]))
+
+    const explicit = new RecordingSurface()
+    Field(explicit, 0, 0, 300, {
+      id: "rotation-explicit",
+      label: "Rotation",
+      kind: "rotation",
+      value: [1, 2, 3],
+      precision: 2,
+      unit: "",
+    })
+    expect(explicit.texts.map(([value]) => value)).toEqual(expect.arrayContaining(["1.00", "2.00", "3.00"]))
+  })
   test("delegates side pointer steps to public NumberInput without mutating the vector", () => {
     const initial = [1, 2, 3] as const
     const values: Array<readonly number[]> = []
@@ -129,7 +186,7 @@ describe("public VectorInput", () => {
       dimensions: 4,
     }))
     const defaultTexts = defaults.texts.map(([text]) => text)
-    expect(defaultTexts).toEqual(expect.arrayContaining(["X", "Y", "Z", "W", "1m", "4m"]))
+    expect(defaultTexts).toEqual(expect.arrayContaining(["X", "Y", "Z", "W", "1.000m", "4.000m"]))
 
     const custom = new RecordingSurface()
     VectorInput(custom, 0, 0, 146, 44, vectorProps(() => {}, {
@@ -139,7 +196,7 @@ describe("public VectorInput", () => {
       unit: "kg",
     }))
     const customTexts = custom.texts.map(([text]) => text)
-    expect(customTexts).toEqual(expect.arrayContaining(["U", "V", "5kg", "6kg"]))
+    expect(customTexts).toEqual(expect.arrayContaining(["U", "V", "5.000kg", "6.000kg"]))
   })
 
   test("publishes one immutable normalized axis update and rejects invalid input", () => {

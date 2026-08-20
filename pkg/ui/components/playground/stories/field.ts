@@ -1,6 +1,7 @@
 import {
   Field,
   measureFieldHeight,
+  measureFieldLayout,
   type FieldDefinition,
   type FieldRenderOptions,
 } from "@ui/components/field"
@@ -43,7 +44,7 @@ export function createFieldStory(options: Readonly<{
     render(surface, args, frame) {
       const definition = createFieldDefinition(options, args)
       const renderOptions: FieldRenderOptions = {density: args.density}
-      const width = fieldStoryWidth(options.kind, frame.w)
+      const width = fieldStoryWidth(definition, frame.w, renderOptions)
       const height = measureFieldHeight(definition, renderOptions)
       Field(
         surface,
@@ -67,8 +68,14 @@ export function createFieldStory(options: Readonly<{
   })
 }
 
-function fieldStoryWidth(kind: FieldStoryKind, availableWidth: number): number {
-  if (kind === "vector" || kind === "rotation" || kind === "matrix" || kind === "collection") {
+function fieldStoryWidth(
+  definition: FieldDefinition,
+  availableWidth: number,
+  options: FieldRenderOptions,
+): number {
+  const intrinsicWidth = measureFieldLayout(definition, options).intrinsicWidth
+  if (intrinsicWidth !== null) return Math.min(intrinsicWidth, availableWidth)
+  if (definition.kind === "matrix" || definition.kind === "collection") {
     return Math.min(146, availableWidth)
   }
   return Math.min(250, availableWidth)
@@ -179,7 +186,6 @@ function createFieldDefinition(
     kind: "rotation",
     value: vectorValue(args.value, [0, 45, 90]),
     dimensions: 3,
-    unit: "°",
     onChange: change,
   }
   if (options.kind === "matrix") return {
@@ -248,7 +254,6 @@ function sourceFieldDefinition(
     "  ],",
   )
   if (options.kind === "vector" || options.kind === "rotation") properties.push("  dimensions: 3,")
-  if (options.kind === "rotation") properties.push('  unit: "°",')
   if (options.kind === "collection") properties.push(
     "  onSelect: setSelectedId,",
     "  onAdd: addItem,",
