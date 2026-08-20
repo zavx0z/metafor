@@ -79,8 +79,9 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 развивает production Components. NumberInput, ColorInput, VectorInput,
 MatrixInput, ReferenceInput и EnumInput имеют package-owned stories и
-package/live evidence; следующий public leaf обязан получить зависимый story
-checkpoint до сдвига acceptance snapshot.
+package/live evidence. Текущий срез UI-010.7 добавляет public CollectionInput
+для rows/selection/add/remove; зависимая UI-010.8 story уже зарегистрирована и
+не даст сдвинуть acceptance snapshot следующим leaf до completeness checkpoint.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
