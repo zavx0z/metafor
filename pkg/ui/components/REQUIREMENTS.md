@@ -73,6 +73,26 @@
     Compact presentation может явно скрыть visual label и отдать control всю
     строку; это универсальная возможность Field, а не специальная Node-имитация.
 
+## Целевой состав control library
+
+Принятая UI-010 расширяет первый набор без параллельной Node-реализации:
+
+1. `Field` остаётся единым semantic facade с устойчивым value contract, а
+   конкретные input, slider, select, color picker/ramp, curve editor,
+   reference picker и collection editor становятся самостоятельными public
+   Components. Монолитный renderer не является владельцем всех interactions.
+2. Один и тот же public control используется standalone, внутри Field и внутри
+   Node Parameter. `@nodes/ui` не копирует control, не меняет его value contract
+   и не вводит Node-specific вариант.
+3. Blender задаёт проверяемое поведение, состояния и compact-пропорции controls.
+   Материалы, проектный шрифт и общая тема остаются MetaFor. Boolean сохраняет
+   принятый `Switcher` вместо Blender checkbox.
+4. Размеры, padding, row rhythm и положение частей сверяются по точному Blender
+   4.5.5 reference при сопоставимом масштабе, а не подбираются по fixture.
+5. Context search, external picker actions и изменение collection передаются
+   immutable callbacks владельцу данных. Перестройка Socket и Node topology
+   остаётся ответственностью Node consumer, а не универсального Component.
+
 ## Источник терминов
 
 Blender используется как проверенная терминологическая и UX-основа, но код и

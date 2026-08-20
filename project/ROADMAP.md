@@ -194,6 +194,13 @@ viewport/editor renderer contracts и подключаемыми Node/Socket/Lin
 number/slider, boolean, enum, color, vector/rotation, matrix и resource reference
 используются одинаково внутри Node properties/socket defaults и в обычных
 панелях. `@nodes/ui` владеет только их размещением внутри Node preset.
+Следующий принятый этап
+[`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
+сохраняет `Field` единым semantic facade, но выделяет public controls для
+числового ввода, select, color picker/ramp, curve editor, reference picker и
+collection editor. Blender задаёт их поведение, состояния и compact-пропорции,
+а материалы, проектный шрифт и тема остаются MetaFor; Node package не получает
+копий этих controls и не переносит в них ответственность за topology.
 
 Общая dev-среда `@ui/playground` является масштабируемым WebGPU Workbench
 для собственных Elements, Components, Node UI и Widgets MetaFor. Существующий

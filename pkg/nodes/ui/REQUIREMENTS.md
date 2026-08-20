@@ -67,6 +67,13 @@ format и автоматическое размещение принадлежа
 5. Loose right-side Socket рисуются над Properties и Parameters, loose
    left-side Socket — под ними. Порядок является visual-side presentation и не
    выводит `direction` из стороны; Socket Parameter остаются на своей общей row.
+6. Пропорции header, body, Parameter rows, controls и Socket, их padding и
+   centers сверяются с точным Blender 4.5.5 reference при сопоставимом масштабе.
+   Fixture-specific offsets и свободный подбор размеров запрещены.
+7. Node имеет мягкую симметричную тень со всех четырёх сторон. Обычная тень
+   нейтральна; selection не меняет border, а окрашивает тень в прозрачный
+   оттенок фактического header. Тень непрерывно наследует scale retained Node
+   parent и не запускает отдельный blur-pass при pan/zoom.
 
 ## View и compositing
 

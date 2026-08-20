@@ -28,6 +28,7 @@ flowchart LR
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     UI001["UI-001 · playground универсальных UI Components"]
+    UI010["UI-010 · полный набор универсальных полей"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
     MF426["MF-426 · одна Вселенная на нескольких устройствах"]
@@ -48,6 +49,7 @@ flowchart LR
     MF405 --> MF406
     MF411 --> MF414
     MF424 --> HAM006
+    UI001 --> UI010
     MF425 --> MF426
     MF426 --> MF427
 ```
@@ -80,6 +82,10 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 public retained Workbench. Shared dependency завершена; следующий срез переносит
 Components stories и завершает полную русскую локализацию catalog.
 
+[`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
+ждёт завершения UI-001. Она разложит единый Field facade на переиспользуемые
+public controls и добавит отсутствующие сложные редакторы без Node-копий.
+
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
 Socket/header/shadow/LOD/alignment corrections; physical mobile и явная visual
@@ -92,7 +98,8 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
+| UI-001 | IN_PROGRESS | нет         | [Открыть](tasks/UI-001.md) |
+| UI-010 | WAITING     | UI-001      | [Открыть](tasks/UI-010.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
 | MF-426 | WAITING     | MF-425      | [Открыть](tasks/MF-426.md) |
