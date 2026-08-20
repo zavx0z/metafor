@@ -27,7 +27,6 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
-    UI005["UI-005 · единые маршруты playground"]
     UI001["UI-001 · playground универсальных UI Components"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -81,12 +80,6 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 public retained shell. Desktop/mobile proof завершён; отдельным незавершённым
 результатом остаётся полная русская локализация catalog.
 
-[`UI-005 — Зафиксировать единые маршруты playground в декларации`](tasks/UI-005.md)
-устраняет отдельный hash-режим Node: один public route declaration общего
-`@ui/playground` жёстко задаёт pathname для Node, Components, Elements и shared
-fixture, а UI dev больше не выбирает mode отдельно. Результат реализован и
-ожидает независимой closing review.
-
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
 Socket/header/shadow/LOD/alignment corrections; physical mobile и явная visual
@@ -99,7 +92,6 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-005 | REVIEW      | нет         | [Открыть](tasks/UI-005.md) |
 | UI-001 | READY       | нет         | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
