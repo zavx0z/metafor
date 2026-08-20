@@ -67,6 +67,8 @@ describe("@ui/components package-owned Workbench stories", () => {
       "text-field",
       "number-input",
       "color-input",
+      "vector-input",
+      "matrix-input",
       "checkbox",
       "switcher",
       "progress-checkbox",
@@ -86,6 +88,8 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Текстовый ввод",
       "Числовой ввод",
       "Ввод цвета",
+      "Ввод вектора",
+      "Ввод матрицы",
       "Флажок",
       "Переключатель",
       "Флажок прогресса",
@@ -100,6 +104,49 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(componentVariantItems("button/color/error").map(({id}) => id)).toEqual([
       "primary", "success", "warning", "error", "neutral",
     ])
+  })
+
+  test("catalogs every exact public input leaf as its own component", async () => {
+    const manifest = await Bun.file(join(playgroundRoot, "..", "package.json")).json() as {
+      exports: Readonly<Record<string, string>>
+    }
+    const publicInputLeaves = Object.keys(manifest.exports)
+      .filter((specifier) => specifier.endsWith("-input"))
+      .map((specifier) => specifier.slice(2))
+      .sort()
+    expect(publicInputLeaves).toEqual([
+      "color-input",
+      "matrix-input",
+      "number-input",
+      "vector-input",
+    ])
+    const catalog = new Set(componentCatalogItems(new Set()).map(({id}) => id))
+    for (const component of publicInputLeaves) expect(catalog.has(component)).toBeTrue()
+
+    const vector = await COMPONENT_STORIES.load("vector-input/basic/default")
+    expect(vector.defaultArgs).toEqual({value: [1, 2, 3], density: "regular", disabled: false})
+    expect(vector.controls.map(({key, label}) => [key, label])).toEqual([
+      ["value", "Координаты"],
+      ["density", "Плотность"],
+      ["disabled", "Недоступно"],
+    ])
+    expect(vector.source({...vector.defaultArgs, value: [4, 5, 6], density: "compact"})).toContain(
+      'from "@ui/components/vector-input"',
+    )
+    expect(vector.source({...vector.defaultArgs, value: [4, 5, 6], density: "compact"})).toContain(
+      'value: [4,5,6],\n  dimensions: 3,\n  density: "compact"',
+    )
+
+    const matrix = await COMPONENT_STORIES.load("matrix-input/basic/default")
+    expect(matrix.defaultArgs).toEqual({value: [[1, 0], [0, 1]], density: "regular", disabled: false})
+    expect(matrix.controls.map(({key, label}) => [key, label])).toEqual([
+      ["value", "Ячейки"],
+      ["density", "Плотность"],
+      ["disabled", "Недоступно"],
+    ])
+    const matrixSource = matrix.source({...matrix.defaultArgs, value: [[1, 2], [3, 4]], disabled: true})
+    expect(matrixSource).toContain('from "@ui/components/matrix-input"')
+    expect(matrixSource).toContain('value: [[1,2],[3,4]],\n  density: "regular",\n  disabled: true')
   })
 
   test("loads exact public Button, Pane and Field stories lazily", async () => {
@@ -182,9 +229,16 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(entry!.source).toContain("import(")
     expect(entry!.source).not.toContain("function createFieldStory")
     expect(entry!.source).not.toContain("function createSimpleComponentStory")
+    expect(entry!.source).not.toContain("function createStandaloneInputStory")
+    expect(entry!.source).not.toContain('@ui/components/vector-input')
+    expect(entry!.source).not.toContain('@ui/components/matrix-input')
     expect(outputs.some(({source}) => source.includes("function createButtonStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createFieldStory"))).toBeTrue()
     expect(outputs.some(({source}) => source.includes("function createSimpleComponentStory"))).toBeTrue()
+    const inputChunk = outputs.find(({source}) => source.includes("function createStandaloneInputStory"))
+    expect(inputChunk).toBeDefined()
+    expect(inputChunk!.source).toContain('@ui/components/vector-input')
+    expect(inputChunk!.source).toContain('@ui/components/matrix-input')
   })
 
   test("uses public full-viewport Workbench geometry and the package server", async () => {

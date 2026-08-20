@@ -50,6 +50,8 @@ export type SimpleComponentStory =
   | "scrollbar"
   | "noti"
 
+export type StandaloneInputStory = "vector-input" | "matrix-input"
+
 const loadButtonStory = (
   section: ButtonStorySection,
   variant: ButtonStoryVariant,
@@ -79,6 +81,13 @@ const loadSimpleStory = (
 ) => async (): Promise<PlaygroundStoryModule> => {
   const {createSimpleComponentStory} = await import("./stories/simple.ts")
   return createSimpleComponentStory({component, variant})
+}
+
+const loadStandaloneInputStory = (
+  component: StandaloneInputStory,
+) => async (): Promise<PlaygroundStoryModule> => {
+  const {createStandaloneInputStory} = await import("./stories/input.ts")
+  return createStandaloneInputStory(component)
 }
 
 const singleVariant = (
@@ -215,6 +224,26 @@ export const COMPONENT_STORIES = definePlaygroundStories({
         {id: "text-field", label: "Текстовый ввод", apiName: "TextField", sections: [{id: "basic", label: "Основной", variants: singleVariant("text-field", "TextField · Основной")} ]},
         {id: "number-input", label: "Числовой ввод", apiName: "NumberInput", sections: [{id: "basic", label: "Основной", variants: singleVariant("number-input", "NumberInput · Основной")} ]},
         {id: "color-input", label: "Ввод цвета", apiName: "ColorInput", sections: [{id: "basic", label: "Основной", variants: singleVariant("color-input", "ColorInput · Основной")} ]},
+        {id: "vector-input", label: "Ввод вектора", apiName: "VectorInput", tags: ["input", "vector", "2D", "3D", "4D"], sections: [{
+          id: "basic",
+          label: "Основной",
+          variants: [{
+            id: "default",
+            label: "XYZ",
+            title: "VectorInput · Вектор XYZ",
+            load: loadStandaloneInputStory("vector-input"),
+          }],
+        }]},
+        {id: "matrix-input", label: "Ввод матрицы", apiName: "MatrixInput", tags: ["input", "matrix", "2×2", "3×3", "4×4"], sections: [{
+          id: "basic",
+          label: "Основной",
+          variants: [{
+            id: "default",
+            label: "2×2",
+            title: "MatrixInput · Матрица 2×2",
+            load: loadStandaloneInputStory("matrix-input"),
+          }],
+        }]},
         {id: "checkbox", label: "Флажок", apiName: "Checkbox", sections: [{id: "state", label: "Состояние", variants: [
           {id: "unchecked", label: "Выключен", title: "Checkbox · Выключен", load: loadSimpleStory("checkbox", "unchecked")},
           {id: "checked", label: "Включён", title: "Checkbox · Включён", load: loadSimpleStory("checkbox", "checked")},
