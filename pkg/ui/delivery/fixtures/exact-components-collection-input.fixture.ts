@@ -8,5 +8,6 @@ export {
   normalizeCollectionInputVisibleRows,
   type CollectionInputDensity,
   type CollectionInputItem,
+  type CollectionInputMoveDirection,
   type CollectionInputProps,
 } from "@ui/components/collection-input"

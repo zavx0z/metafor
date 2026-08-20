@@ -114,5 +114,9 @@ describe("universal UI fields", () => {
     expect(measureFieldHeight({...collection, visibleRows: 1})).toBe(81)
     expect(measureFieldHeight({...collection, visibleRows: 1}, {density: "compact"})).toBe(72)
     expect(measureFieldHeight({...collection, visibleRows: 1, compactLabel: "hidden"}, {density: "compact"})).toBe(47)
+    const reorder = {...collection, visibleRows: 1, onMove: () => {}}
+    expect(measureFieldHeight(reorder)).toBe(145)
+    expect(measureFieldHeight(reorder, {density: "compact"})).toBe(122)
+    expect(measureFieldHeight({...reorder, compactLabel: "hidden"}, {density: "compact"})).toBe(97)
   })
 })

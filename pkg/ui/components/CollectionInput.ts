@@ -1,5 +1,5 @@
 import {flexColumn, flexRow, palette, uiIcons, type UiSurface} from "@ui/elements"
-import {IconButton, type IconButtonProps} from "./Button.ts"
+import {Button, IconButton, type ButtonProps, type IconButtonProps} from "./Button.ts"
 import {List, type ListItemProps, type ListProps} from "./List.ts"
 
 export type CollectionInputItem = Readonly<{
@@ -10,6 +10,7 @@ export type CollectionInputItem = Readonly<{
 }>
 
 export type CollectionInputDensity = "regular" | "compact"
+export type CollectionInputMoveDirection = "up" | "down"
 
 export type CollectionInputProps = {
   key?: string
@@ -23,6 +24,7 @@ export type CollectionInputProps = {
   onSelect?(id: string): void
   onAdd?(): void
   onRemove?(id: string): void
+  onMove?(id: string, direction: CollectionInputMoveDirection): void
 }
 
 export const COLLECTION_INPUT_MIN_VISIBLE_ROWS = 1
@@ -49,11 +51,12 @@ export function findCollectionInputSelection(
 
 /** Measures the bounded list viewport using MetaFor production row rhythm. */
 export function measureCollectionInputHeight(
-  props: Pick<CollectionInputProps, "density" | "visibleRows"> = {},
+  props: Pick<CollectionInputProps, "density" | "visibleRows" | "onMove"> = {},
 ): number {
   const metrics = collectionInputMetrics(props.density)
   const rowsHeight = metrics.rowHeight * normalizeCollectionInputVisibleRows(props.visibleRows)
-  const dockHeight = metrics.actionSize * 2 + metrics.actionGap
+  const actionCount = props.onMove === undefined ? 2 : 4
+  const dockHeight = metrics.actionSize * actionCount + metrics.actionGap * (actionCount - 1)
   return Math.max(rowsHeight, dockHeight)
 }
 
@@ -69,8 +72,10 @@ export function CollectionInput(
   const metrics = collectionInputMetrics(props.density)
   const blocked = props.disabled === true || props.readOnly === true
   const selected = findCollectionInputSelection(props.items, props.selectedId)
+  const selectedIndex = selected === undefined ? -1 : props.items.indexOf(selected)
   const canAdd = !blocked && props.onAdd !== undefined
   const canRemove = !blocked && selected !== undefined && selected.disabled !== true && props.onRemove !== undefined
+  const canMove = !blocked && selected !== undefined && selected.disabled !== true && props.onMove !== undefined
   const key = props.key ?? `collection-input:${x}:${y}:${width}:${height}`
   const compact = props.density === "compact"
   const listItems = collectionInputListItems(props, key, blocked, compact)
@@ -101,7 +106,20 @@ export function CollectionInput(
         List(host, slotX, slotY, slotW, slotH, listProps)
       }},
       {width: metrics.actionSize, height, draw: (slotX, slotY, slotW, slotH) => {
-        drawCollectionInputActions(host, slotX, slotY, slotW, slotH, metrics, props, selected, canAdd, canRemove)
+        drawCollectionInputActions(
+          host,
+          slotX,
+          slotY,
+          slotW,
+          slotH,
+          metrics,
+          props,
+          selected,
+          canAdd,
+          canRemove,
+          canMove && selectedIndex > 0,
+          canMove && selectedIndex < props.items.length - 1,
+        )
       }},
     ],
   })
@@ -166,6 +184,8 @@ function drawCollectionInputActions(
   selected: CollectionInputItem | undefined,
   canAdd: boolean,
   canRemove: boolean,
+  canMoveUp: boolean,
+  canMoveDown: boolean,
 ): void {
   flexColumn({
     x,
@@ -192,6 +212,24 @@ function drawCollectionInputActions(
           canRemove ? () => props.onRemove!(selected!.id) : undefined,
         ))
       }},
+      props.onMove !== undefined && {height: metrics.actionSize, draw: (slotX, slotY, slotW, slotH) => {
+        Button(host, slotX, slotY, slotW, slotH, collectionMoveActionProps(
+          "↑",
+          "Переместить выбранный элемент вверх",
+          metrics,
+          !canMoveUp,
+          canMoveUp ? () => props.onMove!(selected!.id, "up") : undefined,
+        ))
+      }},
+      props.onMove !== undefined && {height: metrics.actionSize, draw: (slotX, slotY, slotW, slotH) => {
+        Button(host, slotX, slotY, slotW, slotH, collectionMoveActionProps(
+          "↓",
+          "Переместить выбранный элемент вниз",
+          metrics,
+          !canMoveDown,
+          canMoveDown ? () => props.onMove!(selected!.id, "down") : undefined,
+        ))
+      }},
     ],
   })
 }
@@ -209,6 +247,29 @@ function collectionActionProps(
     variant: metrics.actionSize === 22 ? "contained" : "outlined",
     radius: metrics.radius,
     iconSizePx: Math.min(16, metrics.actionSize - 8),
+    fontPx: metrics.fontPx,
+    disabled,
+  }
+  if (metrics.actionSize === 22) {
+    props.fill = palette.bgInput
+    props.border = palette.borderDim
+  }
+  if (action !== undefined) props.action = action
+  return props
+}
+
+function collectionMoveActionProps(
+  children: "↑" | "↓",
+  tooltip: string,
+  metrics: CollectionInputMetrics,
+  disabled: boolean,
+  action: (() => void) | undefined,
+): ButtonProps {
+  const props: ButtonProps = {
+    children,
+    tooltip,
+    variant: metrics.actionSize === 22 ? "contained" : "outlined",
+    radius: metrics.radius,
     fontPx: metrics.fontPx,
     disabled,
   }

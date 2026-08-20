@@ -9,6 +9,7 @@ import {
   measureCollectionInputHeight,
   normalizeCollectionInputVisibleRows,
   type CollectionInputItem,
+  type CollectionInputMoveDirection,
   type CollectionInputProps,
 } from "./CollectionInput.ts"
 import {
@@ -71,6 +72,13 @@ const props = (
   ...extra,
 })
 
+const move = (events: string[]) => (
+  id: string,
+  direction: CollectionInputMoveDirection,
+): void => {
+  events.push(`move:${id}:${direction}`)
+}
+
 const trigger = (hit: HitCall | undefined): void => {
   expect(hit).toBeDefined()
   hit![4]()
@@ -95,6 +103,10 @@ describe("public CollectionInput", () => {
     expect(measureCollectionInputHeight({density: "compact", visibleRows: 3})).toBe(72)
     expect(measureCollectionInputHeight({visibleRows: 1})).toBe(60)
     expect(measureCollectionInputHeight({density: "compact", visibleRows: 1})).toBe(47)
+    expect(measureCollectionInputHeight({visibleRows: 3, onMove: () => {}})).toBe(124)
+    expect(measureCollectionInputHeight({density: "compact", visibleRows: 3, onMove: () => {}})).toBe(97)
+    expect(measureCollectionInputHeight({visibleRows: 1, onMove: () => {}})).toBe(124)
+    expect(measureCollectionInputHeight({density: "compact", visibleRows: 1, onMove: () => {}})).toBe(97)
   })
 
   test("resolves only an existing controlled selection without changing immutable items", () => {
@@ -120,6 +132,78 @@ describe("public CollectionInput", () => {
     trigger(surface.hits[3])
     expect(events).toEqual(["select:position", "add", "remove:rotation"])
     expect(items[2]?.id).toBe("rotation")
+    expect(surface.centeredTexts.map(([text]) => text)).not.toContain("↑")
+    expect(surface.centeredTexts.map(([text]) => text)).not.toContain("↓")
+  })
+
+  test("adds adjacent reorder actions without changing the controlled items", () => {
+    const events: string[] = []
+    const surface = new RecordingSurface()
+    const before = items.map((item) => item)
+    CollectionInput(surface, 4, 6, 180, 124, props(events, {onMove: move(events)}))
+
+    expect(surface.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
+      {x: 4, y: 6, width: 145, height: 36},
+      {x: 4, y: 78, width: 145, height: 36},
+      {x: 156, y: 6, width: 28, height: 28},
+      {x: 156, y: 38, width: 28, height: 28},
+      {x: 156, y: 70, width: 28, height: 28},
+      {x: 156, y: 102, width: 28, height: 28},
+    ])
+    expect(surface.centeredTexts.map(([text]) => text)).toEqual(["↑", "↓"])
+    trigger(surface.hits[4])
+    expect(events).toEqual(["move:rotation:up"])
+    expect(items.map((item) => item)).toEqual(before)
+    expect(items[2]).toBe(before[2])
+  })
+
+  test("enables only the legal adjacent move at collection boundaries", () => {
+    const cases = [
+      {selectedId: "position", direction: "down"},
+      {selectedId: "rotation", direction: "up"},
+    ] as const
+
+    for (const {selectedId, direction} of cases) {
+      const events: string[] = []
+      const surface = new RecordingSurface()
+      CollectionInput(surface, 0, 0, 180, 124, props(events, {selectedId, onMove: move(events)}))
+      const actionHits = surface.hits.filter(([x]) => x === 152)
+      const moveHits = actionHits.filter(([, hitY]) => hitY === 64 || hitY === 96)
+      expect(moveHits).toHaveLength(2)
+      for (const hit of moveHits) trigger(hit)
+      expect(events).toEqual([`move:${selectedId}:${direction}`])
+    }
+  })
+
+  test("blocks reorder for missing, null and disabled selections", () => {
+    for (const selectedId of [null, "missing", "normal"] as const) {
+      const events: string[] = []
+      const surface = new RecordingSurface()
+      CollectionInput(surface, 0, 0, 180, 124, props(events, {selectedId, onMove: move(events)}))
+      const moveHits = surface.hits.filter(([x, y]) => x === 152 && (y === 64 || y === 96))
+      expect(moveHits).toHaveLength(2)
+      for (const hit of moveHits) trigger(hit)
+      expect(events).toEqual([])
+    }
+  })
+
+  test("keeps all regular and compact reorder operators inside one-row measured height", () => {
+    for (const density of ["regular", "compact"] as const) {
+      const events: string[] = []
+      const height = measureCollectionInputHeight({density, visibleRows: 1, onMove: move(events)})
+      const surface = new RecordingSurface()
+      CollectionInput(surface, 0, 0, 180, height, props(events, {
+        density,
+        visibleRows: 1,
+        selectedId: "position",
+        onMove: move(events),
+      }))
+      const dockX = density === "compact" ? 158 : 152
+      const actionHits = surface.hits.filter(([x]) => x === dockX)
+      expect(actionHits).toHaveLength(4)
+      for (const [, y, , hitHeight] of actionHits) expect(y + hitHeight).toBeLessThanOrEqual(height)
+      expect(surface.centeredTexts.map(([text]) => text)).toEqual(["↑", "↓"])
+    }
   })
 
   test("keeps regular descriptions and compact single-line text inside exact rows", () => {
@@ -158,7 +242,7 @@ describe("public CollectionInput", () => {
     for (const state of [{disabled: true}, {readOnly: true}] as const) {
       const events: string[] = []
       const surface = new RecordingSurface()
-      CollectionInput(surface, 0, 0, 180, 108, props(events, state))
+      CollectionInput(surface, 0, 0, 180, 124, props(events, {...state, onMove: move(events)}))
       for (const hit of surface.hits) trigger(hit)
       expect(events).toEqual([])
     }
@@ -187,10 +271,11 @@ describe("public CollectionInput", () => {
     const compactEvents: string[] = []
 
     const standalone = new RecordingSurface()
-    CollectionInput(standalone, 0, 0, 180, 108, props(standaloneEvents))
+    CollectionInput(standalone, 0, 0, 180, 124, props(standaloneEvents, {onMove: move(standaloneEvents)}))
     trigger(standalone.hits[0])
     trigger(standalone.hits[2])
     trigger(standalone.hits[3])
+    trigger(standalone.hits[4])
 
     const definition = (events: string[]): CollectionFieldDefinition => ({
       id: "attributes",
@@ -201,6 +286,7 @@ describe("public CollectionInput", () => {
       onSelect: (id) => events.push(`select:${id}`),
       onAdd: () => events.push("add"),
       onRemove: (id) => events.push(`remove:${id}`),
+      onMove: move(events),
     })
 
     const regular = new RecordingSurface()
@@ -208,12 +294,14 @@ describe("public CollectionInput", () => {
     trigger(regular.hits[0])
     trigger(regular.hits[2])
     trigger(regular.hits[3])
+    trigger(regular.hits[4])
 
     const compact = new RecordingSurface()
     Field(compact, 0, 0, 180, definition(compactEvents), {density: "compact"})
     trigger(compact.hits[0])
     trigger(compact.hits[2])
     trigger(compact.hits[3])
+    trigger(compact.hits[4])
 
     expect(regularEvents).toEqual(standaloneEvents)
     expect(compactEvents).toEqual(standaloneEvents)

@@ -7,6 +7,7 @@ import {
   measureCollectionInputHeight,
   type CollectionInputDensity,
   type CollectionInputItem,
+  type CollectionInputMoveDirection,
   type CollectionInputProps,
 } from "./CollectionInput.ts"
 import {
@@ -147,6 +148,7 @@ export type CollectionFieldDefinition = FieldBase & Readonly<{
   onSelect?(id: string): void
   onAdd?(): void
   onRemove?(id: string): void
+  onMove?(id: string, direction: CollectionInputMoveDirection): void
 }>
 
 export type ReadonlyFieldDefinition = FieldBase & Readonly<{
@@ -755,6 +757,7 @@ function collectionInputProps(
   if (field.onSelect !== undefined) props.onSelect = field.onSelect
   if (field.onAdd !== undefined) props.onAdd = field.onAdd
   if (field.onRemove !== undefined) props.onRemove = field.onRemove
+  if (field.onMove !== undefined) props.onMove = field.onMove
   return props
 }
 
