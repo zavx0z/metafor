@@ -257,8 +257,9 @@ describe("retained @ui/playground surfaces", () => {
       ...Array.from({length: 10}, (_, index) => `item:item-${490 + index}`),
     ])
     expect(surface.diagnostics.materializations).toBe(14)
+    const accordionGap = uiShapeMetrics.separatorWidth * 2
     const sectionY = uiShapeMetrics.tightGap + uiShapeMetrics.panelHeaderHeight +
-      uiShapeMetrics.tightGap + uiShapeMetrics.rowHeight + uiShapeMetrics.tightGap
+      accordionGap + uiShapeMetrics.rowHeight + accordionGap
     expectOwnerOrigin(surface, "group:values", uiShapeMetrics.tightGap * 2, sectionY)
     expectOwnerOrigin(surface, "item:item-490", uiShapeMetrics.tightGap * 2, sectionY + uiShapeMetrics.rowHeight)
     expectOwnerOrigin(surface, "item:item-491", uiShapeMetrics.tightGap * 2, sectionY + uiShapeMetrics.rowHeight * 2)
@@ -267,6 +268,7 @@ describe("retained @ui/playground surfaces", () => {
     surface.onPointerDown(pointer, 100, 65)
     surface.onPointerUp(pointer, 100, 65)
     expect(toggles).toEqual([["values", true]])
+    expect(surface.focusedItemId).toBe("item-490")
 
     const collapsedItems = largeItems.map((item) => ({...item, group: {...item.group!, collapsed: true}}))
     surface.setOptions({

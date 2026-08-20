@@ -196,7 +196,9 @@ const SOURCE_CONTROLS_TAB_OWNER = "source-tab:controls"
 const SOURCE_EVENTS_TAB_OWNER = "source-tab:events"
 const workbenchText = rgba8ToColor(activeUiTheme.widgets.box.text)
 const workbenchMuted = rgba8ToColor(activeUiTheme.widgets.menuBack.text)
+const workbenchNavigationFill = rgba8ToColor(activeUiTheme.spaceNode.list)
 const workbenchSectionFill = rgba8ToColor(activeUiTheme.spaceNode.panel.back)
+const workbenchFocusOutline = rgba8ToColor(activeUiTheme.material.editorOutlineActive)
 
 abstract class RetainedPlaygroundSurface extends UiSurface {
   readonly #retainedRoot: Object3D
@@ -538,7 +540,8 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
 
   #drawOwner(key: string, frame: UiSurfaceRect): void {
     if (key === PANEL_OWNER) {
-      drawPanel(this, frame.w, frame.h, this.panelActive)
+      if (this.#dock) drawPanel(this, frame.w, frame.h, this.panelActive)
+      else drawNavigationPanel(this, frame.w, frame.h, this.panelActive)
       return
     }
     if (key === TITLE_OWNER) {
@@ -566,7 +569,6 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
         row.kind === "section" && row.ownerKey === key)
       if (section === undefined) return
       const toggle = this.#options.onGroupToggle === undefined ? undefined : () => {
-        if (this.#setFocus(key, true)) this.requestRender()
         const current = navigationGroups(this.#options).get(section.id)
         if (current !== undefined) this.#options.onGroupToggle?.(section.id, !current.collapsed)
       }
@@ -923,10 +925,24 @@ function drawNavigationFocus(surface: UiSurface, width: number, height: number, 
   div(surface, 0, 0, width, height, {
     style: {
       background: null,
-      borderColor: workbenchText,
+      borderColor: workbenchFocusOutline,
       borderRadius: 0,
       borderWidth: uiShapeMetrics.borderWidth,
       zIndex: Z.ELEMENT_RULE,
+    },
+  })
+}
+
+function drawNavigationPanel(surface: UiSurface, width: number, height: number, active: boolean): void {
+  div(surface, 0, 0, width, height, {
+    style: {
+      background: workbenchNavigationFill,
+      borderColor: blenderRgba8ToColor(
+        active ? activeUiTheme.material.editorOutlineActive : activeUiTheme.material.editorOutline,
+      ),
+      borderRadius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
+      zIndex: -0.12,
     },
   })
 }
