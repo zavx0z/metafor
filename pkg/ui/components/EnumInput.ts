@@ -1,4 +1,4 @@
-import {flexRow, palette, select, uiShapeMetrics, type SelectElementProps, type UiSurface} from "@ui/elements"
+import {flexRow, select, uiShapeMetrics, type SelectElementProps, type UiSurface} from "@ui/elements"
 import {Button, type ButtonProps} from "./Button.ts"
 
 export type EnumInputOption = Readonly<{
@@ -136,10 +136,9 @@ function enumButtonProps(
   const buttonProps: ButtonProps = {
     children: label,
     variant: "contained",
-    fill: selected ? palette.bgHot : palette.bgInput,
+    appearance: "toggle",
     disabled,
     selected,
   }
-  if (selected) buttonProps.border = palette.cyan
   return buttonProps
 }

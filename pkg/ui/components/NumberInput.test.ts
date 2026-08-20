@@ -3,7 +3,8 @@ import {
   createInputEditState,
   focusInput,
   handleActiveInputKey,
-  palette,
+  blenderRgba8ToColor,
+  resolveWidgetColors,
   uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
@@ -138,8 +139,8 @@ describe("public NumberInput", () => {
       radius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
     })
-    expect(style.fill).toEqual(palette.bgInput)
-    expect(style.border).toEqual(palette.borderRule)
+    expect(style.fill).toEqual(blenderRgba8ToColor(resolveWidgetColors("number").inner))
+    expect(style.border).toEqual(blenderRgba8ToColor(resolveWidgetColors("number").outline))
     expect(regularStyle.fill).toEqual(style.fill)
     expect(regularStyle.border).toEqual(style.border)
   })
@@ -150,6 +151,11 @@ describe("public NumberInput", () => {
       const surface = new RecordingSurface()
       NumberInput(surface, 0, 0, 120, 28, numberProps((value) => values.push(value), state))
       expect(surface.hits).toHaveLength(0)
+      const colors = resolveWidgetColors("number", {disabled: true})
+      expect(surface.roundedRects[0]?.[4]).toMatchObject({
+        fill: blenderRgba8ToColor(colors.inner),
+        border: blenderRgba8ToColor(colors.outline),
+      })
       submit(surface, "number", "4.75kg")
     }
     expect(values).toEqual([])

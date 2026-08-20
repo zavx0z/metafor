@@ -4,7 +4,15 @@ import {controlChromePadding, controlChromeRect} from "./control-shape.ts"
 import {mergeStyle, px, textMaterial, type StyleProps} from "./style.ts"
 import {uiShapeMetrics} from "./shape.ts"
 import {Z} from "./surface.ts"
-import {palette} from "./theme.ts"
+import {drawIconCentered} from "./icon.ts"
+import {uiIcons} from "./icons.ts"
+import {
+  blenderRgba8ToColor,
+  blenderTheme,
+  resolveNumericZoneColors,
+  resolveWidgetColors,
+  type BlenderWidgetState,
+} from "./blender-theme.ts"
 
 export type InputEditState = {
   value: string
@@ -39,6 +47,7 @@ export type InputGroupedCellAppearance = Readonly<{
 }>
 
 export type InputAppearance = "standalone" | InputGroupedCellAppearance
+export type InputType = "text" | "number" | "range"
 
 export type InputProps = DivProps & {
   value?: string
@@ -50,6 +59,7 @@ export type InputProps = DivProps & {
   cursorVisible?: boolean
   fontPx?: number
   appearance?: InputAppearance
+  type?: InputType
   onActivate?: () => void
   onChange?: (value: string, state: InputEditState) => void
   onSubmit?: (value: string, state: InputEditState) => void
@@ -191,10 +201,21 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   const runtime = inputRuntimeFor(surface)
   const key = props.key ?? inputKeyFor(x, y, width, height)
   surface.registerRenderKey(key)
+  const hitState = surface.hitState(x, y, width, height, key)
   const initialValue = props.value ?? (typeof props.children === "string" || typeof props.children === "number" ? String(props.children) : "")
   const controlled = props.onChange !== undefined
   const state = inputStateFor(runtime, key, initialValue, controlled, props)
   const active = (props.active ?? runtime.activeKey === key) && !disabled
+  const widgetClass = inputWidgetClass(props.type)
+  const widgetState: BlenderWidgetState = {
+    hovered: hitState.hovered,
+    pressed: hitState.pressed,
+    selected: active,
+    disabled,
+    textInput: active,
+    numericZone: inputNumericZone(surface, chrome, hitState.hovered, props.type),
+  }
+  const colors = resolveWidgetColors(widgetClass, widgetState)
   const value = state.value
   const cursor = state.cursor
   const selectionAnchor = state.selectionAnchor
@@ -212,17 +233,18 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
 
   const chromeStyle: StyleProps = {
     ...style,
-    borderColor: style.borderColor === undefined ? groupedCell ? null : active ? "cyan" : "borderRule" : style.borderColor,
+    borderColor: style.borderColor === undefined ? groupedCell ? null : blenderRgba8ToColor(colors.outline) : style.borderColor,
     borderRadius: style.borderRadius ?? (groupedCell ? 0 : uiShapeMetrics.lowRadius),
     borderWidth: style.borderWidth ?? (groupedCell ? 0 : uiShapeMetrics.borderWidth),
   }
   if (style.background === undefined && style.backgroundColor === undefined) {
-    chromeStyle.background = groupedCell ? active ? "bgHot" : null : active ? "bgHot" : "bgInput"
+    chromeStyle.background = groupedCell ? active ? blenderRgba8ToColor(colors.inner) : null : blenderRgba8ToColor(colors.inner)
   }
   const chromeProps: DivProps = {style: chromeStyle}
   chromeProps.key = key
   if (groupedAppearance !== null && active) drawGroupedInputChrome(surface, chrome, chromeStyle, groupedAppearance.corners)
   else div(surface, chrome.x, chrome.y, chrome.width, chrome.height, chromeProps)
+  drawNumericInputZone(surface, chrome, widgetClass, widgetState)
   if (!disabled) {
     const hit: HitOptions = {
       key,
@@ -263,14 +285,27 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   }
 
   surface.pushClip(contentX, chrome.y, contentW, chrome.height)
-  if (active) drawInputSelection(surface, value, selectionAnchor, cursor, view.start, contentX, chrome.y, chrome.height, fontPx)
+  if (active) drawInputSelection(
+    surface,
+    value,
+    selectionAnchor,
+    cursor,
+    view.start,
+    contentX,
+    chrome.y,
+    chrome.height,
+    fontPx,
+    blenderRgba8ToColor(blenderTheme.widgets[widgetClass].item),
+  )
 
   const hasValue = value.length > 0
   const text = hasValue ? view.text : props.placeholder ?? ""
   if (text.length > 0) {
     surface.drawText(text, contentX, chrome.y + (chrome.height - fontPx) / 2, {
       fontPx,
-      material: hasValue ? textMaterial(surface, active ? style.color ?? "text" : style.color ?? "muted") : surface.materials.muted,
+      material: textMaterial(surface, style.color ?? blenderRgba8ToColor(
+        hasValue ? colors.text : resolveWidgetColors(widgetClass, {inactive: true}).text,
+      )),
       maxWidthPx: contentW,
       z: Z.TEXT,
     })
@@ -278,7 +313,14 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
 
   if (active && props.cursorVisible !== false && runtime.caretVisible) {
     const cursorX = contentX + surface.measureText(value.slice(view.start, cursor), fontPx)
-    surface.drawRect(Math.round(cursorX), Math.round(chrome.y + (chrome.height - fontPx) / 2), 2, Math.max(1, fontPx + 2), palette.cyan, Z.TEXT + 0.02)
+    surface.drawRect(
+      Math.round(cursorX),
+      Math.round(chrome.y + (chrome.height - fontPx) / 2),
+      2,
+      Math.max(1, fontPx + 2),
+      blenderRgba8ToColor(blenderTheme.material.widgetTextCursor),
+      Z.TEXT + 0.02,
+    )
   }
   surface.popClip()
 }
@@ -497,7 +539,18 @@ function inputIndexFromX(surface: UiSurface, value: string, viewStart: number, f
   return value.length
 }
 
-function drawInputSelection(surface: UiSurface, value: string, anchor: number | null, cursor: number, viewStart: number, x: number, y: number, h: number, fontPx: number): void {
+function drawInputSelection(
+  surface: UiSurface,
+  value: string,
+  anchor: number | null,
+  cursor: number,
+  viewStart: number,
+  x: number,
+  y: number,
+  h: number,
+  fontPx: number,
+  color: ReturnType<typeof blenderRgba8ToColor>,
+): void {
   if (anchor === null || anchor === cursor) return
   const start = Math.max(viewStart, Math.min(anchor, cursor))
   const end = Math.max(start, Math.max(anchor, cursor))
@@ -505,5 +558,66 @@ function drawInputSelection(surface: UiSurface, value: string, anchor: number | 
   const sx = x + surface.measureText(value.slice(viewStart, start), fontPx)
   const sw = surface.measureText(value.slice(start, end), fontPx)
   if (sw <= 0) return
-  surface.drawRect(sx, y + 4, sw, Math.max(1, h - 8), palette.activeRowFill, Z.ELEMENT + 0.01)
+  surface.drawRect(sx, y + 4, sw, Math.max(1, h - 8), color, Z.ELEMENT + 0.01)
+}
+
+function inputWidgetClass(type: InputType | undefined): "text" | "number" | "numberSlider" {
+  if (type === "number") return "number"
+  if (type === "range") return "numberSlider"
+  return "text"
+}
+
+function inputNumericZone(
+  surface: UiSurface,
+  chrome: Readonly<{x: number; y: number; width: number; height: number}>,
+  hovered: boolean,
+  type: InputType | undefined,
+): "left" | "center" | "right" | null {
+  if (!hovered || type !== "number") return null
+  const pointer = surface.hoveredPointer()
+  if (pointer === null) return null
+  const handleWidth = Math.min(chrome.width / 3, chrome.height * 0.7)
+  if (pointer.x < chrome.x + handleWidth) return "left"
+  if (pointer.x > chrome.x + chrome.width - handleWidth) return "right"
+  return "center"
+}
+
+function drawNumericInputZone(
+  surface: UiSurface,
+  chrome: Readonly<{x: number; y: number; width: number; height: number}>,
+  kind: "text" | "number" | "numberSlider",
+  state: BlenderWidgetState,
+): void {
+  if (kind === "text") return
+  const zone = resolveNumericZoneColors(kind, state)
+  if (zone === null) return
+  const handleWidth = Math.min(chrome.width / 3, chrome.height * 0.7)
+  const x = zone.zone === "left"
+    ? chrome.x
+    : zone.zone === "right"
+      ? chrome.x + chrome.width - handleWidth
+      : chrome.x + handleWidth
+  const width = zone.zone === "center" ? Math.max(0, chrome.width - handleWidth * 2) : handleWidth
+  const radius = zone.zone === "left"
+    ? {tl: uiShapeMetrics.lowRadius, tr: 0, br: 0, bl: uiShapeMetrics.lowRadius}
+    : zone.zone === "right"
+      ? {tl: 0, tr: uiShapeMetrics.lowRadius, br: uiShapeMetrics.lowRadius, bl: 0}
+      : 0
+  surface.drawRoundedRect(x, chrome.y, width, chrome.height, {
+    radius,
+    fill: blenderRgba8ToColor(zone.colors.inner),
+    border: null,
+    borderWidth: 0,
+    z: Z.ELEMENT + 0.01,
+  })
+  if (zone.zone !== "center") {
+    drawIconCentered(
+      surface,
+      zone.zone === "left" ? uiIcons.chevronLeft : uiIcons.chevronRight,
+      x + width / 2,
+      chrome.y + chrome.height / 2,
+      Math.min(uiShapeMetrics.iconGlyphSize, width, chrome.height),
+      {tint: blenderRgba8ToColor(zone.colors.item), z: Z.TEXT},
+    )
+  }
 }

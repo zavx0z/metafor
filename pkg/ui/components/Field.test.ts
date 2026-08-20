@@ -1,5 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {
+  blenderRgba8ToColor,
+  resolveWidgetColors,
   uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
@@ -121,7 +123,7 @@ describe("universal UI fields", () => {
     expect(surface.hits[0]?.slice(1, 4)).toEqual([11, 200, uiShapeMetrics.controlHeight])
   })
 
-  test("keeps the accepted Switcher divergence inside the dense boolean row", () => {
+  test("keeps explicit switch presentation rectangular inside the dense boolean row", () => {
     const surface = new RecordingSurface()
     const width = 200
     const height = Field(surface, 0, 10, width, {
@@ -134,8 +136,27 @@ describe("universal UI fields", () => {
     })
     expect(height).toBe(uiShapeMetrics.rowHeight)
     expect(surface.hits).toHaveLength(1)
+    expect(surface.roundedRects).toHaveLength(1)
+    expect(surface.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
     const [hitX, , hitWidth] = surface.hits[0]!
     expect(hitX + hitWidth).toBeLessThanOrEqual(width)
+  })
+
+  test("uses the Blender option Checkbox for the default boolean presentation", () => {
+    const surface = new RecordingSurface()
+    Field(surface, 0, 0, 200, {
+      id: "enabled-default",
+      label: "Enabled",
+      kind: "boolean",
+      value: true,
+      onChange() {},
+    })
+    const colors = resolveWidgetColors("option", {selected: true})
+    expect(surface.roundedRects).toHaveLength(1)
+    expect(surface.roundedRects[0]?.[4]).toMatchObject({
+      fill: blenderRgba8ToColor(colors.inner),
+      border: blenderRgba8ToColor(colors.outline),
+    })
   })
 
   test("normalizes finite integer, float, range and step contracts", () => {

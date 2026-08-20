@@ -1,6 +1,8 @@
 import {describe, expect, test} from "bun:test"
 import {
+  blenderRgba8ToColor,
   palette,
+  resolveWidgetColors,
   uiIcons,
   uiShapeMetrics,
   type UiSurface,
@@ -159,12 +161,15 @@ describe("public ReferenceInput", () => {
       {x: 77, y: 6, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
       {x: 102, y: 6, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
     ])
-    for (const call of [...regular.roundedRects, ...compact.roundedRects]) {
+    const calls = [...regular.roundedRects, ...compact.roundedRects]
+    for (const call of calls) {
       expect(call[4].radius).toBe(uiShapeMetrics.lowRadius)
       expect(call[4].borderWidth).toBe(uiShapeMetrics.borderWidth)
-      expect(call[4].fill).toEqual(palette.bgInput)
-      expect(call[4].border).toEqual(palette.borderRule)
     }
+    const expectedKinds = ["regular", "tool", "tool", "regular", "tool", "tool"] as const
+    expect(calls.map((call) => call[4].fill)).toEqual(expectedKinds.map(() => palette.bgInput))
+    expect(calls.map((call) => call[4].border)).toEqual(expectedKinds.map((kind) =>
+      blenderRgba8ToColor(resolveWidgetColors(kind).outline)))
   })
 
   test("returns one action contract standalone and through both reference Field densities", () => {

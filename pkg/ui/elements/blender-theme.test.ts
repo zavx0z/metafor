@@ -3,6 +3,7 @@ import {
   blenderRgba8ToColor,
   blenderTheme,
   resolveNumericZoneColors,
+  resolveOpaqueBlenderRgba8,
   resolveWidgetColors,
 } from "./blender-theme.ts"
 import {blenderTheme as publicTheme} from "./theme.ts"
@@ -232,5 +233,13 @@ describe("Blender 4.5.5 raw theme", () => {
       0xb3 / 255,
       0xb3 / 255,
     ])
+  })
+
+  test("resolves an explicit opaque root composite while preserving raw source alpha", () => {
+    const raw = blenderTheme.spaceNode.back
+    const resolved = resolveOpaqueBlenderRgba8(raw, blenderTheme.spaceNode.navigationBar)
+    expect(raw).toEqual([0x1d, 0x1d, 0x1d, 0x00])
+    expect(resolved).toEqual([0x1d, 0x1d, 0x1d, 0xff])
+    expect(Object.isFrozen(resolved)).toBeTrue()
   })
 })

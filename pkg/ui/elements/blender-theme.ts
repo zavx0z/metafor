@@ -541,3 +541,17 @@ export function resolveNumericZoneColors(
 export function blenderRgba8ToColor(rgba: BlenderRgba8): Color {
   return new Color(rgba[0] / 255, rgba[1] / 255, rgba[2] / 255, rgba[3] / 255)
 }
+
+/** Resolves one source RGBA role over an opaque fallback without mutating either tuple. */
+export function resolveOpaqueBlenderRgba8(
+  source: BlenderRgba8,
+  fallback: BlenderRgba8,
+): BlenderRgba8 {
+  const alpha = source[3] / 255
+  return Object.freeze([
+    Math.round(source[0] * alpha + fallback[0] * (1 - alpha)),
+    Math.round(source[1] * alpha + fallback[1] * (1 - alpha)),
+    Math.round(source[2] * alpha + fallback[2] * (1 - alpha)),
+    255,
+  ]) as BlenderRgba8
+}

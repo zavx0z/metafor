@@ -1,9 +1,13 @@
 import {Color, TextMaterial} from "@metafor/engine"
 import {
+  blenderRgba8ToColor,
+  blenderTheme,
+  cssColor,
   drawIconCentered,
   li as elementLi,
-  palette,
+  resolveWidgetColors,
   span,
+  textMaterial,
   ul as elementUl,
   Z,
   type CssColor,
@@ -92,10 +96,7 @@ const LIST_ROW_GUTTER_X = 16
 const LIST_ICON_SLOT_W = 42
 const LIST_SECONDARY_ACTION_W = 76
 
-type ListItemRenderState = LiElementState & {
-  selected: boolean
-  disabled: boolean
-}
+type ListItemRenderState = LiElementState
 
 export function List(host: UiSurface, x: number, y: number, width: number, height: number, props: ListProps = {}): void {
   const dense = props.dense === true
@@ -167,8 +168,13 @@ export function ListItemText(host: UiSurface, x: number, y: number, width: numbe
   const dense = props.dense === true
   const primaryPx = dense ? 11 : 12
   const secondaryPx = dense ? 9 : 10
-  const primaryColor = props.disabled === true ? "muted" : props.primaryColor ?? props.sx?.color ?? "text"
-  const secondaryColor = props.disabled === true ? "muted" : props.secondaryColor ?? "muted"
+  const disabledColors = resolveWidgetColors("listItem", {disabled: true, listItem: true})
+  const primaryColor = props.disabled === true
+    ? blenderRgba8ToColor(disabledColors.text)
+    : props.primaryColor ?? props.sx?.color ?? blenderRgba8ToColor(blenderTheme.widgets.listItem.text)
+  const secondaryColor = props.disabled === true
+    ? blenderRgba8ToColor(disabledColors.text)
+    : props.secondaryColor ?? withAlpha(blenderRgba8ToColor(blenderTheme.widgets.listItem.text), 0.5)
   const textX = x + (props.inset === true ? LIST_ICON_SLOT_W : 0)
   const textW = Math.max(1, width - (props.inset === true ? LIST_ICON_SLOT_W : 0))
 
@@ -198,14 +204,19 @@ export function ListItemIcon(host: UiSurface, x: number, y: number, width: numbe
   const cy = y + height / 2
   if (props.iconSrc !== undefined && props.iconSrc.length > 0) {
     drawIconCentered(host, props.iconSrc, cx, cy, size, {
-      opacity: props.disabled === true ? 0.35 : 0.92,
+      opacity: 1,
+      tint: cssColor(props.disabled === true
+        ? blenderRgba8ToColor(resolveWidgetColors("listItem", {disabled: true, listItem: true}).text)
+        : props.color ?? blenderRgba8ToColor(blenderTheme.widgets.listItem.text)),
       z: Z.TEXT,
     })
     return
   }
   const label = String(props.children ?? "")
   if (label.length === 0) return
-  const material = listTextMaterial(host, props.disabled === true ? "muted" : props.color ?? "cyan")
+  const material = listTextMaterial(host, props.disabled === true
+    ? blenderRgba8ToColor(resolveWidgetColors("listItem", {disabled: true, listItem: true}).text)
+    : props.color ?? blenderRgba8ToColor(blenderTheme.widgets.listItem.text))
   host.drawTextCentered(label, cx, cy, {
     fontPx: Math.min(13, size),
     material,
@@ -219,7 +230,7 @@ export function ListSubheader(host: UiSurface, x: number, y: number, width: numb
   span(host, x + inset, y, Math.max(1, width - inset - LIST_ROW_GUTTER_X), height, {
     children: props.children ?? "",
     style: {
-      color: "cyan",
+      color: blenderRgba8ToColor(blenderTheme.widgets.listItem.text),
       fontSize: 10,
       textAlign: "left",
       ...props.sx,
@@ -240,24 +251,16 @@ function renderListItem(host: UiSurface, x: number, y: number, width: number, he
   const key = props.key ?? `component-list-item:${x}:${y}:${width}:${height}:${String(props.primary ?? "")}`
   const itemProps: LiElementProps = {
     key,
-    style: (state) => {
-      const renderState = listItemRenderState(state, props)
-      return {
-        background: listItemFill(renderState, props.button === true),
-        borderColor: null,
-        borderRadius: props.sx?.borderRadius ?? 12,
-        padding: 0,
-        ...props.sx,
-      }
-    },
+    style: {padding: 0, ...props.sx},
     children: (state) => {
-      const renderState = listItemRenderState(state, props)
-      drawListItemContent(host, x, y, width, rowH, props, renderState, dense)
+      drawListItemContent(host, x, y, width, rowH, props, state, dense)
       if (props.divider === true) ListDivider(host, x, y + rowH - 1, width, {inset: props.iconSrc !== undefined || props.icon !== undefined})
     },
   }
   if (props.tooltip !== undefined) itemProps.tooltip = props.tooltip
   if (props.tooltipDelayMs !== undefined) itemProps.tooltipDelayMs = props.tooltipDelayMs
+  if (props.selected !== undefined) itemProps.selected = props.selected
+  if (props.disabled !== undefined) itemProps.disabled = props.disabled
   if (props.disabled !== true) {
     if (props.onClick !== undefined) itemProps.onClick = props.onClick
   }
@@ -284,6 +287,7 @@ function drawListItemContent(
     if (props.iconSrc !== undefined) iconProps.iconSrc = props.iconSrc
     if (iconValue !== undefined) iconProps.children = iconValue
     if (props.disabled !== undefined) iconProps.disabled = props.disabled
+    iconProps.color = blenderRgba8ToColor(state.colors.text)
     ListItemIcon(host, cursorX, y, LIST_ICON_SLOT_W, height, iconProps)
     cursorX += LIST_ICON_SLOT_W
   } else if (props.inset === true) {
@@ -293,6 +297,8 @@ function drawListItemContent(
   const textW = Math.max(1, x + width - rightPad - actionW - cursorX)
   const textProps: ListItemTextProps = {
     dense,
+    primaryColor: blenderRgba8ToColor(state.colors.text),
+    secondaryColor: withAlpha(blenderRgba8ToColor(state.colors.text), 0.5),
   }
   if (props.primary !== undefined) textProps.primary = props.primary
   if (props.secondary !== undefined) textProps.secondary = props.secondary
@@ -304,7 +310,7 @@ function drawListItemContent(
     if (typeof props.secondaryAction === "function") {
       props.secondaryAction(actionRect)
     } else {
-      const material = listTextMaterial(host, state.disabled ? "muted" : state.selected ? "cyan" : "muted")
+      const material = listTextMaterial(host, withAlpha(blenderRgba8ToColor(state.colors.text), 0.75))
       host.drawTextCentered(String(props.secondaryAction), actionRect.x + actionRect.w / 2, actionRect.y + actionRect.h / 2, {
         fontPx: dense ? 10 : 11,
         material,
@@ -315,34 +321,12 @@ function drawListItemContent(
   }
 }
 
-function listItemFill(state: ListItemRenderState, button: boolean): Color | null {
-  if (state.disabled) return null
-  if (state.pressed) return withAlpha(palette.bgHot, 0.70)
-  if (state.selected) return withAlpha(palette.bgHot, button ? 0.58 : 0.44)
-  if (state.hovered && button) return withAlpha(palette.bgHot, 0.34)
-  return null
-}
-
 function listTextMaterial(host: UiSurface, color: CssColor): TextMaterial {
-  if (color === "text") return host.materials.text
-  if (color === "muted") return host.materials.muted
-  if (color === "cyan") return host.materials.cyan
-  if (color === "green") return host.materials.green
-  if (color === "orange") return host.materials.orange
-  if (color === "red") return host.materials.red
-  return host.materials.text
+  return textMaterial(host, color)
 }
 
 function withAlpha(color: Color, alpha: number): Color {
   return new Color(color.r, color.g, color.b, alpha)
-}
-
-function listItemRenderState(state: LiElementState, props: ListItemProps): ListItemRenderState {
-  return {
-    ...state,
-    selected: props.selected === true,
-    disabled: props.disabled === true,
-  }
 }
 
 function listItemsContentHeight(items: readonly ListItemProps[], itemHeight: number, itemGap: number, paddingTop: number, paddingBottom: number): number {

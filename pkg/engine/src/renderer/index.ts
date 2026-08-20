@@ -1813,6 +1813,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 52)
       }
     } else if (material instanceof ImageMaterial) {
+      this.writePerObjectRgba(offsetFloats + 32, material.tint)
       if (material.clipBounds !== null) {
         this.perObjectDataCPU!.set(material.clipBounds, offsetFloats + 36)
       }

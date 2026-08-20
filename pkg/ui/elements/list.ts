@@ -1,6 +1,7 @@
 import {div, type DivProps, type DivScrollContext} from "./div.ts"
 import {Z, type HitOptions, type UiSurface} from "./surface.ts"
 import {boxPadding, mergeStyle, px, type ElementChildren, type InteractiveElementProps, type StyleProps} from "./style.ts"
+import {blenderRgba8ToColor, resolveWidgetColors, type ResolvedBlenderWidgetColors} from "./blender-theme.ts"
 
 export type UlElementContext = DivScrollContext & {
   x: number
@@ -29,6 +30,9 @@ export type OlElementProps = UlElementProps
 export type LiElementState = {
   hovered: boolean
   pressed: boolean
+  selected: boolean
+  disabled: boolean
+  colors: ResolvedBlenderWidgetColors
 }
 
 export type LiElementChildren = ElementChildren | ((state: LiElementState) => void)
@@ -38,6 +42,8 @@ export type LiElementProps = Omit<InteractiveElementProps, "children" | "style">
   style?: StyleProps | ((state: LiElementState) => StyleProps)
   tooltip?: string
   tooltipDelayMs?: number
+  selected?: boolean
+  disabled?: boolean
 }
 
 export function ul(surface: UiSurface, x: number, y: number, width: number, height: number, props: UlElementProps = {}): void {
@@ -85,10 +91,21 @@ export function ol(surface: UiSurface, x: number, y: number, width: number, heig
 export function li(surface: UiSurface, x: number, y: number, width: number, height: number, props: LiElementProps = {}): void {
   if (width <= 0 || height <= 0) return
   const key = props.key ?? `li:${x}:${y}:${width}:${height}`
+  surface.registerRenderKey(key)
   const hit = surface.hitState(x, y, width, height, key)
+  const colors = resolveWidgetColors("listItem", {
+    hovered: hit.hovered,
+    pressed: hit.pressed,
+    selected: props.selected === true,
+    disabled: props.disabled === true,
+    listItem: true,
+  })
   const state: LiElementState = {
     hovered: hit.hovered,
     pressed: hit.pressed,
+    selected: props.selected === true,
+    disabled: props.disabled === true,
+    colors,
   }
   const rawStyle = typeof props.style === "function" ? props.style(state) : props.style
   const children = typeof props.children === "function"
@@ -101,9 +118,10 @@ export function li(surface: UiSurface, x: number, y: number, width: number, heig
     key,
     children,
     style: {
-      background: null,
-      borderColor: null,
-      borderRadius: 0,
+      background: blenderRgba8ToColor(colors.inner),
+      borderColor: blenderRgba8ToColor(colors.outline),
+      borderRadius: uiListItemRadius(height, colors.roundness),
+      borderWidth: 1,
       padding: 0,
       zIndex: Z.ELEMENT,
       ...rawStyle,
@@ -119,24 +137,35 @@ export function li(surface: UiSurface, x: number, y: number, width: number, heig
     props.onPointerUp !== undefined ||
     props.tooltip !== undefined
   if (!interactive) return
-  const hasPointerAction = props.onClick !== undefined
+  const disabled = props.disabled === true
+  const hasPointerAction = !disabled && (props.onClick !== undefined
     || props.onPointerDown !== undefined
     || props.onPointerMove !== undefined
-    || props.onPointerUp !== undefined
+    || props.onPointerUp !== undefined)
   const hitOptions: HitOptions = {
     key,
     cursor: hasPointerAction ? "pointer" : "default",
-    ...(props.onPointerEnter === undefined ? {} : {onPointerEnter: props.onPointerEnter}),
-    ...(props.onPointerLeave === undefined ? {} : {onPointerLeave: props.onPointerLeave}),
-    ...(props.onPointerDown === undefined ? {} : {onPointerDown: props.onPointerDown}),
-    ...(props.onPointerMove === undefined ? {} : {onPointerMove: props.onPointerMove}),
-    ...(props.onPointerUp === undefined ? {} : {onPointerUp: props.onPointerUp}),
+    onPointerEnter: () => {
+      if (!disabled) props.onPointerEnter?.()
+      surface.requestKeyedRender(key)
+    },
+    onPointerLeave: () => {
+      if (!disabled) props.onPointerLeave?.()
+      surface.requestKeyedRender(key)
+    },
   }
+  if (!disabled && props.onPointerDown !== undefined) hitOptions.onPointerDown = props.onPointerDown
+  if (!disabled && props.onPointerMove !== undefined) hitOptions.onPointerMove = props.onPointerMove
+  if (!disabled && props.onPointerUp !== undefined) hitOptions.onPointerUp = props.onPointerUp
   if (props.tooltip !== undefined) {
     hitOptions.tooltip = {label: props.tooltip, delayMs: props.tooltipDelayMs ?? 450}
     surface.drawTooltipForHit(x, y, width, height, props.tooltip, {delayMs: props.tooltipDelayMs ?? 450})
   }
-  surface.hit(x, y, width, height, props.onClick ?? (() => {}), hitOptions)
+  surface.hit(x, y, width, height, disabled ? (() => {}) : props.onClick ?? (() => {}), hitOptions)
+}
+
+function uiListItemRadius(height: number, roundness: number): number {
+  return Math.max(0, height * roundness)
 }
 
 export function ulContentHeight(count: number, opts: {itemHeight?: number; itemGap?: number; paddingTop?: number; paddingBottom?: number} = {}): number {

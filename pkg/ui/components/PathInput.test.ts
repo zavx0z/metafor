@@ -4,7 +4,9 @@ import {
   focusInput,
   handleActiveInputKey,
   insertActiveInputText,
+  blenderRgba8ToColor,
   palette,
+  resolveWidgetColors,
   uiIcons,
   uiShapeMetrics,
   type UiSurface,
@@ -163,13 +165,18 @@ describe("public PathInput", () => {
     for (const call of calls) {
       expect(call[4].radius).toBe(uiShapeMetrics.lowRadius)
       expect(call[4].borderWidth).toBe(uiShapeMetrics.borderWidth)
-      expect(call[4].fill).toEqual(palette.bgInput)
     }
+    expect(calls.map((call) => call[4].fill)).toEqual([
+      blenderRgba8ToColor(resolveWidgetColors("text").inner),
+      palette.bgInput,
+      blenderRgba8ToColor(resolveWidgetColors("text").inner),
+      palette.bgInput,
+    ])
     expect(calls.map((call) => call[4].border)).toEqual([
-      palette.borderRule,
-      palette.borderRule,
-      palette.borderRule,
-      palette.borderRule,
+      blenderRgba8ToColor(resolveWidgetColors("text").outline),
+      blenderRgba8ToColor(resolveWidgetColors("tool").outline),
+      blenderRgba8ToColor(resolveWidgetColors("text").outline),
+      blenderRgba8ToColor(resolveWidgetColors("tool").outline),
     ])
   })
 

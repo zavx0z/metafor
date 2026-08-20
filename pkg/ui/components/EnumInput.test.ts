@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {
-  palette,
+  blenderRgba8ToColor,
+  resolveWidgetColors,
   uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
@@ -23,6 +24,7 @@ type TextCall = Parameters<UiSurface["drawText"]>
 type CenteredTextCall = Parameters<UiSurface["drawTextCentered"]>
 type ImageCall = Parameters<UiSurface["drawImage"]>
 type HitCall = Parameters<UiSurface["hit"]>
+type ShadowCall = Parameters<UiSurface["drawRoundedShadow"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
@@ -30,6 +32,7 @@ class RecordingSurface extends BaseUiSurface {
   readonly centeredTexts: CenteredTextCall[] = []
   readonly images: ImageCall[] = []
   readonly hits: HitCall[] = []
+  readonly shadows: ShadowCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
@@ -52,6 +55,8 @@ class RecordingSurface extends BaseUiSurface {
   override hit(...args: HitCall): void {
     this.hits.push(args)
   }
+
+  override drawRoundedShadow(...args: ShadowCall): void { this.shadows.push(args) }
 
   override pushClip(): void {}
 
@@ -145,14 +150,14 @@ describe("public EnumInput", () => {
       presentation: "expanded",
     }))
     expect(compact.roundedRects.map((call) => call[4].fill)).toEqual([
-      palette.bgInput,
-      palette.bgHot,
-      palette.bgInput,
+      blenderRgba8ToColor(resolveWidgetColors("toggle").inner),
+      blenderRgba8ToColor(resolveWidgetColors("toggle", {selected: true}).inner),
+      blenderRgba8ToColor(resolveWidgetColors("toggle").inner),
     ])
     expect(compact.roundedRects.map((call) => call[4].border)).toEqual([
-      palette.borderRule,
-      palette.cyan,
-      palette.borderRule,
+      blenderRgba8ToColor(resolveWidgetColors("toggle").outline),
+      blenderRgba8ToColor(resolveWidgetColors("toggle", {selected: true}).outline),
+      blenderRgba8ToColor(resolveWidgetColors("toggle").outline),
     ])
   })
 
@@ -206,8 +211,8 @@ describe("public EnumInput", () => {
     ])
     expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
     expect(compact.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
-    expect(compact.roundedRects[0]?.[4].fill).toEqual(palette.bgInput)
-    expect(compact.roundedRects[0]?.[4].border).toEqual(palette.borderRule)
+    expect(compact.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(resolveWidgetColors("menu").inner))
+    expect(compact.roundedRects[0]?.[4].border).toEqual(blenderRgba8ToColor(resolveWidgetColors("menu").outline))
     expect(regular.roundedRects[0]?.[4].fill).toEqual(compact.roundedRects[0]?.[4].fill)
     expect(regular.roundedRects[0]?.[4].border).toEqual(compact.roundedRects[0]?.[4].border)
 

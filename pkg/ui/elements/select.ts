@@ -4,8 +4,14 @@ import {drawIconCentered} from "./icon.ts"
 import {uiIcons} from "./icons.ts"
 import {flexColumn, flexRow} from "./flex.ts"
 import {uiShapeMetrics} from "./shape.ts"
-import {mergeStyle, type StyleProps} from "./style.ts"
-import {palette} from "./theme.ts"
+import {mergeStyle, textMaterial, type StyleProps} from "./style.ts"
+import {Color} from "@metafor/engine"
+import {
+  blenderRgba8ToColor,
+  blenderTheme,
+  resolveWidgetColors,
+  type BlenderWidgetState,
+} from "./blender-theme.ts"
 import {type UiSurface, Z} from "./surface.ts"
 
 export type SelectElementValue = string | number
@@ -105,17 +111,26 @@ function resolvedSelectState(state: ButtonElementState, active: boolean | undefi
 }
 
 function selectStyle(style: StyleProps, state: ButtonElementState): StyleProps {
+  const colors = resolveWidgetColors("menu", selectWidgetState(state))
   const result: StyleProps = {
     ...style,
     borderColor: style.borderColor === undefined
-      ? state === "disabled" || state === "idle" ? "borderRule" : "cyan"
+      ? blenderRgba8ToColor(colors.outline)
       : style.borderColor,
-    color: style.color ?? (state === "disabled" ? "muted" : "text"),
+    color: style.color ?? blenderRgba8ToColor(colors.text),
   }
   if (style.background === undefined && style.backgroundColor === undefined) {
-    result.background = state === "disabled" ? "bgPanelDim" : state === "idle" ? "bgInput" : state === "hover" ? "bgElevated" : "bgHot"
+    result.background = blenderRgba8ToColor(colors.inner)
   }
   return result
+}
+
+function selectWidgetState(state: ButtonElementState): BlenderWidgetState {
+  return {
+    hovered: state === "hover",
+    pressed: state === "active",
+    disabled: state === "disabled",
+  }
 }
 
 function drawSelectMenu<Value extends SelectElementValue>(
@@ -133,10 +148,19 @@ function drawSelectMenu<Value extends SelectElementValue>(
   const menuX = chrome.x
   const menuY = chrome.y + chrome.height + uiShapeMetrics.separatorWidth
   const menuHeight = options.length * uiShapeMetrics.controlHeight + border * 2
+  surface.drawRoundedShadow(menuX, menuY, chrome.width, menuHeight, {
+    radius: uiShapeMetrics.lowRadius,
+    blur: blenderTheme.material.menuShadowWidth,
+    spread: 0,
+    color: new Color(0, 0, 0, 1),
+    opacity: blenderTheme.material.menuShadowFactor,
+    z: Z.ELEMENT + 0.19,
+  })
+  const menuColors = resolveWidgetColors("menuBack")
   surface.drawRoundedRect(menuX, menuY, chrome.width, menuHeight, {
     radius: uiShapeMetrics.lowRadius,
-    fill: palette.bgPanel,
-    border: palette.borderRule,
+    fill: blenderRgba8ToColor(menuColors.inner),
+    border: blenderRgba8ToColor(menuColors.outline),
     borderWidth: border,
     z: Z.ELEMENT + 0.2,
   })
@@ -154,38 +178,36 @@ function drawSelectMenu<Value extends SelectElementValue>(
         const state = surface.hitState(rowX, rowY, rowWidth, rowHeight, rowKey)
         const selected = Object.is(option.value, value)
         const disabled = option.disabled === true
-        const fill = disabled
-          ? palette.bgPanelDim
-          : selected
-            ? palette.bgHot
-            : state.hovered || state.pressed
-              ? palette.bgElevated
-              : palette.bgInput
+        const colors = resolveWidgetColors("menuItem", {
+          disabled,
+          hovered: state.hovered || state.pressed,
+          selectedDraw: selected,
+        })
         surface.drawRoundedRect(rowX, rowY, rowWidth, rowHeight, {
           radius: 0,
-          fill,
+          fill: blenderRgba8ToColor(colors.inner),
           border: null,
           borderWidth: 0,
           z: Z.ELEMENT + 0.22,
         })
         surface.drawText(option.label, rowX + uiShapeMetrics.tightGap * 2, rowY + (rowHeight - uiShapeMetrics.compactFontPx) / 2, {
           fontPx: uiShapeMetrics.compactFontPx,
-          material: disabled ? surface.materials.muted : surface.materials.text,
+          material: textMaterial(surface, blenderRgba8ToColor(colors.text)),
           maxWidthPx: Math.max(1, rowWidth - uiShapeMetrics.tightGap * 4),
           z: Z.TEXT + 0.22,
         })
-        if (disabled) return
         const tooltip = option.description === undefined
           ? undefined
           : {label: option.description, delayMs: 450}
         surface.hit(rowX, rowY, rowWidth, rowHeight, () => {
+          if (disabled) return
           if (internallyControlled) runtime.openKeys.delete(key)
           onChange?.(option.value)
           onOpenChange?.(false)
           surface.requestKeyedRender(key)
         }, {
           key: rowKey,
-          cursor: "pointer",
+          cursor: disabled ? "default" : "pointer",
           ...(tooltip === undefined ? {} : {tooltip}),
           onPointerEnter: () => surface.requestKeyedRender(key),
           onPointerLeave: () => surface.requestKeyedRender(key),
@@ -207,6 +229,10 @@ function drawSelectContent(
   chevronSrc: string,
 ): void {
   const content = layout.content
+  const colors = resolveWidgetColors("menu", selectWidgetState(state))
+  const text = placeholder
+    ? resolveWidgetColors("menu", {inactive: true}).text
+    : colors.text
   flexRow({
     x: content.x,
     y: content.y,
@@ -218,14 +244,15 @@ function drawSelectContent(
       {width: "grow", height: content.height, draw: (x, y, width, height) => {
         surface.drawText(label, x, y + (height - layout.fontPx) / 2, {
           fontPx: layout.fontPx,
-          material: placeholder || state === "disabled" ? surface.materials.muted : surface.materials.text,
+          material: textMaterial(surface, blenderRgba8ToColor(text)),
           maxWidthPx: Math.max(1, width),
           z: Z.TEXT,
         })
       }},
       {width: layout.iconPx, height: layout.iconPx, draw: (x, y, width, height) => {
         drawIconCentered(surface, chevronSrc, x + width / 2, y + height / 2, layout.iconPx, {
-          opacity: state === "disabled" ? 0.36 : 0.78,
+          opacity: 1,
+          tint: blenderRgba8ToColor(colors.item),
           z: Z.TEXT,
         })
       }},

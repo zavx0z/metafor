@@ -8,6 +8,7 @@ import {
   type InputAppearance,
   type InputKeyOptions,
   type InputKeyResult,
+  type InputType,
 } from "@ui/elements"
 import type {UiSurface, StyleProps} from "@ui/elements"
 
@@ -23,6 +24,7 @@ export type TextFieldProps = {
   cursorVisible?: boolean
   fontPx?: number
   appearance?: InputAppearance
+  type?: InputType
   sx?: StyleProps
   onChange?: (value: string, state: TextFieldEditState) => void
   onSubmit?: (value: string, state: TextFieldEditState) => void
@@ -45,6 +47,7 @@ export function TextField(host: UiSurface, x: number, y: number, width: number, 
   if (props.selectionAnchor !== undefined) inputProps.selectionAnchor = props.selectionAnchor
   if (props.cursorVisible !== undefined) inputProps.cursorVisible = props.cursorVisible
   if (props.appearance !== undefined) inputProps.appearance = props.appearance
+  if (props.type !== undefined) inputProps.type = props.type
   if (props.onChange !== undefined) inputProps.onChange = props.onChange
   if (props.onSubmit !== undefined) inputProps.onSubmit = props.onSubmit
   if (props.submitOnEnter !== undefined) inputProps.submitOnEnter = props.submitOnEnter

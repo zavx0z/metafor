@@ -169,6 +169,7 @@ describe("production UI delivery baseline", () => {
       .map(({source}) => source)
       .join("\n")
     expect(graph).toContain("function NumberInput")
+    expect(graph).toContain("function resolveWidgetColors")
     expect(graph).not.toContain("@nodes/ui")
     expect(graph).not.toContain("NodeEditor")
     expect(graph).not.toContain("@ui/playground")
@@ -352,6 +353,7 @@ describe("production UI delivery baseline", () => {
     expect(occurrences(splitGraph, "class UiRuntime")).toBe(1)
     expect(occurrences(splitGraph, "function Button")).toBe(1)
     expect(occurrences(splitGraph, "function Field")).toBe(1)
+    expect(occurrences(splitGraph, "function resolveWidgetColors")).toBe(1)
     expect(occurrences(splitGraph, "class NodeEditor")).toBe(1)
     expect(splitGraph).not.toContain("@ui/playground")
 

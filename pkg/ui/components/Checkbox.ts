@@ -1,9 +1,10 @@
-import {Color} from "@metafor/engine"
 import {
+  backgroundColor,
+  blenderRgba8ToColor,
   button,
+  cssColor,
   drawIconCentered,
-  palette,
-  radii,
+  resolveWidgetColors,
   uiIcons,
   Z,
   type ButtonElementProps,
@@ -48,7 +49,7 @@ export function Checkbox(host: UiSurface, x: number, y: number, width: number, h
     style: {
       background: null,
       borderColor: null,
-      borderRadius: props.sx?.borderRadius ?? radii.control,
+      borderRadius: 0,
       padding: 0,
       zIndex: props.sx?.zIndex ?? Z.ELEMENT,
     },
@@ -71,35 +72,34 @@ function drawCheckbox(
   const disabled = state === "disabled"
   const hover = state === "hover"
   const active = state === "active"
-  const tone = props.tone ?? "neutral"
-  const accent = tone === "live" ? palette.green : tone === "paused" ? palette.orange : tone === "warn" ? palette.red : palette.cyan
-  const baseFill = checked
-    ? withAlpha(mixColor(palette.bgHot, accent, active ? 0.38 : hover ? 0.30 : 0.24), disabled ? 0.34 : 0.86)
-    : active
-      ? withAlpha(palette.bgHot, 0.66)
-      : hover
-        ? withAlpha(palette.bgHot, 0.48)
-        : withAlpha(palette.bgInput, 0.82)
-  const border = disabled
-    ? withAlpha(palette.borderDim, 0.55)
-    : checked
-      ? withAlpha(accent, active ? 0.92 : 0.78)
-      : hover || active
-        ? palette.border
-        : palette.borderDim
+  const colors = resolveWidgetColors("option", {
+    hovered: hover,
+    pressed: active,
+    selected: checked,
+    disabled,
+  })
+  const explicitFill = props.sx?.background !== undefined || props.sx?.backgroundColor !== undefined
+    ? backgroundColor(props.sx)
+    : undefined
+  const explicitBorder = props.sx?.borderColor === undefined
+    ? undefined
+    : props.sx.borderColor === null
+      ? null
+      : cssColor(props.sx.borderColor)
 
   host.drawRoundedRect(x, y, size, size, {
-    radius: Math.max(3, Math.min(6, size * 0.24)),
-    fill: baseFill,
-    border,
-    borderWidth: 1,
-    opacity: disabled ? 0.62 : 1,
+    radius: numericStyleValue(props.sx?.borderRadius) ?? size * 0.2,
+    fill: explicitFill === undefined ? blenderRgba8ToColor(colors.inner) : explicitFill,
+    border: explicitBorder === undefined ? blenderRgba8ToColor(colors.outline) : explicitBorder,
+    borderWidth: numericStyleValue(props.sx?.borderWidth) ?? 1,
+    opacity: numericStyleValue(props.sx?.opacity) ?? 1,
     z: numericStyleValue(props.sx?.zIndex) ?? Z.ELEMENT,
   })
 
   if (!checked) return
   drawIconCentered(host, uiIcons.apply, x + size / 2, y + size / 2, Math.max(10, size * 0.72), {
-    opacity: disabled ? 0.42 : 0.95,
+    opacity: 1,
+    tint: blenderRgba8ToColor(colors.item),
     z: (numericStyleValue(props.sx?.zIndex) ?? Z.ELEMENT) + 0.04,
   })
 }
@@ -113,18 +113,4 @@ function checkboxSize(width: number, height: number, size: CheckboxSize | undefi
 
 function numericStyleValue(value: StyleProps[keyof StyleProps] | undefined): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined
-}
-
-function mixColor(a: Color, b: Color, t: number): Color {
-  const k = Math.min(1, Math.max(0, t))
-  return new Color(
-    a.r + (b.r - a.r) * k,
-    a.g + (b.g - a.g) * k,
-    a.b + (b.b - a.b) * k,
-    a.a + (b.a - a.a) * k,
-  )
-}
-
-function withAlpha(color: Color, alpha: number): Color {
-  return new Color(color.r, color.g, color.b, alpha)
 }

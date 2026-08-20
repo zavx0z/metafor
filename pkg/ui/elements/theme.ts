@@ -6,8 +6,18 @@
 import {Color, TextMaterial} from "@metafor/engine"
 import islandsDarkTheme from "./themes/islands-dark.color-theme.json"
 import {uiShapeMetrics} from "./shape.ts"
+import {
+  blenderRgba8ToColor,
+  blenderTheme,
+  resolveOpaqueBlenderRgba8,
+} from "./blender-theme.ts"
 
 export * from "./blender-theme.ts"
+
+/** Generic consumer-facing adapter for the active source-backed UI theme. */
+export const activeUiTheme = blenderTheme
+export const rgba8ToColor = blenderRgba8ToColor
+export const resolveOpaqueRgba8 = resolveOpaqueBlenderRgba8
 
 const rgb = (r: number, g: number, b: number, a = 1): Color => new Color(r / 255, g / 255, b / 255, a)
 

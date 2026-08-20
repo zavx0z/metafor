@@ -43,7 +43,10 @@ export class TextMaterial extends Material {
    */
   constructor(parameters: TextMaterialParameters = {}) {
     super(parameters)
-    this.color = new Color(parameters.color ?? 0xffffff)
+    const color = parameters.color ?? 0xffffff
+    this.color = color instanceof Color
+      ? new Color(color.r, color.g, color.b, color.a)
+      : new Color(color)
     this.opacity = parameters.opacity ?? 1.0
     this.depthWrite = parameters.depthWrite ?? false
   }

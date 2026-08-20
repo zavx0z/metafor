@@ -1,9 +1,18 @@
 import {type Object3D} from "@metafor/engine"
-import {Button, type ButtonProps} from "@ui/components/button"
+import {Button} from "@ui/components/button"
 import {Pane} from "@ui/components/pane"
 import {TextField} from "@ui/components/text-field"
 import {Typography} from "@ui/components/typography"
-import {UiSurface, flexColumn, flexRow, palette, uiShapeMetrics, type UiSurfaceRect} from "@ui/elements"
+import {
+  UiSurface,
+  activeUiTheme,
+  flexColumn,
+  flexRow,
+  resolveOpaqueRgba8,
+  rgba8ToColor,
+  uiShapeMetrics,
+  type UiSurfaceRect,
+} from "@ui/elements"
 import {playgroundTheme} from "./theme.ts"
 import type {PlaygroundStoryArgs, PlaygroundStoryControl} from "./story.ts"
 
@@ -161,6 +170,8 @@ const SOURCE_COPY_OWNER = "source-copy"
 const SOURCE_BOX_OWNER = "source-box"
 const SOURCE_CONTROLS_TAB_OWNER = "source-tab:controls"
 const SOURCE_EVENTS_TAB_OWNER = "source-tab:events"
+const workbenchText = rgba8ToColor(activeUiTheme.widgets.box.text)
+const workbenchMuted = rgba8ToColor(activeUiTheme.widgets.menuBack.text)
 
 abstract class RetainedPlaygroundSurface extends UiSurface {
   readonly #retainedRoot: Object3D
@@ -169,6 +180,7 @@ abstract class RetainedPlaygroundSurface extends UiSurface {
   readonly #dirtyOwners = new Set<string>()
   #layoutPlans = 0
   #materializations = 0
+  #panelActive = false
 
   protected constructor(name: string) {
     super({bgColor: null, borderColor: null})
@@ -198,6 +210,25 @@ abstract class RetainedPlaygroundSurface extends UiSurface {
 
   protected markOwnerDirty(key: string): void {
     if (this.#owners.has(key)) this.#dirtyOwners.add(key)
+  }
+
+  protected get panelActive(): boolean {
+    return this.#panelActive
+  }
+
+  onActivate(): void {
+    if (this.#panelActive) return
+    this.#panelActive = true
+    this.markOwnerDirty(PANEL_OWNER)
+    this.requestRender()
+  }
+
+  override onDeactivate(): void {
+    super.onDeactivate()
+    if (!this.#panelActive) return
+    this.#panelActive = false
+    this.markOwnerDirty(PANEL_OWNER)
+    this.requestRender()
   }
 
   protected reconcileOwner(key: string, name: string, frame: UiSurfaceRect, force = false): RetainedOwner {
@@ -347,7 +378,8 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
     if (changed) this.requestRender()
   }
 
-  onActivate(): void {
+  override onActivate(): void {
+    super.onActivate()
     if (this.#setFocus(this.#focusedItemId, true)) this.requestRender()
   }
 
@@ -464,7 +496,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
 
   #drawOwner(key: string, frame: UiSurfaceRect): void {
     if (key === PANEL_OWNER) {
-      drawPanel(this, frame.w, frame.h)
+      drawPanel(this, frame.w, frame.h, this.panelActive)
       return
     }
     if (key === TITLE_OWNER) {
@@ -472,6 +504,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
         children: this.#options.title,
         variant: "title",
         fontPx: uiShapeMetrics.compactFontPx,
+        color: workbenchText,
         sx: {textAlign: "center"},
       })
       return
@@ -491,13 +524,15 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       const group = this.#windowItems().find((item) => item.group?.id === groupId)?.group
       if (group === undefined) return
       if (this.#options.onGroupToggle === undefined) {
-        Typography(this, 0, 0, frame.w, frame.h, {children: group.label, variant: "caption", color: "muted"})
+        Typography(this, 0, 0, frame.w, frame.h, {children: group.label, variant: "caption", color: workbenchMuted})
         return
       }
       Button(this, 0, 0, frame.w, frame.h, {
         children: `${group.collapsed ? "▸" : "▾"} ${group.label}`,
         variant: "text",
         color: "neutral",
+        appearance: "toggle",
+        selected: !group.collapsed,
         fontPx: uiShapeMetrics.compactFontPx,
         onClick: () => {
           const current = this.#windowItems().find((item) => item.group?.id === groupId)?.group
@@ -515,7 +550,9 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       children: item.label,
       variant: active ? "contained" : "glass",
       color: "neutral",
-      ...navigationStyle(active, focused),
+      appearance: "toolbar-item",
+      selected: active,
+      focused,
       disabled: item.disabled,
       fontPx: uiShapeMetrics.compactFontPx,
       onClick: () => {
@@ -671,7 +708,7 @@ export class PlaygroundInfoSurface extends RetainedPlaygroundSurface {
 
   #drawOwner(key: string, frame: UiSurfaceRect): void {
     if (key === PANEL_OWNER) {
-      drawPanel(this, frame.w, frame.h)
+      drawPanel(this, frame.w, frame.h, this.panelActive)
       return
     }
     if (key === TITLE_OWNER) {
@@ -679,17 +716,22 @@ export class PlaygroundInfoSurface extends RetainedPlaygroundSurface {
         children: this.#options.title,
         variant: "title",
         fontPx: uiShapeMetrics.compactFontPx,
+        color: workbenchText,
       })
       return
     }
     if (key === STATUS_OWNER) {
       if (this.#options.status !== undefined) {
-        Typography(this, 0, 0, frame.w, frame.h, {children: this.#options.status, variant: "caption", color: "cyan"})
+        Typography(this, 0, 0, frame.w, frame.h, {
+          children: this.#options.status,
+          variant: "caption",
+          color: rgba8ToColor(activeUiTheme.state.info),
+        })
       }
       return
     }
     const line = this.#options.lines.find((candidate) => candidate.key === key)
-    if (line !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: line.label, variant: "caption", color: "muted"})
+    if (line !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: line.label, variant: "caption", color: workbenchMuted})
   }
 }
 
@@ -873,7 +915,7 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
 
   #drawOwner(key: string, frame: UiSurfaceRect): void {
     if (key === PANEL_OWNER) {
-      drawPanel(this, frame.w, frame.h)
+      drawPanel(this, frame.w, frame.h, this.panelActive)
       return
     }
     if (key === SOURCE_TITLE_OWNER) {
@@ -881,6 +923,7 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
         children: "TypeScript",
         variant: "title",
         fontPx: uiShapeMetrics.compactFontPx,
+        color: workbenchText,
       })
       return
     }
@@ -889,6 +932,7 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
         children: "Копировать",
         variant: "glass",
         color: "neutral",
+        appearance: "tool",
         fontPx: uiShapeMetrics.compactFontPx,
         onClick: () => { void this.#options.onCopy(this.#options.source) },
       })
@@ -896,12 +940,8 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
     }
     if (key === SOURCE_BOX_OWNER) {
       Pane(this, 0, 0, frame.w, frame.h, {
-        variant: "glass",
+        appearance: "box",
         sx: {
-          background: "rgba(4, 8, 14, 0.64)",
-          borderColor: palette.borderRule,
-          borderRadius: uiShapeMetrics.lowRadius,
-          borderWidth: uiShapeMetrics.borderWidth,
           padding: 0,
         },
       })
@@ -913,6 +953,8 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
         children: mode === "controls" ? "Параметры" : "События",
         variant: this.#options.mode === mode ? "contained" : "glass",
         color: "neutral",
+        appearance: "tab",
+        selected: this.#options.mode === mode,
         fontPx: uiShapeMetrics.compactFontPx,
         onClick: () => this.#options.onModeChange(mode),
       })
@@ -921,11 +963,15 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
     if (key.startsWith("source-line:")) {
       const index = Number.parseInt(key.slice("source-line:".length), 10)
       const line = this.#options.sourceLines[index]
-      if (line !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: line, variant: "caption", color: index === 0 ? "text" : "muted"})
+      if (line !== undefined) Typography(this, 0, 0, frame.w, frame.h, {
+        children: line,
+        variant: "caption",
+        color: index === 0 ? workbenchText : workbenchMuted,
+      })
       return
     }
     if (key.startsWith("source-control-group:")) {
-      Typography(this, 0, 0, frame.w, frame.h, {children: controlGroupForOwnerKey(key), variant: "caption", color: "muted"})
+      Typography(this, 0, 0, frame.w, frame.h, {children: controlGroupForOwnerKey(key), variant: "caption", color: workbenchMuted})
       return
     }
     if (key.startsWith("source-control:")) {
@@ -937,6 +983,7 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
         children: `${control.descriptor.label}: ${formatStoryValue(control.value)}`,
         variant: "glass",
         color: "neutral",
+        appearance: "tool",
         fontPx: uiShapeMetrics.compactFontPx,
         disabled: next === undefined,
         onClick: () => {
@@ -951,7 +998,11 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
     if (key.startsWith("source-event:")) {
       const id = key.slice("source-event:".length)
       const event = this.#options.events.find((candidate) => candidate.id === id)
-      if (event !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: `${event.label}: ${event.value}`, variant: "caption", color: "muted"})
+      if (event !== undefined) Typography(this, 0, 0, frame.w, frame.h, {
+        children: `${event.label}: ${event.value}`,
+        variant: "caption",
+        color: workbenchMuted,
+      })
     }
   }
 }
@@ -964,12 +1015,8 @@ export function drawPlaygroundPreviewChrome(
   options: PlaygroundPreviewChromeOptions = {},
 ): void {
   Pane(surface, 0, 0, width, height, {
-    variant: "glass",
+    appearance: "box",
     sx: {
-      background: playgroundTheme.previewBackground,
-      borderColor: palette.borderRule,
-      borderRadius: uiShapeMetrics.lowRadius,
-      borderWidth: uiShapeMetrics.borderWidth,
       padding: 0,
     },
   })
@@ -989,6 +1036,7 @@ export function drawPlaygroundPreviewChrome(
           children: title,
           variant: "title",
           fontPx: uiShapeMetrics.compactFontPx,
+          color: workbenchText,
         }),
       },
       description === undefined ? false : {
@@ -996,7 +1044,7 @@ export function drawPlaygroundPreviewChrome(
         draw: (x, y, w, h) => Typography(surface, x, y, w, h, {
           children: description,
           variant: "caption",
-          color: "muted",
+          color: workbenchMuted,
           fontPx: uiShapeMetrics.compactFontPx,
         }),
       },
@@ -1011,12 +1059,10 @@ export class PlaygroundBackdropSurface extends UiSurface {
   }
 
   protected override render(): void {
-    this.drawBackdropGradient({
-      base: 0x07101b,
-      glowA: {color: "rgba(111,211,255,0.16)", cx: 0.28, cy: 0.18, radius: 0.42},
-      glowB: {color: "rgba(82,196,123,0.10)", cx: 0.76, cy: 0.76, radius: 0.42},
-      z: -0.18,
-    })
+    this.drawRect(0, 0, this.rectW, this.rectH, rgba8ToColor(resolveOpaqueRgba8(
+      activeUiTheme.spaceNode.back,
+      activeUiTheme.spaceNode.navigationBar,
+    )), -0.18)
   }
 }
 
@@ -1304,23 +1350,13 @@ function isNavigationActivationKey(key: string): boolean {
   return key === "Enter" || key === " " || key === "Space" || key === "Spacebar"
 }
 
-function drawPanel(surface: UiSurface, width: number, height: number): void {
+function drawPanel(surface: UiSurface, width: number, height: number, active: boolean): void {
   Pane(surface, 0, 0, width, height, {
-    variant: "glass",
+    appearance: "panel",
+    active,
     sx: {
-      background: playgroundTheme.panelBackground,
-      borderColor: palette.borderRule,
-      borderRadius: uiShapeMetrics.lowRadius,
-      borderWidth: uiShapeMetrics.borderWidth,
       padding: 0,
       zIndex: -0.12,
     },
   })
-}
-
-function navigationStyle(active: boolean, focused: boolean): Pick<ButtonProps, "fill" | "border"> {
-  if (active && focused) return {fill: palette.bgHot, border: palette.borderBright}
-  if (active) return {fill: palette.bgHot, border: palette.cyan}
-  if (focused) return {fill: palette.bgPanelDim, border: palette.borderBright}
-  return {}
 }

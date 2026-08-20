@@ -191,6 +191,7 @@ export type ImageViewBox = EngineImageViewBox
 export type DrawImageOpts = {
   fit?: ImageFit
   opacity?: number
+  tint?: Color
   viewBox?: ImageViewBox
   z?: number
 }
@@ -1902,6 +1903,7 @@ export abstract class UiSurface implements UiSurfaceNode {
       src,
       fit: opts.fit ?? "cover",
       opacity: opts.opacity ?? 1,
+      ...(opts.tint === undefined ? {} : {tint: opts.tint}),
       viewBox,
       boxAspect: w / h,
       onTextureChange: this.#requestRenderOnImageLoad,

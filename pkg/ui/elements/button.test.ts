@@ -1,9 +1,9 @@
 import {describe, expect, test} from "bun:test"
 import type {UiSurface} from "./surface.ts"
 import {UiSurface as BaseUiSurface} from "./surface.ts"
-import {button, type ButtonElementLayout} from "./button.ts"
+import {button, type ButtonElementAppearance, type ButtonElementLayout} from "./button.ts"
+import {blenderRgba8ToColor, resolveWidgetColors, type BlenderWidgetClass} from "./blender-theme.ts"
 import {uiShapeMetrics} from "./shape.ts"
-import {palette} from "./theme.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
 type CenteredTextCall = Parameters<UiSurface["drawTextCentered"]>
@@ -40,6 +40,16 @@ class RecordingSurface extends BaseUiSurface {
   protected render(): void {}
 }
 
+const appearanceClasses = Object.freeze({
+  button: "regular",
+  tool: "tool",
+  toggle: "toggle",
+  "toolbar-item": "toolbarItem",
+  tab: "tab",
+}) satisfies Readonly<Record<ButtonElementAppearance, BlenderWidgetClass>>
+
+const expectedColor = (bytes: Parameters<typeof blenderRgba8ToColor>[0]) => blenderRgba8ToColor(bytes)
+
 describe("button visible geometry", () => {
   test("uses shared dense defaults inside the caller-owned hit rect", () => {
     const surface = new RecordingSurface()
@@ -51,7 +61,7 @@ describe("button visible geometry", () => {
       radius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
     })
-    expect(chrome.border).toEqual(palette.borderRule)
+    expect(chrome.border).toEqual(expectedColor(resolveWidgetColors("regular").outline))
     expect(surface.centeredTexts[0]?.[3]).toMatchObject({
       fontPx: uiShapeMetrics.compactFontPx,
       maxWidthPx: 100 - uiShapeMetrics.tightGap * 4,
@@ -60,21 +70,31 @@ describe("button visible geometry", () => {
     expect(new Set(surface.renderKeys)).toEqual(new Set(["button:10:20:100:40"]))
   })
 
-  test("uses subtle idle border while hover keeps the cyan interaction border", () => {
-    const idle = new RecordingSurface()
-    button(idle, 0, 0, 100, 22, {children: "Run", onClick() {}})
-    expect(idle.roundedRects[0]?.[4].border).toEqual(palette.borderRule)
+  test("maps every generic appearance and state through the Blender resolver", () => {
+    class StateSurface extends RecordingSurface {
+      constructor(readonly state: Readonly<{hovered: boolean; pressed: boolean}>) { super() }
+      override hitState(): {hovered: boolean; pressed: boolean} { return {...this.state} }
+    }
 
-    class HoverSurface extends RecordingSurface {
-      override hitState(): {hovered: boolean; pressed: boolean} {
-        return {hovered: true, pressed: false}
+    for (const [appearance, kind] of Object.entries(appearanceClasses)) {
+      for (const entry of [
+        {hit: {hovered: false, pressed: false}, props: {}, state: {}},
+        {hit: {hovered: true, pressed: false}, props: {}, state: {hovered: true}},
+        {hit: {hovered: true, pressed: true}, props: {}, state: {hovered: true, pressed: true}},
+        {hit: {hovered: true, pressed: false}, props: {selected: true}, state: {hovered: true, selected: true}},
+        {hit: {hovered: true, pressed: false}, props: {focused: true}, state: {hovered: true, activeDefault: true}},
+        {hit: {hovered: false, pressed: false}, props: {disabled: true}, state: {disabled: true}},
+      ] as const) {
+        const surface = new StateSurface(entry.hit)
+        button(surface, 0, 0, 100, 22, {children: "Run", appearance: appearance as ButtonElementAppearance, ...entry.props})
+        const expected = resolveWidgetColors(kind, entry.state)
+        expect(surface.roundedRects[0]?.[4]).toMatchObject({
+          fill: expectedColor(expected.inner),
+          border: expectedColor(expected.outline),
+        })
+        expect(surface.centeredTexts[0]?.[3].material.color).toEqual(expectedColor(expected.text))
       }
     }
-    const hover = new HoverSurface()
-    button(hover, 0, 0, 100, 22, {children: "Run", onClick() {}})
-    expect(hover.roundedRects[0]?.[4].border).toEqual(palette.cyan)
-    expect(hover.roundedRects[0]?.[4].fill).toEqual(palette.bgElevated)
-    expect(idle.roundedRects[0]?.[4].fill).not.toEqual(hover.roundedRects[0]?.[4].fill)
   })
 
   test("keeps chrome geometry stable and repeats press/release without a held timer state", () => {
@@ -113,8 +133,9 @@ describe("button visible geometry", () => {
     surface.state = {hovered: true, pressed: true}
     render()
     expect(surface.roundedRects[0]?.slice(0, 4)).toEqual(idleRect)
-    expect(surface.roundedRects[0]?.[4].border).toEqual(palette.cyan)
-    expect(surface.roundedRects[0]?.[4].fill).toEqual(palette.bgHot)
+    const pressed = resolveWidgetColors("regular", {hovered: true, pressed: true})
+    expect(surface.roundedRects[0]?.[4].border).toEqual(expectedColor(pressed.outline))
+    expect(surface.roundedRects[0]?.[4].fill).toEqual(expectedColor(pressed.inner))
 
     surface.clearRecording()
     surface.state = {hovered: false, pressed: false}
@@ -128,7 +149,7 @@ describe("button visible geometry", () => {
     render()
 
     expect(surface.roundedRects[0]?.slice(0, 4)).toEqual(idleRect)
-    expect(surface.roundedRects[0]?.[4].border).toEqual(palette.borderRule)
+    expect(surface.roundedRects[0]?.[4].border).toEqual(expectedColor(resolveWidgetColors("regular").outline))
     expect({presses, releases}).toEqual({presses: 2, releases: 2})
     expect(surface.hitRenders).toEqual(["repeat", "repeat", "repeat", "repeat"])
     expect(new Set(surface.renderKeys)).toEqual(new Set(["repeat"]))
@@ -165,6 +186,7 @@ describe("button visible geometry", () => {
       fontPx: uiShapeMetrics.compactFontPx,
       iconPx: uiShapeMetrics.iconGlyphSize,
       gap: uiShapeMetrics.tightGap,
+      colors: resolveWidgetColors("regular"),
     })
   })
 

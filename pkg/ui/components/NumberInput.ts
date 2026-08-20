@@ -42,6 +42,7 @@ export function NumberInput(
     value: formatNumberInputValue(props.value, props),
     disabled,
     submitOnEnter: true,
+    type: "number",
   }
   if (props.key !== undefined) textFieldProps.key = props.key
   if (props.fontPx !== undefined) textFieldProps.fontPx = props.fontPx

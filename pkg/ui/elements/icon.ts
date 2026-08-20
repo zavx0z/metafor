@@ -1,7 +1,9 @@
+import type {Color} from "@metafor/engine"
 import {Z, type UiSurface} from "./surface.ts"
 
 export type DrawIconOptions = {
   opacity?: number
+  tint?: Color
   z?: number
 }
 
@@ -10,6 +12,7 @@ export function drawIcon(host: UiSurface, src: string, x: number, y: number, siz
   host.drawImage(src, x, y, size, size, {
     fit: "contain",
     opacity: opts.opacity ?? 1,
+    ...(opts.tint === undefined ? {} : {tint: opts.tint}),
     z: opts.z ?? Z.TEXT,
   })
 }

@@ -518,7 +518,7 @@ function drawBooleanField(host: UiSurface, x: number, y: number, width: number, 
         fontPx: uiShapeMetrics.compactFontPx,
       })},
       {width: controlWidth, height: uiShapeMetrics.controlHeight, draw: (slotX, slotY, slotW, slotH) => {
-        if (field.presentation === "checkbox") {
+        if (field.presentation !== "switch") {
           const props: Parameters<typeof Checkbox>[5] = {checked: field.value, disabled}
           if (onChange !== undefined) props.onChange = onChange
           Checkbox(host, slotX, slotY, slotW, slotH, props)

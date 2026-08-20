@@ -1,5 +1,17 @@
 import {Color} from "@metafor/engine"
-import {Z, control, flexColumn, flexRow, palette, uiIcons, uiShapeMetrics, type UiSurface} from "@ui/elements"
+import {
+  Z,
+  blenderRgba8ToColor,
+  control,
+  flexColumn,
+  flexRow,
+  palette,
+  resolveWidgetColors,
+  textMaterial,
+  uiIcons,
+  uiShapeMetrics,
+  type UiSurface,
+} from "@ui/elements"
 import {IconButton, type IconButtonProps} from "./Button.ts"
 
 export type SliderControlLayout = "header" | "track" | "inline"
@@ -47,11 +59,19 @@ function drawInlineLayout(host: UiSurface, x: number, y: number, w: number, prop
   const height = props.buttonHeight ?? uiShapeMetrics.controlHeight
   const zBase = props.zBase ?? Z.ELEMENT
   const textZ = props.textZ ?? Z.TEXT
-  control(host, x, y, w, height, {style: {zIndex: zBase}})
+  const key = `${props.key}:inline`
+  const hit = host.hitState(x, y, w, height, key)
+  const colors = resolveWidgetColors("numberSlider", {hovered: hit.hovered, pressed: hit.pressed})
+  control(host, x, y, w, height, {style: {
+    background: blenderRgba8ToColor(colors.inner),
+    borderColor: blenderRgba8ToColor(colors.outline),
+    color: blenderRgba8ToColor(colors.text),
+    zIndex: zBase,
+  }})
   const inset = uiShapeMetrics.borderWidth
   host.drawRoundedRect(x + inset, y + inset, Math.max(0, (w - inset * 2) * ratio), Math.max(1, height - inset * 2), {
     radius: Math.max(0, uiShapeMetrics.lowRadius - inset),
-    fill: new Color(0.25, 0.47, 0.76, 0.92),
+    fill: blenderRgba8ToColor(colors.item),
     border: null,
     z: zBase + 0.01,
   })
@@ -66,13 +86,17 @@ function drawInlineLayout(host: UiSurface, x: number, y: number, w: number, prop
     items: [
       {width: "grow", height, draw: (slotX, slotY, slotW) => host.drawText(props.label, slotX, slotY + (height - (props.labelFontPx ?? uiShapeMetrics.compactFontPx)) / 2, {
         fontPx: props.labelFontPx ?? uiShapeMetrics.compactFontPx,
-        material: materialForTone(host, props.labelTone ?? "text"),
+        material: props.labelTone === undefined
+          ? textMaterial(host, blenderRgba8ToColor(colors.text))
+          : materialForTone(host, props.labelTone),
         maxWidthPx: slotW,
         z: textZ,
       })},
       {width: Math.max(40, height * 2.4), height, draw: (slotX, slotY, slotW) => host.drawText(formatSliderValue(props, value), slotX, slotY + (height - (props.valueFontPx ?? uiShapeMetrics.compactFontPx)) / 2, {
         fontPx: props.valueFontPx ?? uiShapeMetrics.compactFontPx,
-        material: materialForTone(host, props.valueTone ?? "text"),
+        material: props.valueTone === undefined
+          ? textMaterial(host, blenderRgba8ToColor(colors.text))
+          : materialForTone(host, props.valueTone),
         maxWidthPx: slotW,
         z: textZ,
       })},
@@ -80,7 +104,7 @@ function drawInlineLayout(host: UiSurface, x: number, y: number, w: number, prop
   })
   const setFromPointer = (localX: number): void => setSliderValue(host, props, bounds.min + ((localX - x) / Math.max(1, w)) * bounds.range, bounds.min, bounds.max)
   host.hit(x, y, w, height, () => undefined, {
-    key: `${props.key}:inline`,
+    key,
     cursor: "pointer",
     onPointerDown: (localX) => setFromPointer(localX),
     onPointerMove: (localX) => setFromPointer(localX),
@@ -221,7 +245,7 @@ function drawInteractiveTrack(
   ticks = false,
 ): void {
   const trackY = y + (h - 5) / 2
-  drawTrack(host, x, trackY, w, ratio, zBase, props.trackTone ?? "cyan")
+  drawTrack(host, x, trackY, w, ratio, zBase, props.trackTone)
   if (ticks) for (const tick of [0, 0.25, 0.5, 0.75, 1]) {
     host.drawRect(x + w * tick, trackY + 8, 1, 3, fade(palette.borderDim, 0.68), zBase + 0.02)
   }
@@ -258,10 +282,12 @@ function drawSliderIconButton(
   IconButton(host, x, y, w, h, buttonProps)
 }
 
-function drawTrack(host: UiSurface, x: number, y: number, w: number, ratio: number, zBase: number, tone: SliderControlTrackTone): void {
-  const active = tone === "warm" ? palette.orange : palette.cyan
-  const knob = tone === "warm" ? new Color(1, 0.36, 0.68, 1) : palette.cyan
-  host.drawRoundedRect(x, y, w, 5, {radius: 3, fill: fade(palette.borderDim, 0.44), border: null, z: zBase})
+function drawTrack(host: UiSurface, x: number, y: number, w: number, ratio: number, zBase: number, tone: SliderControlTrackTone | undefined): void {
+  const raw = resolveWidgetColors("numberSlider")
+  const active = tone === "warm" ? palette.orange : tone === "cyan" ? palette.cyan : blenderRgba8ToColor(raw.item)
+  const knob = tone === "warm" ? new Color(1, 0.36, 0.68, 1) : tone === "cyan" ? palette.cyan : blenderRgba8ToColor(raw.text)
+  const track = tone === undefined ? blenderRgba8ToColor(raw.inner) : fade(palette.borderDim, 0.44)
+  host.drawRoundedRect(x, y, w, 5, {radius: 3, fill: track, border: null, z: zBase})
   host.drawRoundedRect(x, y, Math.max(3, w * ratio), 5, {radius: 3, fill: fade(active, 0.64), border: null, z: zBase + 0.02})
   const knobX = x + w * ratio
   host.drawRoundedRect(knobX - 5, y - 4, 10, 13, {

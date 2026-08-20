@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import type {UiSurface} from "./surface.ts"
 import {UiSurface as BaseUiSurface} from "./surface.ts"
 import {select, type SelectElementOption} from "./select.ts"
+import {blenderRgba8ToColor, resolveWidgetColors} from "./blender-theme.ts"
 import {uiShapeMetrics} from "./shape.ts"
 import {palette} from "./theme.ts"
 
@@ -9,12 +10,14 @@ type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
 type TextCall = Parameters<UiSurface["drawText"]>
 type ImageCall = Parameters<UiSurface["drawImage"]>
 type HitCall = Parameters<UiSurface["hit"]>
+type ShadowCall = Parameters<UiSurface["drawRoundedShadow"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
   readonly texts: TextCall[] = []
   readonly images: ImageCall[] = []
   readonly hits: HitCall[] = []
+  readonly shadows: ShadowCall[] = []
   readonly renderKeys: string[] = []
   readonly keyedRenders: string[] = []
 
@@ -22,6 +25,7 @@ class RecordingSurface extends BaseUiSurface {
   override drawText(...args: TextCall): number { this.texts.push(args); return 0 }
   override drawImage(...args: ImageCall): void { this.images.push(args) }
   override hit(...args: HitCall): void { this.hits.push(args) }
+  override drawRoundedShadow(...args: ShadowCall): void { this.shadows.push(args) }
   override registerRenderKey(key: string): void { this.renderKeys.push(key) }
   override requestKeyedRender(key: string): void { this.keyedRenders.push(key) }
   protected render(): void {}
@@ -70,11 +74,13 @@ describe("select element", () => {
       radius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
     })
-    expect(chrome.fill).toEqual(palette.bgInput)
-    expect(chrome.border).toEqual(palette.borderRule)
+    const colors = resolveWidgetColors("menu")
+    expect(chrome.fill).toEqual(blenderRgba8ToColor(colors.inner))
+    expect(chrome.border).toEqual(blenderRgba8ToColor(colors.outline))
     expect(surface.texts[0]?.slice(0, 3)).toEqual(["Multiply", 16, 34.5])
     expect(surface.texts[0]?.[3]).toMatchObject({fontPx: uiShapeMetrics.compactFontPx, maxWidthPx: 117})
     expect(surface.images[0]?.slice(1, 5)).toEqual([136, 33, uiShapeMetrics.iconGlyphSize, uiShapeMetrics.iconGlyphSize])
+    expect(surface.images[0]![5]!.tint).toEqual(blenderRgba8ToColor(colors.item))
     expect(surface.hits[0]?.slice(0, 4)).toEqual([10, 20, 146, 40])
   })
 
@@ -82,26 +88,36 @@ describe("select element", () => {
     const active = new RecordingSurface()
     select(active, 0, 0, 146, 22, {placeholder: "Choose", active: true, onClick() {}})
     expect(active.texts[0]?.[0]).toBe("Choose")
-    expect(active.texts[0]?.[3].material).toBe(active.materials.muted)
-    expect(active.roundedRects[0]?.[4].fill).toEqual(palette.bgHot)
-    expect(active.roundedRects[0]?.[4].border).toEqual(palette.cyan)
+    expect(active.texts[0]?.[3].material.color).toEqual(blenderRgba8ToColor(
+      resolveWidgetColors("menu", {inactive: true}).text,
+    ))
+    const activeColors = resolveWidgetColors("menu", {pressed: true})
+    expect(active.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(activeColors.inner))
+    expect(active.roundedRects[0]?.[4].border).toEqual(blenderRgba8ToColor(activeColors.outline))
 
     const disabled = new RecordingSurface()
     select(disabled, 0, 0, 146, 22, {value: "Multiply", disabled: true, onClick() {}})
     expect(disabled.hits).toHaveLength(0)
-    expect(disabled.texts[0]?.[3].material).toBe(disabled.materials.muted)
+    const disabledColors = resolveWidgetColors("menu", {disabled: true})
+    expect(disabled.roundedRects[0]?.[4]).toMatchObject({
+      fill: blenderRgba8ToColor(disabledColors.inner),
+      border: blenderRgba8ToColor(disabledColors.outline),
+    })
+    expect(disabled.texts[0]?.[3].material.color).toEqual(blenderRgba8ToColor(disabledColors.text))
   })
 
   test("owns hover and pressed visual states", () => {
     const hovered = new PointerStateSurface({hovered: true, pressed: false})
     select(hovered, 0, 0, 146, 22, {value: "Multiply", onClick() {}})
-    expect(hovered.roundedRects[0]?.[4].fill).toEqual(palette.bgElevated)
-    expect(hovered.roundedRects[0]?.[4].border).toEqual(palette.cyan)
+    const hoverColors = resolveWidgetColors("menu", {hovered: true})
+    expect(hovered.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(hoverColors.inner))
+    expect(hovered.roundedRects[0]?.[4].border).toEqual(blenderRgba8ToColor(hoverColors.outline))
 
     const pressed = new PointerStateSurface({hovered: true, pressed: true})
     select(pressed, 0, 0, 146, 22, {value: "Multiply", onClick() {}})
-    expect(pressed.roundedRects[0]?.[4].fill).toEqual(palette.bgHot)
-    expect(pressed.roundedRects[0]?.[4].border).toEqual(palette.cyan)
+    const pressedColors = resolveWidgetColors("menu", {hovered: true, pressed: true})
+    expect(pressed.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(pressedColors.inner))
+    expect(pressed.roundedRects[0]?.[4].border).toEqual(blenderRgba8ToColor(pressedColors.outline))
   })
 
   test("opens keyed overlay rows, selects one controlled value and closes after choice", () => {
@@ -129,19 +145,21 @@ describe("select element", () => {
       "Subtract",
       "Divide",
     ])
+    expect(surface.shadows).toHaveLength(1)
     expect(surface.roundedRects.map((call) => call[4].fill)).toEqual([
-      palette.bgHot,
-      palette.bgPanel,
-      palette.bgInput,
-      palette.bgHot,
-      palette.bgInput,
-      palette.bgPanelDim,
+      blenderRgba8ToColor(resolveWidgetColors("menu", {pressed: true}).inner),
+      blenderRgba8ToColor(resolveWidgetColors("menuBack").inner),
+      blenderRgba8ToColor(resolveWidgetColors("menuItem").inner),
+      blenderRgba8ToColor(resolveWidgetColors("menuItem", {selectedDraw: true}).inner),
+      blenderRgba8ToColor(resolveWidgetColors("menuItem").inner),
+      blenderRgba8ToColor(resolveWidgetColors("menuItem", {disabled: true}).inner),
     ])
     expect(surface.hits.map(hitKey)).toEqual([
       "operation",
       "operation:option:add",
       "operation:option:multiply",
       "operation:option:subtract",
+      "operation:option:divide",
     ])
 
     trigger(surface.hits.find((hit) => hitKey(hit) === "operation:option:subtract"))
@@ -187,7 +205,7 @@ describe("select element", () => {
     const menu = surface.roundedRects[1]?.[4]
     const rows = surface.roundedRects.slice(2).map((call) => call[4])
     expect(menu).toMatchObject({radius: uiShapeMetrics.lowRadius, borderWidth: uiShapeMetrics.borderWidth})
-    expect(menu?.border).toEqual(palette.borderRule)
+    expect(menu?.border).toEqual(blenderRgba8ToColor(resolveWidgetColors("menuBack").outline))
     expect(rows.map(({radius, border}) => ({radius, border}))).toEqual([
       {radius: 0, border: null},
       {radius: 0, border: null},
@@ -195,10 +213,10 @@ describe("select element", () => {
       {radius: 0, border: null},
     ])
     expect(rows.map(({fill}) => fill)).toEqual([
-      palette.bgElevated,
-      palette.bgHot,
-      palette.bgInput,
-      palette.bgPanelDim,
+      blenderRgba8ToColor(resolveWidgetColors("menuItem", {hovered: true}).inner),
+      blenderRgba8ToColor(resolveWidgetColors("menuItem", {selectedDraw: true}).inner),
+      blenderRgba8ToColor(resolveWidgetColors("menuItem").inner),
+      blenderRgba8ToColor(resolveWidgetColors("menuItem", {disabled: true}).inner),
     ])
   })
 
