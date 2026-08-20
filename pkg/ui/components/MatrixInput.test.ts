@@ -62,7 +62,12 @@ const enter = (): KeyboardEvent => ({
   preventDefault() {},
 } as KeyboardEvent)
 
-const pointer = (): MouseEvent => ({button: 0, preventDefault() {}} as MouseEvent)
+const pointer = (opts: Partial<MouseEvent> = {}): MouseEvent => ({
+  button: 0,
+  ctrlKey: opts.ctrlKey === true,
+  shiftKey: opts.shiftKey === true,
+  preventDefault() {},
+} as MouseEvent)
 
 const submit = (surface: UiSurface, key: string, value: string): void => {
   focusInput(surface, key, createInputEditState(value))
@@ -98,6 +103,25 @@ describe("public MatrixInput", () => {
     expect(values).toEqual([[[1.01, 0], [0, 1]]])
     expect(values[0]).not.toBe(initial)
     expect(initial).toEqual([[1, 0], [0, 1]])
+  })
+
+  test("delegates active Ctrl drag snapping through the shared adaptive cell range", () => {
+    const values: Array<readonly (readonly number[])[]> = []
+    const surface = new RecordingSurface()
+    MatrixInput(surface, 0, 0, 146, 44, {
+      key: "snap-matrix",
+      value: [[12.3, 0], [0, 1]],
+      onChange: (value) => values.push(value),
+    })
+    const hit = surface.hits[0]!
+    const options = hit[5]
+    if (typeof options === "object") {
+      const center = hit[0] + hit[2] / 2
+      options.onPointerDown?.(center, hit[1] + hit[3] / 2, pointer())
+      options.onPointerMove?.(center + 4, hit[1] + hit[3] / 2, pointer({ctrlKey: true}))
+      options.onPointerMove?.(center + 54, hit[1] + hit[3] / 2, pointer({ctrlKey: true}))
+    }
+    expect(values).toEqual([[[10, 0], [0, 1]]])
   })
   test("normalizes square 2D, 3D and 4D values through the exact Field delegate", () => {
     expect(normalizeMatrixInputValue([[2]])).toEqual([[2, 0], [0, 1]])

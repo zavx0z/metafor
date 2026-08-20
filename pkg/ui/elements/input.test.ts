@@ -344,10 +344,43 @@ describe("number input pointer gesture dispatch", () => {
     options.onPointerUp?.(pointer())
     expect(events).toEqual([
       {kind: "start", zone: "center"},
-      {kind: "scrub", zone: "center", deltaX: 10, distanceX: 10, shiftKey: true},
+      {kind: "scrub", zone: "center", deltaX: 10, distanceX: 10, shiftKey: true, ctrlKey: false},
       {kind: "end"},
     ])
     expect(surfaceHasActiveInput(surface)).toBeFalse()
+  })
+
+  test("forwards current Ctrl and Shift only after numeric drag becomes active", () => {
+    const events: unknown[] = []
+    const surface = new RecordingSurface()
+    input(surface, 0, 0, 100, 22, {
+      key: "snap-modifiers",
+      type: "number",
+      value: "1",
+      onNumericGesture: (event) => events.push(event),
+    })
+    const options = surface.hits[0]![5] as HitOptions
+    options.onPointerDown?.(50, 11, pointer())
+    options.onPointerMove?.(54, 11, pointer({ctrlKey: true}))
+    options.onPointerMove?.(64, 11, pointer({ctrlKey: true}))
+    options.onPointerMove?.(74, 11, pointer({ctrlKey: true, shiftKey: true}))
+    expect(events).toEqual([
+      {kind: "start", zone: "center"},
+      {kind: "scrub", zone: "center", deltaX: 10, distanceX: 10, shiftKey: false, ctrlKey: true},
+      {kind: "scrub", zone: "center", deltaX: 10, distanceX: 20, shiftKey: true, ctrlKey: true},
+    ])
+
+    const ctrlClickEvents: unknown[] = []
+    const ctrlClick = new RecordingSurface()
+    input(ctrlClick, 0, 0, 100, 22, {
+      key: "ctrl-click-stays-text",
+      type: "number",
+      value: "1",
+      onNumericGesture: (event) => ctrlClickEvents.push(event),
+    })
+    const ctrlOptions = ctrlClick.hits[0]![5] as HitOptions
+    ctrlOptions.onPointerDown?.(50, 11, pointer({ctrlKey: true}))
+    expect(ctrlClickEvents).toEqual([{kind: "text"}])
   })
 
   test("enters text immediately on Ctrl and cancels numeric edit on Escape or right press", () => {

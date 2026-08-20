@@ -74,7 +74,12 @@ const enter = (): KeyboardEvent => ({
   preventDefault() {},
 } as KeyboardEvent)
 
-const pointer = (): MouseEvent => ({button: 0, preventDefault() {}} as MouseEvent)
+const pointer = (opts: Partial<MouseEvent> = {}): MouseEvent => ({
+  button: 0,
+  ctrlKey: opts.ctrlKey === true,
+  shiftKey: opts.shiftKey === true,
+  preventDefault() {},
+} as MouseEvent)
 
 const submit = (surface: UiSurface, key: string, value: string): void => {
   focusInput(surface, key, createInputEditState(value))
@@ -165,6 +170,30 @@ describe("public VectorInput", () => {
     expect(values).toEqual([[1.25, 2, 3]])
     expect(values[0]).not.toBe(initial)
     expect(initial).toEqual([1, 2, 3])
+  })
+
+  test("delegates active Ctrl drag snapping without local Vector numeric logic", () => {
+    const values: Array<readonly number[]> = []
+    const surface = new RecordingSurface()
+    VectorInput(surface, 0, 0, 146, 66, {
+      key: "snap-vector",
+      value: [1.3, 2, 3],
+      min: 0,
+      max: 10,
+      softMin: 0,
+      softMax: 10,
+      step: 0.1,
+      onChange: (value) => values.push(value),
+    })
+    const hit = surface.hits[0]!
+    const options = hit[5]
+    if (typeof options === "object") {
+      const center = hit[0] + hit[2] / 2
+      options.onPointerDown?.(center, hit[1] + hit[3] / 2, pointer())
+      options.onPointerMove?.(center + 4, hit[1] + hit[3] / 2, pointer({ctrlKey: true}))
+      options.onPointerMove?.(center + 54, hit[1] + hit[3] / 2, pointer({ctrlKey: true}))
+    }
+    expect(values).toEqual([[2, 2, 3]])
   })
   test("normalizes 2D, 3D and 4D values through the exact Field delegate", () => {
     expect(normalizeVectorInputValue([1, 2], 2)).toEqual([1, 2])

@@ -57,7 +57,7 @@ export type InputType = "text" | "number" | "range"
 export type InputNumericZone = "left" | "center" | "right"
 export type InputNumericGesture =
   | Readonly<{kind: "start"; zone: InputNumericZone}>
-  | Readonly<{kind: "scrub"; zone: InputNumericZone; deltaX: number; distanceX: number; shiftKey: boolean}>
+  | Readonly<{kind: "scrub"; zone: InputNumericZone; deltaX: number; distanceX: number; shiftKey: boolean; ctrlKey: boolean}>
   | Readonly<{kind: "step"; direction: -1 | 1}>
   | Readonly<{kind: "text"}>
   | Readonly<{kind: "cancel"}>
@@ -336,6 +336,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
             deltaX,
             distanceX,
             shiftKey: event?.shiftKey === true,
+            ctrlKey: event?.ctrlKey === true,
           })
           props.onPointerMove?.(localX, localY, event)
           surface.requestKeyedRender(key)

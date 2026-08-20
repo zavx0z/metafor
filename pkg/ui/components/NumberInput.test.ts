@@ -17,6 +17,7 @@ import {
   normalizeNumberInputValue,
   parseNumberInputValue,
   resolveNumberInputSoftRange,
+  snapLinearNumberInputValue,
   scrubNumberInputValue,
   stepNumberInputValue,
   type NumberInputProps,
@@ -133,6 +134,45 @@ describe("public NumberInput", () => {
     expect(stepNumberInputValue(10, 1, {min: -10, max: 20, softMin: 0.1, softMax: 10.1, step: 0.25})).toBe(10.1)
     expect(stepNumberInputValue(0.2, -1, {min: -10, max: 20, softMin: 0.1, softMax: 10.1, step: 0.25})).toBe(0.1)
     expect(stepNumberInputValue(10.1, 1, {min: -10, max: 20, softMin: 0.1, softMax: 10.1, step: 0.25})).toBe(10.1)
+  })
+
+  test("applies Blender linear Ctrl and Ctrl+Shift snap increments by frozen soft range", () => {
+    expect(snapLinearNumberInputValue(0.44, {min: 0, max: 1})).toBe(0.4)
+    expect(snapLinearNumberInputValue(0.44, {min: 0, max: 1}, true)).toBe(0.44)
+    expect(snapLinearNumberInputValue(6.3, {min: 0, max: 10})).toBe(6)
+    expect(snapLinearNumberInputValue(6.34, {min: 0, max: 10}, true)).toBe(6.3)
+    expect(snapLinearNumberInputValue(44.4, {min: 0, max: 100})).toBe(40)
+    expect(snapLinearNumberInputValue(44.4, {min: 0, max: 100}, true)).toBe(44)
+    expect(snapLinearNumberInputValue(-0.05, {min: -1, max: 1})).toBe(-0.1)
+    expect(snapLinearNumberInputValue(0, {min: 0, max: 100})).toBe(0)
+    expect(snapLinearNumberInputValue(100, {min: 0, max: 100})).toBe(100)
+
+    expect(scrubNumberInputValue(0.34, 50, 50, {softMin: 0, softMax: 1, step: 0.01}, false, true)).toBe(0.4)
+    expect(scrubNumberInputValue(0.34, 50, 50, {softMin: 0, softMax: 1, step: 0.01}, true, true)).toBe(0.35)
+  })
+
+  test("preserves the unsnapped drag position while Ctrl toggles during one gesture", () => {
+    const values: number[] = []
+    const surface = new RecordingSurface()
+    NumberInput(surface, 0, 0, 100, 22, {
+      key: "toggle-snap",
+      value: 1.3,
+      min: 0,
+      max: 10,
+      softMin: 0,
+      softMax: 10,
+      step: 0.1,
+      onChange: (value) => values.push(value),
+    })
+    const options = surface.hits[0]?.[5]
+    if (typeof options === "object") {
+      options.onPointerDown?.(50, 11, pointer())
+      options.onPointerMove?.(54, 11, pointer())
+      options.onPointerMove?.(104, 11, pointer({ctrlKey: true}))
+      options.onPointerMove?.(114, 11, pointer({ctrlKey: true}))
+      options.onPointerMove?.(124, 11, pointer())
+    }
+    expect(values).toEqual([2, 3, 2.7])
   })
 
   test("publishes controlled side steps, scrub updates and cancel restoration", () => {
@@ -344,15 +384,15 @@ describe("public NumberInput", () => {
       if (typeof options !== "object") return
       const center = hit[0] + hit[2] / 2
       options.onPointerDown?.(center, hit[1] + hit[3] / 2, pointer())
-      options.onPointerMove?.(center + 50, hit[1] + hit[3] / 2, pointer())
-      options.onPointerMove?.(center + 100, hit[1] + hit[3] / 2, pointer())
+      options.onPointerMove?.(center + 50, hit[1] + hit[3] / 2, pointer({ctrlKey: true}))
+      options.onPointerMove?.(center + 100, hit[1] + hit[3] / 2, pointer({ctrlKey: true}))
       options.onPointerUp?.(pointer())
     }
     const standaloneValues: number[] = []
     const regularValues: number[] = []
     const compactValues: number[] = []
     const options = {
-      value: 1,
+      value: 1.3,
       min: 0,
       max: 20,
       softMin: 0,

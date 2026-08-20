@@ -35,6 +35,7 @@ export type NumberInputSoftRange = Readonly<{min: number; max: number}>
 type NumberPointerState = {
   origin: number
   current: number
+  rawCurrent: number
   changed: boolean
   dragRange: NumberInputSoftRange
 }
@@ -115,6 +116,7 @@ export function scrubNumberInputValue(
   distanceX: number,
   options: NumberInputFormatOptions = {},
   shift = false,
+  ctrl = false,
 ): number {
   const range = resolveNumberInputDragRange(value, options)
   const softSpan = range.max - range.min
@@ -135,7 +137,23 @@ export function scrubNumberInputValue(
   }
   if (shift) scale /= 10
   const candidate = Math.min(range.max, Math.max(range.min, value + (deltaX / divisor) * scale * softSpan))
-  return normalizeNumberInputValue(candidate, {...options, step: numberPointerStep(options)})
+  const snapped = ctrl ? snapLinearNumberInputValue(candidate, range, shift) : candidate
+  return normalizeNumberInputValue(snapped, {...options, step: numberPointerStep(options)})
+}
+
+/** Applies Blender's linear float snap law for the active frozen soft range. */
+export function snapLinearNumberInputValue(
+  value: number,
+  range: NumberInputSoftRange,
+  small = false,
+): number {
+  if (!Number.isFinite(value) || value === range.min || value === range.max) return value
+  const span = range.max - range.min
+  if (!Number.isFinite(span) || span <= 0) return value
+  const baseIncrement = span < 2.1 ? 0.1 : span < 21 ? 1 : 10
+  const increment = baseIncrement * (small ? 0.1 : 1)
+  const snapped = roundHalfAwayFromZero(value / increment) * increment
+  return rounded(Math.min(range.max, Math.max(range.min, snapped)))
 }
 
 /** Applies one side-handle step using only the hard value contract. */
@@ -209,6 +227,7 @@ function handleNumberPointerGesture(
     states.set(key, {
       origin: value,
       current: value,
+      rawCurrent: value,
       changed: false,
       dragRange: resolveNumberInputDragRange(value, props),
     })
@@ -228,17 +247,39 @@ function handleNumberPointerGesture(
   const current = state ?? {
     origin: normalizeNumberInputValue(props.value, props),
     current: normalizeNumberInputValue(props.value, props),
+    rawCurrent: normalizeNumberInputValue(props.value, props),
     changed: false,
     dragRange: resolveNumberInputDragRange(props.value, props),
   }
-  const next = gesture.kind === "step"
-    ? stepNumberInputValue(current.current, gesture.direction, props)
-    : scrubNumberInputValue(current.current, gesture.deltaX, gesture.distanceX, {
+  let next: number
+  if (gesture.kind === "step") {
+    next = stepNumberInputValue(current.current, gesture.direction, props)
+    current.rawCurrent = next
+  } else {
+    const frozenOptions = {
       ...props,
       softMin: current.dragRange.min,
       softMax: current.dragRange.max,
-    }, gesture.shiftKey)
-  if (next === current.current) return
+    }
+    const rawNext = scrubNumberInputValue(
+      current.rawCurrent,
+      gesture.deltaX,
+      gesture.distanceX,
+      frozenOptions,
+      gesture.shiftKey,
+    )
+    current.rawCurrent = rawNext
+    next = gesture.ctrlKey
+      ? normalizeNumberInputValue(
+        snapLinearNumberInputValue(rawNext, current.dragRange, gesture.shiftKey),
+        {...props, step: numberPointerStep(props)},
+      )
+      : rawNext
+  }
+  if (next === current.current) {
+    states.set(key, current)
+    return
+  }
   current.current = next
   current.changed = true
   states.set(key, current)
@@ -300,4 +341,8 @@ function finiteBound(value: number | undefined, fallback: number): number {
 
 function rounded(value: number): number {
   return Math.round(value * 1_000_000) / 1_000_000
+}
+
+function roundHalfAwayFromZero(value: number): number {
+  return value < 0 ? -Math.round(-value) : Math.round(value)
 }
