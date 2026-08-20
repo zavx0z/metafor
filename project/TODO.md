@@ -27,7 +27,6 @@ flowchart LR
     MF424["MF-424 · визуальная доводка Hamiltonian"]
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
-    UI001["UI-001 · playground универсальных UI Components"]
     UI010["UI-010 · полный набор универсальных полей"]
     UI011["UI-011 · package playgrounds на Workbench"]
     UI012["UI-012 · мягкая производительная SDF-тень"]
@@ -78,11 +77,6 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 интервала справа в `DOWN`. Реализация NODES-008.5 сохранена checkpoint-коммитом
 `e1b2aea50` и ожидает визуального подтверждения владельца.
 
-[`UI-001 — Создать playground универсальных UI Components`](tasks/UI-001.md)
-сохраняет historical visual geometry, universal Field routes и уже использует
-public retained Workbench. Package-owned Components stories готовы checkpoint-ом
-`b1a113491` и ожидают независимую closing review.
-
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 параллельно развивает production Components, пока UI-011 владеет всеми
 playground. NumberInput, ColorInput и VectorInput уже вынесены и доказаны на
@@ -112,7 +106,6 @@ package/live evidence. LOD/alignment, exact collapsed Mapping, physical mobile
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-001 | REVIEW      | нет         | [Открыть](tasks/UI-001.md) |
 | UI-010 | IN_PROGRESS | нет         | [Открыть](tasks/UI-010.md) |
 | UI-011 | IN_PROGRESS | нет         | [Открыть](tasks/UI-011.md) |
 | UI-012 | IN_PROGRESS | нет         | [Открыть](tasks/UI-012.md) |
