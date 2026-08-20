@@ -45,6 +45,7 @@ const productionExports = Object.freeze({
     "./badge": "./Badge.ts",
     "./typography": "./Typography.ts",
     "./text-field": "./TextField.ts",
+    "./number-input": "./NumberInput.ts",
     "./switcher": "./Switcher.ts",
     "./progress-checkbox": "./ProgressCheckbox.ts",
     "./slider-control": "./SliderControl.ts",
@@ -127,6 +128,7 @@ describe("production UI delivery baseline", () => {
     for (const fixture of [
       "exact-elements-button.fixture.ts",
       "exact-components-field.fixture.ts",
+      "exact-components-number-input.fixture.ts",
       "exact-node-editor.fixture.ts",
       "root-api.fixture.ts",
     ]) {
@@ -141,6 +143,18 @@ describe("production UI delivery baseline", () => {
       expect(build.success, `${fixture}: ${build.logs.map(({message}) => message).join("\n")}`).toBeTrue()
       expect(build.outputs.some(({path}) => path.endsWith(".js")), fixture).toBeTrue()
     }
+  })
+
+  test("keeps the exact NumberInput leaf independent from Node and playground symbols", async () => {
+    const fixture = join(uiRoot, "delivery/fixtures/exact-components-number-input.fixture.ts")
+    const graph = (await outputSources(await buildBrowser([fixture], false)))
+      .map(({source}) => source)
+      .join("\n")
+    expect(graph).toContain("function NumberInput")
+    expect(graph).not.toContain("@nodes/ui")
+    expect(graph).not.toContain("NodeEditor")
+    expect(graph).not.toContain("@ui/playground")
+    expect(graph).not.toContain("definePlaygroundRoutes")
   })
 
   test("keeps production source independent from playground", async () => {

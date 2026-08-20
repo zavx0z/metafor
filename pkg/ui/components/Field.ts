@@ -2,6 +2,12 @@ import {Color} from "@metafor/engine"
 import {Z, flexColumn, flexRow, palette, type UiSurface} from "@ui/elements"
 import {Button} from "./Button.ts"
 import {Checkbox} from "./Checkbox.ts"
+import {
+  NumberInput,
+  normalizeNumberInputValue,
+  type NumberInputDensity,
+  type NumberInputProps,
+} from "./NumberInput.ts"
 import {SliderControl} from "./SliderControl.ts"
 import {Switcher} from "./Switcher.ts"
 import {TextField} from "./TextField.ts"
@@ -338,6 +344,10 @@ function drawCompactControl(
   metrics: CompactMetrics,
 ): void {
   const disabled = isFieldDisabled(field)
+  if (field.kind === "number") {
+    NumberInput(host, x, y, width, height, numberInputProps(field, "compact"))
+    return
+  }
   if (field.kind === "enum") {
     const selected = field.options.find((option) => option.value === field.value)
     Button(host, x, y, width, height, {
@@ -401,11 +411,7 @@ function drawCompactControl(
     })
     return
   }
-  const value = field.kind === "readonly"
-    ? String(field.value)
-    : field.kind === "number"
-      ? `${normalizeNumberFieldValue(field.value, field)}${field.unit ?? ""}`
-      : field.value
+  const value = field.kind === "readonly" ? String(field.value) : field.value
   const props: Parameters<typeof TextField>[5] = {
     key: fieldKey(field),
     value,
@@ -415,10 +421,6 @@ function drawCompactControl(
     sx: compactTextStyle(metrics),
   }
   if (!disabled && field.kind === "text") props.onChange = (text) => field.onChange?.(text)
-  if (!disabled && field.kind === "number") props.onSubmit = (text) => {
-    const parsed = Number(text.replace(field.unit ?? "", "").trim())
-    if (Number.isFinite(parsed)) field.onChange?.(normalizeNumberFieldValue(parsed, field))
-  }
   TextField(host, x, y, width, height, props)
 }
 
@@ -535,16 +537,7 @@ export function normalizeNumberFieldValue(
   value: number,
   options: Pick<NumberFieldDefinition, "numberKind" | "min" | "max" | "step"> = {},
 ): number {
-  const finite = Number.isFinite(value) ? value : finiteBound(options.min, 0)
-  const minimum = finiteBound(options.min, Number.NEGATIVE_INFINITY)
-  const maximum = Math.max(minimum, finiteBound(options.max, Number.POSITIVE_INFINITY))
-  const clamped = Math.min(maximum, Math.max(minimum, finite))
-  const step = Number.isFinite(options.step) && (options.step ?? 0) > 0 ? options.step! : undefined
-  const stepped = step === undefined || !Number.isFinite(minimum)
-    ? clamped
-    : minimum + Math.round((clamped - minimum) / step) * step
-  const normalized = Math.min(maximum, Math.max(minimum, stepped))
-  return options.numberKind === "integer" ? Math.round(normalized) : rounded(normalized)
+  return normalizeNumberInputValue(value, options)
 }
 
 export function nextEnumFieldValue(
@@ -631,18 +624,24 @@ function drawNumberField(
   height: number,
   field: NumberFieldDefinition,
 ): void {
-  const value = normalizeNumberFieldValue(field.value, field)
-  const props: Parameters<typeof TextField>[5] = {
+  NumberInput(host, x, y, width, height, numberInputProps(field, "regular"))
+}
+
+function numberInputProps(field: NumberFieldDefinition, density: NumberInputDensity): NumberInputProps {
+  const props: NumberInputProps = {
     key: fieldKey(field),
-    value: `${value}${field.unit ?? ""}`,
-    disabled: isFieldDisabled(field),
-    submitOnEnter: true,
+    value: field.value,
+    density,
   }
-  if (!isFieldDisabled(field)) props.onSubmit = (text) => {
-      const parsed = Number(text.replace(field.unit ?? "", "").trim())
-      if (Number.isFinite(parsed)) field.onChange?.(normalizeNumberFieldValue(parsed, field))
-    }
-  TextField(host, x, y, width, height, props)
+  if (field.numberKind !== undefined) props.numberKind = field.numberKind
+  if (field.min !== undefined) props.min = field.min
+  if (field.max !== undefined) props.max = field.max
+  if (field.step !== undefined) props.step = field.step
+  if (field.unit !== undefined) props.unit = field.unit
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onChange !== undefined) props.onChange = field.onChange
+  return props
 }
 
 function drawNumberSlider(host: UiSurface, x: number, y: number, width: number, field: NumberFieldDefinition): void {
@@ -853,10 +852,6 @@ function drawReadonlyField(host: UiSurface, x: number, y: number, width: number,
 
 function matrixRows(value: readonly (readonly number[])[]): readonly (readonly number[])[] {
   return normalizeMatrixFieldValue(value)
-}
-
-function finiteBound(value: number | undefined, fallback: number): number {
-  return Number.isFinite(value) ? value! : fallback
 }
 
 function isFieldDisabled(field: FieldBase): boolean {
