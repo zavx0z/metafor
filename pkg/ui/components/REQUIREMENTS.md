@@ -58,11 +58,15 @@ control нельзя опустить в Elements только ради повт
 
 1. `Field` является discriminated union с устойчивым `id`, `label`, optional
    description/disabled state и точным value contract.
-2. Первый набор содержит text, number, boolean, enum, color, vector, rotation,
-   matrix, reference и read-only fields. Slider является presentation mode
-   number field, а не отдельным типом значения.
-3. `NumberField` различает integer/float, min/max/step/unit и не публикует
-   нечисловое значение. `VectorField` использует 2–4 подписанных numeric axes;
+2. Первый набор содержит text, number, integer, boolean, enum, color, vector,
+   rotation, matrix, reference и read-only fields. Slider является presentation
+   mode number field, а не отдельным типом значения.
+3. `NumberInput`/number Field является canonical FLOAT contract. Public
+   `IntegerInput`/integer Field является canonical INT contract: integer
+   normalization, default step `1`, hard/soft bounds и optional in-control
+   label. Оба используют один shared numeric gesture/normalization engine;
+   `numberKind:"integer"` остаётся compatibility adapter и не создаёт вторую
+   pointer state machine. `VectorField` использует 2–4 подписанных numeric axes;
    Rotation использует тот же control с отдельным semantic kind.
 4. `ColorField` хранит нормализованный RGBA, `EnumField` — stable option value,
    `ReferenceField` — opaque consumer ID и display label. Компонент не загружает
@@ -139,6 +143,11 @@ control нельзя опустить в Elements только ради повт
 6. Public input stories показывают production control в сопоставимом с Blender
    масштабе. Oversized centered preview и pill geometry не могут считаться
    visual acceptance только потому, что callbacks и type contract проходят.
+7. Blender FLOAT mapping использует public `NumberInput`, INT mapping — exact
+   `@ui/components/integer-input`. Field и Node consumer выбирают их semantic
+   kind, не копируют rendering. Новый IntegerInput leaf проходит package-owned
+   story, manifest completeness, exact delivery/root build и Node INT gate до
+   acceptance.
 
 ## Источник терминов
 

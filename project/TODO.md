@@ -171,6 +171,12 @@ Node gate ждёт оба направления.
 UI-015.11 параллельно исправляет `$ui-dev`: no-HMR является осознанным delivery/
 retained law, а stable source checkpoint требует exact selector restart и
 explicit reload прежнего singleton target до browser evidence.
+Skill commit `9691fd886` применён: stable `4ae3175be` загружен restart/reload на
+Elements/Components/Node PIDs `19628/19627/19629`. Button sizes, Select header и
+Node overlay дали console0/non-black captures.
+Новый UI-015.8.5 регистрирует public `@ui/components/integer-input` и canonical
+integer Field (`Iterations = 3`) поверх shared numeric gesture owner; FLOAT
+остаётся NumberInput, compatibility `numberKind:"integer"` не удаляется.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

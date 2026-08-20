@@ -175,5 +175,30 @@
 * Наблюдение: `size:"large"` увеличивает text, но visible Button остаётся
   fixed `22h`; small/medium/large не образуют разные silhouettes. Это public
   geometry RED, не допустимая Blender divergence.
+* Stable after PIDs/target: Components `19627`, target `D0775…`, console `0`:
+  * `components-button-small-stable.png` — `267773` bytes, SHA-256
+    `e830f3c2c2a8400c56eb9d00cbcffe24bd37125d6d3062fc92989b6f0e41b0da`;
+  * `components-button-medium-stable.png` — `267430` bytes, SHA-256
+    `e6c139edd31eac22aad3f86d819215836fbcba05a0c969c9d897a72dda2a6144`;
+  * `components-button-large-stable.png` — `267873` bytes, SHA-256
+    `f50f0c82f8e2a63c6dd30380bb1659c68e864ae8028f7eee9896249103d0a34f`.
+
+## UI-015.7.5 — Stable Select/portal evidence
+
+* Elements `elements-select-header-stable.png` — `282516` bytes, SHA-256
+  `ead118452f0abbee23c86521a7250aeb27ac5640a96bcbdae7f1f5ccb5f61ee5`.
+* Node `node-select-overlay-stable.png` — `396162` bytes, SHA-256
+  `1eb653c5c5790ca8f2687cdc9f04c41ab3bd9d71e3a80a99f5508dd2adeb4abf`.
+* Stable commit `4ae3175be`, PIDs Elements/Node `19628/19629`, exact targets,
+  console `0`. Header/separator видимы; Node popup перекрывает later rows;
+  accordion cards имеют distinct region/card roles. Interaction/owner gates open.
+
+## UI-015.8.5 — IntegerInput reference
+
+* `blender-labeled-number-reference.png`, `496×106`, `33599` bytes, SHA-256
+  `a8cc1077b898aaf06299fb40369b0237defa2fa9a27b8a2125867b3bc5740558`.
+* Наблюдение: one INT button, label `Iterations`, right value `3`, side
+  arrows/zone behavior. Owner mapping: public IntegerInput canonical INT;
+  NumberInput остаётся FLOAT, implementation engine shared.
 
 Automated captures prove exact canvas state, not explicit owner acceptance.
