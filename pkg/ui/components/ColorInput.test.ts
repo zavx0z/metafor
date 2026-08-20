@@ -4,6 +4,7 @@ import {
   focusInput,
   handleActiveInputKey,
   palette,
+  uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -121,21 +122,24 @@ describe("public ColorInput", () => {
     expect(values).toEqual([])
   })
 
-  test("draws the normalized swatch and preserves regular and compact production geometry", () => {
+  test("draws the normalized swatch through one Elements-owned geometry", () => {
     const regular = new RecordingSurface()
     ColorInput(regular, 4, 6, 120, 28, colorProps(() => {}))
     const [regularX, regularY, regularWidth, regularHeight, regularStyle] = regular.roundedRects[0]!
     expect({regularX, regularY, regularWidth, regularHeight}).toEqual({
       regularX: 4,
-      regularY: 6,
-      regularWidth: 28,
-      regularHeight: 28,
+      regularY: 9,
+      regularWidth: uiShapeMetrics.iconActionSlot,
+      regularHeight: uiShapeMetrics.controlHeight,
     })
-    expect({radius: regularStyle.radius, borderWidth: regularStyle.borderWidth}).toEqual({radius: 6, borderWidth: 1})
+    expect({radius: regularStyle.radius, borderWidth: regularStyle.borderWidth}).toEqual({
+      radius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
+    })
     expect(regularStyle.fill).toMatchObject(initialColor)
-    expect(regularStyle.border).toEqual(palette.border)
-    expect(regular.roundedRects[1]?.[0]).toBe(39)
-    expect(regular.roundedRects[1]?.[2]).toBe(85)
+    expect(regularStyle.border).toEqual(palette.borderDim)
+    expect(regular.roundedRects[1]?.[0]).toBe(29)
+    expect(regular.roundedRects[1]?.[2]).toBe(95)
 
     const compact = new RecordingSurface()
     ColorInput(compact, 4, 6, 120, 22, colorProps(() => {}, {density: "compact"}))
@@ -143,14 +147,17 @@ describe("public ColorInput", () => {
     expect({compactX, compactY, compactWidth, compactHeight}).toEqual({
       compactX: 4,
       compactY: 6,
-      compactWidth: 22,
-      compactHeight: 22,
+      compactWidth: uiShapeMetrics.iconActionSlot,
+      compactHeight: uiShapeMetrics.controlHeight,
     })
-    expect({radius: compactStyle.radius, borderWidth: compactStyle.borderWidth}).toEqual({radius: 3, borderWidth: 1})
+    expect({radius: compactStyle.radius, borderWidth: compactStyle.borderWidth}).toEqual({
+      radius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
+    })
     expect(compactStyle.fill).toMatchObject(initialColor)
     expect(compact.roundedRects[1]?.[0]).toBe(29)
     expect(compact.roundedRects[1]?.[2]).toBe(95)
-    expect(compact.roundedRects[1]?.[4].radius).toBe(3)
+    expect(compact.roundedRects[1]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
   })
 
   test("returns the same controlled value standalone and through regular and compact Field", () => {

@@ -1,4 +1,4 @@
-import {flexRow, palette, type StyleProps, type UiSurface} from "@ui/elements"
+import {flexRow, palette, uiShapeMetrics, type UiSurface} from "@ui/elements"
 import {Button, type ButtonProps} from "./Button.ts"
 import {TextField} from "./TextField.ts"
 
@@ -15,13 +15,6 @@ export type PathInputProps = {
   onBrowse?(): void
 }
 
-const COMPACT_STYLE: StyleProps = {
-  borderWidth: 1,
-  borderRadius: 3,
-  color: "#E6E6E6",
-  fontSize: 11,
-}
-
 /** Draws one controlled path string with a separate owner-provided browse action. */
 export function PathInput(
   host: UiSurface,
@@ -31,35 +24,26 @@ export function PathInput(
   height: number,
   props: PathInputProps,
 ): void {
-  const compact = props.density === "compact"
   const disabled = props.disabled === true || props.readOnly === true
-  const gap = compact ? 3 : 7
-  const browseWidth = height
+  const gap = uiShapeMetrics.tightGap
+  const browseWidth = uiShapeMetrics.iconActionSlot
   const textFieldProps: Parameters<typeof TextField>[5] = {
     value: props.value,
     disabled,
   }
   if (props.key !== undefined) textFieldProps.key = props.key
   if (props.placeholder !== undefined) textFieldProps.placeholder = props.placeholder
-  if (compact) {
-    textFieldProps.fontPx = 11
-    textFieldProps.sx = COMPACT_STYLE
-  }
   if (!disabled && props.onChange !== undefined) textFieldProps.onChange = (value) => props.onChange!(value)
 
   const browseProps: ButtonProps = {
     children: "…",
     tooltip: "Выбрать путь",
     color: "neutral",
-    variant: compact ? "contained" : "outlined",
-    radius: compact ? 3 : height / 2,
-    fontPx: compact ? 11 : 12,
+    variant: "contained",
+    fill: palette.bgInput,
+    border: palette.borderDim,
     disabled,
     action: () => props.onBrowse?.(),
-  }
-  if (compact) {
-    browseProps.fill = palette.bgInput
-    browseProps.border = palette.borderDim
   }
 
   flexRow({

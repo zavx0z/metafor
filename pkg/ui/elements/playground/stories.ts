@@ -5,7 +5,7 @@ import {
   type PlaygroundStoryModule,
 } from "@ui/playground"
 
-export type PrimitiveStoryComponent = "div" | "span" | "button" | "input" | "img" | "list"
+export type PrimitiveStoryComponent = "div" | "span" | "button" | "input" | "select" | "img" | "list"
 export type LayoutStoryComponent = "flex" | "flex-css"
 export type StyleStoryComponent = "css" | "theme"
 
@@ -117,6 +117,21 @@ export const ELEMENT_STORIES = definePlaygroundStories({
               {id: "inactive", label: "Неактивный", title: "input · Неактивный", load: loadPrimitiveStory("input", "state", "inactive")},
               {id: "active", label: "Активный", title: "input · Активный", load: loadPrimitiveStory("input", "state", "active")},
               {id: "disabled", label: "Недоступный", title: "input · Недоступный", load: loadPrimitiveStory("input", "state", "disabled")},
+            ],
+          }],
+        },
+        {
+          id: "select",
+          label: "Выбор значения",
+          apiName: "select",
+          tags: ["value", "chevron", "disabled"],
+          sections: [{
+            id: "state",
+            label: "Состояние",
+            variants: [
+              {id: "inactive", label: "Неактивный", title: "select · Неактивный", load: loadPrimitiveStory("select", "state", "inactive")},
+              {id: "active", label: "Активный", title: "select · Активный", load: loadPrimitiveStory("select", "state", "active")},
+              {id: "disabled", label: "Недоступный", title: "select · Недоступный", load: loadPrimitiveStory("select", "state", "disabled")},
             ],
           }],
         },

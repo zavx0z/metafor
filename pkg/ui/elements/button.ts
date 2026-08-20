@@ -6,11 +6,20 @@ import {mergeStyle, px, textMaterial, type ElementChildren, type InteractiveElem
 import {uiShapeMetrics} from "./shape.ts"
 
 export type ButtonElementState = "idle" | "hover" | "active" | "disabled"
-export type ButtonElementChildren = ElementChildren | ((state: ButtonElementState) => void)
+export type ButtonElementSize = "small" | "medium" | "large"
+export type ButtonElementLayout = Readonly<{
+  chrome: Readonly<{x: number; y: number; width: number; height: number}>
+  content: Readonly<{x: number; y: number; width: number; height: number}>
+  fontPx: number
+  iconPx: number
+  gap: number
+}>
+export type ButtonElementChildren = ElementChildren | ((state: ButtonElementState, layout: ButtonElementLayout) => void)
 export type ButtonElementProps = Omit<InteractiveElementProps, "children" | "style"> & {
   children?: ButtonElementChildren
   style?: StyleProps | ((state: ButtonElementState) => StyleProps)
   disabled?: boolean
+  size?: ButtonElementSize
   tooltip?: string
   tooltipDelayMs?: number
 }
@@ -34,11 +43,31 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
   const pressOffsetY = active ? 1 : 0
   const chrome = controlChromeRect(x, y, width, height, style)
   const pad = controlChromePadding(style)
+  const visibleChrome = {
+    x: chrome.x,
+    y: chrome.y + pressOffsetY,
+    width: chrome.width,
+    height: Math.max(0, chrome.height - pressOffsetY),
+  }
+  const fontPx = px(style.fontSize, buttonFontPx(props.size))
+  const content = {
+    x: visibleChrome.x + pad.left,
+    y: visibleChrome.y,
+    width: Math.max(0, visibleChrome.width - pad.left - pad.right),
+    height: visibleChrome.height,
+  }
+  const layout: ButtonElementLayout = {
+    chrome: visibleChrome,
+    content,
+    fontPx,
+    iconPx: Math.min(uiShapeMetrics.iconGlyphSize, content.width, content.height),
+    gap: uiShapeMetrics.tightGap,
+  }
 
-  div(surface, chrome.x, chrome.y + pressOffsetY, chrome.width, chrome.height - pressOffsetY, {
+  div(surface, visibleChrome.x, visibleChrome.y, visibleChrome.width, visibleChrome.height, {
     children: typeof props.children === "function" ? () => {
       const render = props.children
-      if (typeof render === "function") render(state)
+      if (typeof render === "function") render(state, layout)
     } : undefined,
     key,
     style: {
@@ -48,7 +77,7 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
       borderRadius: style.borderRadius ?? uiShapeMetrics.lowRadius,
       borderWidth: style.borderWidth ?? uiShapeMetrics.borderWidth,
       color: style.color ?? (state === "disabled" ? "muted" : "text"),
-      fontSize: style.fontSize ?? uiShapeMetrics.compactFontPx,
+      fontSize: style.fontSize ?? buttonFontPx(props.size),
       zIndex: style.zIndex ?? Z.ELEMENT,
     },
   })
@@ -86,14 +115,19 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
   }
 
   if (props.children !== false && props.children !== null && props.children !== undefined && typeof props.children !== "function") {
-    const fontSize = px(style.fontSize, uiShapeMetrics.compactFontPx)
     const maxWidth = Math.max(1, chrome.width - pad.left - pad.right)
-    surface.drawTextCentered(String(props.children), chrome.x + chrome.width / 2, chrome.y + pressOffsetY + chrome.height / 2, {
-      fontPx: fontSize,
+    surface.drawTextCentered(String(props.children), visibleChrome.x + visibleChrome.width / 2, visibleChrome.y + visibleChrome.height / 2, {
+      fontPx,
       material: textMaterial(surface, style.color ?? (state === "disabled" ? "muted" : "text")),
       maxWidthPx: maxWidth,
     })
   }
+}
+
+function buttonFontPx(size: ButtonElementSize | undefined): number {
+  if (size === "small") return uiShapeMetrics.compactFontPx - uiShapeMetrics.borderWidth
+  if (size === "large") return uiShapeMetrics.compactFontPx + uiShapeMetrics.tightGap
+  return uiShapeMetrics.compactFontPx
 }
 
 function pressedVisualKey(surface: UiSurface): string | null {

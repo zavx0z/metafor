@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import type {UiSurface} from "./surface.ts"
 import {UiSurface as BaseUiSurface} from "./surface.ts"
-import {button} from "./button.ts"
+import {button, type ButtonElementLayout} from "./button.ts"
 import {uiShapeMetrics} from "./shape.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
@@ -62,5 +62,33 @@ describe("button visible geometry", () => {
       borderWidth: 2,
     })
     expect(surface.centeredTexts[0]?.[3]).toMatchObject({fontPx: 13, maxWidthPx: 76})
+  })
+
+  test("gives custom content the Elements-planned visible and padded rects", () => {
+    const surface = new RecordingSurface()
+    let observed: ButtonElementLayout | undefined
+    button(surface, 10, 20, 100, 40, {
+      children: (_state, layout) => { observed = layout },
+      style: {paddingLeft: 8, paddingRight: 5},
+    })
+
+    expect(observed).toEqual({
+      chrome: {x: 10, y: 29, width: 100, height: uiShapeMetrics.controlHeight},
+      content: {x: 18, y: 29, width: 87, height: uiShapeMetrics.controlHeight},
+      fontPx: uiShapeMetrics.compactFontPx,
+      iconPx: uiShapeMetrics.iconGlyphSize,
+      gap: uiShapeMetrics.tightGap,
+    })
+  })
+
+  test("clamps the planned glyph inside narrow padded content", () => {
+    const surface = new RecordingSurface()
+    let observed: ButtonElementLayout | undefined
+    button(surface, 0, 0, 20, 22, {
+      children: (_state, layout) => { observed = layout },
+      style: {paddingX: 8},
+    })
+    expect(observed?.content.width).toBe(4)
+    expect(observed?.iconPx).toBe(4)
   })
 })

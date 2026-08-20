@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {
   palette,
+  uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -18,21 +19,34 @@ import {
 } from "./Field.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type TextCall = Parameters<UiSurface["drawText"]>
 type CenteredTextCall = Parameters<UiSurface["drawTextCentered"]>
+type ImageCall = Parameters<UiSurface["drawImage"]>
 type HitCall = Parameters<UiSurface["hit"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
+  readonly texts: TextCall[] = []
   readonly centeredTexts: CenteredTextCall[] = []
+  readonly images: ImageCall[] = []
   readonly hits: HitCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
   }
 
+  override drawText(...args: TextCall): number {
+    this.texts.push(args)
+    return 0
+  }
+
   override drawTextCentered(...args: CenteredTextCall): number {
     this.centeredTexts.push(args)
     return 0
+  }
+
+  override drawImage(...args: ImageCall): void {
+    this.images.push(args)
   }
 
   override hit(...args: HitCall): void {
@@ -84,7 +98,7 @@ describe("public EnumInput", () => {
     const surface = new RecordingSurface()
     EnumInput(surface, 4, 6, 120, 28, enumProps(values))
 
-    expect(surface.centeredTexts.map(([text]) => text)).toEqual(["Multiply"])
+    expect(surface.texts.map(([text]) => text)).toEqual(["Multiply"])
     const hitOptions = surface.hits[0]?.[5]
     expect(typeof hitOptions === "object" ? hitOptions.tooltip?.label : undefined).toBe("Умножить значения")
     trigger(surface.hits[0])
@@ -96,7 +110,7 @@ describe("public EnumInput", () => {
     const surface = new RecordingSurface()
     EnumInput(surface, 0, 0, 120, 28, enumProps(values, {value: "missing"}))
 
-    expect(surface.centeredTexts.map(([text]) => text)).toEqual(["missing"])
+    expect(surface.texts.map(([text]) => text)).toEqual(["missing"])
     trigger(surface.hits[0])
     expect(values).toEqual(["multiply"])
   })
@@ -106,11 +120,11 @@ describe("public EnumInput", () => {
     const surface = new RecordingSurface()
     EnumInput(surface, 4, 6, 128, 28, enumProps(values, {presentation: "expanded"}))
 
-    expect(surface.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 40, h: 28},
-      {x: 48, y: 6, w: 40, h: 28},
-      {x: 92, y: 6, w: 40, h: 28},
-    ])
+    const expandedRects = surface.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))
+    expect(expandedRects).toHaveLength(3)
+    expect(expandedRects[0]).toEqual({x: 4, y: 9, w: 122 / 3, h: uiShapeMetrics.controlHeight})
+    expect(expandedRects[1]).toEqual({x: 4 + 122 / 3 + uiShapeMetrics.tightGap, y: 9, w: 122 / 3, h: uiShapeMetrics.controlHeight})
+    expect(expandedRects[2]).toEqual({x: 4 + (122 / 3 + uiShapeMetrics.tightGap) * 2, y: 9, w: 122 / 3, h: uiShapeMetrics.controlHeight})
     expect(surface.centeredTexts.map(([text]) => text)).toEqual(["Add", "Multiply", "Subtract"])
     trigger(surface.hits[2])
     expect(values).toEqual(["subtract"])
@@ -137,7 +151,7 @@ describe("public EnumInput", () => {
       const surface = new RecordingSurface()
       EnumInput(surface, 0, 0, 120, 28, enumProps(values, extra))
 
-      expect(surface.centeredTexts.map(([text]) => text)).toEqual([label])
+      expect(surface.texts.map(([text]) => text)).toEqual([label])
       for (const hit of surface.hits) trigger(hit)
       expect(values).toEqual([])
     }
@@ -159,7 +173,7 @@ describe("public EnumInput", () => {
     }
   })
 
-  test("preserves MetaFor regular and compact cycle geometry and delegates both Field densities", () => {
+  test("uses one Elements-owned cycle geometry and delegates both Field densities", () => {
     const standaloneValues: string[] = []
     const regularValues: string[] = []
     const compactValues: string[] = []
@@ -167,17 +181,20 @@ describe("public EnumInput", () => {
     const regular = new RecordingSurface()
     EnumInput(regular, 4, 6, 120, 28, enumProps(standaloneValues))
     expect(regular.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 120, h: 28},
+      {x: 4, y: 9, w: 120, h: uiShapeMetrics.controlHeight},
     ])
 
     const compact = new RecordingSurface()
     EnumInput(compact, 4, 6, 120, 22, enumProps([], {density: "compact"}))
     expect(compact.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 120, h: 22},
+      {x: 4, y: 6, w: 120, h: uiShapeMetrics.controlHeight},
     ])
-    expect(compact.roundedRects[0]?.[4].radius).toBe(3)
+    expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
+    expect(compact.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
     expect(compact.roundedRects[0]?.[4].fill).toEqual(palette.bgInput)
     expect(compact.roundedRects[0]?.[4].border).toEqual(palette.borderDim)
+    expect(regular.roundedRects[0]?.[4].fill).toEqual(compact.roundedRects[0]?.[4].fill)
+    expect(regular.roundedRects[0]?.[4].border).toEqual(compact.roundedRects[0]?.[4].border)
 
     const definition = (values: string[]): EnumFieldDefinition => ({
       id: "operation",

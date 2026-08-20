@@ -130,12 +130,12 @@ describe("public MatrixInput", () => {
     const regular = new RecordingSurface()
     MatrixInput(regular, 4, 6, 204, 56, matrixProps(() => {}))
     expect(regular.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 100, h: 26},
-      {x: 108, y: 6, w: 100, h: 26},
-      {x: 4, y: 36, w: 100, h: 26},
-      {x: 108, y: 36, w: 100, h: 26},
+      {x: 4, y: 8, w: 100, h: 22},
+      {x: 108, y: 8, w: 100, h: 22},
+      {x: 4, y: 38, w: 100, h: 22},
+      {x: 108, y: 38, w: 100, h: 22},
     ])
-    expect(regular.roundedRects[0]?.[4].radius).toBe(999)
+    expect(regular.roundedRects[0]?.[4].radius).toBe(3)
     expect(regular.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
     expect(regular.texts.map((call) => call[3].fontPx)).toEqual([9, 9, 9, 9])
 

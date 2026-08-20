@@ -7,6 +7,7 @@ import type * as elementsSpan from "@ui/elements/span"
 import type * as elementsText from "@ui/elements/text"
 import type * as elementsImg from "@ui/elements/img"
 import type * as elementsInput from "@ui/elements/input"
+import type * as elementsSelect from "@ui/elements/select"
 import type * as elementsList from "@ui/elements/list"
 import type * as elementsScrollbar from "@ui/elements/scrollbar"
 import type * as elementsStyle from "@ui/elements/style"
@@ -54,6 +55,7 @@ export type ExactProductionImports = {
     typeof elementsText,
     typeof elementsImg,
     typeof elementsInput,
+    typeof elementsSelect,
     typeof elementsList,
     typeof elementsScrollbar,
     typeof elementsStyle,

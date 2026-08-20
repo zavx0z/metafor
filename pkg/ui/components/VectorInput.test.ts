@@ -140,10 +140,10 @@ describe("public VectorInput", () => {
     VectorInput(regular, 4, 6, 300, 28, vectorProps(() => {}))
     expect(regular.roundedRects).toHaveLength(3)
     expect(regular.roundedRects[0]?.[0]).toBeCloseTo(25)
-    expect(regular.roundedRects[0]?.[1]).toBe(6)
+    expect(regular.roundedRects[0]?.[1]).toBe(9)
     expect(regular.roundedRects[0]?.[2]).toBeCloseTo(75.666667)
-    expect(regular.roundedRects[0]?.[3]).toBe(28)
-    expect(regular.roundedRects[0]?.[4].radius).toBe(999)
+    expect(regular.roundedRects[0]?.[3]).toBe(22)
+    expect(regular.roundedRects[0]?.[4].radius).toBe(3)
 
     const compact = new RecordingSurface()
     const compactHeight = measureVectorInputHeight({value: [1, 2, 3], density: "compact"})

@@ -1,5 +1,11 @@
 import {describe, expect, test} from "bun:test"
 import {
+  uiShapeMetrics,
+  type UiSurface,
+  UiSurface as BaseUiSurface,
+} from "@ui/elements"
+import {
+  Field,
   FIELD_KINDS,
   fieldColorToHex,
   measureFieldHeight,
@@ -12,6 +18,23 @@ import {
   type CollectionFieldDefinition,
   type FieldDefinition,
 } from "./Field.ts"
+
+type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type TextCall = Parameters<UiSurface["drawText"]>
+type HitCall = Parameters<UiSurface["hit"]>
+
+class RecordingSurface extends BaseUiSurface {
+  readonly roundedRects: RoundedRectCall[] = []
+  readonly texts: TextCall[] = []
+  readonly hits: HitCall[] = []
+
+  override drawRoundedRect(...args: RoundedRectCall): void { this.roundedRects.push(args) }
+  override drawText(...args: TextCall): number { this.texts.push(args); return 0 }
+  override hit(...args: HitCall): void { this.hits.push(args) }
+  override pushClip(): void {}
+  override popClip(): void {}
+  protected render(): void {}
+}
 
 describe("universal UI fields", () => {
   test("publishes node-independent field kinds", () => {
@@ -49,6 +72,70 @@ describe("universal UI fields", () => {
     expect(field.label).toBe("Dimensions")
     expect(field.compactLabel).toBe("hidden")
     expect(measureFieldHeight(field, {density: "compact"})).toBe(22)
+  })
+
+  test("uses one dense scalar row compositor for regular and compact Fields", () => {
+    const definition: FieldDefinition = {
+      id: "mass",
+      label: "Mass",
+      kind: "number",
+      value: 1,
+      onChange() {},
+    }
+    const regular = new RecordingSurface()
+    expect(Field(regular, 0, 10, 200, definition)).toBe(uiShapeMetrics.rowHeight)
+    expect(regular.roundedRects).toHaveLength(1)
+    expect(regular.hits).toHaveLength(1)
+    expect(regular.roundedRects[0]?.[1]).toBe(11)
+    expect(regular.roundedRects[0]?.[2]).toBeCloseTo(116.4)
+    expect(regular.roundedRects[0]?.[3]).toBe(uiShapeMetrics.controlHeight)
+
+    const compact = new RecordingSurface()
+    expect(Field(compact, 0, 10, 200, definition, {density: "compact"})).toBe(uiShapeMetrics.controlHeight)
+    expect(compact.roundedRects).toHaveLength(1)
+    expect(compact.hits).toHaveLength(1)
+    expect(compact.roundedRects[0]?.[2]).toBeCloseTo(116.4)
+    expect(compact.roundedRects[0]?.[3]).toBe(uiShapeMetrics.controlHeight)
+  })
+
+  test("keeps the regular number slider visual and hit inside its measured dense row", () => {
+    const definition: FieldDefinition = {
+      id: "gain",
+      label: "Gain",
+      kind: "number",
+      presentation: "slider",
+      value: 0.5,
+      min: 0,
+      max: 1,
+      onChange() {},
+    }
+    const surface = new RecordingSurface()
+    const y = 10
+    const height = Field(surface, 0, y, 200, definition)
+    expect(height).toBe(uiShapeMetrics.rowHeight)
+    for (const [, rectY, , rectHeight] of surface.roundedRects) {
+      expect(rectY).toBeGreaterThanOrEqual(y)
+      expect(rectY + rectHeight).toBeLessThanOrEqual(y + height)
+    }
+    expect(surface.hits).toHaveLength(1)
+    expect(surface.hits[0]?.slice(1, 4)).toEqual([11, 200, uiShapeMetrics.controlHeight])
+  })
+
+  test("keeps the accepted Switcher divergence inside the dense boolean row", () => {
+    const surface = new RecordingSurface()
+    const width = 200
+    const height = Field(surface, 0, 10, width, {
+      id: "enabled",
+      label: "Enabled",
+      kind: "boolean",
+      value: true,
+      presentation: "switch",
+      onChange() {},
+    })
+    expect(height).toBe(uiShapeMetrics.rowHeight)
+    expect(surface.hits).toHaveLength(1)
+    const [hitX, , hitWidth] = surface.hits[0]!
+    expect(hitX + hitWidth).toBeLessThanOrEqual(width)
   })
 
   test("normalizes finite integer, float, range and step contracts", () => {
@@ -104,7 +191,9 @@ describe("universal UI fields", () => {
       {id: "readonly", label: "Readonly", kind: "readonly", value: "value"},
     ]
     expect(fields.map((field) => measureFieldHeight(field)).every((height) => height > 0)).toBeTrue()
-    expect(measureFieldHeight(fields[2]!)).toBeGreaterThan(measureFieldHeight(fields[1]!))
+    expect(measureFieldHeight(fields[1]!)).toBe(uiShapeMetrics.rowHeight)
+    expect(measureFieldHeight(fields[2]!)).toBe(uiShapeMetrics.rowHeight)
+    expect(measureFieldHeight(fields[3]!)).toBe(uiShapeMetrics.rowHeight)
     expect(measureFieldHeight(fields[1]!, {density: "compact"})).toBe(22)
     expect(measureFieldHeight(fields[2]!, {density: "compact"})).toBe(22)
     expect(measureFieldHeight(fields[6]!, {density: "compact"})).toBe(97)
@@ -120,7 +209,7 @@ describe("universal UI fields", () => {
     expect(measureFieldHeight(reorder)).toBe(145)
     expect(measureFieldHeight(reorder, {density: "compact"})).toBe(122)
     expect(measureFieldHeight({...reorder, compactLabel: "hidden"}, {density: "compact"})).toBe(97)
-    expect(measureFieldHeight(fields[11]!)).toBe(49)
+    expect(measureFieldHeight(fields[11]!)).toBe(uiShapeMetrics.rowHeight)
     expect(measureFieldHeight(fields[11]!, {density: "compact"})).toBe(22)
   })
 })

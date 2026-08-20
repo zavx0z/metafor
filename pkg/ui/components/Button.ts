@@ -1,6 +1,6 @@
 import {autoButtonWidth} from "./internal/renderers.ts"
 import {Z} from "@ui/elements"
-import {button as elementButton, drawIcon, palette, radii, toneBorder, toneFill, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@ui/elements"
+import {button as elementButton, drawIconCentered, flexRow, palette, toneBorder, toneFill, type ButtonElementLayout, type ButtonElementProps, type ButtonElementState, type UiSurface, type StyleProps} from "@ui/elements"
 import type {Tone} from "@ui/elements"
 import {Color, TextMaterial} from "@metafor/engine"
 
@@ -49,9 +49,7 @@ export type IconButtonProps = Omit<ButtonProps, "children" | "iconOnly" | "iconP
 export function Button(host: UiSurface, x: number, y: number, width: number, height: number, props: ButtonProps): void {
   const label = props.label ?? props.children ?? ""
   const tone = props.tone ?? toneFromColor(props.color ?? "primary")
-  const fontPx = props.fontPx ?? (props.size === "small" ? 10 : props.size === "large" ? 14 : 12)
   const variant = props.variant ?? "glass"
-  const radius = props.radius ?? Number(props.sx?.borderRadius ?? Math.min(width, height) / 2)
   const action = props.onClick ?? props.action ?? (() => {})
   const iconSrc = props.iconSrc ?? props.startIcon ?? props.endIcon
   const iconPosition = props.iconPosition ?? (props.endIcon !== undefined && props.startIcon === undefined ? "end" : "start")
@@ -60,10 +58,13 @@ export function Button(host: UiSurface, x: number, y: number, width: number, hei
 
   const elementProps: ButtonElementProps = {
     key,
-    children: (state) => drawButtonContent(host, x, y, width, height, label, textColor, variant, state, props, iconSrc, iconPosition),
+    children: iconSrc === undefined && props.textMaterial === undefined
+      ? label
+      : (state, layout) => drawButtonContent(host, label, textColor, state, layout, props, iconSrc, iconPosition),
     onClick: action,
-    style: (state) => buttonStyleForState(state, variant, tone, textColor, fontPx, radius, props),
+    style: (state) => buttonStyleForState(state, variant, tone, textColor, props.fontPx, props.radius, props),
   }
+  if (props.size !== undefined) elementProps.size = props.size
   if (props.disabled !== undefined) elementProps.disabled = props.disabled
   if (props.tooltip !== undefined) elementProps.tooltip = props.tooltip
   if (props.tooltipDelayMs !== undefined) elementProps.tooltipDelayMs = props.tooltipDelayMs
@@ -78,7 +79,6 @@ export function IconButton(host: UiSurface, x: number, y: number, width: number,
   Button(host, x, y, width, height, {
     ...props,
     variant: props.variant ?? "text",
-    radius: props.radius ?? radii.control,
     iconOnly: true,
     tooltip: props.tooltip ?? props.label,
   })
@@ -91,16 +91,16 @@ function buttonStyleForState(
   variant: ButtonVariant,
   tone: Tone,
   textColor: `rgba(${string})`,
-  fontPx: number,
-  radius: number,
+  fontPx: number | undefined,
+  radius: number | undefined,
   props: ButtonProps,
 ): StyleProps {
   const visualState = props.selected === true && state === "disabled" ? "idle" : state
   const style: StyleProps = {
     ...props.sx,
-    fontSize: fontPx,
-    borderRadius: radius,
   }
+  if (fontPx !== undefined) style.fontSize = fontPx
+  if (radius !== undefined) style.borderRadius = radius
 
   if (variant === "text") {
     style.background = props.fill ?? textFill(visualState)
@@ -202,72 +202,59 @@ function buttonTextMaterial(color: `rgba(${string})`): TextMaterial {
 
 function drawButtonContent(
   host: UiSurface,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
   label: string,
   textColor: `rgba(${string})`,
-  variant: ButtonVariant,
   state: ButtonVisualState,
+  layout: ButtonElementLayout,
   props: ButtonProps,
   iconSrc: string | undefined,
   iconPosition: "start" | "end",
 ): void {
-  const fontPx = props.fontPx ?? (props.size === "small" ? 10 : props.size === "large" ? 14 : 12)
-  const pressOffsetY = state === "active" ? 1 : 0
+  const fontPx = props.fontPx ?? layout.fontPx
   const disabled = state === "disabled" && props.selected !== true
   const material = disabled ? host.materials.muted : props.textMaterial ?? buttonTextMaterial(textColor)
-
+  const content = layout.content
   if (iconSrc === undefined || iconSrc.length === 0) {
-    host.drawTextCentered(label, x + width / 2, y + pressOffsetY + height / 2, {
+    host.drawTextCentered(label, content.x + content.width / 2, content.y + content.height / 2, {
       fontPx,
       material,
-      maxWidthPx: width - 6,
+      maxWidthPx: Math.max(1, content.width),
       z: Z.TEXT,
     })
     return
   }
-
-  const iconSize = Math.min(props.iconSizePx ?? Math.max(14, height - 12), Math.max(1, height - 8), Math.max(1, width - 8))
+  const iconSize = Math.min(props.iconSizePx ?? layout.iconPx, Math.max(1, content.height), Math.max(1, content.width))
   const showLabel = props.iconOnly !== true && label.length > 0
   const labelW = showLabel ? host.measureText(label, fontPx) : 0
-  const gap = showLabel ? 7 : 0
-  const contentW = Math.min(width - 8, iconSize + gap + labelW)
-  let cx = x + (width - contentW) / 2
-  const iconY = y + pressOffsetY + (height - iconSize) / 2
-  const textY = y + pressOffsetY + (height - fontPx) / 2
+  const gap = showLabel ? layout.gap : 0
+  const labelSlotW = Math.max(0, Math.min(labelW, content.width - iconSize - gap))
   const iconOpacity = disabled ? 0.36 : 0.95
-
-  if (iconPosition === "end" && showLabel) {
-    const available = Math.max(1, width - iconSize - gap - 10)
-    const renderedLabelW = Math.min(labelW, available)
-    host.drawTextCentered(label, cx + renderedLabelW / 2, y + pressOffsetY + height / 2, {
-      fontPx,
-      material,
-      maxWidthPx: available,
-      z: Z.TEXT,
-    })
-    drawIcon(host, iconSrc, cx + renderedLabelW + gap, iconY, iconSize, {
+  const iconItem = {
+    width: iconSize,
+    height: iconSize,
+    draw: (x: number, y: number, width: number, height: number) => drawIconCentered(host, iconSrc ?? "", x + width / 2, y + height / 2, iconSize, {
       opacity: iconOpacity,
       z: Z.TEXT,
-    })
-    return
+    }),
   }
-
-  drawIcon(host, iconSrc, cx, iconY, iconSize, {
-    opacity: iconOpacity,
-    z: Z.TEXT,
-  })
-  cx += iconSize + gap
-  if (showLabel) {
-    const available = Math.max(1, x + width - 5 - cx)
-    const renderedLabelW = Math.min(labelW, available)
-    host.drawTextCentered(label, cx + renderedLabelW / 2, y + pressOffsetY + height / 2, {
+  const labelItem = showLabel ? {
+    width: labelSlotW,
+    height: content.height,
+    draw: (x: number, y: number, width: number, height: number) => host.drawTextCentered(label, x + width / 2, y + height / 2, {
       fontPx,
       material,
-      maxWidthPx: available,
+      maxWidthPx: Math.max(1, width),
       z: Z.TEXT,
-    })
-  }
+    }),
+  } : null
+  flexRow({
+    x: content.x,
+    y: content.y,
+    w: content.width,
+    h: content.height,
+    gap,
+    alignItems: "center",
+    justifyContent: "center",
+    items: iconPosition === "end" ? [labelItem, iconItem] : [iconItem, labelItem],
+  })
 }

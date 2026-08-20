@@ -7,6 +7,7 @@ import {
   type PlaygroundStoryArgs,
   type PlaygroundStoryModule,
 } from "@ui/playground/stories"
+import {uiShapeMetrics} from "@ui/elements"
 
 type ReferenceInputStoryArgs = PlaygroundStoryArgs & Readonly<{
   value: ReferenceInputValue | null
@@ -53,8 +54,8 @@ export function createReferenceInputStory(): PlaygroundStoryModule {
     ],
     render(surface, args, frame) {
       const value = referenceValue(args.value)
-      const height = args.density === "compact" ? 30 : 48
-      const width = Math.min(460, Math.max(320, frame.w * 0.5))
+      const height = args.density === "compact" ? uiShapeMetrics.controlHeight : uiShapeMetrics.rowHeight
+      const width = Math.min(146, frame.w)
       ReferenceInput(
         surface,
         frame.x + (frame.w - width) / 2,

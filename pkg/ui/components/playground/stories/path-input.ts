@@ -5,6 +5,7 @@ import {
   type PlaygroundStoryModule,
 } from "@ui/playground/stories"
 import type {PathInputStoryVariant} from "../stories.ts"
+import {uiShapeMetrics} from "@ui/elements"
 
 type PathInputStoryArgs = PlaygroundStoryArgs & Readonly<{
   value: string
@@ -40,8 +41,8 @@ export function createPathInputStory(variant: PathInputStoryVariant): Playground
       {key: "event", label: "Последнее событие", group: "События", kind: "custom"},
     ],
     render(surface, args, frame) {
-      const height = args.density === "compact" ? 22 : 28
-      const width = Math.min(480, Math.max(320, frame.w * 0.52))
+      const height = args.density === "compact" ? uiShapeMetrics.controlHeight : uiShapeMetrics.rowHeight
+      const width = Math.min(146, frame.w)
       PathInput(
         surface,
         frame.x + (frame.w - width) / 2,

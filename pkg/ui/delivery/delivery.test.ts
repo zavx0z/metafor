@@ -24,6 +24,7 @@ const productionExports = Object.freeze({
     "./text": "./text.ts",
     "./img": "./img.ts",
     "./input": "./input.ts",
+    "./select": "./select.ts",
     "./list": "./list.ts",
     "./scrollbar": "./scrollbar.ts",
     "./style": "./style.ts",
@@ -134,6 +135,7 @@ describe("production UI delivery baseline", () => {
   test("builds representative exact imports and compatible root barrels independently", async () => {
     for (const fixture of [
       "exact-elements-button.fixture.ts",
+      "exact-elements-select.fixture.ts",
       "exact-components-field.fixture.ts",
       "exact-components-number-input.fixture.ts",
       "exact-components-color-input.fixture.ts",

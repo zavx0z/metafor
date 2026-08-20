@@ -1,4 +1,4 @@
-import type {StyleProps, UiSurface} from "@ui/elements"
+import type {UiSurface} from "@ui/elements"
 import {TextField} from "./TextField.ts"
 
 export type NumberInputKind = "float" | "integer"
@@ -26,13 +26,6 @@ export type NumberInputProps = NumberInputFormatOptions & {
   onChange?(value: number): void
 }
 
-const COMPACT_STYLE: StyleProps = {
-  borderWidth: 1,
-  borderRadius: 3,
-  color: "#E6E6E6",
-  fontSize: 11,
-}
-
 /** Draws one controlled scalar number editor without owning consumer state. */
 export function NumberInput(
   host: UiSurface,
@@ -49,10 +42,6 @@ export function NumberInput(
     submitOnEnter: true,
   }
   if (props.key !== undefined) textFieldProps.key = props.key
-  if (props.density === "compact") {
-    textFieldProps.fontPx = 11
-    textFieldProps.sx = COMPACT_STYLE
-  }
   if (props.fontPx !== undefined) textFieldProps.fontPx = props.fontPx
   if (!disabled && props.onChange !== undefined) {
     textFieldProps.onSubmit = (text) => {

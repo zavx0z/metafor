@@ -1,5 +1,5 @@
 import {Color} from "@metafor/engine"
-import {Z, flexRow, palette, type StyleProps, type UiSurface} from "@ui/elements"
+import {control, flexRow, uiShapeMetrics, type UiSurface} from "@ui/elements"
 import {TextField} from "./TextField.ts"
 
 export type ColorInputValue = Readonly<{
@@ -20,15 +20,6 @@ export type ColorInputProps = {
   onChange?(value: ColorInputValue): void
 }
 
-const COMPACT_STYLE: StyleProps = {
-  background: new Color(0.235, 0.235, 0.235, 1),
-  borderColor: new Color(0.11, 0.11, 0.11, 1),
-  borderWidth: 1,
-  borderRadius: 3,
-  color: "#E6E6E6",
-  fontSize: 11,
-}
-
 /** Draws one controlled RGBA swatch and exact hexadecimal editor. */
 export function ColorInput(
   host: UiSurface,
@@ -38,22 +29,15 @@ export function ColorInput(
   height: number,
   props: ColorInputProps,
 ): void {
-  const compact = props.density === "compact"
   const disabled = props.disabled === true || props.readOnly === true
   const value = normalizeColorInputValue(props.value)
-  const gap = compact ? 3 : 7
-  const radius = compact ? 3 : 6
-  const border = compact ? new Color(0.11, 0.11, 0.11, 1) : palette.border
+  const gap = uiShapeMetrics.tightGap
   const textFieldProps: Parameters<typeof TextField>[5] = {
     value: formatColorInputValue(value),
     disabled,
     submitOnEnter: true,
   }
   if (props.key !== undefined) textFieldProps.key = props.key
-  if (compact) {
-    textFieldProps.fontPx = 11
-    textFieldProps.sx = COMPACT_STYLE
-  }
   if (!disabled && props.onChange !== undefined) {
     textFieldProps.onSubmit = (text) => {
       const next = parseColorInputValue(text)
@@ -68,12 +52,8 @@ export function ColorInput(
     gap,
     alignItems: "stretch",
     items: [
-      {width: height, height, draw: (slotX, slotY, slotW, slotH) => host.drawRoundedRect(slotX, slotY, slotW, slotH, {
-        radius,
-        fill: new Color(value.r, value.g, value.b, value.a),
-        border,
-        borderWidth: 1,
-        z: Z.ELEMENT,
+      {width: uiShapeMetrics.iconActionSlot, height, draw: (slotX, slotY, slotW, slotH) => control(host, slotX, slotY, slotW, slotH, {
+        style: {background: new Color(value.r, value.g, value.b, value.a)},
       })},
       {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => {
         TextField(host, slotX, slotY, slotW, slotH, textFieldProps)

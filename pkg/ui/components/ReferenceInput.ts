@@ -1,4 +1,4 @@
-import {flexRow, palette, uiIcons, type UiSurface} from "@ui/elements"
+import {flexRow, palette, uiIcons, uiShapeMetrics, type UiSurface} from "@ui/elements"
 import {Button, IconButton, type ButtonProps} from "./Button.ts"
 
 export type ReferenceInputValue = Readonly<{
@@ -29,26 +29,20 @@ export function ReferenceInput(
   height: number,
   props: ReferenceInputProps,
 ): void {
-  const compact = props.density === "compact"
   const disabled = props.disabled === true || props.readOnly === true
   const showClear = props.value !== null && props.onClear !== undefined
-  const gap = compact ? 3 : 7
-  const radius = compact ? 3 : Math.min(width, height) / 2
-  const clearWidth = showClear ? height : 0
+  const gap = uiShapeMetrics.tightGap
+  const clearWidth = showClear ? uiShapeMetrics.iconActionSlot : 0
   const mainProps: ButtonProps = {
     children: props.value?.label ?? props.placeholder ?? "Не выбрано",
-    variant: compact ? "contained" : "outlined",
-    radius,
-    fontPx: compact ? 11 : 12,
+    variant: "contained",
+    fill: palette.bgInput,
+    border: palette.borderDim,
     disabled,
     action: () => props.onActivate?.(),
   }
   const tooltip = props.value?.kind ?? props.tooltip
   if (tooltip !== undefined) mainProps.tooltip = tooltip
-  if (compact) {
-    mainProps.fill = palette.bgInput
-    mainProps.border = palette.borderDim
-  }
 
   flexRow({
     x,
@@ -68,15 +62,11 @@ export function ReferenceInput(
           const clearProps: Parameters<typeof IconButton>[5] = {
             label: "Очистить ссылку",
             iconSrc: uiIcons.close,
-            variant: compact ? "contained" : "outlined",
-            radius: compact ? 3 : height / 2,
-            iconSizePx: compact ? 14 : 16,
+            variant: "contained",
+            fill: palette.bgInput,
+            border: palette.borderDim,
             disabled,
             action: () => props.onClear?.(),
-          }
-          if (compact) {
-            clearProps.fill = palette.bgInput
-            clearProps.border = palette.borderDim
           }
           IconButton(host, slotX, slotY, slotW, slotH, clearProps)
         },

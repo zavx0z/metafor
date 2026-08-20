@@ -17,8 +17,10 @@
  * contiguous or tightly spaced rows and adjacent actions. Source pixels are
  * not treated as local scene units: this mapping retains the already verified
  * Node compact rhythm (22-high controls, 24-high rows/header, 3-unit radius and
- * gap, 11-unit project font) while giving every UI consumer one immutable
- * owner. Palette and typography assets remain separate theme concerns.
+ * gap and 11-unit project font) while giving every UI consumer one immutable
+ * owner. The 14-unit glyph is a chosen local mapping inside the 22-unit control,
+ * not an exact source-image span. Palette and typography assets remain separate
+ * theme concerns.
  */
 export type UiShapeMetrics = Readonly<{
   controlHeight: number
@@ -28,6 +30,7 @@ export type UiShapeMetrics = Readonly<{
   separatorWidth: number
   tightGap: number
   iconActionSlot: number
+  iconGlyphSize: number
   compactFontPx: number
   panelHeaderHeight: number
   panelSectionGap: number
@@ -41,6 +44,7 @@ export const uiShapeMetrics: UiShapeMetrics = Object.freeze({
   separatorWidth: 1,
   tightGap: 3,
   iconActionSlot: 22,
+  iconGlyphSize: 14,
   compactFontPx: 11,
   panelHeaderHeight: 24,
   panelSectionGap: 3,

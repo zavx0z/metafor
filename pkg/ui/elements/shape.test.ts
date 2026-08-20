@@ -12,6 +12,7 @@ describe("shared UI shape metrics", () => {
       separatorWidth: 1,
       tightGap: 3,
       iconActionSlot: 22,
+      iconGlyphSize: 14,
       compactFontPx: 11,
       panelHeaderHeight: 24,
       panelSectionGap: 3,
@@ -23,6 +24,7 @@ describe("shared UI shape metrics", () => {
   test("keeps dense controls inside their shared row and rule rhythm", () => {
     expect(uiShapeMetrics.controlHeight).toBeLessThanOrEqual(uiShapeMetrics.rowHeight)
     expect(uiShapeMetrics.iconActionSlot).toBeLessThanOrEqual(uiShapeMetrics.rowHeight)
+    expect(uiShapeMetrics.iconGlyphSize).toBeLessThan(uiShapeMetrics.iconActionSlot)
     expect(uiShapeMetrics.compactFontPx).toBeLessThan(uiShapeMetrics.controlHeight)
     expect(uiShapeMetrics.lowRadius * 2).toBeLessThan(uiShapeMetrics.controlHeight)
     expect(uiShapeMetrics.borderWidth).toBe(uiShapeMetrics.separatorWidth)

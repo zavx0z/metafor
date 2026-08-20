@@ -1,4 +1,4 @@
-import {flexRow, palette, type UiSurface} from "@ui/elements"
+import {flexRow, palette, select, uiShapeMetrics, type SelectElementProps, type UiSurface} from "@ui/elements"
 import {Button, type ButtonProps} from "./Button.ts"
 
 export type EnumInputOption = Readonly<{
@@ -55,7 +55,7 @@ export function EnumInput(
 ): void {
   const exceptionalLabel = enumInputExceptionalLabel(props)
   if (exceptionalLabel !== undefined) {
-    Button(host, x, y, width, height, enumButtonProps(props, exceptionalLabel, true))
+    select(host, x, y, width, height, {value: exceptionalLabel, disabled: true})
     return
   }
 
@@ -67,13 +67,16 @@ export function EnumInput(
 
   const selected = findEnumInputOption(props.value, options)
   const disabled = enumInputDisabled(props)
-  const buttonProps = enumButtonProps(props, selected?.label ?? props.value, disabled)
-  const tooltip = selected?.description ?? props.tooltip
-  if (tooltip !== undefined) buttonProps.tooltip = tooltip
-  if (!disabled && props.onChange !== undefined) {
-    buttonProps.action = () => props.onChange!(nextEnumInputValue(props.value, options))
+  const selectProps: SelectElementProps = {
+    value: selected?.label ?? props.value,
+    disabled,
   }
-  Button(host, x, y, width, height, buttonProps)
+  const tooltip = selected?.description ?? props.tooltip
+  if (tooltip !== undefined) selectProps.tooltip = tooltip
+  if (!disabled && props.onChange !== undefined) {
+    selectProps.onClick = () => props.onChange!(nextEnumInputValue(props.value, options))
+  }
+  select(host, x, y, width, height, selectProps)
 }
 
 function drawExpandedEnumInput(
@@ -86,13 +89,12 @@ function drawExpandedEnumInput(
   options: readonly EnumInputOption[],
 ): void {
   const disabled = enumInputDisabled(props)
-  const compact = props.density === "compact"
   flexRow({
     x,
     y,
     w: width,
     h: height,
-    gap: compact ? 3 : 4,
+    gap: uiShapeMetrics.tightGap,
     alignItems: "stretch",
     items: options.map((option) => ({
       width: "1fr" as const,
@@ -128,18 +130,13 @@ function enumButtonProps(
   disabled: boolean,
   selected = false,
 ): ButtonProps {
-  const compact = props.density === "compact"
   const buttonProps: ButtonProps = {
     children: label,
-    variant: selected || compact ? "contained" : "outlined",
-    fontPx: compact ? 11 : 12,
+    variant: "contained",
+    fill: selected ? palette.bgHot : palette.bgInput,
+    border: selected ? palette.border : palette.borderDim,
     disabled,
     selected,
-  }
-  if (compact) {
-    buttonProps.radius = 3
-    buttonProps.fill = selected ? palette.bgHot : palette.bgInput
-    buttonProps.border = selected ? palette.border : palette.borderDim
   }
   return buttonProps
 }

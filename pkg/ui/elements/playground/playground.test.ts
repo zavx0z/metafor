@@ -69,6 +69,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
       "span",
       "button",
       "input",
+      "select",
       "img",
       "list",
       "flex",
@@ -82,6 +83,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
       "Строка текста",
       "Кнопка",
       "Текстовый ввод",
+      "Выбор значения",
       "Изображение",
       "Список",
       "Flex",
@@ -91,6 +93,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
       "Указатель",
     ])
     expect(catalog.map(({group}) => group?.label)).toEqual([
+      "Примитивы",
       "Примитивы",
       "Примитивы",
       "Примитивы",
@@ -120,6 +123,10 @@ describe("@ui/elements package-owned Workbench stories", () => {
     const input = await ELEMENT_STORIES.load("input/state/inactive")
     expect(input.defaultArgs).toMatchObject({radius: uiShapeMetrics.lowRadius})
 
+    const select = await ELEMENT_STORIES.load("select/state/active")
+    expect(select.source(select.defaultArgs)).toContain('from "@ui/elements/select"')
+    expect(select.defaultArgs).toMatchObject({label: "Умножение", active: true, radius: uiShapeMetrics.lowRadius})
+
     const layout = await ELEMENT_STORIES.load("flex-css/sizes/fraction")
     expect(layout.source(layout.defaultArgs)).toContain('from "@ui/elements/flex-css"')
     expect(layout.source({...layout.defaultArgs, gap: 24})).toContain("gap: 24")
@@ -134,7 +141,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
   })
 
   test("loads every published detail story with non-empty exact code", async () => {
-    expect(ELEMENT_STORY_ROUTES).toHaveLength(42)
+    expect(ELEMENT_STORY_ROUTES).toHaveLength(45)
     for (const route of ELEMENT_STORY_ROUTES) {
       const module = await ELEMENT_STORIES.load(route)
       const source = module.source(module.defaultArgs)
@@ -190,8 +197,9 @@ describe("@ui/elements package-owned Workbench stories", () => {
     }
     expect(sources[0]).toContain('from "@ui/elements/div"')
     expect(sources[0]).toContain('from "@ui/elements/list"')
+    expect(sources[0]).toContain('from "@ui/elements/select"')
     expect(sources[0]).toContain('import {uiShapeMetrics} from "../../shape.ts"')
-    expect(sources[0]!.match(/uiShapeMetrics\.controlHeight/g)?.length).toBe(4)
+    expect(sources[0]!.match(/uiShapeMetrics\.controlHeight/g)?.length).toBe(6)
     expect(sources[0]).not.toContain("240, 52")
     expect(sources[0]).not.toContain("460, 50")
     expect(sources[1]).toContain('from "@ui/elements/flex"')

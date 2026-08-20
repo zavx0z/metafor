@@ -34,6 +34,10 @@ FlexBox единолично вычисляет local child slots, а child то
 7. Каждый visual migration slice сравнивается side-by-side с exact local
    Blender catalog/reference при сопоставимом масштабе. Unit tests и isolated
    PNG не заменяют это сравнение или owner acceptance.
+8. `select` принадлежит Elements: primitive владеет dense chrome, выбранной
+   либо placeholder-подписью, chevron, visual states и caller hit geometry.
+   Components-владелец enum задаёт options/value/cycle semantics, но не рисует
+   выбор значения через Button и не повторяет его shape policy.
 
 ## Retained UI-закон
 

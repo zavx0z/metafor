@@ -2,6 +2,7 @@ import {button} from "@ui/elements/button"
 import {div} from "@ui/elements/div"
 import {img} from "@ui/elements/img"
 import {input} from "@ui/elements/input"
+import {select} from "@ui/elements/select"
 import {li, liY, ul, ulContentHeight, type LiElementProps} from "@ui/elements/list"
 import {span} from "@ui/elements/span"
 import type {CssColor, CssTextAlign} from "@ui/elements/style"
@@ -120,6 +121,21 @@ function renderPrimitiveStory(
       disabled: args.disabled,
       onChange: (value) => globalThis.__elementsStoryControlBridge?.("label", value),
       style: {borderColor: args.active ? args.tone : "border", borderRadius: args.radius},
+    })
+    return
+  }
+  if (options.component === "select") {
+    const controlWidth = 146
+    select(surface, frame.x + (frame.w - controlWidth) / 2, centerY - uiShapeMetrics.controlHeight / 2, controlWidth, uiShapeMetrics.controlHeight, {
+      key: "elements-story-select",
+      value: args.label,
+      active: args.active,
+      disabled: args.disabled,
+      onClick: () => {
+        globalThis.__elementsStoryControlBridge?.("clicks", args.clicks + 1)
+        globalThis.__elementsStoryControlBridge?.("state", "click")
+      },
+      style: {borderColor: args.active ? args.tone : "borderDim", borderRadius: args.radius},
     })
     return
   }
@@ -265,7 +281,7 @@ function primitiveControls(
     },
   ]
   if (component === "span") return [{key: "label", label: "Текст", group: "Содержимое", kind: "text"}, ...common]
-  if (component === "button" || component === "input") return [
+  if (component === "button" || component === "input" || component === "select") return [
     {key: "label", label: component === "button" ? "Подпись" : "Значение", group: "Содержимое", kind: "text"},
     {key: "disabled", label: "Недоступно", group: "Состояние", kind: "boolean"},
     ...common,
@@ -303,10 +319,10 @@ function primitiveArgs(options: Readonly<{
   variant: string
 }>): PrimitiveStoryArgs {
   const args: PrimitiveStoryArgs = {
-    label: options.component === "span" ? "Текстовый элемент" : options.component === "input" ? "Значение" : "Элемент UI",
+    label: options.component === "span" ? "Текстовый элемент" : options.component === "input" ? "Значение" : options.component === "select" ? "Умножение" : "Элемент UI",
     tone: "cyan",
     density: "regular",
-    radius: options.component === "button" || options.component === "input" ? uiShapeMetrics.lowRadius : 28,
+    radius: options.component === "button" || options.component === "input" || options.component === "select" ? uiShapeMetrics.lowRadius : 28,
     disabled: options.variant === "disabled",
     active: options.variant === "active",
     fit: options.variant === "contain" ? "contain" : "cover",
@@ -352,6 +368,7 @@ function primitiveSource(
   if (options.component === "span") return `import {span} from "@ui/elements/span"\n\nspan(surface, x, y, w, h, {children: ${JSON.stringify(args.label)}, style: {textAlign: ${JSON.stringify(args.align)}, color: ${JSON.stringify(args.tone)}}})`
   if (options.component === "button") return `import {button} from "@ui/elements/button"\n\nbutton(surface, x, y, w, h, {children: ${JSON.stringify(args.label)}, disabled: ${args.disabled}, onClick})`
   if (options.component === "input") return `import {input} from "@ui/elements/input"\n\ninput(surface, x, y, w, h, {key: "value", value: ${JSON.stringify(args.label)}, active: ${args.active}, disabled: ${args.disabled}, onChange: setValue})`
+  if (options.component === "select") return `import {select} from "@ui/elements/select"\n\nselect(surface, x, y, w, h, {key: "value", value: ${JSON.stringify(args.label)}, active: ${args.active}, disabled: ${args.disabled}, onClick})`
   if (options.component === "img") return `import {img} from "@ui/elements/img"\n\nimg(surface, x, y, w, h, {src: artworkUrl, fit: ${JSON.stringify(args.fit)}})`
   const listOptions = [
     `  dense: ${args.mode === "dense"},`,

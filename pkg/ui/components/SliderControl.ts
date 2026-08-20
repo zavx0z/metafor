@@ -1,5 +1,5 @@
 import {Color} from "@metafor/engine"
-import {Z, flexColumn, flexRow, palette, uiIcons, type UiSurface} from "@ui/elements"
+import {Z, control, flexColumn, flexRow, palette, uiIcons, uiShapeMetrics, type UiSurface} from "@ui/elements"
 import {IconButton, type IconButtonProps} from "./Button.ts"
 
 export type SliderControlLayout = "header" | "track" | "inline"
@@ -44,18 +44,13 @@ function drawInlineLayout(host: UiSurface, x: number, y: number, w: number, prop
   const bounds = sliderBounds(props)
   const value = normalizedSliderValue(props.value, bounds.min, bounds.max)
   const ratio = sliderRatio(value, bounds.min, bounds.max)
-  const height = props.buttonHeight ?? 22
+  const height = props.buttonHeight ?? uiShapeMetrics.controlHeight
   const zBase = props.zBase ?? Z.ELEMENT
   const textZ = props.textZ ?? Z.TEXT
-  host.drawRoundedRect(x, y, w, height, {
-    radius: Math.max(2, height * 0.16),
-    fill: new Color(0.235, 0.235, 0.235, 1),
-    border: new Color(0.11, 0.11, 0.11, 1),
-    borderWidth: 1,
-    z: zBase,
-  })
-  host.drawRoundedRect(x + 1, y + 1, Math.max(0, (w - 2) * ratio), Math.max(1, height - 2), {
-    radius: Math.max(1, height * 0.12),
+  control(host, x, y, w, height, {style: {zIndex: zBase}})
+  const inset = uiShapeMetrics.borderWidth
+  host.drawRoundedRect(x + inset, y + inset, Math.max(0, (w - inset * 2) * ratio), Math.max(1, height - inset * 2), {
+    radius: Math.max(0, uiShapeMetrics.lowRadius - inset),
     fill: new Color(0.25, 0.47, 0.76, 0.92),
     border: null,
     z: zBase + 0.01,
@@ -65,18 +60,18 @@ function drawInlineLayout(host: UiSurface, x: number, y: number, w: number, prop
     y,
     w,
     h: height,
-    paddingX: Math.max(5, height * 0.28),
-    gap: 6,
+    paddingX: uiShapeMetrics.tightGap * 2,
+    gap: uiShapeMetrics.tightGap * 2,
     alignItems: "center",
     items: [
-      {width: "grow", height, draw: (slotX, slotY, slotW) => host.drawText(props.label, slotX, slotY + (height - (props.labelFontPx ?? 11)) / 2, {
-        fontPx: props.labelFontPx ?? 11,
+      {width: "grow", height, draw: (slotX, slotY, slotW) => host.drawText(props.label, slotX, slotY + (height - (props.labelFontPx ?? uiShapeMetrics.compactFontPx)) / 2, {
+        fontPx: props.labelFontPx ?? uiShapeMetrics.compactFontPx,
         material: materialForTone(host, props.labelTone ?? "text"),
         maxWidthPx: slotW,
         z: textZ,
       })},
-      {width: Math.max(40, height * 2.4), height, draw: (slotX, slotY, slotW) => host.drawText(formatSliderValue(props, value), slotX, slotY + (height - (props.valueFontPx ?? 11)) / 2, {
-        fontPx: props.valueFontPx ?? 11,
+      {width: Math.max(40, height * 2.4), height, draw: (slotX, slotY, slotW) => host.drawText(formatSliderValue(props, value), slotX, slotY + (height - (props.valueFontPx ?? uiShapeMetrics.compactFontPx)) / 2, {
+        fontPx: props.valueFontPx ?? uiShapeMetrics.compactFontPx,
         material: materialForTone(host, props.valueTone ?? "text"),
         maxWidthPx: slotW,
         z: textZ,

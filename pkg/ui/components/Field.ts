@@ -1,5 +1,4 @@
-import {Color} from "@metafor/engine"
-import {flexColumn, flexRow, type UiSurface} from "@ui/elements"
+import {flexColumn, flexRow, uiShapeMetrics, type UiSurface} from "@ui/elements"
 import {Button} from "./Button.ts"
 import {Checkbox} from "./Checkbox.ts"
 import {
@@ -202,9 +201,8 @@ export const FIELD_KINDS = Object.freeze([
   "readonly",
 ] as const)
 
-const LABEL_HEIGHT = 16
-const CONTROL_HEIGHT = 28
-const FIELD_GAP = 5
+const LEGACY_GROUP_LABEL_HEIGHT = 16
+const LEGACY_GROUP_GAP = 5
 
 /** Draws one controlled universal field and returns its occupied height. */
 export function Field(
@@ -218,11 +216,15 @@ export function Field(
   if (options.density === "compact") return drawCompactField(host, x, y, width, definition, options)
   const height = measureFieldHeight(definition, options)
   if (definition.kind === "number" && definition.presentation === "slider" && definition.max !== undefined) {
-    drawNumberSlider(host, x, y, width, definition)
+    drawNumberSlider(host, x, y + (height - uiShapeMetrics.controlHeight) / 2, width, definition)
     return height
   }
   if (definition.kind === "boolean") {
-    drawBooleanField(host, x, y, width, definition)
+    drawBooleanField(host, x, y, width, height, definition)
+    return height
+  }
+  if (isScalarField(definition)) {
+    drawScalarFieldRow(host, x, y, width, height, definition, "regular")
     return height
   }
   flexColumn({
@@ -230,9 +232,9 @@ export function Field(
     y,
     w: width,
     h: height,
-    gap: FIELD_GAP,
+    gap: LEGACY_GROUP_GAP,
     items: [
-      {height: LABEL_HEIGHT, draw: (slotX, slotY, slotW, slotH) => drawFieldLabel(host, slotX, slotY, slotW, slotH, definition)},
+      {height: LEGACY_GROUP_LABEL_HEIGHT, draw: (slotX, slotY, slotW, slotH) => drawFieldLabel(host, slotX, slotY, slotW, slotH, definition)},
       {height: "grow", draw: (slotX, slotY, slotW, slotH) => drawFieldControl(host, slotX, slotY, slotW, slotH, definition)},
     ],
   })
@@ -261,15 +263,29 @@ function drawFieldControl(
 
 export function measureFieldHeight(definition: FieldDefinition, options: FieldRenderOptions = {}): number {
   if (options.density === "compact") return compactFieldHeight(definition)
-  if (definition.kind === "boolean") return CONTROL_HEIGHT
-  if (definition.kind === "number" && definition.presentation === "slider") return 66
+  if (isScalarField(definition) || definition.kind === "boolean") return uiShapeMetrics.rowHeight
   if (definition.kind === "matrix") {
-    return LABEL_HEIGHT + FIELD_GAP + measureMatrixInputHeight(matrixInputProps(definition, "regular"))
+    return LEGACY_GROUP_LABEL_HEIGHT + LEGACY_GROUP_GAP + measureMatrixInputHeight(matrixInputProps(definition, "regular"))
   }
   if (definition.kind === "collection") {
-    return LABEL_HEIGHT + FIELD_GAP + measureCollectionInputHeight(collectionInputProps(definition, "regular"))
+    return LEGACY_GROUP_LABEL_HEIGHT + LEGACY_GROUP_GAP + measureCollectionInputHeight(collectionInputProps(definition, "regular"))
   }
-  return LABEL_HEIGHT + FIELD_GAP + CONTROL_HEIGHT
+  return LEGACY_GROUP_LABEL_HEIGHT + LEGACY_GROUP_GAP + uiShapeMetrics.controlHeight
+}
+
+type ScalarFieldDefinition = Exclude<
+  FieldDefinition,
+  BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition | CollectionFieldDefinition
+>
+
+function isScalarField(definition: FieldDefinition): definition is ScalarFieldDefinition {
+  return definition.kind === "text"
+    || definition.kind === "number"
+    || definition.kind === "enum"
+    || definition.kind === "color"
+    || definition.kind === "reference"
+    || definition.kind === "path"
+    || definition.kind === "readonly"
 }
 
 function compactFieldHeight(definition: FieldDefinition): number {
@@ -310,93 +326,38 @@ function drawCompactField(
     return height
   }
   if (field.kind === "number" && field.presentation === "slider" && field.max !== undefined) {
-    const props: Parameters<typeof SliderControl>[4] = {
-      key: fieldKey(field),
-      label: field.label,
-      layout: "inline",
-      value: normalizeNumberFieldValue(field.value, field),
-      max: field.max,
-      step: field.step ?? (field.numberKind === "integer" ? 1 : 0.01),
-      buttonHeight: metrics.control,
-      labelFontPx: metrics.font,
-      valueFontPx: metrics.font,
-      format: (value) => `${value}${field.unit ?? ""}`,
-      onChange: (value) => {
-        if (!isFieldDisabled(field)) field.onChange?.(normalizeNumberFieldValue(value, field))
-      },
-    }
-    if (field.min !== undefined) props.min = field.min
-    SliderControl(host, x, y, width, props)
+    drawNumberSlider(host, x, y, width, field)
     return height
   }
   if (field.kind === "boolean") {
-    const disabled = isFieldDisabled(field)
-    flexRow({
-      x,
-      y,
-      w: width,
-      h: height,
-      gap: metrics.gap * 2,
-      alignItems: "center",
-      items: [
-        {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
-          children: field.label,
-          fontPx: metrics.font,
-          color: disabled ? "muted" : "text",
-        })},
-        {width: metrics.control * 1.6, height: metrics.control * 0.82, draw: (slotX, slotY, slotW, slotH) => {
-          const onChange = !disabled && field.onChange !== undefined ? (value: boolean) => field.onChange!(value) : undefined
-          if (field.presentation === "checkbox") {
-            const props: Parameters<typeof Checkbox>[5] = {checked: field.value, disabled}
-            if (onChange !== undefined) props.onChange = onChange
-            Checkbox(host, slotX, slotY, slotW, slotH, props)
-          } else {
-            const props: Parameters<typeof Switcher>[5] = {checked: field.value, disabled}
-            if (onChange !== undefined) props.onChange = onChange
-            Switcher(host, slotX, slotY, slotW, slotH, props)
-          }
-        }},
-      ],
-    })
+    drawBooleanField(host, x, y, width, height, field)
     return height
   }
-  drawCompactSingleRow(host, x, y, width, height, field, metrics)
+  drawScalarFieldRow(host, x, y, width, height, field, "compact")
   return height
 }
 
-type CompactMetrics = Readonly<{control: number; gap: number; font: number; radius: number}>
+type CompactMetrics = Readonly<{control: number; gap: number; font: number}>
 
 function compactMetrics(): CompactMetrics {
   return {
-    control: 22,
-    gap: 3,
-    font: 11,
-    radius: 3,
+    control: uiShapeMetrics.controlHeight,
+    gap: uiShapeMetrics.tightGap,
+    font: uiShapeMetrics.compactFontPx,
   }
 }
 
-function compactTextStyle(metrics: CompactMetrics) {
-  return {
-    background: new Color(0.235, 0.235, 0.235, 1),
-    borderColor: new Color(0.11, 0.11, 0.11, 1),
-    borderWidth: 1,
-    borderRadius: metrics.radius,
-    color: "#E6E6E6" as const,
-    fontSize: metrics.font,
-  }
-}
-
-function drawCompactSingleRow(
+function drawScalarFieldRow(
   host: UiSurface,
   x: number,
   y: number,
   width: number,
   height: number,
   field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition | CollectionFieldDefinition>,
-  metrics: CompactMetrics,
+  density: "regular" | "compact",
 ): void {
-  if (field.compactLabel === "hidden") {
-    drawCompactControl(host, x, y, width, height, field, metrics)
+  if (density === "compact" && field.compactLabel === "hidden") {
+    drawScalarControl(host, x, y, width, height, field, density)
     return
   }
   flexRow({
@@ -404,47 +365,47 @@ function drawCompactSingleRow(
     y,
     w: width,
     h: height,
-    gap: metrics.gap * 2,
+    gap: uiShapeMetrics.tightGap * 2,
     alignItems: "stretch",
     items: [
       {width: "2fr", height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
         children: field.label,
-        fontPx: metrics.font,
+        fontPx: uiShapeMetrics.compactFontPx,
         color: isFieldDisabled(field) ? "muted" : "text",
       })},
-      {width: "3fr", height, draw: (slotX, slotY, slotW, slotH) => drawCompactControl(host, slotX, slotY, slotW, slotH, field, metrics)},
+      {width: "3fr", height, draw: (slotX, slotY, slotW, slotH) => drawScalarControl(host, slotX, slotY, slotW, slotH, field, density)},
     ],
   })
 }
 
-function drawCompactControl(
+function drawScalarControl(
   host: UiSurface,
   x: number,
   y: number,
   width: number,
   height: number,
   field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition | CollectionFieldDefinition>,
-  metrics: CompactMetrics,
+  density: "regular" | "compact",
 ): void {
   const disabled = isFieldDisabled(field)
   if (field.kind === "number") {
-    NumberInput(host, x, y, width, height, numberInputProps(field, "compact"))
+    NumberInput(host, x, y, width, height, numberInputProps(field, density))
     return
   }
   if (field.kind === "enum") {
-    EnumInput(host, x, y, width, height, enumInputProps(field, "compact"))
+    EnumInput(host, x, y, width, height, enumInputProps(field, density))
     return
   }
   if (field.kind === "color") {
-    ColorInput(host, x, y, width, height, colorInputProps(field, "compact"))
+    ColorInput(host, x, y, width, height, colorInputProps(field, density))
     return
   }
   if (field.kind === "reference") {
-    ReferenceInput(host, x, y, width, height, referenceInputProps(field, "compact"))
+    ReferenceInput(host, x, y, width, height, referenceInputProps(field, density))
     return
   }
   if (field.kind === "path") {
-    PathInput(host, x, y, width, height, pathInputProps(field, "compact"))
+    PathInput(host, x, y, width, height, pathInputProps(field, density))
     return
   }
   const value = field.kind === "readonly" ? String(field.value) : field.value
@@ -453,8 +414,6 @@ function drawCompactControl(
     value,
     disabled: disabled || field.kind === "readonly",
     submitOnEnter: true,
-    fontPx: metrics.font,
-    sx: compactTextStyle(metrics),
   }
   if (!disabled && field.kind === "text") props.onChange = (text) => field.onChange?.(text)
   TextField(host, x, y, width, height, props)
@@ -612,9 +571,13 @@ function drawNumberSlider(host: UiSurface, x: number, y: number, width: number, 
   const props: Parameters<typeof SliderControl>[4] = {
     key: fieldKey(field),
     label: field.label,
+    layout: "inline",
     value: normalizeNumberFieldValue(field.value, field),
     max: field.max!,
     step: field.step ?? (field.numberKind === "integer" ? 1 : 0.01),
+    buttonHeight: uiShapeMetrics.controlHeight,
+    labelFontPx: uiShapeMetrics.compactFontPx,
+    valueFontPx: uiShapeMetrics.compactFontPx,
     format: (entry) => `${entry}${field.unit ?? ""}`,
     onChange: (entry) => {
       if (!isFieldDisabled(field)) field.onChange?.(normalizeNumberFieldValue(entry, field))
@@ -624,20 +587,26 @@ function drawNumberSlider(host: UiSurface, x: number, y: number, width: number, 
   SliderControl(host, x, y, width, props)
 }
 
-function drawBooleanField(host: UiSurface, x: number, y: number, width: number, field: BooleanFieldDefinition): void {
+function drawBooleanField(host: UiSurface, x: number, y: number, width: number, height: number, field: BooleanFieldDefinition): void {
   const disabled = isFieldDisabled(field)
   const onChange = !disabled && field.onChange !== undefined ? (value: boolean) => field.onChange!(value) : undefined
-  const controlWidth = field.presentation === "checkbox" ? 24 : 40
+  const controlWidth = field.presentation === "checkbox"
+    ? uiShapeMetrics.iconActionSlot
+    : uiShapeMetrics.iconActionSlot * 1.9
   flexRow({
     x,
     y,
     w: width,
-    h: CONTROL_HEIGHT,
-    gap: 8,
+    h: height,
+    gap: uiShapeMetrics.tightGap * 2,
     alignItems: "center",
     items: [
-      {width: "grow", height: CONTROL_HEIGHT, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, color: disabled ? "muted" : "text"})},
-      {width: controlWidth, height: 22, draw: (slotX, slotY, slotW, slotH) => {
+      {width: "grow", height, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {
+        children: field.label,
+        color: disabled ? "muted" : "text",
+        fontPx: uiShapeMetrics.compactFontPx,
+      })},
+      {width: controlWidth, height: uiShapeMetrics.controlHeight, draw: (slotX, slotY, slotW, slotH) => {
         if (field.presentation === "checkbox") {
           const props: Parameters<typeof Checkbox>[5] = {checked: field.value, disabled}
           if (onChange !== undefined) props.onChange = onChange

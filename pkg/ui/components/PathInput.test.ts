@@ -5,6 +5,7 @@ import {
   handleActiveInputKey,
   insertActiveInputText,
   palette,
+  uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -85,8 +86,8 @@ describe("public PathInput", () => {
     PathInput(surface, 4, 6, 120, 28, props)
 
     expect(surface.hits.map(([x, y, width, height]) => ({x, y, width, height}))).toEqual([
-      {x: 4, y: 6, width: 85, height: 28},
-      {x: 96, y: 6, width: 28, height: 28},
+      {x: 4, y: 6, width: 95, height: 28},
+      {x: 102, y: 6, width: uiShapeMetrics.iconActionSlot, height: 28},
     ])
 
     focusInput(surface, "path-input", createInputEditState("/textures/source.exr"))
@@ -136,23 +137,23 @@ describe("public PathInput", () => {
     }
   })
 
-  test("preserves regular and compact MetaFor geometry", () => {
+  test("uses one Elements-owned regular and compact geometry", () => {
     const regular = new RecordingSurface()
     PathInput(regular, 4, 6, 120, 28, pathProps([]))
     expect(regular.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 85, h: 28},
-      {x: 96, y: 6, w: 28, h: 28},
+      {x: 4, y: 9, w: 95, h: uiShapeMetrics.controlHeight},
+      {x: 102, y: 9, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
     ])
 
     const compact = new RecordingSurface()
     PathInput(compact, 4, 6, 120, 22, pathProps([], {density: "compact"}))
     expect(compact.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
-      {x: 4, y: 6, w: 95, h: 22},
-      {x: 102, y: 6, w: 22, h: 22},
+      {x: 4, y: 6, w: 95, h: uiShapeMetrics.controlHeight},
+      {x: 102, y: 6, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
     ])
-    for (const call of compact.roundedRects) {
-      expect(call[4].radius).toBe(3)
-      expect(call[4].borderWidth).toBe(1)
+    for (const call of [...regular.roundedRects, ...compact.roundedRects]) {
+      expect(call[4].radius).toBe(uiShapeMetrics.lowRadius)
+      expect(call[4].borderWidth).toBe(uiShapeMetrics.borderWidth)
       expect(call[4].fill).toEqual(palette.bgInput)
       expect(call[4].border).toEqual(palette.borderDim)
     }

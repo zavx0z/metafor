@@ -4,6 +4,7 @@ import {
   focusInput,
   handleActiveInputKey,
   palette,
+  uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -108,22 +109,33 @@ describe("public NumberInput", () => {
     expect(surface.texts[0]?.[3].fontPx).toBe(9)
   })
 
-  test("preserves compact production geometry without changing the regular presentation", () => {
+  test("uses one Elements-owned visible silhouette in regular and compact density", () => {
     const regular = new RecordingSurface()
     NumberInput(regular, 4, 6, 120, 28, numberProps(() => {}))
-    expect(regular.roundedRects[0]?.[4].radius).toBe(999)
+    const [, regularY, regularWidth, regularHeight, regularStyle] = regular.roundedRects[0]!
+    expect({regularY, regularWidth, regularHeight}).toEqual({
+      regularY: 9,
+      regularWidth: 120,
+      regularHeight: uiShapeMetrics.controlHeight,
+    })
+    expect({radius: regularStyle.radius, borderWidth: regularStyle.borderWidth}).toEqual({
+      radius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
+    })
 
     const compact = new RecordingSurface()
     NumberInput(compact, 4, 6, 120, 22, numberProps(() => {}, {density: "compact"}))
     const [, , width, height, style] = compact.roundedRects[0]!
     expect({width, height, radius: style.radius, borderWidth: style.borderWidth}).toEqual({
       width: 120,
-      height: 22,
-      radius: 3,
-      borderWidth: 1,
+      height: uiShapeMetrics.controlHeight,
+      radius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
     })
     expect(style.fill).toEqual(palette.bgInput)
     expect(style.border).toEqual(palette.borderDim)
+    expect(regularStyle.fill).toEqual(style.fill)
+    expect(regularStyle.border).toEqual(style.border)
   })
 
   test("suppresses mutating input for disabled and read-only states", () => {

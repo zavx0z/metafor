@@ -9,6 +9,7 @@ import {
   type PlaygroundStoryModule,
 } from "@ui/playground/stories"
 import type {EnumInputStoryVariant} from "../stories.ts"
+import {uiShapeMetrics} from "@ui/elements"
 
 type EnumInputStoryArgs = PlaygroundStoryArgs & Readonly<{
   value: string
@@ -94,9 +95,9 @@ export function createEnumInputStory(variant: EnumInputStoryVariant): Playground
     ],
     render(surface, args, frame) {
       const width = args.presentation === "expanded"
-        ? Math.min(620, Math.max(390, frame.w * 0.68))
-        : Math.min(380, Math.max(260, frame.w * 0.42))
-      const height = args.density === "compact" ? 22 : 28
+        ? Math.min(444, frame.w)
+        : Math.min(146, frame.w)
+      const height = args.density === "compact" ? uiShapeMetrics.controlHeight : uiShapeMetrics.rowHeight
       const props: EnumInputProps = {
         value: args.value,
         presentation: args.presentation,

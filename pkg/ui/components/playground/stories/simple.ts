@@ -11,6 +11,7 @@ import {Table} from "@ui/components/table"
 import {TextField} from "@ui/components/text-field"
 import {Typography} from "@ui/components/typography"
 import {scrollbar} from "@ui/elements/scrollbar"
+import {uiShapeMetrics} from "@ui/elements"
 import {
   definePlaygroundStoryModule,
   type PlaygroundStoryArgs,
@@ -72,7 +73,7 @@ function renderSimpleStory(
     return
   }
   if (options.component === "text-field") {
-    TextField(surface, centerX - 190, centerY - 24, 380, 48, {
+    TextField(surface, centerX - 73, centerY - uiShapeMetrics.rowHeight / 2, 146, uiShapeMetrics.rowHeight, {
       key: "components-story-text",
       value: args.label,
       disabled: args.disabled,
@@ -81,7 +82,7 @@ function renderSimpleStory(
     return
   }
   if (options.component === "number-input") {
-    NumberInput(surface, centerX - 150, centerY - 24, 300, 48, {
+    NumberInput(surface, centerX - 73, centerY - uiShapeMetrics.rowHeight / 2, 146, uiShapeMetrics.rowHeight, {
       key: "components-story-number",
       value: args.value,
       min: 0,
@@ -93,7 +94,7 @@ function renderSimpleStory(
     return
   }
   if (options.component === "color-input") {
-    ColorInput(surface, centerX - 170, centerY - 24, 340, 48, {
+    ColorInput(surface, centerX - 73, centerY - uiShapeMetrics.rowHeight / 2, 146, uiShapeMetrics.rowHeight, {
       key: "components-story-color",
       value: {r: 0.18, g: 0.58, b: 0.92, a: Math.min(1, Math.max(0, args.value))},
       disabled: args.disabled,
@@ -128,9 +129,10 @@ function renderSimpleStory(
     return
   }
   if (options.component === "slider-control") {
-    SliderControl(surface, centerX - 210, centerY - 24, 420, {
+    SliderControl(surface, centerX - 125, centerY - uiShapeMetrics.controlHeight / 2, 250, {
       key: "components-story-slider",
       label: args.label,
+      layout: "inline",
       value: args.value,
       min: 0,
       max: 1,
@@ -214,7 +216,7 @@ function simpleStorySource(
   if (options.component === "checkbox") return `import {Checkbox} from "@ui/components/checkbox"\n\nCheckbox(surface, x, y, w, h, {checked: ${args.checked}${disabled}, onChange: setChecked})`
   if (options.component === "switcher") return `import {Switcher} from "@ui/components/switcher"\n\nSwitcher(surface, x, y, w, h, {checked: ${args.checked}${disabled}, onChange: setChecked})`
   if (options.component === "progress-checkbox") return `import {ProgressCheckbox} from "@ui/components/progress-checkbox"\n\nProgressCheckbox(surface, x, y, w, h, {progress: ${args.value}, checked: ${args.checked}${disabled}, onChange: setChecked})`
-  if (options.component === "slider-control") return `import {SliderControl} from "@ui/components/slider-control"\n\nSliderControl(surface, x, y, w, {key: "factor", label: ${JSON.stringify(args.label)}, value: ${args.value}, min: 0, max: 1, step: 0.01, onChange: setValue})`
+  if (options.component === "slider-control") return `import {SliderControl} from "@ui/components/slider-control"\n\nSliderControl(surface, x, y, w, {key: "factor", label: ${JSON.stringify(args.label)}, layout: "inline", value: ${args.value}, min: 0, max: 1, step: 0.01, onChange: setValue})`
   if (options.component === "typography") return `import {Typography} from "@ui/components/typography"\n\nTypography(surface, x, y, w, h, {children: ${JSON.stringify(args.label)}, variant: "title"})`
   if (options.component === "divider") return `import {Divider} from "@ui/components/divider"\n\nDivider(surface, x, y, width, {children: ${JSON.stringify(args.label)}, variant: ${JSON.stringify(dividerVariant(options.variant))}})`
   if (options.component === "list") return 'import {List} from "@ui/components/list"\n\nList(surface, x, y, w, h, {items, selectedKey: "field"})'
