@@ -13,12 +13,20 @@ describe("Node playground on shared @ui/playground shell", () => {
     expect(frames.reference.visible).toBeFalse()
   })
 
-  test("uses the whole preview for sockets and equal slots for comparison", () => {
-    const sockets = planNodeComponentPlaygroundFrames(1920, 1080, "socket/types")
-    expect(sockets.sockets).toEqual({x: 422, y: 16, w: 1024, h: 930})
+  test("uses a detail preview and story panel for Socket while keeping the aggregate grid hidden", () => {
+    const sockets = planNodeComponentPlaygroundFrames(1920, 1080, "socket/boolean/input")
+    expect(sockets.storyPreview).toEqual({x: 422, y: 16, w: 1024, h: 930})
+    expect(sockets.story).toEqual({x: 1464, y: 16, w: 440, h: 1048})
+    expect(sockets.sockets.visible).toBeFalse()
+    expect(sockets.info.visible).toBeFalse()
     expect(sockets.editor.visible).toBeFalse()
+  })
+
+  test("keeps equal preview slots for the legacy Blender comparison", () => {
     const comparison = planNodeComponentPlaygroundFrames(1920, 1080, "comparison/blender")
     expect(comparison.reference).toEqual({x: 422, y: 16, w: 503, h: 930})
     expect(comparison.detail).toEqual({x: 943, y: 16, w: 503, h: 930})
+    expect(comparison.story.visible).toBeFalse()
+    expect(comparison.info).toEqual({x: 1464, y: 16, w: 440, h: 1048})
   })
 })

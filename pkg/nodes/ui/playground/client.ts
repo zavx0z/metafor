@@ -6,9 +6,14 @@ import {
   PlaygroundInfoSurface,
   PlaygroundNavigationSurface,
   PlaygroundRouter,
+  PlaygroundStoryPanelSurface,
+  playgroundRouteUrl,
+  type PlaygroundStoryArgs,
+  type PlaygroundStoryModule,
+  type PlaygroundStoryPanelMode,
+  type PlaygroundStoryPanelOptions,
 } from "@ui/playground"
 import {
-  BLENDER_SOCKET_KINDS,
   BLENDER_SOCKET_SHAPES,
   createBlenderNodeRenderers,
   type BlenderFrame,
@@ -23,16 +28,24 @@ import {planNodeComponentPlaygroundFrames} from "./layout.ts"
 import {waitForReferenceFrame} from "./reference-readiness.ts"
 import {createPlaygroundRetainedObserver, type PlaygroundRetainedObserver} from "./retained-observer.ts"
 import {
-  NODE_PLAYGROUND_CATALOG,
   NODE_PLAYGROUND_ROUTE_DECLARATION,
+  nodePlaygroundCatalog,
   nodePlaygroundCatalogRoute,
+  nodePlaygroundDockItems,
   nodePlaygroundGroup,
   nodePlaygroundInfo,
   nodePlaygroundSectionTitle,
   nodePlaygroundSections,
   type NodePlaygroundRoute,
 } from "./routes.ts"
-import {BLENDER_REFERENCE_SRC, BlenderReferenceSurface, SocketCatalogSurface} from "./surfaces.ts"
+import {
+  NODE_SOCKET_KINDS,
+  NODE_SOCKET_STORIES,
+  isNodeSocketStoryRoute,
+  nodeSocketStoryIndex,
+} from "./stories.ts"
+import {NodeStoryPreviewSurface} from "./story-preview.ts"
+import {BLENDER_REFERENCE_SRC, BlenderReferenceSurface} from "./surfaces.ts"
 
 const canvas = document.getElementById("node-component-canvas")
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Canvas node component playground не найден")
@@ -48,14 +61,20 @@ try {
     virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
   })
   const router = new PlaygroundRouter(NODE_PLAYGROUND_ROUTE_DECLARATION)
+  const resolvedPath = playgroundRouteUrl(router.current)
+  if (window.location.pathname !== resolvedPath) history.replaceState(null, "", resolvedPath)
   const navigate = (route: NodePlaygroundRoute): void => router.go(route)
   const tree = createCatalogNodeTree()
   const comparisonTree = createNoiseComparisonTree()
+  let storyModule: PlaygroundStoryModule | null = null
+  let storyArgs: PlaygroundStoryArgs = Object.freeze({})
+  let storyPanelMode: PlaygroundStoryPanelMode = "controls"
+  let storyRevision = 0
 
   const backdrop = new PlaygroundBackdropSurface()
   const catalog = new PlaygroundNavigationSurface<NodePlaygroundRoute>({
     title: "Компоненты нод",
-    items: NODE_PLAYGROUND_CATALOG,
+    items: nodePlaygroundCatalog(router.current),
     route: nodePlaygroundCatalogRoute(router.current),
     onNavigate: navigate,
   })
@@ -66,13 +85,46 @@ try {
     onNavigate: navigate,
   })
   const dock = new PlaygroundDockSurface<NodePlaygroundRoute>({
-    title: "Маршруты",
-    items: nodePlaygroundSections(router.current),
+    title: isNodeSocketStoryRoute(router.current) ? "Направление" : "Маршруты",
+    items: nodePlaygroundDockItems(router.current),
     route: router.current,
     onNavigate: navigate,
   })
   const info = new PlaygroundInfoSurface(nodePlaygroundInfo(router.current))
-  const sockets = new SocketCatalogSurface("types")
+  const storyPreview = new NodeStoryPreviewSurface()
+  let storyPanel: PlaygroundStoryPanelSurface
+  const storyPanelOptions = (): PlaygroundStoryPanelOptions => ({
+    source: storyModule?.source(storyArgs) ?? "// Загрузка Socket story…",
+    args: storyArgs,
+    controls: storyModule?.controls ?? [],
+    events: [{
+      id: "state",
+      label: "Состояние",
+      value: storyArgs.selected === true ? "выбран" : "обычный",
+    }],
+    mode: storyPanelMode,
+    onModeChange(mode) {
+      storyPanelMode = mode
+      storyPanel.setOptions(storyPanelOptions())
+      publishStoryState()
+    },
+    onControlChange(key, value) {
+      if (storyModule === null) return
+      storyArgs = Object.freeze({...storyArgs, [key]: value})
+      storyPreview.setArgs(storyArgs)
+      storyPanel.setOptions(storyPanelOptions())
+      publishStoryState()
+    },
+    async onCopy(source) {
+      try {
+        await navigator.clipboard.writeText(source)
+        document.documentElement.dataset.nodeStoryCopy = "copied"
+      } catch {
+        document.documentElement.dataset.nodeStoryCopy = "error"
+      }
+    },
+  })
+  storyPanel = new PlaygroundStoryPanelSurface(storyPanelOptions())
   const reference = new BlenderReferenceSurface()
   const detail = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
     renderers: createBlenderNodeRenderers(),
@@ -112,24 +164,28 @@ try {
   runtime.addSurface(catalog, ({w, h}) => frames(w, h).catalog)
   runtime.addSurface(sections, ({w, h}) => frames(w, h).section)
   runtime.addSurface(editor, ({w, h}) => frames(w, h).editor)
-  runtime.addSurface(sockets, ({w, h}) => frames(w, h).sockets)
+  runtime.addSurface(storyPreview, ({w, h}) => frames(w, h).storyPreview)
   runtime.addSurface(reference, ({w, h}) => frames(w, h).reference)
   runtime.addSurface(detail, ({w, h}) => frames(w, h).detail)
   runtime.addSurface(dock, ({w, h}) => frames(w, h).dock)
   runtime.addSurface(info, ({w, h}) => frames(w, h).info)
+  runtime.addSurface(storyPanel, ({w, h}) => frames(w, h).story)
 
   retainedObserver = createPlaygroundRetainedObserver(editor)
   globalThis.__nodeComponentRetainedObserver = retainedObserver
 
-  const applyRoute = (route: NodePlaygroundRoute): void => {
+  const applyRoute = async (route: NodePlaygroundRoute): Promise<void> => {
+    const revision = ++storyRevision
     const sectionItems = nodePlaygroundSections(route)
-    catalog.setOptions({title: "Компоненты нод", items: NODE_PLAYGROUND_CATALOG, route: nodePlaygroundCatalogRoute(route), onNavigate: navigate})
+    catalog.setOptions({title: "Компоненты нод", items: nodePlaygroundCatalog(route), route: nodePlaygroundCatalogRoute(route), onNavigate: navigate})
     sections.setOptions({title: nodePlaygroundSectionTitle(route), items: sectionItems, route, onNavigate: navigate})
-    dock.setOptions({title: "Маршруты", items: sectionItems, route, onNavigate: navigate})
-    info.setOptions(nodePlaygroundInfo(route))
-    if (route === "socket/shapes") sockets.setMode("shapes")
-    else if (route === "socket/states") sockets.setMode("states")
-    else sockets.setMode("types")
+    dock.setOptions({
+      title: isNodeSocketStoryRoute(route) ? "Направление" : "Маршруты",
+      items: nodePlaygroundDockItems(route),
+      route,
+      onNavigate: navigate,
+    })
+    if (!isNodeSocketStoryRoute(route)) info.setOptions(nodePlaygroundInfo(route))
     if (route === "editor/frames") editor.select({kind: "frame", id: "data-frame"})
     else if (route === "editor/links") editor.select({kind: "link", id: "matrix-shader"})
     else if (route === "editor/scene") editor.select(null)
@@ -139,16 +195,32 @@ try {
     document.documentElement.dataset.comparison = group === "comparison" ? "blender-reference-live-editor" : ""
     runtime.relayout()
     retainedObserver?.publishAfterFrame()
+    if (!isNodeSocketStoryRoute(route)) {
+      publishStoryState()
+      return
+    }
+
+    const index = nodeSocketStoryIndex(route)
+    const loaded = await NODE_SOCKET_STORIES.load(route)
+    if (revision !== storyRevision || router.current !== route) return
+    storyModule = loaded
+    storyArgs = Object.freeze({...loaded.defaultArgs})
+    storyPreview.setStory(index, loaded, storyArgs)
+    storyPanel.setOptions(storyPanelOptions())
+    publishStoryState()
+    renderPlaygroundFrame()
   }
 
-  router.subscribe(applyRoute)
+  router.subscribe((route) => {
+    void applyRoute(route).catch(publishPlaygroundError)
+  })
   runtime.handleResize()
-  applyRoute(router.current)
+  await applyRoute(router.current)
   new ResizeObserver(() => {
     runtime.handleResize()
     retainedObserver?.publishAfterFrame()
   }).observe(canvas)
-  document.documentElement.dataset.socketKinds = String(BLENDER_SOCKET_KINDS.length)
+  document.documentElement.dataset.socketKinds = String(NODE_SOCKET_KINDS.length)
   document.documentElement.dataset.socketShapes = String(BLENDER_SOCKET_SHAPES.length)
   document.documentElement.dataset.nodeCount = String(tree.nodes.length)
   document.documentElement.dataset.linkCount = String(tree.links.length)
@@ -176,6 +248,18 @@ try {
     runtime.relayout()
     runtime.space.updateWorldMatrix()
     runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
+  }
+
+  function publishStoryState(): void {
+    const route = router.current
+    const socketStory = isNodeSocketStoryRoute(route)
+    document.documentElement.dataset.nodeStoryRoute = socketStory ? route : ""
+    document.documentElement.dataset.nodeStorySource = socketStory && storyModule !== null
+      ? storyModule.source(storyArgs)
+      : ""
+    document.documentElement.dataset.nodeStoryArgs = socketStory ? JSON.stringify(storyArgs) : ""
+    document.documentElement.dataset.nodeSocketSections = socketStory ? String(nodePlaygroundSections(route).length) : ""
+    document.documentElement.dataset.nodeSocketVariants = socketStory ? String(nodePlaygroundDockItems(route).length) : ""
   }
 } catch (error) {
   publishPlaygroundError(error)

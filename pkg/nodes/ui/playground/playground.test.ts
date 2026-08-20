@@ -2,7 +2,8 @@ import {describe, expect, test} from "bun:test"
 import {join} from "node:path"
 import {fileURLToPath} from "node:url"
 import {FIELD_KINDS} from "@ui/components"
-import {BLENDER_SOCKET_KINDS, BLENDER_SOCKET_SHAPES} from "../blender-node.ts"
+import {resolvePlaygroundRoute} from "@ui/playground"
+import {BLENDER_SOCKET_KINDS, BLENDER_SOCKET_PRESETS, BLENDER_SOCKET_SHAPES} from "../blender-node.ts"
 import {validatePositionedNodeTree} from "../node-editor.ts"
 import {
   SOCKET_CATALOG,
@@ -13,9 +14,16 @@ import {
   NODE_PLAYGROUND_CATALOG,
   NODE_PLAYGROUND_ROUTE_DECLARATION,
   NODE_PLAYGROUND_ROUTES,
+  nodePlaygroundDockItems,
   nodePlaygroundGroup,
   nodePlaygroundSections,
 } from "./routes.ts"
+import {
+  NODE_SOCKET_DIRECTIONS,
+  NODE_SOCKET_KINDS,
+  NODE_SOCKET_STORIES,
+  nodeSocketStoryIndex,
+} from "./stories.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 
@@ -32,30 +40,58 @@ describe("Blender-like Node component playground", () => {
     expect(surfaces).not.toContain("createStandaloneFields")
   })
 
-  test("exposes distinct editor, Socket and comparison sections without a Field catalog", () => {
+  test("routes Socket to 19 concrete detail sections and three direction variants", () => {
     expect(NODE_PLAYGROUND_CATALOG.map(({route}) => route)).toEqual([
       "editor/scene",
-      "socket/types",
+      "socket/boolean/input",
       "comparison/blender",
     ])
-    expect(NODE_PLAYGROUND_ROUTES).toEqual([
+    expect(NODE_PLAYGROUND_ROUTES.slice(0, 4)).toEqual([
       "editor/scene",
       "editor/frames",
       "editor/links",
-      "socket/types",
-      "socket/shapes",
-      "socket/states",
       "comparison/blender",
     ])
-    expect(NODE_PLAYGROUND_ROUTE_DECLARATION).toEqual({
-      location: "pathname",
-      routes: NODE_PLAYGROUND_ROUTES,
-      fallback: "editor/scene",
-    })
+    expect(NODE_PLAYGROUND_ROUTES).toHaveLength(4 + BLENDER_SOCKET_KINDS.length * NODE_SOCKET_DIRECTIONS.length)
+    expect(NODE_PLAYGROUND_ROUTE_DECLARATION.location).toBe("pathname")
+    expect(NODE_PLAYGROUND_ROUTE_DECLARATION.routes).toEqual(NODE_PLAYGROUND_ROUTES)
+    expect(NODE_PLAYGROUND_ROUTE_DECLARATION.fallback).toBe("socket/boolean/input")
+    expect(NODE_PLAYGROUND_ROUTES).not.toContain("socket/types" as never)
+    expect(resolvePlaygroundRoute(NODE_PLAYGROUND_ROUTE_DECLARATION, {pathname: "/socket/types"})).toBe(
+      "socket/boolean/input",
+    )
     expect(nodePlaygroundGroup("editor/scene")).toBe("editor")
-    expect(nodePlaygroundGroup("socket/types")).toBe("socket")
+    expect(nodePlaygroundGroup("socket/boolean/input")).toBe("socket")
     expect(nodePlaygroundGroup("comparison/blender")).toBe("comparison")
-    expect(nodePlaygroundSections("socket/types").map(({label}) => label)).toEqual(["Типы", "Формы", "Состояния"])
+    expect(nodePlaygroundSections("socket/boolean/input").map(({id}) => id)).toEqual([...BLENDER_SOCKET_KINDS])
+    expect(nodePlaygroundSections("socket/boolean/input").map(({label}) => label)).toEqual(
+      BLENDER_SOCKET_KINDS.map((kind) => BLENDER_SOCKET_PRESETS[kind].label),
+    )
+    expect(nodePlaygroundDockItems("socket/boolean/input").map(({id}) => id)).toEqual([...NODE_SOCKET_DIRECTIONS])
+  })
+
+  test("loads one exact production Socket story whose source follows the selected route", async () => {
+    expect(NODE_SOCKET_KINDS).toEqual([...BLENDER_SOCKET_KINDS])
+    const route = "socket/rotation/bidirectional"
+    expect(nodeSocketStoryIndex(route)).toMatchObject({
+      componentId: "socket",
+      sectionId: "rotation",
+      variantId: "bidirectional",
+    })
+    const story = await NODE_SOCKET_STORIES.load(route)
+    expect(story.defaultArgs).toMatchObject({
+      kind: "rotation",
+      direction: "bidirectional",
+      shape: BLENDER_SOCKET_PRESETS.rotation.shape,
+      selected: false,
+    })
+    expect(story.controls.map(({key}) => key)).toEqual(["shape", "selected"])
+    const source = story.source({...story.defaultArgs, shape: "square-dot", selected: true})
+    expect(source).toContain('from "@nodes/ui/blender-node"')
+    expect(source).toContain('direction: "bidirectional"')
+    expect(source).toContain('socketType: "rotation"')
+    expect(source).toContain('shape: "square-dot"')
+    expect(source).toContain("selected: true")
   })
 
   test("catalogs nineteen socket types, eight shapes and a valid positioned NodeTree", () => {
@@ -124,8 +160,10 @@ describe("Blender-like Node component playground", () => {
     ]) expect(source).not.toContain(forbidden)
     expect(source).toContain("NodeEditor")
     expect(source).toContain("PlaygroundNavigationSurface")
+    expect(source).toContain("PlaygroundStoryPanelSurface")
+    expect(source).toContain("NodeStoryPreviewSurface")
     expect(source).toContain("BlenderReferenceSurface")
-    expect(source).toContain("SocketCatalogSurface")
+    expect(await Bun.file(join(playgroundRoot, "client.ts")).text()).not.toContain("new SocketCatalogSurface")
     expect(source).not.toContain("FieldCatalogSurface")
   })
 
@@ -171,12 +209,15 @@ describe("Blender-like Node component playground", () => {
       routes: {default: "/editor/scene"},
     })
     expect(client).toContain("new PlaygroundRouter(NODE_PLAYGROUND_ROUTE_DECLARATION)")
+    expect(client).toContain('history.replaceState(null, "", resolvedPath)')
     expect(client).not.toContain("nodePlaygroundHash")
     expect(client).not.toContain("window.location.hash")
-    const applyRoute = client.slice(client.indexOf("const applyRoute"), client.indexOf("router.subscribe(applyRoute)"))
+    const applyRoute = client.slice(client.indexOf("const applyRoute"), client.indexOf("router.subscribe((route)"))
     expect(applyRoute).toContain("runtime.relayout()")
     expect(applyRoute).not.toContain("runtime.handleResize()")
-    expect(client).toContain("router.subscribe(applyRoute)\n  runtime.handleResize()\n  applyRoute(router.current)")
+    expect(client).toContain("runtime.handleResize()\n  await applyRoute(router.current)")
+    expect(client).toContain("new PlaygroundStoryPanelSurface(storyPanelOptions())")
+    expect(client).not.toContain("new SocketCatalogSurface")
     expect(browser).toContain('cdp.send("Target.createTarget", {url, background: true})')
     expect(browser).toContain('canvas.toDataURL("image/png")')
     expect(browser).toContain('action === "profile"')
