@@ -204,8 +204,13 @@ const BLENDER_NODE_HEADER_VISUAL_POLICY = Object.freeze({
 })
 const NODE_PADDING = 8
 const NODE_GAP = 3
-const NODE_MIN_WIDTH = 180
+/** Minimum of Blender's default `node_type_size_preset` in `blenkernel/intern/node.cc`. */
+const NODE_MIN_WIDTH = 100
 const NODE_MIN_HEIGHT = 52
+const NODE_FONT_PX = 11
+const NODE_FONT_LETTER_SPACING = NODE_FONT_PX * 0.05
+const NODE_FONT_GLYPH_ADVANCE = NODE_FONT_PX * 0.6
+const NODE_FONT_SPACE_ADVANCE = NODE_FONT_PX * 0.3
 const EMPTY_CONNECTED_SOCKET_IDS: ReadonlySet<string> = new Set()
 
 export function blenderSocketPreset(kind: BlenderSocketKind): BlenderSocketPreset {
@@ -216,21 +221,76 @@ export function measureBlenderNode(
   node: BlenderNode,
   connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
 ): Readonly<{width: number; height: number}> {
+  const width = measureBlenderNodeWidth(node)
   if (node.collapsed) {
     const sockets = node.sockets ?? []
     const maxSideCount = Math.max(
       sockets.filter((socket) => socketSide(socket) === "left").length,
       sockets.filter((socket) => socketSide(socket) === "right").length,
     )
-    return {width: NODE_MIN_WIDTH, height: Math.max(NODE_HEADER_HEIGHT, maxSideCount * 8 + 10)}
+    return {width, height: Math.max(NODE_HEADER_HEIGHT, maxSideCount * 8 + 10)}
   }
   const rows = blenderNodeRows(node, connectedSocketIds)
   const rowsHeight = rows.reduce((height, row) => height + rowHeight(row), 0)
     + Math.max(0, rows.length - 1) * NODE_GAP
   return {
-    width: NODE_MIN_WIDTH,
+    width,
     height: Math.max(NODE_MIN_HEIGHT, NODE_HEADER_HEIGHT + NODE_PADDING * 2 + rowsHeight),
   }
+}
+
+/**
+ * Plans the initial Node width from the same content later materialized by the
+ * renderer. Blender provides a 100-unit lower bound and arbitrary UI layout
+ * scaling rather than semantic width tiers. MetaFor therefore keeps that
+ * source minimum, then expands it for the project font, Socket/property labels
+ * and shared Field intrinsic widths. Explicit positioned widths remain owned
+ * by `positionBlenderNode` / `planBlenderNode` and never pass through here.
+ */
+function measureBlenderNodeWidth(node: BlenderNode): number {
+  const headerWidth = BLENDER_NODE_HEADER_VISUAL_POLICY.leftPadding
+    + BLENDER_NODE_HEADER_VISUAL_POLICY.iconSlotWidth
+    + BLENDER_NODE_HEADER_VISUAL_POLICY.iconGap
+    + measureNodeTextWidth(node.label ?? node.title)
+    + BLENDER_NODE_HEADER_VISUAL_POLICY.rightPadding
+  if (node.collapsed) return Math.ceil(Math.max(NODE_MIN_WIDTH, headerWidth))
+  let contentWidth = 0
+  for (const field of node.properties ?? []) {
+    contentWidth = Math.max(contentWidth, measureFieldContentWidth(field, field.label))
+  }
+  for (const parameter of node.parameters ?? []) {
+    const sockets = (node.sockets ?? []).filter((socket) => socket.parameterId === parameter.id)
+    const side = sockets.length === 0 ? undefined : parameterLabelSide(sockets)
+    const label = side === undefined ? parameter.label : socketPropertyLabel(parameter.label, side)
+    contentWidth = Math.max(contentWidth, measureFieldContentWidth(parameter.field, label))
+  }
+  for (const socket of node.sockets ?? []) {
+    if (socket.parameterId !== undefined) continue
+    contentWidth = Math.max(contentWidth, measureNodeTextWidth(socket.label))
+  }
+  return Math.ceil(Math.max(
+    NODE_MIN_WIDTH,
+    headerWidth,
+    contentWidth + NODE_PADDING * 2,
+  ))
+}
+
+function measureFieldContentWidth(field: FieldDefinition | undefined, label: string): number {
+  const intrinsicWidth = field === undefined
+    ? 0
+    : measureFieldLayout(field, {density: "compact"}).intrinsicWidth ?? 0
+  return Math.max(intrinsicWidth, measureNodeTextWidth(label))
+}
+
+/** Mirrors the project font defaults used by `UiSurface.measureText`. */
+function measureNodeTextWidth(value: string): number {
+  let width = 0
+  for (const character of value) {
+    width += character === " "
+      ? NODE_FONT_SPACE_ADVANCE
+      : NODE_FONT_GLYPH_ADVANCE + NODE_FONT_LETTER_SPACING
+  }
+  return width
 }
 
 /** Plans Standard Node child slots and exact Socket anchors through shared Flex. */

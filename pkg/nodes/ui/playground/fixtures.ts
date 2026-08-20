@@ -156,7 +156,7 @@ export function createCatalogNodeTree(
 
   const nodes: PositionedNode<BlenderNode, BlenderSocket>[] = [
     positionCatalogNode(scalar, 40, 70, 260),
-    positionCatalogNode(transform, 340, 60, 310),
+    positionCatalogNode(transform, 340, 60),
     positionCatalogNode(shader, 720, 65, 330),
     positionCatalogNode(asset, 130, 360, 300),
     positionCatalogNode(collapsed, 450, 420, 120),
@@ -192,9 +192,10 @@ function positionCatalogNode(
   node: BlenderNode,
   x: number,
   y: number,
-  width: number,
+  width?: number,
 ): PositionedNode<BlenderNode, BlenderSocket> {
-  return positionBlenderNode(node, {x, y, w: width, h: measureBlenderNode(node).height})
+  const measurement = measureBlenderNode(node)
+  return positionBlenderNode(node, {x, y, w: width ?? measurement.width, h: measurement.height})
 }
 
 function blenderNode(

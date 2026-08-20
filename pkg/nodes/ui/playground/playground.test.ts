@@ -206,6 +206,13 @@ describe("Blender-like Node component playground", () => {
     ])
   })
 
+  test("uses the generic compact default width for Transform linked and unlinked evidence", () => {
+    const linked = createCatalogNodeTree().nodes.find(({node}) => node.id === "transform")!
+    const unlinked = createCatalogNodeTree({translationLinked: false}).nodes.find(({node}) => node.id === "transform")!
+    expect(linked.rect.w).toBe(162)
+    expect(unlinked.rect.w).toBe(linked.rect.w)
+  })
+
   test("applies NodeEditor story args through one production selection and DOM adapter", () => {
     const selections: unknown[] = []
     const published: unknown[] = []

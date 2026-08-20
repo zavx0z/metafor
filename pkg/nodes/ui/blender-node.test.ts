@@ -77,7 +77,7 @@ describe("Blender-like Node presets", () => {
       }],
     }
     const measured = measureBlenderNode(node)
-    expect(measured.width).toBeGreaterThanOrEqual(180)
+    expect(measured.width).toBe(100)
     expect(measured.height).toBeGreaterThan(80)
   })
 
@@ -520,6 +520,60 @@ describe("Blender-like Node presets", () => {
       }))
       expect(surface.shadows[0]?.slice(0, 4)).toEqual([20, 30, 180, 156])
       expect(surface.nodeRects[0]?.slice(0, 4)).toEqual([20, 30, 180, 156])
+    } finally {
+      surface.dispose()
+    }
+  })
+
+  test("measures compact default width from intrinsic controls while preserving explicit resize", () => {
+    const node: BlenderNode = {
+      id: "default-width",
+      title: "Transform",
+      parameters: [
+        {id: "translation", label: "Translation", field: {id: "translation", label: "Translation", kind: "vector", value: [1, 2, 3]}},
+        {id: "rotation", label: "Rotation", field: {id: "rotation", label: "Rotation", kind: "rotation", value: [0, 45, 90]}},
+      ],
+      sockets: [
+        {id: "translation", label: "Translation", direction: "input", socketType: "vector", parameterId: "translation", side: "left"},
+        {id: "rotation", label: "Rotation", direction: "input", socketType: "rotation", parameterId: "rotation", side: "left"},
+      ],
+    }
+    const unlinked = measureBlenderNode(node)
+    const linked = measureBlenderNode(node, new Set(["translation"]))
+    expect(unlinked.width).toBe(162)
+    expect(linked.width).toBe(unlinked.width)
+    expect(linked.height).toBeLessThan(unlinked.height)
+
+    const defaultFrame = {x: 20, y: 30, w: unlinked.width, h: unlinked.height}
+    const defaultPlan = planBlenderNode(node, defaultFrame)
+    expect(defaultPlan.rect.w).toBe(162)
+    expect(defaultPlan.fields.map(({rect}) => ({x: rect.x, w: rect.w}))).toEqual([
+      {x: 28, w: 146},
+      {x: 28, w: 146},
+    ])
+
+    const resized = planBlenderNode(node, {...defaultFrame, w: 240})
+    expect(resized.rect.w).toBe(240)
+    expect(resized.fields[0]?.rect).toMatchObject({x: 67, w: 146})
+
+    const longHeaderLabel = "Transform Geometry With A Very Long Header"
+    const longSocketLabel = "Extremely Long Translation Property Socket Label"
+    const longHeader = measureBlenderNode({...node, title: longHeaderLabel})
+    const longSocket = measureBlenderNode({
+      ...node,
+      sockets: [...node.sockets!, {
+        id: "long-loose-socket",
+        label: longSocketLabel,
+        direction: "input",
+        socketType: "vector",
+        side: "left",
+      }],
+    })
+    const surface = new RetainedHeaderSurface()
+    try {
+      surface.setRect({x: 0, y: 0, w: 600, h: 120}, HEADER_PIXEL_SCALE, projectFont)
+      expect(longHeader.width).toBe(Math.ceil(8 + 12 + 4 + surface.measureText(longHeaderLabel, 11) + 6))
+      expect(longSocket.width).toBe(Math.ceil(surface.measureText(longSocketLabel, 11) + 16))
     } finally {
       surface.dispose()
     }
