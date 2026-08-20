@@ -15,15 +15,25 @@ describe("Node Socket package-owned story boundary", () => {
     expect(story).not.toContain('from "../blender-node.ts"')
   })
 
-  test("uses code/copy for Socket routes and leaves static info only to legacy routes", async () => {
+  test("loads remaining Node component story code through exact production subpaths", async () => {
+    const metadata = await Bun.file(join(playgroundRoot, "stories.ts")).text()
+    const story = await Bun.file(join(playgroundRoot, "stories/node-components.ts")).text()
+    expect(metadata).toContain('import("@nodes/ui/node-editor")')
+    expect(metadata).toContain('import("@nodes/ui/blender-node")')
+    expect(metadata).toContain('import("@nodes/ui/link-curve")')
+    expect(metadata).toContain('import("./stories/node-components.ts")')
+    expect(story.split("\n").slice(0, 3).join("\n")).not.toContain('from "@nodes/ui/node-editor"')
+    expect(story).toContain("Surface-based production previews")
+  })
+
+  test("uses one code/copy panel for every Node playground route", async () => {
     const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
     const layout = await Bun.file(join(playgroundRoot, "layout.ts")).text()
     expect(client).toContain("new PlaygroundStoryPanelSurface(storyPanelOptions())")
-    expect(client).toContain("NODE_SOCKET_STORIES.load(route)")
+    expect(client).toContain("loadNodePlaygroundStory(route)")
     expect(client).toContain("storyPreview.setStory(index, loaded, storyArgs)")
-    expect(client).toContain("if (!isNodeSocketStoryRoute(route)) info.setOptions")
+    expect(client).not.toContain("PlaygroundInfoSurface")
     expect(client).not.toContain("new SocketCatalogSurface")
-    expect(layout).toContain("story = shell.info")
-    expect(layout).toContain("info = hidden()")
+    expect(layout).toContain("const story = shell.info")
   })
 })

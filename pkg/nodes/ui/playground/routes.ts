@@ -1,27 +1,25 @@
 import {definePlaygroundRoutes, type PlaygroundNavigationItem} from "@ui/playground"
 import {
+  NODE_COMPONENT_STORIES,
+  NODE_COMPONENT_STORY_ROUTES,
   NODE_SOCKET_STORIES,
   NODE_SOCKET_STORY_ROUTES,
   isNodeSocketStoryRoute,
+  nodeComponentSectionItems,
+  nodeComponentStoryIndex,
+  nodeComponentVariantItems,
   nodeSocketSectionItems,
   nodeSocketVariantItems,
+  type NodeComponentStoryRoute,
   type NodeSocketStoryRoute,
 } from "./stories.ts"
 
-export const NODE_LEGACY_PLAYGROUND_ROUTES = Object.freeze([
-  "editor/scene",
-  "editor/frames",
-  "editor/links",
-  "comparison/blender",
-] as const)
-
 export const NODE_PLAYGROUND_ROUTES = Object.freeze([
-  ...NODE_LEGACY_PLAYGROUND_ROUTES,
+  ...NODE_COMPONENT_STORY_ROUTES,
   ...NODE_SOCKET_STORY_ROUTES,
 ])
 
-export type NodeLegacyPlaygroundRoute = typeof NODE_LEGACY_PLAYGROUND_ROUTES[number]
-export type NodePlaygroundRoute = NodeLegacyPlaygroundRoute | NodeSocketStoryRoute
+export type NodePlaygroundRoute = NodeComponentStoryRoute | NodeSocketStoryRoute
 export type NodePlaygroundGroup = "editor" | "socket" | "comparison"
 
 export const NODE_PLAYGROUND_ROUTE_DECLARATION = definePlaygroundRoutes({
@@ -29,77 +27,94 @@ export const NODE_PLAYGROUND_ROUTE_DECLARATION = definePlaygroundRoutes({
   fallback: NODE_SOCKET_STORIES.fallback as NodeSocketStoryRoute,
 })
 
+const COMPONENT_ROUTES = Object.freeze({
+  "node-editor": "node-editor/scene/default",
+  frame: "frame/nested/default",
+  link: "link/orthogonal/selected",
+  socket: NODE_SOCKET_STORIES.fallback as NodeSocketStoryRoute,
+  comparison: "comparison/blender/default",
+} satisfies Readonly<Record<string, NodePlaygroundRoute>>)
+
 export const NODE_PLAYGROUND_CATALOG: readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] = [
-  {id: "editor", label: "Редактор нод", route: "editor/scene"},
-  {id: "socket", label: "Сокет", route: NODE_SOCKET_STORIES.fallback as NodeSocketStoryRoute},
-  {id: "comparison", label: "Сравнение", route: "comparison/blender"},
+  {id: "node-editor", label: "Редактор нод", route: COMPONENT_ROUTES["node-editor"]},
+  {id: "frame", label: "Frame", route: COMPONENT_ROUTES.frame},
+  {id: "link", label: "Link", route: COMPONENT_ROUTES.link},
+  {id: "socket", label: "Сокет", route: COMPONENT_ROUTES.socket},
+  {id: "comparison", label: "Сравнение", route: COMPONENT_ROUTES.comparison},
 ]
 
-const EDITOR_SECTIONS: readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] = [
-  {id: "scene", label: "Полная сцена", route: "editor/scene"},
-  {id: "frames", label: "Frame", route: "editor/frames"},
-  {id: "links", label: "Link", route: "editor/links"},
-]
+const LEGACY_ROUTE_ALIASES: Readonly<Record<string, NodePlaygroundRoute>> = Object.freeze({
+  "editor/scene": COMPONENT_ROUTES["node-editor"],
+  "editor/frames": COMPONENT_ROUTES.frame,
+  "editor/links": COMPONENT_ROUTES.link,
+  "socket/types": COMPONENT_ROUTES.socket,
+  "socket/shapes": COMPONENT_ROUTES.socket,
+  "socket/states": COMPONENT_ROUTES.socket,
+  "comparison/blender": COMPONENT_ROUTES.comparison,
+})
 
-const COMPARISON_SECTIONS: readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] = [
-  {id: "blender", label: "Blender 4.5", route: "comparison/blender"},
-]
+export function normalizeNodePlaygroundPath(pathname: string): NodePlaygroundRoute | null {
+  const route = pathname.replace(/^\/+|\/+$/g, "")
+  return LEGACY_ROUTE_ALIASES[route] ?? null
+}
 
 export function nodePlaygroundGroup(route: NodePlaygroundRoute): NodePlaygroundGroup {
   if (isNodeSocketStoryRoute(route)) return "socket"
-  if (route.startsWith("comparison/")) return "comparison"
-  return "editor"
+  return nodeComponentStoryIndex(route).componentId === "comparison" ? "comparison" : "editor"
 }
 
 export function nodePlaygroundCatalog(
   route: NodePlaygroundRoute,
 ): readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] {
-  if (!isNodeSocketStoryRoute(route)) return NODE_PLAYGROUND_CATALOG
-  return NODE_PLAYGROUND_CATALOG.map((item) => item.id === "socket" ? {...item, route} : item)
+  const componentId = isNodeSocketStoryRoute(route) ? "socket" : nodeComponentStoryIndex(route).componentId
+  return NODE_PLAYGROUND_CATALOG.map((item) => item.id === componentId ? {...item, route} : item)
 }
 
 export function nodePlaygroundSections(
   route: NodePlaygroundRoute,
 ): readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] {
-  if (isNodeSocketStoryRoute(route)) return nodeSocketSectionItems(route)
-  if (nodePlaygroundGroup(route) === "comparison") return COMPARISON_SECTIONS
-  return EDITOR_SECTIONS
+  return isNodeSocketStoryRoute(route)
+    ? nodeSocketSectionItems(route)
+    : nodeComponentSectionItems(route)
 }
 
 export function nodePlaygroundDockItems(
   route: NodePlaygroundRoute,
 ): readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] {
-  if (isNodeSocketStoryRoute(route)) return nodeSocketVariantItems(route)
-  return nodePlaygroundSections(route)
+  return isNodeSocketStoryRoute(route)
+    ? nodeSocketVariantItems(route)
+    : nodeComponentVariantItems(route)
 }
 
 export function nodePlaygroundCatalogRoute(route: NodePlaygroundRoute): NodePlaygroundRoute {
-  if (isNodeSocketStoryRoute(route)) return route
-  if (nodePlaygroundGroup(route) === "comparison") return "comparison/blender"
-  return "editor/scene"
+  return route
 }
 
 export function nodePlaygroundSectionTitle(route: NodePlaygroundRoute): string {
-  const group = nodePlaygroundGroup(route)
-  if (group === "socket") return "Типы сокетов"
-  if (group === "comparison") return "Эталон"
-  return "Редактор"
+  if (isNodeSocketStoryRoute(route)) return "Типы сокетов"
+  return nodeComponentStoryIndex(route).componentLabel
 }
 
-export function nodePlaygroundInfo(route: NodePlaygroundRoute): Readonly<{
-  title: string
-  lines: readonly string[]
-  status: string
-}> {
-  const group = nodePlaygroundGroup(route)
-  if (group === "comparison") return {
-    title: "Blender reference",
-    lines: ["Blender 4.5.5 LTS", "Одна representative Node", "Равные FlexBox slots", "Project font + orthogonal Links"],
-    status: route,
-  }
-  return {
-    title: "Node components",
-    lines: ["Frame / Node", "Socket / Link", "Nested containment", "Pan / zoom / selection"],
-    status: route,
-  }
+export async function loadNodePlaygroundStory(route: NodePlaygroundRoute) {
+  return isNodeSocketStoryRoute(route)
+    ? NODE_SOCKET_STORIES.load(route)
+    : NODE_COMPONENT_STORIES.load(route)
+}
+
+export function nodePlaygroundStoryIndex(route: NodePlaygroundRoute) {
+  return isNodeSocketStoryRoute(route)
+    ? NODE_SOCKET_STORIES.find(route)!
+    : NODE_COMPONENT_STORIES.find(route)!
+}
+
+export function isNodeEditorStoryRoute(route: NodePlaygroundRoute): boolean {
+  return !isNodeSocketStoryRoute(route) && nodeComponentStoryIndex(route).componentId === "node-editor"
+}
+
+export function isNodeFrameStoryRoute(route: NodePlaygroundRoute): boolean {
+  return !isNodeSocketStoryRoute(route) && nodeComponentStoryIndex(route).componentId === "frame"
+}
+
+export function isNodeLinkStoryRoute(route: NodePlaygroundRoute): boolean {
+  return !isNodeSocketStoryRoute(route) && nodeComponentStoryIndex(route).componentId === "link"
 }

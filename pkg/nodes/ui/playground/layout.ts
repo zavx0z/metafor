@@ -12,7 +12,6 @@ export type NodeComponentPlaygroundFrames = Readonly<{
   reference: PlaygroundFrame
   detail: PlaygroundFrame
   dock: PlaygroundFrame
-  info: PlaygroundFrame
   story: PlaygroundFrame
 }>
 
@@ -22,7 +21,7 @@ const hidden = (): PlaygroundFrame => ({x: 0, y: 0, w: 0, h: 0, visible: false})
 export function planNodeComponentPlaygroundFrames(
   width: number,
   height: number,
-  route: NodePlaygroundRoute = "editor/scene",
+  route: NodePlaygroundRoute = "node-editor/scene/default",
 ): NodeComponentPlaygroundFrames {
   const shell = planPlaygroundShell(width, height)
   let editor = hidden()
@@ -30,14 +29,11 @@ export function planNodeComponentPlaygroundFrames(
   let storyPreview = hidden()
   let reference = hidden()
   let detail = hidden()
-  let info = shell.info
-  let story = hidden()
+  const story = shell.info
   const group = nodePlaygroundGroup(route)
   if (group === "editor") editor = shell.preview
   else if (group === "socket") {
     storyPreview = shell.preview
-    story = shell.info
-    info = hidden()
   }
   else flexRowCss({
     x: shell.preview.x,
@@ -60,7 +56,6 @@ export function planNodeComponentPlaygroundFrames(
     reference,
     detail,
     dock: shell.dock,
-    info,
     story,
   }
 }

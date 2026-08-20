@@ -19,6 +19,8 @@ import {
   nodePlaygroundSections,
 } from "./routes.ts"
 import {
+  NODE_COMPONENT_STORIES,
+  NODE_COMPONENT_STORY_ROUTES,
   NODE_SOCKET_DIRECTIONS,
   NODE_SOCKET_KINDS,
   NODE_SOCKET_STORIES,
@@ -42,17 +44,14 @@ describe("Blender-like Node component playground", () => {
 
   test("routes Socket to 19 concrete detail sections and three direction variants", () => {
     expect(NODE_PLAYGROUND_CATALOG.map(({route}) => route)).toEqual([
-      "editor/scene",
+      "node-editor/scene/default",
+      "frame/nested/default",
+      "link/orthogonal/selected",
       "socket/boolean/input",
-      "comparison/blender",
+      "comparison/blender/default",
     ])
-    expect(NODE_PLAYGROUND_ROUTES.slice(0, 4)).toEqual([
-      "editor/scene",
-      "editor/frames",
-      "editor/links",
-      "comparison/blender",
-    ])
-    expect(NODE_PLAYGROUND_ROUTES).toHaveLength(4 + BLENDER_SOCKET_KINDS.length * NODE_SOCKET_DIRECTIONS.length)
+    expect(NODE_PLAYGROUND_ROUTES.slice(0, NODE_COMPONENT_STORY_ROUTES.length)).toEqual([...NODE_COMPONENT_STORY_ROUTES])
+    expect(NODE_PLAYGROUND_ROUTES).toHaveLength(NODE_COMPONENT_STORY_ROUTES.length + BLENDER_SOCKET_KINDS.length * NODE_SOCKET_DIRECTIONS.length)
     expect(NODE_PLAYGROUND_ROUTE_DECLARATION.location).toBe("pathname")
     expect(NODE_PLAYGROUND_ROUTE_DECLARATION.routes).toEqual(NODE_PLAYGROUND_ROUTES)
     expect(NODE_PLAYGROUND_ROUTE_DECLARATION.fallback).toBe("socket/boolean/input")
@@ -60,14 +59,23 @@ describe("Blender-like Node component playground", () => {
     expect(resolvePlaygroundRoute(NODE_PLAYGROUND_ROUTE_DECLARATION, {pathname: "/socket/types"})).toBe(
       "socket/boolean/input",
     )
-    expect(nodePlaygroundGroup("editor/scene")).toBe("editor")
+    expect(nodePlaygroundGroup("node-editor/scene/default")).toBe("editor")
     expect(nodePlaygroundGroup("socket/boolean/input")).toBe("socket")
-    expect(nodePlaygroundGroup("comparison/blender")).toBe("comparison")
+    expect(nodePlaygroundGroup("comparison/blender/default")).toBe("comparison")
     expect(nodePlaygroundSections("socket/boolean/input").map(({id}) => id)).toEqual([...BLENDER_SOCKET_KINDS])
     expect(nodePlaygroundSections("socket/boolean/input").map(({label}) => label)).toEqual(
       BLENDER_SOCKET_KINDS.map((kind) => BLENDER_SOCKET_PRESETS[kind].label),
     )
     expect(nodePlaygroundDockItems("socket/boolean/input").map(({id}) => id)).toEqual([...NODE_SOCKET_DIRECTIONS])
+  })
+
+  test("loads lazy source modules for the remaining production Node components", async () => {
+    const frame = await NODE_COMPONENT_STORIES.load("frame/nested/default")
+    expect(frame.source(frame.defaultArgs)).toContain('from "@nodes/ui/node-editor"')
+    const link = await NODE_COMPONENT_STORIES.load("link/orthogonal/selected")
+    expect(link.source(link.defaultArgs)).toContain('from "@nodes/ui/link-curve"')
+    const comparison = await NODE_COMPONENT_STORIES.load("comparison/blender/default")
+    expect(comparison.source(comparison.defaultArgs)).toContain("comparisonTree")
   })
 
   test("loads one exact production Socket story whose source follows the selected route", async () => {
@@ -164,6 +172,7 @@ describe("Blender-like Node component playground", () => {
     expect(source).toContain("NodeStoryPreviewSurface")
     expect(source).toContain("BlenderReferenceSurface")
     expect(await Bun.file(join(playgroundRoot, "client.ts")).text()).not.toContain("new SocketCatalogSurface")
+    expect(await Bun.file(join(playgroundRoot, "client.ts")).text()).not.toContain("PlaygroundInfoSurface")
     expect(source).not.toContain("FieldCatalogSurface")
   })
 

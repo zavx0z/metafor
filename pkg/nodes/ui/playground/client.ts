@@ -3,7 +3,6 @@ import {UiRuntime} from "@ui/elements"
 import {
   PlaygroundBackdropSurface,
   PlaygroundDockSurface,
-  PlaygroundInfoSurface,
   PlaygroundNavigationSurface,
   PlaygroundRouter,
   PlaygroundStoryPanelSurface,
@@ -29,20 +28,22 @@ import {waitForReferenceFrame} from "./reference-readiness.ts"
 import {createPlaygroundRetainedObserver, type PlaygroundRetainedObserver} from "./retained-observer.ts"
 import {
   NODE_PLAYGROUND_ROUTE_DECLARATION,
+  isNodeFrameStoryRoute,
+  isNodeLinkStoryRoute,
+  loadNodePlaygroundStory,
+  normalizeNodePlaygroundPath,
   nodePlaygroundCatalog,
   nodePlaygroundCatalogRoute,
   nodePlaygroundDockItems,
   nodePlaygroundGroup,
-  nodePlaygroundInfo,
   nodePlaygroundSectionTitle,
   nodePlaygroundSections,
+  nodePlaygroundStoryIndex,
   type NodePlaygroundRoute,
 } from "./routes.ts"
 import {
   NODE_SOCKET_KINDS,
-  NODE_SOCKET_STORIES,
   isNodeSocketStoryRoute,
-  nodeSocketStoryIndex,
 } from "./stories.ts"
 import {NodeStoryPreviewSurface} from "./story-preview.ts"
 import {BLENDER_REFERENCE_SRC, BlenderReferenceSurface} from "./surfaces.ts"
@@ -60,6 +61,8 @@ try {
     fontUrl: "/JetBrainsMono-Bold.ttf",
     virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
   })
+  const legacyRoute = normalizeNodePlaygroundPath(window.location.pathname)
+  if (legacyRoute !== null) history.replaceState(null, "", playgroundRouteUrl(legacyRoute))
   const router = new PlaygroundRouter(NODE_PLAYGROUND_ROUTE_DECLARATION)
   const resolvedPath = playgroundRouteUrl(router.current)
   if (window.location.pathname !== resolvedPath) history.replaceState(null, "", resolvedPath)
@@ -85,16 +88,15 @@ try {
     onNavigate: navigate,
   })
   const dock = new PlaygroundDockSurface<NodePlaygroundRoute>({
-    title: isNodeSocketStoryRoute(router.current) ? "Направление" : "Маршруты",
+    title: isNodeSocketStoryRoute(router.current) ? "Направление" : "Варианты",
     items: nodePlaygroundDockItems(router.current),
     route: router.current,
     onNavigate: navigate,
   })
-  const info = new PlaygroundInfoSurface(nodePlaygroundInfo(router.current))
   const storyPreview = new NodeStoryPreviewSurface()
   let storyPanel: PlaygroundStoryPanelSurface
   const storyPanelOptions = (): PlaygroundStoryPanelOptions => ({
-    source: storyModule?.source(storyArgs) ?? "// Загрузка Socket story…",
+    source: storyModule?.source(storyArgs) ?? "// Загрузка story…",
     args: storyArgs,
     controls: storyModule?.controls ?? [],
     events: [{
@@ -111,7 +113,8 @@ try {
     onControlChange(key, value) {
       if (storyModule === null) return
       storyArgs = Object.freeze({...storyArgs, [key]: value})
-      storyPreview.setArgs(storyArgs)
+      if (isNodeSocketStoryRoute(router.current)) storyPreview.setArgs(storyArgs)
+      applyProductionStoryState(router.current)
       storyPanel.setOptions(storyPanelOptions())
       publishStoryState()
     },
@@ -168,7 +171,6 @@ try {
   runtime.addSurface(reference, ({w, h}) => frames(w, h).reference)
   runtime.addSurface(detail, ({w, h}) => frames(w, h).detail)
   runtime.addSurface(dock, ({w, h}) => frames(w, h).dock)
-  runtime.addSurface(info, ({w, h}) => frames(w, h).info)
   runtime.addSurface(storyPanel, ({w, h}) => frames(w, h).story)
 
   retainedObserver = createPlaygroundRetainedObserver(editor)
@@ -180,32 +182,24 @@ try {
     catalog.setOptions({title: "Компоненты нод", items: nodePlaygroundCatalog(route), route: nodePlaygroundCatalogRoute(route), onNavigate: navigate})
     sections.setOptions({title: nodePlaygroundSectionTitle(route), items: sectionItems, route, onNavigate: navigate})
     dock.setOptions({
-      title: isNodeSocketStoryRoute(route) ? "Направление" : "Маршруты",
+      title: isNodeSocketStoryRoute(route) ? "Направление" : "Варианты",
       items: nodePlaygroundDockItems(route),
       route,
       onNavigate: navigate,
     })
-    if (!isNodeSocketStoryRoute(route)) info.setOptions(nodePlaygroundInfo(route))
-    if (route === "editor/frames") editor.select({kind: "frame", id: "data-frame"})
-    else if (route === "editor/links") editor.select({kind: "link", id: "matrix-shader"})
-    else if (route === "editor/scene") editor.select(null)
     const group = nodePlaygroundGroup(route)
     document.documentElement.dataset.nodePlaygroundRoute = route
     document.documentElement.dataset.nodePlaygroundGroup = group
     document.documentElement.dataset.comparison = group === "comparison" ? "blender-reference-live-editor" : ""
     runtime.relayout()
     retainedObserver?.publishAfterFrame()
-    if (!isNodeSocketStoryRoute(route)) {
-      publishStoryState()
-      return
-    }
-
-    const index = nodeSocketStoryIndex(route)
-    const loaded = await NODE_SOCKET_STORIES.load(route)
+    const index = nodePlaygroundStoryIndex(route)
+    const loaded = await loadNodePlaygroundStory(route)
     if (revision !== storyRevision || router.current !== route) return
     storyModule = loaded
     storyArgs = Object.freeze({...loaded.defaultArgs})
-    storyPreview.setStory(index, loaded, storyArgs)
+    if (isNodeSocketStoryRoute(route)) storyPreview.setStory(index, loaded, storyArgs)
+    applyProductionStoryState(route)
     storyPanel.setOptions(storyPanelOptions())
     publishStoryState()
     renderPlaygroundFrame()
@@ -252,14 +246,28 @@ try {
 
   function publishStoryState(): void {
     const route = router.current
-    const socketStory = isNodeSocketStoryRoute(route)
-    document.documentElement.dataset.nodeStoryRoute = socketStory ? route : ""
-    document.documentElement.dataset.nodeStorySource = socketStory && storyModule !== null
+    document.documentElement.dataset.nodeStoryRoute = route
+    document.documentElement.dataset.nodeStorySource = storyModule !== null
       ? storyModule.source(storyArgs)
       : ""
-    document.documentElement.dataset.nodeStoryArgs = socketStory ? JSON.stringify(storyArgs) : ""
-    document.documentElement.dataset.nodeSocketSections = socketStory ? String(nodePlaygroundSections(route).length) : ""
-    document.documentElement.dataset.nodeSocketVariants = socketStory ? String(nodePlaygroundDockItems(route).length) : ""
+    document.documentElement.dataset.nodeStoryArgs = JSON.stringify(storyArgs)
+    document.documentElement.dataset.nodeStorySections = String(nodePlaygroundSections(route).length)
+    document.documentElement.dataset.nodeStoryVariants = String(nodePlaygroundDockItems(route).length)
+    document.documentElement.dataset.nodeSocketSections = isNodeSocketStoryRoute(route) ? String(nodePlaygroundSections(route).length) : ""
+    document.documentElement.dataset.nodeSocketVariants = isNodeSocketStoryRoute(route) ? String(nodePlaygroundDockItems(route).length) : ""
+  }
+
+  function applyProductionStoryState(route: NodePlaygroundRoute): void {
+    if (isNodeSocketStoryRoute(route)) return
+    if (isNodeFrameStoryRoute(route) && storyArgs.selected === true) {
+      editor.select({kind: "frame", id: "data-frame"})
+      return
+    }
+    if (isNodeLinkStoryRoute(route) && storyArgs.selected === true) {
+      editor.select({kind: "link", id: "matrix-shader"})
+      return
+    }
+    editor.select(null)
   }
 } catch (error) {
   publishPlaygroundError(error)
