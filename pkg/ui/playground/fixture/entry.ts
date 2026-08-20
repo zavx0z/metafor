@@ -7,12 +7,14 @@ import {
   PlaygroundInfoSurface,
   PlaygroundNavigationSurface,
   PlaygroundRouter,
+  definePlaygroundRoutes,
   planPlaygroundShell,
   type PlaygroundNavigationItem,
 } from "@ui/playground"
 
 type Route = "overview" | "details"
 const routes = ["overview", "details"] as const
+const routeDeclaration = definePlaygroundRoutes({routes, fallback: "overview"})
 const items: readonly PlaygroundNavigationItem<Route>[] = [
   {id: "overview", label: "Overview", route: "overview"},
   {id: "details", label: "Details", route: "details"},
@@ -75,7 +77,7 @@ const runtime = await UiRuntime.create(canvas, {
   fontUrl: "/JetBrainsMono-Bold.ttf",
   virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
 })
-const router = new PlaygroundRouter<Route>(routes, "overview", {mode: "path"})
+const router = new PlaygroundRouter(routeDeclaration)
 const navigate = (route: Route): void => router.go(route)
 const backdrop = new PlaygroundBackdropSurface()
 const catalog = new PlaygroundNavigationSurface<Route>({title: "Playground", items, route: router.current, onNavigate: navigate})

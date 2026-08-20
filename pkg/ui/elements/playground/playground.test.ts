@@ -6,6 +6,7 @@ import {planPlaygroundShell} from "@ui/playground"
 import type {UiRuntime} from "@ui/elements"
 import {
   ELEMENT_PLAYGROUND_CATALOG,
+  ELEMENT_PLAYGROUND_ROUTE_DECLARATION,
   ELEMENT_PLAYGROUND_ROUTES,
   ElementsPreviewSurface,
   elementsPlaygroundDock,
@@ -39,6 +40,11 @@ describe("restored @ui/elements playground", () => {
       "events",
     ])
     expect(ELEMENT_PLAYGROUND_CATALOG.map(({label}) => label)).toEqual(["Primitives", "Layout", "Style", "Events"])
+    expect(ELEMENT_PLAYGROUND_ROUTE_DECLARATION).toEqual({
+      location: "pathname",
+      routes: ELEMENT_PLAYGROUND_ROUTES,
+      fallback: "div",
+    })
     expect(elementsPlaygroundGroup("layout/flex-css")).toBe("Layout")
     expect(elementsPlaygroundSections("style/theme").map(({route}) => route)).toEqual(["style/css", "style/theme"])
     expect(elementsPlaygroundSectionRoute("div/scroll")).toBe("div")

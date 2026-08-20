@@ -55,7 +55,7 @@ endpoints, AI macOS, or a screenshot service. Canvas evidence comes from
 
 Each registry selector owns at most one stable browser target for its origin.
 Route operations attach to that existing target and navigate it in place; they
-never create one tab per path/hash. A target is created only when the selector
+never create one tab per route. A target is created only when the selector
 origin has no page target. Multiple existing targets are an explicit ambiguity:
 the helper does not choose or close them silently. `targets` lists candidates,
 `--target-id` selects one explicitly, and `close --target-id` is permitted only

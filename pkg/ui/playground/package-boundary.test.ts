@@ -24,6 +24,7 @@ describe("@ui/playground package boundary", () => {
     const fixtureSource = await Bun.file(join(root, "fixture/entry.ts")).text()
     expect(fixtureSource).toContain("createRetainedParent")
     expect(fixtureSource).toContain("playgroundRetained")
+    expect(fixtureSource).toContain("definePlaygroundRoutes({routes, fallback: \"overview\"})")
     const build = await Bun.build({
       entrypoints: [join(root, "fixture/entry.ts")],
       target: "browser",

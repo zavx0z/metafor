@@ -15,6 +15,7 @@ import {
 } from "./fields.ts"
 import {
   COMPONENT_PLAYGROUND_CATALOG,
+  COMPONENT_PLAYGROUND_ROUTE_DECLARATION,
   COMPONENT_PLAYGROUND_ROUTES,
   componentsPlaygroundCatalogRoute,
   componentsPlaygroundDock,
@@ -73,6 +74,11 @@ describe("restored @ui/components playground", () => {
     expect(COMPONENT_PLAYGROUND_CATALOG.map(({label}) => label)).toEqual([
       "Button", "Pane", "Field", "Badge", "TextField", "Divider", "Scrollbar", "Scroll List", "Noti Stack",
     ])
+    expect(COMPONENT_PLAYGROUND_ROUTE_DECLARATION).toEqual({
+      location: "pathname",
+      routes: COMPONENT_PLAYGROUND_ROUTES,
+      fallback: "button/basic",
+    })
     expect(componentsPlaygroundCatalogRoute("field/composite")).toBe("field/values")
     expect(componentsPlaygroundSections("button/color/error").map(({route}) => route)).toEqual([
       "button/basic", "button/icon", "button/icon-label", "button/sizes", "button/color",

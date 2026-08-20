@@ -4,7 +4,7 @@
 
 Она предоставляет:
 
-* typed path/hash router;
+* typed pathname route declaration и router;
 * responsive FlexBox layout исторического пятипанельного shell;
 * generic catalog, section, dock, info и backdrop surfaces;
 * no-HMR Bun server helper для package-specific entry и assets.

@@ -28,6 +28,7 @@ import {
   PlaygroundInfoSurface,
   PlaygroundNavigationSurface,
   PlaygroundRouter,
+  definePlaygroundRoutes,
   planPlaygroundShell,
   type PlaygroundInfoOptions,
   type PlaygroundNavigationItem,
@@ -60,6 +61,10 @@ type SectionLink = {
 }
 
 export const ELEMENT_PLAYGROUND_ROUTES = ["div", "div/scroll", "span", "button", "input", "img", "ul", "layout/flex", "layout/flex-css", "style/css", "style/theme", "events"] as const
+export const ELEMENT_PLAYGROUND_ROUTE_DECLARATION = definePlaygroundRoutes({
+  routes: ELEMENT_PLAYGROUND_ROUTES,
+  fallback: "div",
+})
 const DIV_DETAILS: readonly DivDetail[] = ["background", "border", "padding", "zIndex", "scroll"]
 const UL_MODES: readonly UlMode[] = ["regular", "dense", "interactive", "scroll"]
 const ELEMENT_GROUPS: readonly ElementGroup[] = ["Primitives", "Layout", "Style", "Events"]
@@ -990,7 +995,7 @@ async function startElementsPlayground(): Promise<void> {
       fontUrl: "/JetBrainsMono-Bold.ttf",
       virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
     })
-    const router = new PlaygroundRouter<ElementRoute>(ELEMENT_PLAYGROUND_ROUTES, "div", {mode: "path"})
+    const router = new PlaygroundRouter(ELEMENT_PLAYGROUND_ROUTE_DECLARATION)
     const navigate = (route: ElementRoute): void => router.go(route)
     const catalogNavigate = (route: ElementRoute): void => navigate(route)
     const route = router.current

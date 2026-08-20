@@ -9,10 +9,10 @@ The executable registry is `scripts/playgrounds.json`.
 
 | Selector | Package contour | Origin | Ready and canvas capability |
 | --- | --- | --- | --- |
-| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, hash routes |
-| `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, path routes |
-| `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, path routes |
-| `elements` | `@ui/elements`, `pkg/ui/elements` | `http://127.0.0.1:7901` | `elementsPlayground=ready`, WebGPU canvas, path routes |
+| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, pathname routes |
+| `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, pathname routes |
+| `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, pathname routes |
+| `elements` | `@ui/elements`, `pkg/ui/elements` | `http://127.0.0.1:7901` | `elementsPlayground=ready`, WebGPU canvas, pathname routes |
 
 `@nodes/layout` is intentionally not a selector. Its current SVG server is a
 separate solver-only contour and still enables HMR. Add it only after an owner
@@ -61,9 +61,10 @@ bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" node-ui \
   --route /comparison/blender --output /tmp/node-comparison.png
 ```
 
-Registry route mode is part of exact target identity. For `node-ui`, the default
-route and a normal CLI `--route /editor/scene` both resolve to
-`http://127.0.0.1:4016/#/editor/scene`; Components routes remain pathname URLs.
+The common route declaration fixes pathname behavior for every maintained
+playground. The default Node route and CLI `--route /editor/scene` both resolve
+to `http://127.0.0.1:4016/editor/scene`; selector registry cannot override the
+pathname behavior.
 
 Route is page state, not a reason to create another tab. `open`, `dom`,
 `console`, `canvas`, `viewports`, `touch` and `profile` attach to the same

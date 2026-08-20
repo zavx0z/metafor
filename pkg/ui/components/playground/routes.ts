@@ -1,5 +1,5 @@
 import type {ButtonColor, ButtonSize} from "@ui/components"
-import type {PlaygroundInfoOptions, PlaygroundNavigationItem} from "@ui/playground"
+import {definePlaygroundRoutes, type PlaygroundInfoOptions, type PlaygroundNavigationItem} from "@ui/playground"
 import {
   FIELD_ROUTES,
   FIELD_SECTIONS,
@@ -60,6 +60,11 @@ export const COMPONENT_PLAYGROUND_ROUTES = Object.freeze([
   ...PANE_ROUTES,
   ...FIELD_ROUTES,
 ] as const satisfies readonly ComponentsRoute[])
+
+export const COMPONENT_PLAYGROUND_ROUTE_DECLARATION = definePlaygroundRoutes({
+  routes: COMPONENT_PLAYGROUND_ROUTES,
+  fallback: "button/basic",
+})
 
 export const COMPONENT_PLAYGROUND_CATALOG: readonly PlaygroundNavigationItem<ComponentsCatalogRoute>[] = [
   {id: "button", label: "Button", route: "button/basic"},

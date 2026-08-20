@@ -1,4 +1,4 @@
-import type {PlaygroundNavigationItem} from "@ui/playground"
+import {definePlaygroundRoutes, type PlaygroundNavigationItem} from "@ui/playground"
 
 export const NODE_PLAYGROUND_ROUTES = Object.freeze([
   "editor/scene",
@@ -12,6 +12,11 @@ export const NODE_PLAYGROUND_ROUTES = Object.freeze([
 
 export type NodePlaygroundRoute = typeof NODE_PLAYGROUND_ROUTES[number]
 export type NodePlaygroundGroup = "editor" | "socket" | "comparison"
+
+export const NODE_PLAYGROUND_ROUTE_DECLARATION = definePlaygroundRoutes({
+  routes: NODE_PLAYGROUND_ROUTES,
+  fallback: "editor/scene",
+})
 
 export const NODE_PLAYGROUND_CATALOG: readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] = [
   {id: "editor", label: "Редактор нод", route: "editor/scene"},

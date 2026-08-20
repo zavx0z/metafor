@@ -11,6 +11,7 @@ import {
 } from "./fixtures.ts"
 import {
   NODE_PLAYGROUND_CATALOG,
+  NODE_PLAYGROUND_ROUTE_DECLARATION,
   NODE_PLAYGROUND_ROUTES,
   nodePlaygroundGroup,
   nodePlaygroundSections,
@@ -46,6 +47,11 @@ describe("Blender-like Node component playground", () => {
       "socket/states",
       "comparison/blender",
     ])
+    expect(NODE_PLAYGROUND_ROUTE_DECLARATION).toEqual({
+      location: "pathname",
+      routes: NODE_PLAYGROUND_ROUTES,
+      fallback: "editor/scene",
+    })
     expect(nodePlaygroundGroup("editor/scene")).toBe("editor")
     expect(nodePlaygroundGroup("socket/types")).toBe("socket")
     expect(nodePlaygroundGroup("comparison/blender")).toBe("comparison")
@@ -159,11 +165,11 @@ describe("Blender-like Node component playground", () => {
       httpMarker: "<title>Node Component Library</title>",
       ready: {kind: "dataset", name: "nodeComponentPlayground", value: "ready"},
       canvas: {selector: "#node-component-canvas", capability: "webgpu", touch: true},
-      routes: {mode: "hash", default: "/editor/scene"},
+      routes: {default: "/editor/scene"},
     })
-    expect(client).toContain('new PlaygroundRouter<NodePlaygroundRoute>(NODE_PLAYGROUND_ROUTES, "editor/scene")')
-    expect(client).not.toContain('{mode: "path"}')
-    expect(client).toContain("document.documentElement.dataset.nodePlaygroundHash = window.location.hash")
+    expect(client).toContain("new PlaygroundRouter(NODE_PLAYGROUND_ROUTE_DECLARATION)")
+    expect(client).not.toContain("nodePlaygroundHash")
+    expect(client).not.toContain("window.location.hash")
     expect(browser).toContain('cdp.send("Target.createTarget", {url, background: true})')
     expect(browser).toContain('canvas.toDataURL("image/png")')
     expect(browser).toContain('action === "profile"')

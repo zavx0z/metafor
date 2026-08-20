@@ -44,7 +44,7 @@ describe("ui-dev registry", () => {
         port?: number
         command?: string[]
         canvas?: {capability: string}
-        routes?: {mode: "none" | "path" | "hash"; default: string}
+        routes?: {default: string}
       }>
     }
     expect(Object.keys(registry.selectors).sort()).toEqual(["components", "elements", "node-ui", "ui-fixture"])
@@ -53,14 +53,14 @@ describe("ui-dev registry", () => {
       port: 4016,
       command: ["bun", "playground/server.ts"],
       canvas: {capability: "webgpu"},
-      routes: {mode: "hash", default: "/editor/scene"},
+      routes: {default: "/editor/scene"},
     })
     expect(registry.selectors.components).toMatchObject({
       supported: true,
       port: 4017,
       command: ["bun", "playground/server.ts"],
       canvas: {capability: "webgpu"},
-      routes: {mode: "path", default: "/button/basic"},
+      routes: {default: "/button/basic"},
     })
     expect(registry.selectors["ui-fixture"]).toMatchObject({supported: true, port: 4192, command: ["bun", "fixture/server.ts"], canvas: {capability: "webgpu-diagnostic"}})
     expect(registry.selectors.elements).toMatchObject({
@@ -69,7 +69,7 @@ describe("ui-dev registry", () => {
       port: 7901,
       command: ["bun", "playground/server.ts"],
       canvas: {capability: "webgpu"},
-      routes: {mode: "path", default: "/div"},
+      routes: {default: "/div"},
     })
     expect(registry.selectors["node-layout"]).toBeUndefined()
 
@@ -85,26 +85,26 @@ describe("ui-dev registry", () => {
     })
   })
 
-  test("builds exact Node hash targets while UI packages remain pathname targets", async () => {
+  test("builds pathname targets for every maintained playground", async () => {
     const registry = await Bun.file(registryPath).json() as {
-      selectors: Record<string, {routes?: {mode: "none" | "path" | "hash"; default: string}}>
+      selectors: Record<string, {routes?: {default: string}}>
     }
     const nodeRoutes = registry.selectors["node-ui"]!.routes!
     const componentRoutes = registry.selectors.components!.routes!
     const elementRoutes = registry.selectors.elements!.routes!
 
-    expect(playgroundTargetUrl("http://127.0.0.1:4016", nodeRoutes.default, nodeRoutes.mode))
-      .toBe("http://127.0.0.1:4016/#/editor/scene")
-    expect(playgroundTargetUrl("http://127.0.0.1:4016", "/editor/scene", nodeRoutes.mode))
-      .toBe("http://127.0.0.1:4016/#/editor/scene")
-    expect(playgroundTargetUrl("http://127.0.0.1:4016", "/socket/types", nodeRoutes.mode))
-      .toBe("http://127.0.0.1:4016/#/socket/types")
-    expect(playgroundTargetUrl("http://127.0.0.1:4016", "/editor/scene", nodeRoutes.mode))
-      .not.toBe("http://127.0.0.1:4016/editor/scene")
-    expect(playgroundTargetUrl("http://127.0.0.1:4017", componentRoutes.default, componentRoutes.mode))
+    expect(playgroundTargetUrl("http://127.0.0.1:4016", nodeRoutes.default))
+      .toBe("http://127.0.0.1:4016/editor/scene")
+    expect(playgroundTargetUrl("http://127.0.0.1:4016", "/socket/types"))
+      .toBe("http://127.0.0.1:4016/socket/types")
+    expect(playgroundTargetUrl("http://127.0.0.1:4017", componentRoutes.default))
       .toBe("http://127.0.0.1:4017/button/basic")
-    expect(playgroundTargetUrl("http://127.0.0.1:7901", "/layout/flex-css", elementRoutes.mode))
+    expect(playgroundTargetUrl("http://127.0.0.1:7901", "/layout/flex-css"))
       .toBe("http://127.0.0.1:7901/layout/flex-css")
+    expect(() => playgroundTargetUrl("http://127.0.0.1:4016", "#/editor/scene")).toThrow()
+    expect(() => playgroundTargetUrl("http://127.0.0.1:4016", "/editor/scene?mode=hash")).toThrow()
+    expect(JSON.stringify(registry)).not.toContain('"mode"')
+    expect(JSON.stringify(registry)).not.toContain("hash")
   })
 
   test("keeps automated browser source background-only", async () => {

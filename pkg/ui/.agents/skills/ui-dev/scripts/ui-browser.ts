@@ -18,7 +18,7 @@ type SupportedSelector = Readonly<{
   httpMarker: string
   ready: ReadyMarker
   canvas: CanvasDescriptor
-  routes: Readonly<{mode: "none" | "path" | "hash"; default: string}>
+  routes: Readonly<{default: string}>
   stateKey: string
   logName: string
 }>
@@ -205,13 +205,12 @@ function resolveTargetConfig(registry: Registry, checkout: string, input: string
   const origin = `http://${descriptor.host}:${port}`
   if (!testOverride && origin !== descriptor.origin) fail(`registry origin mismatch for ${input}`)
   const route = options.route ?? descriptor.routes.default
-  if (descriptor.routes.mode === "none" && route !== "/") fail(`${input} does not declare routes: ${route}`)
   return {
     checkout,
     selector: input,
     package: descriptor.package,
     origin,
-    targetUrl: playgroundTargetUrl(origin, route, descriptor.routes.mode),
+    targetUrl: playgroundTargetUrl(origin, route),
     ready: descriptor.ready,
     canvas: {...descriptor.canvas, selector: options.canvasSelector ?? descriptor.canvas.selector},
     testOverride,

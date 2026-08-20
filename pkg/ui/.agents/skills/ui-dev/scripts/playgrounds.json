@@ -14,7 +14,7 @@
       "httpMarker": "<title>Node Component Library</title>",
       "ready": {"kind": "dataset", "name": "nodeComponentPlayground", "value": "ready"},
       "canvas": {"selector": "#node-component-canvas", "capability": "webgpu", "touch": true},
-      "routes": {"mode": "hash", "default": "/editor/scene"},
+      "routes": {"default": "/editor/scene"},
       "stateKey": "node-ui",
       "logName": "node-ui.log"
     },
@@ -30,7 +30,7 @@
       "httpMarker": "<title>@ui/components playground</title>",
       "ready": {"kind": "canvas", "selector": "#stage-canvas", "minBackingWidth": 301},
       "canvas": {"selector": "#stage-canvas", "capability": "webgpu", "touch": false},
-      "routes": {"mode": "path", "default": "/button/basic"},
+      "routes": {"default": "/button/basic"},
       "stateKey": "components",
       "logName": "components.log"
     },
@@ -46,7 +46,7 @@
       "httpMarker": "<title>UI Playground Fixture</title>",
       "ready": {"kind": "dataset", "name": "playgroundReady", "value": "ready"},
       "canvas": {"selector": "#playground-canvas", "capability": "webgpu-diagnostic", "touch": false},
-      "routes": {"mode": "path", "default": "/overview"},
+      "routes": {"default": "/overview"},
       "stateKey": "ui-fixture",
       "logName": "ui-fixture.log"
     },
@@ -62,7 +62,7 @@
       "httpMarker": "<title>@ui/elements playground</title>",
       "ready": {"kind": "dataset", "name": "elementsPlayground", "value": "ready"},
       "canvas": {"selector": "#stage-canvas", "capability": "webgpu", "touch": false},
-      "routes": {"mode": "path", "default": "/div"},
+      "routes": {"default": "/div"},
       "stateKey": "elements",
       "logName": "elements.log"
     }

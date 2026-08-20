@@ -19,7 +19,7 @@ import {
 } from "./fields.ts"
 import {
   COMPONENT_PLAYGROUND_CATALOG,
-  COMPONENT_PLAYGROUND_ROUTES,
+  COMPONENT_PLAYGROUND_ROUTE_DECLARATION,
   componentsPlaygroundCatalogRoute,
   componentsPlaygroundDock,
   componentsPlaygroundInfo,
@@ -1884,7 +1884,7 @@ async function startComponentsPlayground(): Promise<void> {
       fontUrl: "/JetBrainsMono-Bold.ttf",
       virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
     })
-    const router = new PlaygroundRouter<ComponentsRoute>(COMPONENT_PLAYGROUND_ROUTES, "button/basic", {mode: "path"})
+    const router = new PlaygroundRouter(COMPONENT_PLAYGROUND_ROUTE_DECLARATION)
     const navigate = (route: ComponentsRoute): void => router.go(route)
     const catalogNavigate = (route: ComponentsCatalogRoute): void => {
       if (isComponentsRoute(route)) navigate(route)

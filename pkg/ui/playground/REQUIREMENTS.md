@@ -5,8 +5,9 @@ playground. Он не владеет production semantics UI Components либо
 
 ## Законы
 
-1. Один route выбирает package-specific preview; router поддерживает полные
-   вложенные path/hash IDs и deterministic fallback.
+1. Один route выбирает package-specific preview. Общая typed declaration
+   содержит полные вложенные IDs и fallback, а библиотека жёстко материализует
+   их как pathname `/route/id`. Consumer не выбирает hash/path mode или prefix.
 2. Общий shell состоит из catalog, sections, preview, dock и info. Desktop
    сохраняет historical five-panel geometry; mobile показывает preview consumer.
 3. Shell layout вычисляется FlexBox. CSS-style `%`/`fr`/`grow` является способом

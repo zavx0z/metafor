@@ -1,16 +1,11 @@
-export type PlaygroundTargetRouteMode = "none" | "path" | "hash"
-
 export function playgroundTargetUrl(
   origin: string,
   route: string,
-  mode: PlaygroundTargetRouteMode = route.startsWith("#") ? "hash" : "path",
 ): string {
   const root = new URL("/", origin).href
-  if (mode === "none") return root
-  if (mode === "hash") {
-    const normalizedRoute = route.replace(/^#/, "").replace(/^\/+|\/+$/g, "")
-    return `${root}#/${normalizedRoute}`
+  const routeId = route.replace(/^\/+/, "")
+  if (routeId.length === 0 || routeId.endsWith("/") || routeId.includes("//") || /[?#]/.test(routeId)) {
+    throw new Error(`playground route must be a normalized pathname: ${route}`)
   }
-  const normalizedRoute = route.startsWith("/") ? route : `/${route}`
-  return new URL(normalizedRoute, root).href
+  return new URL(`/${routeId}`, root).href
 }
