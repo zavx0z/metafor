@@ -197,16 +197,19 @@ number/slider, boolean, enum, color, vector/rotation, matrix и resource referen
 Новый общий visual этап
 [`UI-015 — Перевести весь UI на форму и композицию Blender`](tasks/UI-015.md)
 распространяет уже удачное Node-направление на Elements, Components, Fields и
-shared Workbench: Blender задаёт composition/form/rhythm, а MetaFor сохраняет
-palette, project font и semantic tone colors. Новые UI-010 leaves ждут этой
-shape foundation.
+shared Workbench: Blender задаёт composition/form/rhythm и base palette/material
+states, а MetaFor сохраняет project font. Semantic type/status colors получают
+явное Blender-role mapping. Новые UI-010 leaves ждут этой foundation.
 Следующий принятый этап
 [`UI-010 — Сделать полный набор универсальных полей по Blender`](tasks/UI-010.md)
 сохраняет `Field` единым semantic facade, но выделяет public controls для
 числового ввода, select, color picker/ramp, curve editor, reference picker и
-collection editor. Blender задаёт их поведение, состояния и compact-пропорции,
-а материалы, проектный шрифт и тема остаются MetaFor; Node package не получает
+collection editor. Blender задаёт их поведение, состояния, compact-пропорции и
+material palette, а проектный шрифт остаётся MetaFor; Node package не получает
 копий этих controls и не переносит в них ответственность за topology.
+Elements остаются простейшими HTML-аналогами, Components собирают составные
+controls, а Node UI сразу становится обязательным consumer нужных ей Components.
+Полный library inventory не задерживает интеграцию уже необходимых Node fields.
 
 Общая dev-среда `@ui/playground` является масштабируемым WebGPU Workbench
 для собственных Elements, Components, Node UI и Widgets MetaFor. Существующий
@@ -257,8 +260,9 @@ controls, Links и interaction states проверяются side-by-side при
 масштабе. Automated screenshot не является visual acceptance: завершение
 этого направления требует явного принятия владельца.
 
-Эталон не отменяет project identity: сохраняются MetaFor palette, проектный шрифт и
-ортогональные Link routes со скруглёнными углами. Blender Frame становится
+Эталон не отменяет явно сохранённую project identity: остаются проектный шрифт и
+ортогональные Link routes со скруглёнными углами. Base UI palette/material states
+следуют Blender 4.5.5. Blender Frame становится
 отдельным first-class component и единственным visual owner вложенности Node;
 обычная Node не подменяет Frame. Тот же Node Editor обязан работать на mobile:
 responsive Flex composition, touch pan/pinch и достаточные hit targets

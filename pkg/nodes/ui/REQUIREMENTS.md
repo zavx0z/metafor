@@ -50,6 +50,10 @@ format и автоматическое размещение принадлежа
 7. Blender preset использует intrinsic compact Field density. Parameter Field
    и его left/right Socket получают одну local Flex row и вместе наследуют
    transform retained Node parent; renderer context не передаёт canvas scale.
+8. Node UI собирает Parameter controls только из public `@ui/components`.
+   HTML-подобные `@ui/elements` используются для layout/chrome, а Node-specific
+   direct drawing разрешён Socket, Link и внешней scene geometry; Node не
+   реализует собственные IconButton, ControlGroup, picker или Field input.
 
 ## Blender presets
 

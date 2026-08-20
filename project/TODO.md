@@ -93,8 +93,8 @@ completeness/live `8/8` source-ом `c998dd212` и current non-black capture. Н
 controls ждут UI-015 shape foundation, чтобы не продолжать старую pill form.
 
 [`UI-015 — Перевести весь UI на форму и композицию Blender`](tasks/UI-015.md)
-сохраняет palette/font MetaFor, но переводит Elements, Components, Fields и
-Workbench на Blender 4.5.5 composition/form/rhythm. Текущий срез измеряет exact
+переводит Elements, Components, Fields и Workbench на Blender 4.5.5
+composition/form/rhythm/palette; MetaFor сохраняет project font. Текущий срез измеряет exact
 reference и уже ввёл Elements shape owner `af5ae43a8`; UI-015.2 подключает его
 к Input/Button primitive chrome commit-ом `e6f7669bf` с before/after evidence.
 UI-015.3/.4 завершили dense scalar rows и настоящий Elements dropdown commits
@@ -107,6 +107,12 @@ Baseline на current Components Workbench подтвердил horizontal Vecto
 Параллельный live audit Path/Reference/Color выявил текстовый `…`, missing
 resource/picker actions и closed-only ColorInput; UI-015.7 доводит их до exact
 catalog composition перед общей matrix.
+Owner отменил сохранение MetaFor palette: UI-015.8 переводит base colors и
+material states на Blender 4.5.5 по mapping от направленного Blender UI
+помощника. UI-015.5/.7 source сохранён на pause до этого mapping.
+Public Elements остаются HTML-аналогами, составные controls принадлежат
+Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
+visual matrix.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один

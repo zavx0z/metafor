@@ -15,9 +15,11 @@ FlexBox единолично вычисляет local child slots, а child то
    плотности, группировки и положения visible UI всего проекта: Elements,
    Components, Fields, dev Workbench и Node consumers. Это не ограничивается
    Node Editor и не является свободной стилизацией по терминологии Blender.
-2. MetaFor сохраняет собственную палитру, project font и semantic tone colors.
-   Цвета Blender не копируются; reference определяет geometry/composition, а не
-   theme identity.
+2. Blender 4.5.5 LTS задаёт также base UI palette и material states: canvas,
+   panels, inputs, borders, text, hover, active, selected и disabled. Project
+   font сохраняется MetaFor. Type/Socket/status colors получают явное
+   Blender-role mapping там, где такой role существует; старую MetaFor palette
+   нельзя использовать как неявный fallback после migration.
 3. Visible controls по умолчанию компактные прямоугольные low-radius элементы,
    собранные в плотные rows/groups с тонкими borders/separators. Pill silhouette,
    oversized rounded card и большие пустые интервалы запрещены, если exact
@@ -38,6 +40,15 @@ FlexBox единолично вычисляет local child slots, а child то
    либо placeholder-подписью, chevron, visual states и caller hit geometry.
    Components-владелец enum задаёт options/value/cycle semantics, но не рисует
    выбор значения через Button и не повторяет его shape policy.
+9. Public Elements vocabulary следует простейшим HTML-аналогам: `div`, `span`,
+   `button`, `input`, `select`, `img`, `ul/li` и layout primitives. `IconButton`,
+   `ControlGroup`, `ColorInput`, picker popup и другие составные controls не
+   публикуются как Elements; они принадлежат `@ui/components`.
+10. Low-level `UiSurface`/Engine drawing capability может иметь не-HTML имя,
+    когда реализует analytical shader, clip, shadow либо marker. Такая функция
+    не становится semantic Element или самостоятельным public control:
+    Component использует её только как rendering primitive внутри композиции
+    Elements.
 
 ## Retained UI-закон
 

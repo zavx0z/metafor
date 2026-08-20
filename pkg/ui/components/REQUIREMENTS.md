@@ -3,6 +3,11 @@
 `@ui/components` владеет универсальными WebGPU-controls поверх `@ui/elements`.
 Они не знают о Node, Socket, Link, Card, Hamiltonian или layout.
 
+Public Component является составной UI-единицей поверх HTML-подобных Elements.
+`IconButton` собирается из `button` + icon content, `ControlGroup` — из
+`div`/`input`/Flex/separators, а Field inputs — из этих Components. Составной
+control нельзя опустить в Elements только ради повторного использования.
+
 ## Retained parent boundary
 
 1. Components остаются function-based композициями Elements и не создают
@@ -104,10 +109,13 @@
 2. Один и тот же public control используется standalone, внутри Field и внутри
    Node Parameter. `@nodes/ui` не копирует control, не меняет его value contract
    и не вводит Node-specific вариант.
-3. Blender задаёт проверяемое поведение, состав, форму, группировку, состояния и
-   пропорции controls в обеих density. Материалы, palette, project font и tone
-   semantics остаются MetaFor. Boolean сохраняет принятый `Switcher` вместо
-   Blender checkbox.
+   Node integration является обязательным consumer gate каждого control,
+   нужного действующей Node UI, а не отложенной демонстрацией после всей library.
+3. Blender задаёт проверяемое поведение, состав, форму, группировку, состояния,
+   пропорции, base palette и material states controls в обеих density. Project
+   font остаётся MetaFor; semantic type/status colors получают явное
+   Blender-role mapping. Boolean сохраняет принятый `Switcher` вместо Blender
+   checkbox.
 4. Размеры, padding, row rhythm и положение частей сверяются по точному Blender
    4.5.5 reference при сопоставимом масштабе, а не подбираются по fixture.
 5. Context search, external picker actions и изменение collection передаются

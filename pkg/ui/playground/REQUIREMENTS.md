@@ -67,7 +67,8 @@ playground. Он не владеет production semantics UI Components либо
     editor headers, row navigation, thin separators и low-radius panels вместо
     oversized pill stacks и больших rounded islands. Five-panel semantic regions
     сохраняются, но их visible chrome не является исключением из UI shape law.
-    Palette и project font остаются MetaFor.
+    Palette/material states следуют Blender 4.5.5 mapping; project font остаётся
+    MetaFor.
 17. Preview выбирает available size, позволяющий equal-scale сравнение control с
     local Blender reference. Он не растягивает input на большую часть desktop
     только ради заполнения центральной панели; свободное место остаётся рабочей
