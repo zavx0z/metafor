@@ -10,6 +10,7 @@ import type {PlaygroundStoryArgs, PlaygroundStoryControl} from "./story.ts"
 export type PlaygroundNavigationGroup = Readonly<{
   id: string
   label: string
+  collapsed?: boolean
 }>
 
 export type PlaygroundNavigationItem<Route extends string> = Readonly<{
@@ -41,6 +42,7 @@ export type PlaygroundNavigationOptions<Route extends string> = Readonly<{
   window?: PlaygroundNavigationWindow
   searchPlaceholder?: string
   onQueryChange?(query: string): void
+  onGroupToggle?(groupId: string, collapsed: boolean): void
 }>
 
 export type PlaygroundInfoLine = string | Readonly<{
@@ -91,12 +93,18 @@ type RetainedOwner = {
   materializations: number
 }
 
+type NormalizedNavigationGroup = Readonly<{
+  id: string
+  label: string
+  collapsed: boolean
+}>
+
 type NormalizedNavigationItem<Route extends string> = Readonly<{
   id: string
   label: string
   route: Route
   disabled: boolean
-  group: PlaygroundNavigationGroup | undefined
+  group: NormalizedNavigationGroup | undefined
   searchText: string
 }>
 
@@ -109,6 +117,7 @@ type NormalizedNavigationOptions<Route extends string> = Readonly<{
   window: PlaygroundNavigationWindow | undefined
   searchPlaceholder: string | undefined
   onQueryChange: ((query: string) => void) | undefined
+  onGroupToggle: ((groupId: string, collapsed: boolean) => void) | undefined
 }>
 
 type NormalizedInfoLine = Readonly<{
@@ -301,6 +310,19 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
       changed = true
     }
 
+    if (!this.#dock) {
+      const previousGroups = navigationGroups(previous)
+      const nextGroups = navigationGroups(next)
+      for (const [id, group] of nextGroups) {
+        const before = previousGroups.get(id)
+        if (before !== undefined && (before.label !== group.label || before.collapsed !== group.collapsed ||
+          (previous.onGroupToggle === undefined) !== (next.onGroupToggle === undefined))) {
+          this.markOwnerDirty(groupOwnerKey(id))
+          changed = true
+        }
+      }
+    }
+
     const previousItems = new Map(previous.items.map((item) => [item.id, item] as const))
     for (const item of next.items) {
       const before = previousItems.get(item.id)
@@ -408,7 +430,7 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
           draw: (x: number, y: number, w: number, h: number) => { frames.set(SEARCH_OWNER, {x, y, w, h}) },
         },
         this.#options.onQueryChange === undefined ? false : {height: 4, draw: () => {}},
-        ...navigationRows(this.#visibleItems(), frames),
+        ...navigationRows(this.#windowItems(), frames),
       ],
     })
     return frames
@@ -462,8 +484,23 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
     }
     if (key.startsWith("group:")) {
       const groupId = groupIdForOwnerKey(key)
-      const group = this.#visibleItems().find((item) => item.group?.id === groupId)?.group
-      if (group !== undefined) Typography(this, 0, 0, frame.w, frame.h, {children: group.label, variant: "caption", color: "muted"})
+      const group = this.#windowItems().find((item) => item.group?.id === groupId)?.group
+      if (group === undefined) return
+      if (this.#options.onGroupToggle === undefined) {
+        Typography(this, 0, 0, frame.w, frame.h, {children: group.label, variant: "caption", color: "muted"})
+        return
+      }
+      Button(this, 0, 0, frame.w, frame.h, {
+        children: `${group.collapsed ? "▸" : "▾"} ${group.label}`,
+        variant: "text",
+        color: "neutral",
+        radius: 8,
+        fontPx: 9,
+        onClick: () => {
+          const current = this.#windowItems().find((item) => item.group?.id === groupId)?.group
+          if (current !== undefined) this.#options.onGroupToggle?.(groupId, !current.collapsed)
+        },
+      })
       return
     }
     const id = itemIdForOwnerKey(key)
@@ -508,6 +545,10 @@ abstract class PlaygroundNavigationBaseSurface<Route extends string> extends Ret
   }
 
   #visibleItems(options: NormalizedNavigationOptions<Route> = this.#options): readonly NormalizedNavigationItem<Route>[] {
+    return this.#windowItems(options).filter((item) => item.group?.collapsed !== true)
+  }
+
+  #windowItems(options: NormalizedNavigationOptions<Route> = this.#options): readonly NormalizedNavigationItem<Route>[] {
     return selectNormalizedNavigationItems(options).items
   }
 }
@@ -918,21 +959,25 @@ function normalizeNavigationOptions<Route extends string>(
   options: PlaygroundNavigationOptions<Route>,
 ): NormalizedNavigationOptions<Route> {
   const ids = new Set<string>()
-  const groups = new Map<string, string>()
+  const groups = new Map<string, Readonly<{label: string; collapsed: boolean}>>()
   const items = options.items.map((item) => {
     if (item.id.length === 0) throw new Error("Playground navigation item id must not be empty")
     if (ids.has(item.id)) throw new Error(`Duplicate playground navigation item id: ${item.id}`)
     ids.add(item.id)
-    let group: PlaygroundNavigationGroup | undefined
+    let group: NormalizedNavigationGroup | undefined
     if (item.group !== undefined) {
       if (item.group.id.length === 0) throw new Error("Playground navigation group id must not be empty")
       if (item.group.label.trim().length === 0) throw new Error("Playground navigation group label must not be empty")
+      const collapsed = item.group.collapsed === true
       const previous = groups.get(item.group.id)
-      if (previous !== undefined && previous !== item.group.label) {
+      if (previous !== undefined && previous.label !== item.group.label) {
         throw new Error(`Playground navigation group label changed for id: ${item.group.id}`)
       }
-      groups.set(item.group.id, item.group.label)
-      group = Object.freeze({id: item.group.id, label: item.group.label})
+      if (previous !== undefined && previous.collapsed !== collapsed) {
+        throw new Error(`Playground navigation group collapsed state changed within id: ${item.group.id}`)
+      }
+      groups.set(item.group.id, Object.freeze({label: item.group.label, collapsed}))
+      group = Object.freeze({id: item.group.id, label: item.group.label, collapsed})
     }
     return Object.freeze({
       id: item.id,
@@ -962,6 +1007,7 @@ function normalizeNavigationOptions<Route extends string>(
     window,
     searchPlaceholder: options.searchPlaceholder,
     onQueryChange: options.onQueryChange,
+    onGroupToggle: options.onGroupToggle,
   })
 }
 
@@ -975,7 +1021,11 @@ export function selectPlaygroundNavigationItems<Route extends string>(
     label: item.label,
     route: item.route,
     ...(item.disabled ? {disabled: true} : {}),
-    ...(item.group === undefined ? {} : {group: item.group}),
+    ...(item.group === undefined ? {} : {group: Object.freeze({
+      id: item.group.id,
+      label: item.group.label,
+      ...(item.group.collapsed ? {collapsed: true} : {}),
+    })}),
     ...(item.searchText.length === 0 ? {} : {searchText: item.searchText}),
   }))
   return Object.freeze({total: view.total, offset: view.offset, items: Object.freeze(items)})
@@ -1110,6 +1160,7 @@ function navigationOwnerKeys<Route extends string>(
       seenGroupIds.add(item.group.id)
       keys.push(groupOwnerKey(item.group.id))
     }
+    if (!dock && item.group?.collapsed === true) continue
     keys.push(itemOwnerKey(item.id))
   }
   return keys
@@ -1125,8 +1176,9 @@ function navigationRows<Route extends string>(
     if (item.group !== undefined && !seenGroupIds.has(item.group.id)) {
       seenGroupIds.add(item.group.id)
       const key = groupOwnerKey(item.group.id)
-      rows.push({height: 20, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
+      rows.push({height: 26, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
     }
+    if (item.group?.collapsed === true) continue
     const key = itemOwnerKey(item.id)
     rows.push({height: 38, draw: (x, y, w, h) => { frames.set(key, {x, y, w, h}) }})
   }
@@ -1143,6 +1195,16 @@ function sameNavigationWindow(left: PlaygroundNavigationWindow | undefined, righ
 
 function sameNavigationGroup(left: PlaygroundNavigationGroup | undefined, right: PlaygroundNavigationGroup | undefined): boolean {
   return left?.id === right?.id && left?.label === right?.label
+}
+
+function navigationGroups<Route extends string>(
+  options: NormalizedNavigationOptions<Route>,
+): ReadonlyMap<string, NormalizedNavigationGroup> {
+  const groups = new Map<string, NormalizedNavigationGroup>()
+  for (const item of selectNormalizedNavigationItems(options).items) {
+    if (item.group !== undefined && !groups.has(item.group.id)) groups.set(item.group.id, item.group)
+  }
+  return groups
 }
 
 function nextStoryControlValue(control: PlaygroundStoryControl, value: unknown): unknown {

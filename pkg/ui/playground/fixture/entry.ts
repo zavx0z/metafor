@@ -145,18 +145,20 @@ async function startWorkbench(): Promise<void> {
     let args: PlaygroundStoryArgs = Object.freeze({...storyModule.defaultArgs})
     let panelMode: PlaygroundStoryPanelMode = "controls"
     let catalogQuery = ""
+    let collapsedCatalogGroups = new Set<string>()
     let clickCount = 0
     let selectionRevision = 0
 
     const backdrop = new PlaygroundBackdropSurface()
     const catalog = new PlaygroundNavigationSurface<string>({
       title: "Библиотека UI",
-      items: catalogNavigationItems(),
+      items: catalogNavigationItems(collapsedCatalogGroups),
       route: storyRoute,
       onNavigate: (route) => { void selectStory(route) },
       query: catalogQuery,
       searchPlaceholder: "Компонент, API, тег…",
       onQueryChange: handleCatalogQuery,
+      onGroupToggle: handleCatalogGroupToggle,
     })
     const sections = new PlaygroundNavigationSurface<string>({
       title: storyIndex.componentLabel,
@@ -214,6 +216,7 @@ async function startWorkbench(): Promise<void> {
       storyRoute,
       args,
       source: storyModule.source(args),
+      collapsedCatalogGroups: Object.freeze([...collapsedCatalogGroups]),
       catalog: catalog.diagnostics,
       sections: sections.diagnostics,
       dock: dock.diagnostics,
@@ -241,12 +244,13 @@ async function startWorkbench(): Promise<void> {
       clickCount = 0
       catalog.setOptions({
         title: "Библиотека UI",
-        items: catalogNavigationItems(),
+        items: catalogNavigationItems(collapsedCatalogGroups),
         route,
         onNavigate: (next) => { void selectStory(next) },
         query: catalogQuery,
         searchPlaceholder: "Компонент, API, тег…",
         onQueryChange: handleCatalogQuery,
+        onGroupToggle: handleCatalogGroupToggle,
       })
       sections.setOptions({title: storyIndex.componentLabel, items: sectionNavigationItems(storyIndex), route, onNavigate: (next) => { void selectStory(next) }})
       dock.setOptions({title: "Варианты", items: variantNavigationItems(storyIndex), route, onNavigate: (next) => { void selectStory(next) }})
@@ -264,12 +268,29 @@ async function startWorkbench(): Promise<void> {
       catalogQuery = query
       catalog.setOptions({
         title: "Библиотека UI",
-        items: catalogNavigationItems(),
+        items: catalogNavigationItems(collapsedCatalogGroups),
         route: storyRoute,
         onNavigate: (next) => { void selectStory(next) },
         query: catalogQuery,
         searchPlaceholder: "Компонент, API, тег…",
         onQueryChange: handleCatalogQuery,
+        onGroupToggle: handleCatalogGroupToggle,
+      })
+      publish()
+    }
+    function handleCatalogGroupToggle(groupId: string, collapsed: boolean): void {
+      collapsedCatalogGroups = new Set(collapsedCatalogGroups)
+      if (collapsed) collapsedCatalogGroups.add(groupId)
+      else collapsedCatalogGroups.delete(groupId)
+      catalog.setOptions({
+        title: "Библиотека UI",
+        items: catalogNavigationItems(collapsedCatalogGroups),
+        route: storyRoute,
+        onNavigate: (next) => { void selectStory(next) },
+        query: catalogQuery,
+        searchPlaceholder: "Компонент, API, тег…",
+        onQueryChange: handleCatalogQuery,
+        onGroupToggle: handleCatalogGroupToggle,
       })
       publish()
     }
@@ -303,14 +324,14 @@ function requireStory(route: string): PlaygroundStoryIndexItem {
   return story
 }
 
-function catalogNavigationItems(): readonly PlaygroundNavigationItem<string>[] {
+function catalogNavigationItems(collapsedGroups: ReadonlySet<string>): readonly PlaygroundNavigationItem<string>[] {
   const firstByComponent = new Map<string, PlaygroundStoryIndexItem>()
   for (const item of storyRegistry.index) if (!firstByComponent.has(item.componentId)) firstByComponent.set(item.componentId, item)
   return [...firstByComponent.values()].map((item) => ({
     id: item.componentId,
     label: item.componentLabel,
     route: item.route,
-    group: {id: item.groupId, label: item.groupLabel},
+    group: {id: item.groupId, label: item.groupLabel, collapsed: collapsedGroups.has(item.groupId)},
     searchText: `${item.apiName} ${item.tags.join(" ")}`,
   }))
 }

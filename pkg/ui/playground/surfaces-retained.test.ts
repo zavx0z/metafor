@@ -196,13 +196,16 @@ describe("retained @ui/playground surfaces", () => {
     expect(view.total).toBe(1)
     expect(view.items.map(({id}) => id)).toEqual(["item-777"])
 
+    const toggles: Array<readonly [string, boolean]> = []
+    const expandedItems = largeItems.map((item) => ({...item, group: {...item.group!, collapsed: false}}))
     const surface = new PlaygroundNavigationSurface<Route>({
       title: "Каталог",
-      items: largeItems,
+      items: expandedItems,
       route: "first",
       window: {offset: 490, limit: 10},
       searchPlaceholder: "Поиск…",
       onQueryChange() {},
+      onGroupToggle: (id, collapsed) => { toggles.push([id, collapsed]) },
       onNavigate() {},
     })
     surface.attachCanvas(createFakeRuntime())
@@ -215,6 +218,52 @@ describe("retained @ui/playground surfaces", () => {
       ...Array.from({length: 10}, (_, index) => `item:item-${490 + index}`),
     ])
     expect(surface.diagnostics.materializations).toBe(14)
+
+    const pointer = {button: 0, preventDefault() {}} as MouseEvent
+    surface.onPointerDown(pointer, 100, 142)
+    surface.onPointerUp(pointer, 100, 142)
+    expect(toggles).toEqual([["values", true]])
+
+    const collapsedItems = largeItems.map((item) => ({...item, group: {...item.group!, collapsed: true}}))
+    surface.setOptions({
+      title: "Каталог",
+      items: collapsedItems,
+      route: "first",
+      window: {offset: 490, limit: 10},
+      searchPlaceholder: "Поиск…",
+      onQueryChange() {},
+      onGroupToggle: (id, collapsed) => { toggles.push([id, collapsed]) },
+      onNavigate() {},
+    })
+    surface.flushPendingRender()
+    expect(surface.diagnostics.owners.map(({key}) => key)).toEqual(["panel", "title", "search", "group:values"])
+    expect(surface.focusedItemId).toBeNull()
+    expect(surface.diagnostics.materializations).toBe(15)
+
+    surface.onPointerDown(pointer, 100, 142)
+    surface.onPointerUp(pointer, 100, 142)
+    expect(toggles).toEqual([["values", true], ["values", false]])
+
+    surface.setOptions({
+      title: "Каталог",
+      items: expandedItems,
+      route: "first",
+      window: {offset: 490, limit: 10},
+      searchPlaceholder: "Поиск…",
+      onQueryChange() {},
+      onGroupToggle: (id, collapsed) => { toggles.push([id, collapsed]) },
+      onNavigate() {},
+    })
+    surface.flushPendingRender()
+    expect(surface.diagnostics.owners.map(({key}) => key)).toEqual([
+      "panel",
+      "title",
+      "search",
+      "group:values",
+      ...Array.from({length: 10}, (_, index) => `item:item-${490 + index}`),
+    ])
+    expect(surface.focusedItemId).toBe("item-490")
+    expect(surface.diagnostics.materializations).toBe(26)
     surface.dispose()
   })
 
