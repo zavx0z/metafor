@@ -28,7 +28,6 @@ flowchart LR
     HAM006["HAM-006 · принять и очистить прототип"]
     NODES008["NODES-008 · убрать пустой compound-резерв"]
     UI007["UI-007 · масштабируемый каталог WebGPU UI"]
-    UI008["UI-008 · динамические production UI модули"]
     UI001["UI-001 · playground универсальных UI Components"]
     NODES017["NODES-017 · визуально воспроизвести Blender Node Editor"]
     MF425["MF-425 · одна Вселенная на одном устройстве"]
@@ -89,11 +88,6 @@ stories, большой поисковый index, variants снизу и пос�
 копированием справа. Production dynamic exports остаются у согласованной
 параллельной задачи.
 
-[`UI-008 — Загружать production UI модули без дублирования ядра`](tasks/UI-008.md)
-задаёт независимые Elements/Components/Node UI subpath imports, один
-bootstrap-owned runtime и split graph с единственной Engine/Elements
-реализацией. UI-007 потребляет checkpoint imports, но владеет только Workbench.
-
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
 Socket/header/shadow/LOD/alignment corrections; physical mobile и явная visual
@@ -107,7 +101,6 @@ owner acceptance остаются отдельными gates.
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
 | UI-007 | IN_PROGRESS | нет         | [Открыть](tasks/UI-007.md) |
-| UI-008 | REVIEW      | нет         | [Открыть](tasks/UI-008.md) |
 | UI-001 | WAITING     | UI-007      | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
