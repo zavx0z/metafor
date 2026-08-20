@@ -46,11 +46,30 @@ export const NODE_COMPONENT_IDS = Object.freeze([
 ] as const)
 
 export type NodeComponentId = typeof NODE_COMPONENT_IDS[number]
-export type NodeComponentStoryRoute =
+export const NODE_EDITOR_STORY_TARGETS = Object.freeze(["expanded", "collapsed"] as const)
+export type NodeEditorStoryTarget = typeof NODE_EDITOR_STORY_TARGETS[number]
+export type NodeEditorStoryRoute =
   | "node-editor/scene/default"
+  | "node-editor/scene/selected"
+  | "node-editor/collapsed/default"
+  | "node-editor/collapsed/selected"
+export type NodeComponentStoryRoute =
+  | NodeEditorStoryRoute
   | "frame/nested/default"
   | "link/orthogonal/selected"
   | "comparison/blender/default"
+
+export const NODE_EDITOR_STORY_NODE_IDS: Readonly<Record<NodeEditorStoryTarget, string>> = Object.freeze({
+  expanded: "scalar",
+  collapsed: "collapsed",
+})
+
+export type NodeEditorStoryState = Readonly<{
+  target: NodeEditorStoryTarget
+  selected: boolean
+  nodeId: string
+  selection: Readonly<{kind: "node"; id: string}> | null
+}>
 
 export const NODE_SOCKET_LABELS: Readonly<Record<NodeSocketKind, string>> = Object.freeze({
   boolean: "Boolean",
@@ -90,12 +109,13 @@ const loadSocketStory = (
 
 const loadNodeComponentStory = (
   component: NodeComponentId,
+  state?: Readonly<{target: NodeEditorStoryTarget; selected: boolean}>,
 ) => async (): Promise<PlaygroundStoryModule> => {
   await import("@nodes/ui/node-editor")
   await import("@nodes/ui/blender-node")
   if (component === "link") await import("@nodes/ui/link-curve")
   const {createNodeComponentStory} = await import("./stories/node-components.ts")
-  return createNodeComponentStory(component)
+  return createNodeComponentStory(component, state)
 }
 
 export const NODE_SOCKET_STORIES = definePlaygroundStories({
@@ -138,8 +158,42 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
         apiName: "NodeEditor",
         sections: [{
           id: "scene",
-          label: "Полная сцена",
-          variants: [{id: "default", label: "Основная", title: "Редактор нод · Полная сцена", load: loadNodeComponentStory("node-editor")}],
+          label: "Развёрнутая нода",
+          variants: [
+            {
+              id: "default",
+              label: "Обычная",
+              title: "Редактор нод · Развёрнутая · Обычная",
+              tags: ["expanded", "ordinary"],
+              load: loadNodeComponentStory("node-editor", {target: "expanded", selected: false}),
+            },
+            {
+              id: "selected",
+              label: "Выбранная",
+              title: "Редактор нод · Развёрнутая · Выбранная",
+              tags: ["expanded", "selected"],
+              load: loadNodeComponentStory("node-editor", {target: "expanded", selected: true}),
+            },
+          ],
+        }, {
+          id: "collapsed",
+          label: "Свернутая нода",
+          variants: [
+            {
+              id: "default",
+              label: "Обычная",
+              title: "Редактор нод · Свернутая · Обычная",
+              tags: ["collapsed", "ordinary"],
+              load: loadNodeComponentStory("node-editor", {target: "collapsed", selected: false}),
+            },
+            {
+              id: "selected",
+              label: "Выбранная",
+              title: "Редактор нод · Свернутая · Выбранная",
+              tags: ["collapsed", "selected"],
+              load: loadNodeComponentStory("node-editor", {target: "collapsed", selected: true}),
+            },
+          ],
         }],
       },
       {
@@ -224,6 +278,31 @@ export function nodeComponentVariantItems(
     label: story.variantLabel,
     route: story.route as NodeComponentStoryRoute,
   }))
+}
+
+export function nodeEditorStoryRoute(
+  target: NodeEditorStoryTarget,
+  selected: boolean,
+): NodeEditorStoryRoute {
+  if (target === "expanded") return selected ? "node-editor/scene/selected" : "node-editor/scene/default"
+  return selected ? "node-editor/collapsed/selected" : "node-editor/collapsed/default"
+}
+
+export function nodeEditorStoryState(args: Readonly<Record<string, unknown>>): NodeEditorStoryState {
+  const target = args.target
+  if (target !== "expanded" && target !== "collapsed") {
+    throw new Error(`Unknown NodeEditor story target: ${String(target)}`)
+  }
+  if (typeof args.selected !== "boolean") {
+    throw new Error(`Invalid NodeEditor selected state: ${String(args.selected)}`)
+  }
+  const nodeId = NODE_EDITOR_STORY_NODE_IDS[target]
+  return Object.freeze({
+    target,
+    selected: args.selected,
+    nodeId,
+    selection: args.selected ? Object.freeze({kind: "node", id: nodeId}) : null,
+  })
 }
 
 export function nodeSocketRoute(

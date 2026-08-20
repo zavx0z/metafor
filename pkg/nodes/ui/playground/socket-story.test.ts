@@ -26,6 +26,14 @@ describe("Node Socket package-owned story boundary", () => {
     expect(story).toContain("Surface-based production previews")
   })
 
+  test("keeps controlled Node state source on exact public production imports", async () => {
+    const story = await Bun.file(join(playgroundRoot, "stories/node-components.ts")).text()
+    expect(story).toContain('from "@nodes/ui/node-editor"')
+    expect(story).toContain('from "@nodes/ui/blender-node"')
+    expect(story).not.toContain('from "../node-editor.ts"')
+    expect(story).not.toContain('from "../blender-node.ts"')
+  })
+
   test("uses one code/copy panel for every Node playground route", async () => {
     const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
     const layout = await Bun.file(join(playgroundRoot, "layout.ts")).text()

@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {join} from "node:path"
+import {basename, join} from "node:path"
 import {fileURLToPath} from "node:url"
 import {FIELD_KINDS} from "@ui/components"
 import {resolvePlaygroundRoute} from "@ui/playground"
@@ -21,11 +21,15 @@ import {
 import {
   NODE_COMPONENT_STORIES,
   NODE_COMPONENT_STORY_ROUTES,
+  NODE_EDITOR_STORY_NODE_IDS,
   NODE_SOCKET_DIRECTIONS,
   NODE_SOCKET_KINDS,
   NODE_SOCKET_STORIES,
+  nodeEditorStoryRoute,
+  nodeEditorStoryState,
   nodeSocketStoryIndex,
 } from "./stories.ts"
+import {applyNodeEditorStoryState} from "./story-state.ts"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 
@@ -76,6 +80,79 @@ describe("Blender-like Node component playground", () => {
     expect(link.source(link.defaultArgs)).toContain('from "@nodes/ui/link-curve"')
     const comparison = await NODE_COMPONENT_STORIES.load("comparison/blender/default")
     expect(comparison.source(comparison.defaultArgs)).toContain("comparisonTree")
+  })
+
+  test("publishes one controlled route, args and source state for expanded and collapsed Nodes", async () => {
+    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 4)).toEqual([
+      "node-editor/scene/default",
+      "node-editor/scene/selected",
+      "node-editor/collapsed/default",
+      "node-editor/collapsed/selected",
+    ])
+    expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "collapsed"])
+    expect(nodePlaygroundDockItems("node-editor/scene/default").map(({id}) => id)).toEqual(["default", "selected"])
+    expect(nodePlaygroundDockItems("node-editor/collapsed/selected").map(({id}) => id)).toEqual(["default", "selected"])
+
+    const cases = [
+      {route: "node-editor/scene/default", target: "expanded", selected: false, nodeId: "scalar"},
+      {route: "node-editor/scene/selected", target: "expanded", selected: true, nodeId: "scalar"},
+      {route: "node-editor/collapsed/default", target: "collapsed", selected: false, nodeId: "collapsed"},
+      {route: "node-editor/collapsed/selected", target: "collapsed", selected: true, nodeId: "collapsed"},
+    ] as const
+
+    for (const expected of cases) {
+      const story = await NODE_COMPONENT_STORIES.load(expected.route)
+      expect(story.defaultArgs).toMatchObject({
+        component: "node-editor",
+        target: expected.target,
+        selected: expected.selected,
+      })
+      expect(story.controls.map(({key}) => key)).toEqual(["target", "selected"])
+      const state = nodeEditorStoryState(story.defaultArgs)
+      expect(state).toEqual({
+        target: expected.target,
+        selected: expected.selected,
+        nodeId: expected.nodeId,
+        selection: expected.selected ? {kind: "node", id: expected.nodeId} : null,
+      })
+      expect(nodeEditorStoryRoute(state.target, state.selected)).toBe(expected.route)
+      const source = story.source(story.defaultArgs)
+      expect(source).toContain('from "@nodes/ui/node-editor"')
+      expect(source).toContain(`const targetNodeId = ${JSON.stringify(expected.nodeId)}`)
+      expect(source).toContain(expected.selected
+        ? 'editor.select({kind: "node", id: targetNodeId})'
+        : "editor.select(null)")
+    }
+    expect(NODE_EDITOR_STORY_NODE_IDS).toEqual({expanded: "scalar", collapsed: "collapsed"})
+  })
+
+  test("applies NodeEditor story args through one production selection and DOM adapter", () => {
+    const selections: unknown[] = []
+    const published: unknown[] = []
+    const selected = applyNodeEditorStoryState({target: "collapsed", selected: true}, {
+      select(selection) {
+        selections.push(selection)
+        return true
+      },
+      publish(state) {
+        published.push({target: state.target, nodeId: state.nodeId})
+      },
+    })
+    expect(selected.selection).toEqual({kind: "node", id: "collapsed"})
+    expect(selections).toEqual([{kind: "node", id: "collapsed"}])
+    expect(published).toEqual([{target: "collapsed", nodeId: "collapsed"}])
+
+    const ordinary = applyNodeEditorStoryState({target: "expanded", selected: false}, {
+      select(selection) {
+        selections.push(selection)
+        return true
+      },
+      publish(state) {
+        published.push({target: state.target, nodeId: state.nodeId})
+      },
+    })
+    expect(ordinary.selection).toBeNull()
+    expect(selections.at(-1)).toBeNull()
   })
 
   test("loads one exact production Socket story whose source follows the selected route", async () => {
@@ -152,11 +229,18 @@ describe("Blender-like Node component playground", () => {
       entrypoints: [join(playgroundRoot, "client.ts")],
       target: "browser",
       format: "esm",
+      splitting: true,
       minify: true,
       sourcemap: "none",
     })
     expect(build.success, build.logs.map(({message}) => message).join("\n")).toBeTrue()
-    const source = await build.outputs[0]!.text()
+    const outputs = await Promise.all(build.outputs.map(async (output) => ({
+      name: basename(output.path),
+      source: await output.text(),
+    })))
+    const entry = outputs.find(({name}) => name === "client.js")
+    expect(entry).toBeDefined()
+    const source = outputs.map(({source}) => source).join("\n")
     for (const forbidden of [
       "NodeSystemSurface",
       "NodeSystemCard",
@@ -171,6 +255,9 @@ describe("Blender-like Node component playground", () => {
     expect(source).toContain("PlaygroundStoryPanelSurface")
     expect(source).toContain("NodeStoryPreviewSurface")
     expect(source).toContain("BlenderReferenceSurface")
+    expect(source).toContain("import(")
+    expect(entry!.source).not.toContain("NodeEditor story requires an exact target")
+    expect(outputs.some(({source}) => source.includes("NodeEditor story requires an exact target"))).toBeTrue()
     expect(await Bun.file(join(playgroundRoot, "client.ts")).text()).not.toContain("new SocketCatalogSurface")
     expect(await Bun.file(join(playgroundRoot, "client.ts")).text()).not.toContain("PlaygroundInfoSurface")
     expect(source).not.toContain("FieldCatalogSurface")
@@ -226,6 +313,10 @@ describe("Blender-like Node component playground", () => {
     expect(applyRoute).not.toContain("runtime.handleResize()")
     expect(client).toContain("runtime.handleResize()\n  await applyRoute(router.current)")
     expect(client).toContain("new PlaygroundStoryPanelSurface(storyPanelOptions())")
+    expect(client).toContain("applyNodeEditorStoryState(storyArgs")
+    expect(client).toContain("dataset.nodeStoryTargetId = state.nodeId")
+    expect(client).toContain('dataset.selectedId = state.selection?.id ?? ""')
+    expect(client).toContain("nodeEditorStoryRoute(state.target, state.selected)")
     expect(client).not.toContain("new SocketCatalogSurface")
     expect(browser).toContain('cdp.send("Target.createTarget", {url, background: true})')
     expect(browser).toContain('canvas.toDataURL("image/png")')

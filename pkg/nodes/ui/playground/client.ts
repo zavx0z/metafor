@@ -28,6 +28,7 @@ import {waitForReferenceFrame} from "./reference-readiness.ts"
 import {createPlaygroundRetainedObserver, type PlaygroundRetainedObserver} from "./retained-observer.ts"
 import {
   NODE_PLAYGROUND_ROUTE_DECLARATION,
+  isNodeEditorStoryRoute,
   isNodeFrameStoryRoute,
   isNodeLinkStoryRoute,
   loadNodePlaygroundStory,
@@ -44,7 +45,10 @@ import {
 import {
   NODE_SOCKET_KINDS,
   isNodeSocketStoryRoute,
+  nodeEditorStoryRoute,
+  nodeEditorStoryState,
 } from "./stories.ts"
+import {applyNodeEditorStoryState} from "./story-state.ts"
 import {NodeStoryPreviewSurface} from "./story-preview.ts"
 import {BLENDER_REFERENCE_SRC, BlenderReferenceSurface} from "./surfaces.ts"
 
@@ -112,7 +116,16 @@ try {
     },
     onControlChange(key, value) {
       if (storyModule === null) return
-      storyArgs = Object.freeze({...storyArgs, [key]: value})
+      const nextArgs = Object.freeze({...storyArgs, [key]: value})
+      if (isNodeEditorStoryRoute(router.current) && (key === "target" || key === "selected")) {
+        const state = nodeEditorStoryState(nextArgs)
+        const nextRoute = nodeEditorStoryRoute(state.target, state.selected)
+        if (nextRoute !== router.current) {
+          navigate(nextRoute)
+          return
+        }
+      }
+      storyArgs = nextArgs
       if (isNodeSocketStoryRoute(router.current)) storyPreview.setArgs(storyArgs)
       applyProductionStoryState(router.current)
       storyPanel.setOptions(storyPanelOptions())
@@ -251,6 +264,12 @@ try {
       ? storyModule.source(storyArgs)
       : ""
     document.documentElement.dataset.nodeStoryArgs = JSON.stringify(storyArgs)
+    document.documentElement.dataset.nodeStoryTarget = isNodeEditorStoryRoute(route)
+      ? nodeEditorStoryState(storyArgs).target
+      : ""
+    document.documentElement.dataset.nodeStoryTargetId = isNodeEditorStoryRoute(route)
+      ? nodeEditorStoryState(storyArgs).nodeId
+      : ""
     document.documentElement.dataset.nodeStorySections = String(nodePlaygroundSections(route).length)
     document.documentElement.dataset.nodeStoryVariants = String(nodePlaygroundDockItems(route).length)
     document.documentElement.dataset.nodeSocketSections = isNodeSocketStoryRoute(route) ? String(nodePlaygroundSections(route).length) : ""
@@ -259,6 +278,18 @@ try {
 
   function applyProductionStoryState(route: NodePlaygroundRoute): void {
     if (isNodeSocketStoryRoute(route)) return
+    if (isNodeEditorStoryRoute(route)) {
+      applyNodeEditorStoryState(storyArgs, {
+        select: (selection) => editor.select(selection),
+        publish(state) {
+          document.documentElement.dataset.nodeStoryTarget = state.target
+          document.documentElement.dataset.nodeStoryTargetId = state.nodeId
+          document.documentElement.dataset.selectedKind = state.selection?.kind ?? ""
+          document.documentElement.dataset.selectedId = state.selection?.id ?? ""
+        },
+      })
+      return
+    }
     if (isNodeFrameStoryRoute(route) && storyArgs.selected === true) {
       editor.select({kind: "frame", id: "data-frame"})
       return

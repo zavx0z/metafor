@@ -1,9 +1,15 @@
 import {definePlaygroundStoryModule, type PlaygroundStoryArgs, type PlaygroundStoryModule} from "@ui/playground/stories"
-import type {NodeComponentId} from "../stories.ts"
+import {
+  NODE_EDITOR_STORY_TARGETS,
+  nodeEditorStoryState,
+  type NodeComponentId,
+  type NodeEditorStoryTarget,
+} from "../stories.ts"
 
 type NodeComponentStoryArgs = PlaygroundStoryArgs & Readonly<{
   component: NodeComponentId
   selected: boolean
+  target?: NodeEditorStoryTarget
 }>
 
 const COMPONENT_LABELS: Readonly<Record<NodeComponentId, string>> = Object.freeze({
@@ -13,15 +19,36 @@ const COMPONENT_LABELS: Readonly<Record<NodeComponentId, string>> = Object.freez
   comparison: "Blender comparison",
 })
 
-export function createNodeComponentStory(component: NodeComponentId): PlaygroundStoryModule {
+export function createNodeComponentStory(
+  component: NodeComponentId,
+  initialState?: Readonly<{target: NodeEditorStoryTarget; selected: boolean}>,
+): PlaygroundStoryModule {
+  if (component === "node-editor" && initialState === undefined) {
+    throw new Error("NodeEditor story requires an exact target and selected state")
+  }
   return definePlaygroundStoryModule<NodeComponentStoryArgs>({
     defaultArgs: {
       component,
-      selected: component === "frame" || component === "link",
+      selected: initialState?.selected ?? (component === "frame" || component === "link"),
+      ...(initialState === undefined ? {} : {target: initialState.target}),
     },
-    controls: component === "frame" || component === "link"
-      ? [{key: "selected", label: "Выбран", group: "Состояние", kind: "boolean"}]
-      : [],
+    controls: component === "node-editor"
+      ? [
+          {
+            key: "target",
+            label: "Нода",
+            group: "Состояние",
+            kind: "select",
+            options: NODE_EDITOR_STORY_TARGETS.map((target) => ({
+              value: target,
+              label: target === "expanded" ? "Развёрнутая" : "Свернутая",
+            })),
+          },
+          {key: "selected", label: "Выбрана", group: "Состояние", kind: "boolean"},
+        ]
+      : component === "frame" || component === "link"
+        ? [{key: "selected", label: "Выбран", group: "Состояние", kind: "boolean"}]
+        : [],
     render() {
       // Surface-based production previews остаются отдельными UiSurface owners в client.ts.
     },
@@ -54,6 +81,26 @@ export function createNodeComponentStory(component: NodeComponentId): Playground
         "editor.setTree(tree)",
         ...(args.selected ? ['editor.select({kind: "frame", id: "data-frame"})'] : ["editor.select(null)"]),
       ].join("\n")
+      if (args.component === "node-editor") {
+        const state = nodeEditorStoryState(args)
+        return [
+          'import {NodeEditor} from "@nodes/ui/node-editor"',
+          'import {createBlenderNodeRenderers} from "@nodes/ui/blender-node"',
+          "",
+          `const targetNodeId = ${JSON.stringify(state.nodeId)}`,
+          "if (!tree.nodes.some(({node}) => node.id === targetNodeId)) {",
+          '  throw new Error(`Missing story Node: ${targetNodeId}`)',
+          "}",
+          "const editor = new NodeEditor({",
+          "  renderers: createBlenderNodeRenderers(),",
+          `  title: ${JSON.stringify(COMPONENT_LABELS[component])},`,
+          "})",
+          "editor.setTree(tree)",
+          ...(state.selected
+            ? ['editor.select({kind: "node", id: targetNodeId})']
+            : ["editor.select(null)"]),
+        ].join("\n")
+      }
       return [
         'import {NodeEditor} from "@nodes/ui/node-editor"',
         'import {createBlenderNodeRenderers} from "@nodes/ui/blender-node"',
