@@ -85,9 +85,9 @@ Components stories и завершит полную русскую локали�
 [`UI-007 — Создать масштабируемый каталог WebGPU UI`](tasks/UI-007.md) сохраняет
 действующий Engine и пятипанельный shell, заполняет весь desktop, вводит typed
 stories, большой поисковый index, variants снизу и постоянный TypeScript с
-копированием справа. Closing review checkpoint `bf024f899` подтвердила основной
-Workbench, но открыла UI-007.6: group headings ещё не имеют принятого collapse
-contract. Production delivery-контракт закреплён в `pkg/ui/DELIVERY.md`.
+копированием справа. Closing blocker со сворачиваемыми groups устранён
+checkpoint-ом `3ccb67f8c`; результат готов к повторной независимой проверке.
+Production delivery-контракт закреплён в `pkg/ui/DELIVERY.md`.
 
 [`NODES-017 — Визуально воспроизвести Blender Node Editor`](tasks/NODES-017.md)
 возвращена в работу на integrated retained foundation. Следующий срез —
@@ -101,7 +101,7 @@ owner acceptance остаются отдельными gates.
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
 | MF-411 | IN_PROGRESS | нет         | [Открыть](tasks/MF-411.md) |
 | NODES-008 | IN_PROGRESS | нет       | [Открыть](tasks/NODES-008.md) |
-| UI-007 | IN_PROGRESS | нет         | [Открыть](tasks/UI-007.md) |
+| UI-007 | REVIEW      | нет         | [Открыть](tasks/UI-007.md) |
 | UI-001 | WAITING     | UI-007      | [Открыть](tasks/UI-001.md) |
 | NODES-017 | IN_PROGRESS | нет      | [Открыть](tasks/NODES-017.md) |
 | MF-414 | WAITING     | MF-411      | [Открыть](tasks/MF-414.md) |
