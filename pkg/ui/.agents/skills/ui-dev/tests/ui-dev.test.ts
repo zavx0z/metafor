@@ -54,6 +54,7 @@ describe("ui-dev registry", () => {
       command: ["bun", "playground/server.ts"],
       canvas: {capability: "webgpu"},
       routes: {default: "/editor/scene"},
+      httpMarker: "<title>@nodes/ui</title>",
     })
     expect(registry.selectors.components).toMatchObject({
       supported: true,
@@ -61,8 +62,9 @@ describe("ui-dev registry", () => {
       command: ["bun", "playground/server.ts"],
       canvas: {capability: "webgpu"},
       routes: {default: "/button/basic"},
+      httpMarker: "<title>@ui/components</title>",
     })
-    expect(registry.selectors["ui-fixture"]).toMatchObject({supported: true, port: 4192, command: ["bun", "fixture/server.ts"], canvas: {capability: "webgpu-diagnostic"}})
+    expect(registry.selectors["ui-fixture"]).toMatchObject({supported: true, port: 4192, command: ["bun", "fixture/server.ts"], canvas: {capability: "webgpu-diagnostic"}, httpMarker: "<title>@ui/playground</title>"})
     expect(registry.selectors.elements).toMatchObject({
       supported: true,
       package: "@ui/elements",
@@ -70,6 +72,7 @@ describe("ui-dev registry", () => {
       command: ["bun", "playground/server.ts"],
       canvas: {capability: "webgpu"},
       routes: {default: "/div"},
+      httpMarker: "<title>@ui/elements</title>",
     })
     expect(registry.selectors["node-layout"]).toBeUndefined()
 

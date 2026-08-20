@@ -90,9 +90,12 @@ describe("Blender-like Node component playground", () => {
 
   test("uses one Card-free WebGPU component graph and disables HMR", async () => {
     const server = await Bun.file(join(playgroundRoot, "server.ts")).text()
+    const html = await Bun.file(join(playgroundRoot, "index.html")).text()
     const surfaces = await Bun.file(join(playgroundRoot, "surfaces.ts")).text()
     expect(server).toContain("startPlaygroundServer")
-    expect(server).toContain('title: "Node Component Library"')
+    expect(server).toContain('packageName: "@nodes/ui"')
+    expect(server).not.toContain("title:")
+    expect(html).toContain("<title>@nodes/ui</title>")
     expect(server).toContain("/ui-dev/blender-4.5.5-reference.png")
     expect(server).toContain("../../../ui/.agents/skills/ui-dev/assets/blender-4.5.5-reference.png")
     expect(surfaces).toContain("/ui-dev/blender-4.5.5-reference.png")
@@ -162,7 +165,7 @@ describe("Blender-like Node component playground", () => {
     expect(production).not.toContain("__nodeComponentRetainedObserver")
     expect(registry.selectors["node-ui"]).toMatchObject({
       package: "@nodes/ui",
-      httpMarker: "<title>Node Component Library</title>",
+      httpMarker: "<title>@nodes/ui</title>",
       ready: {kind: "dataset", name: "nodeComponentPlayground", value: "ready"},
       canvas: {selector: "#node-component-canvas", capability: "webgpu", touch: true},
       routes: {default: "/editor/scene"},

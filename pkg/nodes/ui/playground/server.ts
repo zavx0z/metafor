@@ -2,8 +2,7 @@ import {join} from "node:path"
 import {startPlaygroundServer} from "@ui/playground/server"
 
 const server = startPlaygroundServer({
-  name: "@nodes/ui playground",
-  title: "Node Component Library",
+  packageName: "@nodes/ui",
   canvasId: "node-component-canvas",
   hostname: Bun.env.NODES_COMPONENT_PLAYGROUND_HOST ?? "127.0.0.1",
   port: Number(Bun.env.NODES_COMPONENT_PLAYGROUND_PORT ?? 4016),

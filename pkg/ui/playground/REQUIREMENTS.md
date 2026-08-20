@@ -17,7 +17,8 @@ playground. Он не владеет production semantics UI Components либо
 5. Consumer preview является отдельной Surface; package не копирует и не
    адаптирует её renderer.
 6. Server helper отключает HMR, собирает browser entry по запросу и не владеет
-   persistent runtime process.
+   persistent runtime process. HTML title равен exact package name; отдельного
+   title override у consumer нет.
 7. Playground package не входит production bundle consumer без его прямого
    import.
 8. Navigation, dock и info владеют одним retained root и устойчивыми exact

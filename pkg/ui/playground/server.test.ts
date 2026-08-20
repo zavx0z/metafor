@@ -23,7 +23,7 @@ describe("@ui/playground server", () => {
       Bun.write(fontPath, new Uint8Array([0, 1, 2, 3])),
     ])
     const server = startPlaygroundServer({
-      name: "client entry fixture",
+      packageName: "@ui/playground",
       hostname: "127.0.0.1",
       port: 0,
       entrypoint,
@@ -32,6 +32,9 @@ describe("@ui/playground server", () => {
     })
 
     try {
+      const html = await fetch(server.url).then((response) => response.text())
+      expect(html).toContain("<title>@ui/playground</title>")
+      expect(html).not.toContain("fixture")
       const response = await fetch(new URL("/entry.js", server.url))
       const source = await response.text()
       expect(response.status).toBe(200)

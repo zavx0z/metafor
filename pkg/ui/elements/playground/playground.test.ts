@@ -140,7 +140,7 @@ describe("restored @ui/elements playground", () => {
     })
     try {
       const html = await waitForText(`http://127.0.0.1:${port}/layout/flex-css`)
-      expect(html).toContain("<title>@ui/elements playground</title>")
+      expect(html).toContain("<title>@ui/elements</title>")
       expect(html).toContain('<canvas id="stage-canvas"></canvas>')
       expect(html).toContain('<script type="module" src="/entry.js"></script>')
 
@@ -152,7 +152,11 @@ describe("restored @ui/elements playground", () => {
       expect(source).not.toContain("entry.js was not emitted")
 
       const serverSource = await Bun.file(join(playgroundRoot, "server.ts")).text()
+      const staticHtml = await Bun.file(join(playgroundRoot, "index.html")).text()
       expect(serverSource).toContain("startPlaygroundServer")
+      expect(serverSource).toContain('packageName: "@ui/elements"')
+      expect(serverSource).not.toContain("title:")
+      expect(staticHtml).toContain("<title>@ui/elements</title>")
       expect(serverSource).toContain("ELEMENTS_PLAYGROUND_PORT")
       expect(serverSource).toContain("7901")
       expect(serverSource).not.toContain("Bun.serve")

@@ -22,9 +22,12 @@ describe("@ui/playground package boundary", () => {
 
   test("builds one consumer without embedding package-specific vocabulary", async () => {
     const fixtureSource = await Bun.file(join(root, "fixture/entry.ts")).text()
+    const fixtureServer = await Bun.file(join(root, "fixture/server.ts")).text()
     expect(fixtureSource).toContain("createRetainedParent")
     expect(fixtureSource).toContain("playgroundRetained")
     expect(fixtureSource).toContain("definePlaygroundRoutes({routes, fallback: \"overview\"})")
+    expect(fixtureServer).toContain('packageName: "@ui/playground"')
+    expect(fixtureServer).not.toContain("title:")
     const build = await Bun.build({
       entrypoints: [join(root, "fixture/entry.ts")],
       target: "browser",

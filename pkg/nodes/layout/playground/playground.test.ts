@@ -339,6 +339,7 @@ describe("dev-only nodes layout playground", () => {
     const visibleSource = [html, client, fixtures, policies].join("\n")
 
     expect(html).toContain('<html lang="ru">')
+    expect(html).toContain("<title>@nodes/layout</title>")
     for (const required of [
       "Стенд раскладки",
       "Сценарий",

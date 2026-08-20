@@ -9,6 +9,7 @@ describe("Visual playground nested navigation", () => {
     ])
 
     expect(page).toContain("<h1>Visual layouts</h1>")
+    expect(page).toContain("<title>@metafor/visual</title>")
     expect(page).toContain('id="layout-canvas"')
     expect(client).toContain('layoutSection.textContent = "Layouts"')
     expect(client).toContain("for (const layout of Visual)")

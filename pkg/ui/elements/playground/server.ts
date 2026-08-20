@@ -2,8 +2,7 @@ import {join} from "node:path"
 import {startPlaygroundServer} from "@ui/playground/server"
 
 const server = startPlaygroundServer({
-  name: "@ui/elements playground",
-  title: "@ui/elements playground",
+  packageName: "@ui/elements",
   port: Number(process.env["ELEMENTS_PLAYGROUND_PORT"] ?? 7901),
   entrypoint: join(import.meta.dir, "entry.ts"),
   stylePath: join(import.meta.dir, "style.css"),

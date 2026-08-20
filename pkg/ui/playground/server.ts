@@ -1,12 +1,11 @@
 import {basename} from "node:path"
 
 export type PlaygroundServerOptions = Readonly<{
-  name: string
+  packageName: string
   port: number
   entrypoint: string
   stylePath: string
   fontPath: string
-  title?: string
   hostname?: string
   staticFiles?: Readonly<Record<string, string>>
   canvasId?: string
@@ -14,7 +13,6 @@ export type PlaygroundServerOptions = Readonly<{
 
 export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnType<typeof Bun.serve> {
   const hostname = options.hostname ?? "127.0.0.1"
-  const title = options.title ?? options.name
   const canvasId = options.canvasId ?? "playground-canvas"
   const html = `<!doctype html>
 <html lang="ru">
@@ -23,7 +21,7 @@ export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnT
     <base href="/">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta http-equiv="cache-control" content="no-cache">
-    <title>${escapeHtml(title)}</title>
+    <title>${escapeHtml(options.packageName)}</title>
     <link rel="stylesheet" href="/style.css">
   </head>
   <body>
