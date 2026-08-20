@@ -27,6 +27,7 @@ import type * as componentsTypography from "@ui/components/typography"
 import type * as componentsTextField from "@ui/components/text-field"
 import type * as componentsNumberInput from "@ui/components/number-input"
 import type * as componentsColorInput from "@ui/components/color-input"
+import type * as componentsVectorInput from "@ui/components/vector-input"
 import type * as componentsSwitcher from "@ui/components/switcher"
 import type * as componentsProgressCheckbox from "@ui/components/progress-checkbox"
 import type * as componentsSliderControl from "@ui/components/slider-control"
@@ -70,6 +71,7 @@ export type ExactProductionImports = {
     typeof componentsTextField,
     typeof componentsNumberInput,
     typeof componentsColorInput,
+    typeof componentsVectorInput,
     typeof componentsSwitcher,
     typeof componentsProgressCheckbox,
     typeof componentsSliderControl,

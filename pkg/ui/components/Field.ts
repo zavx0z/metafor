@@ -18,6 +18,13 @@ import {SliderControl} from "./SliderControl.ts"
 import {Switcher} from "./Switcher.ts"
 import {TextField} from "./TextField.ts"
 import {Typography} from "./Typography.ts"
+import {
+  measureVectorInputHeight,
+  VectorInput,
+  type VectorInputDensity,
+  type VectorInputDimension,
+  type VectorInputProps,
+} from "./VectorInput.ts"
 
 export type FieldColor = ColorInputValue
 export type FieldOption = Readonly<{value: string; label: string; description?: string}>
@@ -77,8 +84,9 @@ export type ColorFieldDefinition = FieldBase & Readonly<{
 export type VectorFieldDefinition = FieldBase & Readonly<{
   kind: "vector"
   value: readonly number[]
-  dimensions?: 2 | 3 | 4
+  dimensions?: VectorInputDimension
   axes?: readonly string[]
+  numberKind?: "float" | "integer"
   min?: number
   max?: number
   step?: number
@@ -204,8 +212,7 @@ export function measureFieldHeight(definition: FieldDefinition, options: FieldRe
 function compactFieldHeight(definition: FieldDefinition): number {
   const metrics = compactMetrics()
   if (definition.kind === "vector" || definition.kind === "rotation") {
-    const dimensions = definition.dimensions ?? Math.min(4, Math.max(2, definition.value.length))
-    return metrics.control * (dimensions + 1) + metrics.gap * dimensions
+    return metrics.control + metrics.gap + measureVectorInputHeight(vectorInputProps(definition, "compact"))
   }
   if (definition.kind === "matrix") {
     const rows = matrixRows(definition.value).length
@@ -407,9 +414,8 @@ function drawCompactVectorField(
   field: VectorFieldDefinition | RotationFieldDefinition,
   metrics: CompactMetrics,
 ): void {
-  const dimensions = field.dimensions ?? Math.min(4, Math.max(2, field.value.length)) as 2 | 3 | 4
-  const values = normalizeVectorFieldValue(field.value, dimensions, field)
-  const axes = field.axes ?? (field.kind === "rotation" ? ["X°", "Y°", "Z°", "W°"] : ["X", "Y", "Z", "W"])
+  const props = vectorInputProps(field, "compact")
+  const controlHeight = measureVectorInputHeight(props)
   flexColumn({
     x,
     y,
@@ -418,37 +424,9 @@ function drawCompactVectorField(
     gap: metrics.gap,
     items: [
       {height: metrics.control, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, fontPx: metrics.font})},
-      ...Array.from({length: dimensions}, (_, index) => ({
-        height: metrics.control,
-        draw: (rowX: number, rowY: number, rowW: number, rowH: number) => flexRow({
-          x: rowX,
-          y: rowY,
-          w: rowW,
-          h: rowH,
-          gap: metrics.gap,
-          items: [
-            {width: metrics.control, height: rowH, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: axes[index] ?? String(index), fontPx: metrics.font, color: "muted"})},
-            {width: "grow" as const, height: rowH, draw: (slotX: number, slotY: number, slotW: number, slotH: number) => {
-              const props: Parameters<typeof TextField>[5] = {
-                key: `${fieldKey(field)}:${index}`,
-                value: `${values[index]}${field.unit ?? ""}`,
-                disabled: isFieldDisabled(field),
-                submitOnEnter: true,
-                fontPx: metrics.font,
-                sx: compactTextStyle(metrics),
-              }
-              if (!isFieldDisabled(field)) props.onSubmit = (text) => {
-                const parsed = Number(text.replace(field.unit ?? "", "").trim())
-                if (!Number.isFinite(parsed)) return
-                const next = [...values]
-                next[index] = normalizeNumberFieldValue(parsed, field)
-                field.onChange?.(next)
-              }
-              TextField(host, slotX, slotY, slotW, slotH, props)
-            }},
-          ],
-        }),
-      })),
+      {height: controlHeight, draw: (slotX, slotY, slotW, slotH) => {
+        VectorInput(host, slotX, slotY, slotW, slotH, props)
+      }},
     ],
   })
 }
@@ -532,13 +510,7 @@ export {
   parseColorInputValue as parseFieldColor,
 } from "./ColorInput.ts"
 
-export function normalizeVectorFieldValue(
-  value: readonly number[],
-  dimensions: 2 | 3 | 4 = 3,
-  options: Pick<VectorFieldDefinition, "min" | "max" | "step"> = {},
-): readonly number[] {
-  return Array.from({length: dimensions}, (_, index) => normalizeNumberFieldValue(value[index] ?? 0, options))
-}
+export {normalizeVectorInputValue as normalizeVectorFieldValue} from "./VectorInput.ts"
 
 export function normalizeMatrixFieldValue(
   value: readonly (readonly number[])[],
@@ -678,48 +650,30 @@ function drawVectorField(
   height: number,
   field: VectorFieldDefinition | RotationFieldDefinition,
 ): void {
-  const dimensions = field.dimensions ?? (field.value.length >= 2 && field.value.length <= 4 ? field.value.length as 2 | 3 | 4 : 3)
-  const values = normalizeVectorFieldValue(field.value, dimensions, field)
-  const axes = field.axes ?? (field.kind === "rotation" ? ["X°", "Y°", "Z°", "W°"] : ["X", "Y", "Z", "W"])
-  flexRow({
-    x,
-    y,
-    w: width,
-    h: height,
-    gap: 5,
-    alignItems: "stretch",
-    items: Array.from({length: dimensions}, (_, index) => ({
-      width: "1fr" as const,
-      height,
-      draw: (cellX: number, cellY: number, cellW: number, cellH: number) => flexRow({
-        x: cellX,
-        y: cellY,
-        w: cellW,
-        h: cellH,
-        gap: 3,
-        alignItems: "stretch",
-        items: [
-          {width: 18, height: cellH, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: axes[index] ?? String(index), variant: "caption"})},
-          {width: "grow", height: cellH, draw: (slotX, slotY, slotW, slotH) => {
-            const props: Parameters<typeof TextField>[5] = {
-              key: `${fieldKey(field)}:${index}`,
-              value: String(values[index]),
-              disabled: isFieldDisabled(field),
-              submitOnEnter: true,
-            }
-            if (!isFieldDisabled(field)) props.onSubmit = (text) => {
-              const parsed = Number(text)
-              if (!Number.isFinite(parsed)) return
-              const next = [...values]
-              next[index] = normalizeNumberFieldValue(parsed, field)
-              field.onChange?.(next)
-            }
-            TextField(host, slotX, slotY, slotW, slotH, props)
-          }},
-        ],
-      }),
-    })),
-  })
+  VectorInput(host, x, y, width, height, vectorInputProps(field, "regular"))
+}
+
+function vectorInputProps(
+  field: VectorFieldDefinition | RotationFieldDefinition,
+  density: VectorInputDensity,
+): VectorInputProps {
+  const props: VectorInputProps = {
+    key: fieldKey(field),
+    value: field.value,
+    density,
+  }
+  if (field.dimensions !== undefined) props.dimensions = field.dimensions
+  const axes = field.axes ?? (field.kind === "rotation" ? ["X°", "Y°", "Z°", "W°"] : undefined)
+  if (axes !== undefined) props.axes = axes
+  if (field.numberKind !== undefined) props.numberKind = field.numberKind
+  if (field.min !== undefined) props.min = field.min
+  if (field.max !== undefined) props.max = field.max
+  if (field.step !== undefined) props.step = field.step
+  if (field.unit !== undefined) props.unit = field.unit
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onChange !== undefined) props.onChange = field.onChange
+  return props
 }
 
 function drawMatrixField(host: UiSurface, x: number, y: number, width: number, height: number, field: MatrixFieldDefinition): void {

@@ -47,6 +47,7 @@ const productionExports = Object.freeze({
     "./text-field": "./TextField.ts",
     "./number-input": "./NumberInput.ts",
     "./color-input": "./ColorInput.ts",
+    "./vector-input": "./VectorInput.ts",
     "./switcher": "./Switcher.ts",
     "./progress-checkbox": "./ProgressCheckbox.ts",
     "./slider-control": "./SliderControl.ts",
@@ -131,6 +132,7 @@ describe("production UI delivery baseline", () => {
       "exact-components-field.fixture.ts",
       "exact-components-number-input.fixture.ts",
       "exact-components-color-input.fixture.ts",
+      "exact-components-vector-input.fixture.ts",
       "exact-node-editor.fixture.ts",
       "root-api.fixture.ts",
     ]) {
@@ -165,6 +167,19 @@ describe("production UI delivery baseline", () => {
       .map(({source}) => source)
       .join("\n")
     expect(graph).toContain("function ColorInput")
+    expect(graph).not.toContain("function Field")
+    expect(graph).not.toContain("@nodes/ui")
+    expect(graph).not.toContain("NodeEditor")
+    expect(graph).not.toContain("@ui/playground")
+    expect(graph).not.toContain("definePlaygroundRoutes")
+  })
+
+  test("keeps the exact VectorInput leaf independent from Field, Node and playground symbols", async () => {
+    const fixture = join(uiRoot, "delivery/fixtures/exact-components-vector-input.fixture.ts")
+    const graph = (await outputSources(await buildBrowser([fixture], false)))
+      .map(({source}) => source)
+      .join("\n")
+    expect(graph).toContain("function VectorInput")
     expect(graph).not.toContain("function Field")
     expect(graph).not.toContain("@nodes/ui")
     expect(graph).not.toContain("NodeEditor")
