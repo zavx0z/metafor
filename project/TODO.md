@@ -183,6 +183,8 @@ integer Field (`Iterations = 3`) поверх shared numeric gesture owner; FLOA
 остаётся NumberInput, compatibility `numberKind:"integer"` не удаляется.
 Prerequisite UI-015.8.4 Ctrl/Ctrl+Shift linear drag snapping теперь IN_PROGRESS
 на stable aligned numeric baseline.
+Snap commit `b097460fe` завершён; UI-015.8.5 public IntegerInput теперь
+IN_PROGRESS с обязательными exact leaf/story/delivery/Node gates.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
