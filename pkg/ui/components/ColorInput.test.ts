@@ -1,7 +1,10 @@
 import {describe, expect, test} from "bun:test"
+import {Color} from "@metafor/engine"
 import {
+  blenderTheme,
   select,
   uiShapeMetrics,
+  Z,
   type ColorPickerPlaneDrawOptions,
   type DismissableLayerOptions,
   type UiSurfaceRect,
@@ -27,6 +30,7 @@ import {
 } from "./ColorInput.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
+type ShadowCall = Parameters<UiSurface["drawRoundedShadow"]>
 type HitCall = Parameters<UiSurface["hit"]>
 type PickerPlaneCall = Readonly<{
   x: number
@@ -41,6 +45,7 @@ class RecordingSurface extends BaseUiSurface {
   readonly hits: HitCall[] = []
   readonly pickerPlanes: PickerPlaneCall[] = []
   readonly dismissables: DismissableLayerOptions[] = []
+  readonly shadows: ShadowCall[] = []
   readonly scope: object
 
   constructor(scope: object = {}) {
@@ -52,7 +57,9 @@ class RecordingSurface extends BaseUiSurface {
     this.roundedRects.push(args)
   }
 
-  override drawRoundedShadow(): void {}
+  override drawRoundedShadow(...args: ShadowCall): void {
+    this.shadows.push(args)
+  }
 
   override hit(...args: HitCall): void {
     this.hits.push(args)
@@ -228,11 +235,21 @@ describe("public ColorInput", () => {
     ColorInput(compact, 10, 12, 146, 22, colorProps(() => {}, {presentation: "compact", open: true}))
     expect(compact.pickerPlanes.map(({options}) => options.mode)).toEqual(["swatch", "wheel", "value", "swatch"])
     expect(compact.dismissables).toHaveLength(1)
+    expect(compact.shadows).toHaveLength(1)
+    expect(compact.shadows[0]?.[4]).toEqual({
+      radius: uiShapeMetrics.lowRadius,
+      blur: blenderTheme.material.menuShadowWidth,
+      spread: 0,
+      color: new Color(0, 0, 0, 1),
+      opacity: blenderTheme.material.menuShadowFactor,
+      z: Z.ELEMENT + 0.19,
+    })
 
     const expanded = new RecordingSurface()
     ColorInput(expanded, 10, 12, 146, 137, colorProps(() => {}, {presentation: "expanded"}))
     expect(expanded.pickerPlanes.map(({options}) => options.mode)).toEqual(["wheel", "value", "swatch"])
     expect(expanded.dismissables).toHaveLength(0)
+    expect(expanded.shadows).toHaveLength(0)
     expect(expanded.hits.some((hit) => {
       const options = hit[5]
       return typeof options === "object" && String(options.key).includes("picker-hex")

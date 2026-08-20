@@ -73,6 +73,10 @@ control нельзя опустить в Elements только ради повт
    resource и не знает его domain. `EnumInput` единолично владеет optional
    selected/per-option icons и общей alignment column смешанного списка,
    передавая Field label как popup header через generic Select content hooks.
+   `ColorInput` использует source-backed HSV cursor: current RGB fill, black/
+   white value-derived contrast outlines и black/white narrow-slider indicator.
+   Только compact popup получает общий Blender menu shadow; expanded inline
+   presentation не рисует popup shadow.
 5. Field renderer вызывается одинаково на обычной Surface и внутри Node
    renderer. Node package может выбирать field по socket type, но не копирует
    field implementation.

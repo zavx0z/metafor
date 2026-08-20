@@ -1,5 +1,7 @@
+import {Color} from "@metafor/engine"
 import {
   blenderRgba8ToColor,
+  blenderTheme,
   button,
   div,
   flexColumn,
@@ -106,6 +108,14 @@ function drawCompactColor(
     },
     content(rect) {
       const menu = resolveWidgetColors("menuBack")
+      host.drawRoundedShadow(rect.x, rect.y, rect.w, rect.h, {
+        radius: uiShapeMetrics.lowRadius,
+        blur: blenderTheme.material.menuShadowWidth,
+        spread: 0,
+        color: new Color(0, 0, 0, 1),
+        opacity: blenderTheme.material.menuShadowFactor,
+        z: Z.ELEMENT + 0.19,
+      })
       div(host, rect.x, rect.y, rect.w, rect.h, {
         style: {
           background: blenderRgba8ToColor(menu.inner),

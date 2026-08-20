@@ -1,7 +1,7 @@
+import {Color} from "@metafor/engine"
 import {
   blenderRgba8ToColor,
   blenderTheme,
-  palette,
   type ColorPickerPlaneDrawOptions,
   type HitOptions,
   type UiSurface,
@@ -36,6 +36,7 @@ export function colorPickerPlane(
   const value = normalizeColorPickerValue(props.value)
   const disabled = props.disabled === true
   const key = props.key ?? `color-picker:${props.mode}:${x}:${y}:${width}:${height}`
+  const state = surface.hitState(x, y, width, height, key)
   surface.registerRenderKey(key)
   surface.drawColorPickerPlane(x, y, width, height, {
     mode: props.mode,
@@ -49,7 +50,7 @@ export function colorPickerPlane(
     checkerSize: blenderTheme.material.checkerSize,
     z: Z.ELEMENT + 0.22,
   })
-  drawPickerMarker(surface, x, y, width, height, props.mode, value, disabled)
+  drawPickerMarker(surface, x, y, width, height, props.mode, value, disabled, state.pressed)
   if (disabled || props.onChange === undefined) return
 
   const publishAt = (localX: number, localY: number): void => {
@@ -133,35 +134,79 @@ function drawPickerMarker(
   mode: ColorPickerPlaneProps["mode"],
   value: ColorPickerValue,
   disabled: boolean,
+  pressed: boolean,
 ): void {
-  const opacity = disabled ? 0.38 : 0.92
+  const opacity = disabled ? 0.38 : 1
   if (mode === "wheel") {
-    const markerSize = 7
+    const markerSize = (pressed ? 20 : 12) + 1
     const radius = Math.min(width, height) / 2
     const angle = value.h * Math.PI * 2
     const cx = x + width / 2 + Math.cos(angle) * value.s * radius
     const cy = y + height / 2 + Math.sin(angle) * value.s * radius
+    const fill = colorPickerRgb(value)
+    const darkOutline = new Color(0, 0, 0, value.v / 2)
+    const lightOutline = new Color(1, 1, 1, Math.min(1 - value.v + 0.2, 0.8))
     surface.drawRoundedRect(cx - markerSize / 2, cy - markerSize / 2, markerSize, markerSize, {
       radius: markerSize / 2,
-      fill: palette.borderDim,
-      border: palette.text,
+      fill,
+      border: darkOutline,
       borderWidth: 1,
       opacity,
       z: Z.TEXT + 0.22,
     })
+    const innerSize = Math.max(0, markerSize - 1)
+    surface.drawRoundedRect(cx - innerSize / 2, cy - innerSize / 2, innerSize, innerSize, {
+      radius: innerSize / 2,
+      fill,
+      border: lightOutline,
+      borderWidth: 1,
+      opacity,
+      z: Z.TEXT + 0.23,
+    })
     return
   }
   const level = mode === "value" ? value.v : value.a
-  const markerHeight = 2
-  const markerY = y + (1 - level) * height
-  surface.drawRoundedRect(x - 1, markerY - markerHeight / 2, width + 2, markerHeight, {
-    radius: 1,
-    fill: palette.text,
-    border: palette.bgInput,
-    borderWidth: 1,
+  const markerY = clamp(y + (1 - level) * height, y + 2, y + height - 2)
+  const activeInset = pressed ? 1 : 0
+  const markerHeight = Math.max(width * 0.7, 2) + activeInset * 2
+  const markerX = x - activeInset
+  const markerWidth = width + activeInset * 2
+  const markerTop = markerY - markerHeight / 2
+  surface.drawRoundedRect(markerX, markerTop, markerWidth, markerHeight, {
+    radius: 0,
+    fill: new Color(0, 0, 0, 1),
+    border: null,
+    borderWidth: 0,
     opacity,
     z: Z.TEXT + 0.22,
   })
+  surface.drawRoundedRect(markerX, markerTop + 1, markerWidth, Math.max(0, markerHeight - 2), {
+    radius: 0,
+    fill: null,
+    border: new Color(1, 1, 1, 1),
+    borderWidth: 1,
+    opacity,
+    z: Z.TEXT + 0.23,
+  })
+}
+
+function colorPickerRgb(value: ColorPickerValue): Color {
+  const hue = wrapUnit(value.h) * 6
+  const chroma = value.v * value.s
+  const x = chroma * (1 - Math.abs(hue % 2 - 1))
+  const offset = value.v - chroma
+  const [r, g, b] = hue < 1
+    ? [chroma, x, 0]
+    : hue < 2
+      ? [x, chroma, 0]
+      : hue < 3
+        ? [0, chroma, x]
+        : hue < 4
+          ? [0, x, chroma]
+          : hue < 5
+            ? [x, 0, chroma]
+            : [chroma, 0, x]
+  return new Color(r + offset, g + offset, b + offset, 1)
 }
 
 function finite(value: number, fallback: number): number {
@@ -170,6 +215,10 @@ function finite(value: number, fallback: number): number {
 
 function clampUnit(value: number): number {
   return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function wrapUnit(value: number): number {
