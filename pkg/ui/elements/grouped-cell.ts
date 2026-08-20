@@ -28,7 +28,8 @@ export function drawGroupedCellChrome(
   appearance: GroupedCellAppearance,
 ): void {
   if (rect.width <= 0 || rect.height <= 0) return
-  const fill = backgroundColor(style)
+  const hasBackground = style.background !== undefined || style.backgroundColor !== undefined
+  const fill = hasBackground ? backgroundColor(style) : null
   const border = style.borderColor === null || style.borderColor === undefined ? null : cssColor(style.borderColor)
   if (fill === null && border === null) return
   const radius = Math.min(uiShapeMetrics.lowRadius, rect.width / 2, rect.height / 2)
