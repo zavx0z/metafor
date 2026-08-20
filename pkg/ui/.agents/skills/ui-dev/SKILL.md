@@ -21,6 +21,7 @@ memory:
 
 ```bash
 pkg/ui/.agents/skills/ui-dev/scripts/ui-dev.sh status  <checkout> <selector>
+pkg/ui/.agents/skills/ui-dev/scripts/ui-dev.sh ensure  <checkout> <selector>
 pkg/ui/.agents/skills/ui-dev/scripts/ui-dev.sh start   <checkout> <selector>
 pkg/ui/.agents/skills/ui-dev/scripts/ui-dev.sh restart <checkout> <selector>
 pkg/ui/.agents/skills/ui-dev/scripts/ui-dev.sh logs    <checkout> <selector>
@@ -28,7 +29,13 @@ pkg/ui/.agents/skills/ui-dev/scripts/ui-dev.sh health  <checkout> <selector>
 pkg/ui/.agents/skills/ui-dev/scripts/ui-dev.sh stop    <checkout> <selector>
 ```
 
-`start` and `restart` remain in the foreground and belong in a long-lived PTY.
+Before its first lifecycle or browser operation, the supervising task runs
+`ensure`. A healthy exact contour is reused and `ensure` returns immediately. If
+the contour is stopped, `ensure` starts it in the foreground and the supervising
+task retains that long-lived PTY. A short-lived source subagent never owns the
+live contour.
+
+`start` and `restart` also remain in the foreground and belong in a long-lived PTY.
 The dispatcher stops only its exact checkout/selector/PID/command/listener.
 Foreign listeners are reported and preserved; a second process is never
 started or adopted.

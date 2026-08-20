@@ -26,12 +26,24 @@ From the exact checkout root:
 ```bash
 SKILL=pkg/ui/.agents/skills/ui-dev
 "$SKILL/scripts/ui-dev.sh" status "$PWD" components
-"$SKILL/scripts/ui-dev.sh" start "$PWD" components
+"$SKILL/scripts/ui-dev.sh" ensure "$PWD" components
 ```
 
-Launch `start` or `restart` through a long-lived PTY and keep its session ID.
-The command prints structured state when ready and then waits on the exact Bun
-child. A detached child is not persistent under the Codex tool process group.
+The supervising task runs `ensure` before its first lifecycle or browser
+operation. For an exact healthy process it reports `outcome:"reused"` and
+returns without changing the PID. For a stopped selector it reports
+`outcome:"started"` when ready, then remains foreground owner of the exact Bun
+child; launch it through a long-lived PTY and keep its session ID. A short-lived
+source subagent does not own this PTY. `start` and `restart` have the same
+foreground lifetime when explicitly needed. A detached child is not persistent
+under the Codex tool process group.
+
+`status` includes one bounded `lastExit` record. TERM/HUP loss of the owning
+wrapper is reported as `owner-session-lost` with a recovery hint; explicit
+`stop` overwrites it with `manual-stop`. `ensure` preserves a foreign listener
+with `outcome:"refused-foreign"`, and reports an exact owned but unhealthy
+process as `outcome:"owned-unhealthy"` without restarting or killing it. Use an
+explicit `restart` only after diagnosing that state.
 
 Every action resolves cwd, argv, port environment, origin, HTTP marker, DOM
 ready marker, canvas capability, state key, PID and log from the registry. An

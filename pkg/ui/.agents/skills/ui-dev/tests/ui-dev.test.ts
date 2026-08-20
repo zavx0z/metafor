@@ -21,6 +21,15 @@ type Status = Readonly<{
   managedHealthy?: boolean
   testOverride?: boolean
   reason?: string
+  outcome?: string
+  lastExit?: Readonly<{
+    reason: string
+    pid: number | null
+    signal: string | null
+    exitCode: number | null
+    at: string
+  }> | null
+  recoveryHint?: string | null
 }>
 
 const skillRoot = resolve(import.meta.dir, "..")
@@ -133,6 +142,107 @@ describe("ui-dev registry", () => {
 })
 
 describe("ui-dev lifecycle dispatcher", () => {
+  test("recovers an exact selector after its owning ensure session exits", async () => {
+    const port = await freePort()
+    const root = await stateRoot()
+    const firstOwner = spawnLong("ensure", "components", port, root)
+    let secondOwner: ReturnType<typeof Bun.spawn> | null = null
+    try {
+      const first = await waitOwned("components", port, root)
+      const reused = await run("ensure", "components", port, root)
+      expect(reused.exitCode).toBe(0)
+      expect(parseStatus(reused)).toMatchObject({
+        outcome: "reused",
+        ownership: "skill",
+        managedHealthy: true,
+        pid: first.pid,
+      })
+
+      firstOwner.kill("SIGTERM")
+      expect(await firstOwner.exited).toBe(143)
+      const stopped = await waitStopped("components", port, root)
+      expect(stopped).toMatchObject({
+        status: "stopped",
+        ownership: "none",
+        pid: null,
+        lastExit: {
+          reason: "owner-session-lost",
+          pid: first.pid,
+          signal: "TERM",
+          exitCode: 143,
+        },
+      })
+      expect(stopped.recoveryHint).toContain("ensure")
+
+      secondOwner = spawnLong("ensure", "components", port, root)
+      const recovered = await waitOwned("components", port, root, first.pid ?? undefined)
+      expect(recovered.pid).not.toBe(first.pid)
+      const recoveredReuse = await run("ensure", "components", port, root)
+      expect(recoveredReuse.exitCode).toBe(0)
+      expect(parseStatus(recoveredReuse)).toMatchObject({
+        outcome: "reused",
+        pid: recovered.pid,
+      })
+
+      const stoppedManually = await run("stop", "components", port, root)
+      expect(stoppedManually.exitCode).toBe(0)
+      expect(parseStatus(stoppedManually)).toMatchObject({
+        status: "stopped",
+        lastExit: {reason: "manual-stop", pid: recovered.pid},
+        recoveryHint: null,
+      })
+      await secondOwner.exited
+      const settledStop = await run("status", "components", port, root)
+      expect(settledStop.exitCode).toBe(0)
+      expect(parseStatus(settledStop)).toMatchObject({
+        status: "stopped",
+        lastExit: {reason: "manual-stop", pid: recovered.pid},
+      })
+    } finally {
+      await run("stop", "components", port, root)
+      firstOwner.kill()
+      secondOwner?.kill()
+    }
+  }, 40000)
+
+  test("refuses ensure for an exact owned but unhealthy selector", async () => {
+    const port = await freePort()
+    const root = await stateRoot()
+    const owner = spawnLong("start", "components", port, root)
+    let ownedPid: number | null = null
+    try {
+      const owned = await waitOwned("components", port, root)
+      ownedPid = owned.pid ?? null
+      expect(ownedPid).not.toBeNull()
+      process.kill(ownedPid!, "SIGSTOP")
+      const refused = await run("ensure", "components", port, root)
+      expect(refused.exitCode).toBe(4)
+      expect(parseStatus(refused)).toMatchObject({
+        outcome: "owned-unhealthy",
+        ownership: "skill",
+        pid: ownedPid,
+        managedHealthy: false,
+      })
+      expect(process.kill(ownedPid!, 0)).toBe(true)
+      process.kill(ownedPid!, "SIGCONT")
+      const recovered = await waitOwned("components", port, root)
+      expect(recovered.pid).toBe(ownedPid)
+      const stopped = await run("stop", "components", port, root)
+      expect(stopped.exitCode).toBe(0)
+      await owner.exited
+    } finally {
+      if (ownedPid !== null) {
+        try {
+          process.kill(ownedPid, "SIGCONT")
+        } catch {
+          // The exact test-owned child already exited.
+        }
+      }
+      await run("stop", "components", port, root)
+      owner.kill()
+    }
+  }, 30000)
+
   test("runs exact Elements lifecycle and preserves one owned package listener", async () => {
     const port = await freePort()
     const root = await stateRoot()
@@ -246,6 +356,9 @@ describe("ui-dev lifecycle dispatcher", () => {
       expect(parseStatus(status)).toMatchObject({status: "foreign", ownership: "foreign", managedHealthy: false})
       const refusedStart = await run("start", "node-ui", port, root)
       expect(refusedStart.exitCode).toBe(2)
+      const refusedEnsure = await run("ensure", "node-ui", port, root)
+      expect(refusedEnsure.exitCode).toBe(2)
+      expect(parseStatus(refusedEnsure)).toMatchObject({outcome: "refused-foreign", ownership: "foreign"})
       const refusedStop = await run("stop", "node-ui", port, root)
       expect(refusedStop.exitCode).toBe(2)
       expect(await fetch(`http://127.0.0.1:${port}/`).then((response) => response.text())).toContain("foreign")
@@ -278,7 +391,7 @@ function environment(port: number | undefined, root: string): Record<string, str
   }
 }
 
-function spawnLong(action: "start" | "restart", selector: string, port: number, root: string) {
+function spawnLong(action: "ensure" | "start" | "restart", selector: string, port: number, root: string) {
   return Bun.spawn([dispatcher, action, checkout, selector], {
     cwd: checkout,
     env: environment(port, root),
@@ -317,4 +430,15 @@ async function waitOwned(selector: string, port: number, root: string, previousP
     await Bun.sleep(100)
   }
   throw new Error(`selector did not become owned: ${JSON.stringify(last)}`)
+}
+
+async function waitStopped(selector: string, port: number, root: string): Promise<Status> {
+  let last: RunResult | null = null
+  for (let attempt = 0; attempt < 100; attempt++) {
+    last = await run("status", selector, port, root)
+    const status = parseStatus(last)
+    if (status.status === "stopped" && status.ownership === "none") return status
+    await Bun.sleep(100)
+  }
+  throw new Error(`selector did not stop: ${JSON.stringify(last)}`)
 }
