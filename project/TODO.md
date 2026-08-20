@@ -129,7 +129,10 @@ acceptance. UI-015.8.3 после popup correction добавляет отсут
 step/scrub/text-transition gestures числовым полям; UI-015.9 ждёт и popup owner,
 и numeric interaction, затем проверяет те же controls внутри expanded Node.
 Numeric UI-015.8.3 идёт независимо correction chain на exact
-`interface_handlers.cc` gesture law; Node gate ждёт оба направления.
+`interface_handlers.cc` gesture law. Commit `21425023f` получил architecture/
+delegation PASS, но исправляет threshold reset, frozen adaptive range и soft
+side clamp; новый UI-015.8.4 следом добавляет Ctrl/Ctrl+Shift linear snapping.
+Node gate ждёт оба направления.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
