@@ -91,6 +91,13 @@ export function createCollectionInputStory(variant: CollectionInputStoryVariant)
           globalThis.__componentsStoryControlBridge?.("selected-id", null)
           globalThis.__componentsStoryControlBridge?.("event", `onRemove: ${id}`)
         },
+        onMove(id, direction) {
+          const next = moveCollectionItem(items, id, direction)
+          if (next === items) return
+          const moveLabel = direction === "up" ? "вверх" : "вниз"
+          globalThis.__componentsStoryControlBridge?.("items", next)
+          globalThis.__componentsStoryControlBridge?.("event", `onMove: ${id}, ${moveLabel}`)
+        },
       }
       const width = Math.min(460, Math.max(310, frame.w * 0.52))
       const height = measureCollectionInputHeight(props)
@@ -136,6 +143,7 @@ function collectionInputSource(args: CollectionInputStoryArgs): string {
     "  onSelect: setSelectedId,",
     "  onAdd: addItem,",
     "  onRemove: removeItem,",
+    "  onMove: moveItem,",
   )
   return [
     'import {CollectionInput, type CollectionInputItem} from "@ui/components/collection-input"',
@@ -172,4 +180,19 @@ function nextItemId(items: readonly CollectionInputItem[]): string {
   let index = items.length + 1
   while (items.some(({id}) => id === `item-${index}`)) index += 1
   return `item-${index}`
+}
+
+function moveCollectionItem(
+  items: readonly CollectionInputItem[],
+  id: string,
+  direction: "up" | "down",
+): readonly CollectionInputItem[] {
+  const index = items.findIndex((item) => item.id === id)
+  const targetIndex = direction === "up" ? index - 1 : index + 1
+  if (index < 0 || targetIndex < 0 || targetIndex >= items.length) return items
+  return Object.freeze(items.map((item, itemIndex) => {
+    if (itemIndex === index) return items[targetIndex]!
+    if (itemIndex === targetIndex) return items[index]!
+    return item
+  }))
 }

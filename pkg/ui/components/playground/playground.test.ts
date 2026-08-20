@@ -35,6 +35,13 @@ class StoryActionSurface extends BaseUiSurface {
   protected render(): void {}
 }
 
+function storyActionHit(surface: StoryActionSurface, label: "↑" | "↓"): HitCall | undefined {
+  return surface.hits.find((hit) => {
+    const options = hit[5]
+    return typeof options === "object" && options !== null && options.key?.endsWith(`:${label}`) === true
+  })
+}
+
 beforeAll(async () => {
   const bytes = await Bun.file(new URL("../../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
   font = new TrueTypeFont(bytes)
@@ -315,13 +322,14 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(collectionSource).toContain("onSelect: setSelectedId")
     expect(collectionSource).toContain("onAdd: addItem")
     expect(collectionSource).toContain("onRemove: removeItem")
+    expect(collectionSource).toContain("onMove: moveItem")
 
     const bridgeEvents: [string, unknown][] = []
     globalThis.__componentsStoryControlBridge = (key, value) => bridgeEvents.push([key, value])
     const actionSurface = new StoryActionSurface()
     try {
       collection.render(actionSurface, collection.defaultArgs, {x: 0, y: 0, w: 1024, h: 720})
-      for (const hit of actionSurface.hits) hit[4]()
+      for (const hit of actionSurface.hits.slice(0, 4)) hit[4]()
     } finally {
       globalThis.__componentsStoryControlBridge = undefined
       actionSurface.dispose()
@@ -362,6 +370,7 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onSelect: ${id}`)')
     expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", "onAdd")')
     expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onRemove: ${id}`)')
+    expect(collectionImplementation).toContain('globalThis.__componentsStoryControlBridge?.("event", `onMove: ${id}, ${moveLabel}`)')
 
     const referenceField = await COMPONENT_STORIES.load("field/reference/default")
     expect(referenceField.source(referenceField.defaultArgs)).toContain('from "@ui/components/field"')
@@ -369,6 +378,62 @@ describe("@ui/components package-owned Workbench stories", () => {
     const collectionField = await COMPONENT_STORIES.load("field/collection/default")
     expect(collectionField.source(collectionField.defaultArgs)).toContain('kind: "collection"')
     expect(collectionField.source(collectionField.defaultArgs)).toContain("onSelect: setSelectedId")
+  })
+
+  test("reorders CollectionInput story items immutably and preserves the controlled selection", async () => {
+    const collection = await COMPONENT_STORIES.load("collection-input/value/selected")
+    const initialItems = collection.defaultArgs.items as readonly Readonly<{id: string}>[]
+
+    for (const scenario of [
+      {
+        selectedId: "rotation",
+        legalLabel: "↑",
+        blockedLabel: "↓",
+        directionLabel: "вверх",
+        order: ["position", "rotation", "normal"],
+      },
+      {
+        selectedId: "position",
+        legalLabel: "↓",
+        blockedLabel: "↑",
+        directionLabel: "вниз",
+        order: ["normal", "position", "rotation"],
+      },
+    ] as const) {
+      const bridgeEvents: [string, unknown][] = []
+      const surface = new StoryActionSurface()
+      globalThis.__componentsStoryControlBridge = (key, value) => bridgeEvents.push([key, value])
+      try {
+        collection.render(surface, {...collection.defaultArgs, "selected-id": scenario.selectedId}, {
+          x: 0,
+          y: 0,
+          w: 1024,
+          h: 720,
+        })
+        const legal = storyActionHit(surface, scenario.legalLabel)
+        const blocked = storyActionHit(surface, scenario.blockedLabel)
+        expect(legal).toBeDefined()
+        expect(blocked).toBeDefined()
+        blocked![4]()
+        expect(bridgeEvents).toEqual([])
+        legal![4]()
+      } finally {
+        globalThis.__componentsStoryControlBridge = undefined
+        surface.dispose()
+      }
+
+      expect(bridgeEvents.map(([key]) => key)).toEqual(["items", "event"])
+      const movedItems = bridgeEvents[0]![1] as readonly Readonly<{id: string}>[]
+      expect(movedItems).not.toBe(initialItems)
+      expect(Object.isFrozen(movedItems)).toBeTrue()
+      expect(movedItems.map(({id}) => id)).toEqual([...scenario.order])
+      expect(bridgeEvents[1]).toEqual([
+        "event",
+        `onMove: ${scenario.selectedId}, ${scenario.directionLabel}`,
+      ])
+      expect(bridgeEvents.some(([key]) => key === "selected-id")).toBeFalse()
+      expect(initialItems.map(({id}) => id)).toEqual(["position", "normal", "rotation"])
+    }
   })
 
   test("loads exact public Button, Pane and Field stories lazily", async () => {
