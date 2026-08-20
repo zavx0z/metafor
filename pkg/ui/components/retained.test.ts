@@ -315,14 +315,16 @@ describe("retained UI Components boundary", () => {
       expectOnlyOwnerAdvanced(surface, beforeCounters, "button")
       expectOwnersStable(surface, beforeOwners, "button")
 
-      const buttonDelay = [...timeoutCallbacks.entries()][0]
-      expect(buttonDelay).toBeDefined()
+      expect(timeoutCallbacks.size).toBe(0)
+
       beforeCounters = copyCounters(surface)
       beforeOwners = snapshotOwners(surface)
-      timeoutCallbacks.delete(buttonDelay![0])
-      buttonDelay![1]()
+      surface.onPointerDown(pointer, 80, 36)
       surface.flushPendingRender()
-      expectOnlyOwnerAdvanced(surface, beforeCounters, "button")
+      surface.onPointerUp(pointer, 80, 36)
+      surface.flushPendingRender()
+      expect(surface.buttonClicks).toBe(2)
+      expectOnlyOwnerAdvanced(surface, beforeCounters, "button", 2)
       expectOwnersStable(surface, beforeOwners, "button")
 
       beforeCounters = copyCounters(surface)
@@ -392,9 +394,9 @@ describe("retained UI Components boundary", () => {
       expectOnlyOwnerAdvanced(surface, beforeCounters, "table")
       expectOwnersStable(surface, beforeOwners, "table")
 
-      expect(surface.surfaceRenderPasses).toBe(11)
+      expect(surface.surfaceRenderPasses).toBe(12)
       expect(surface.counters).toEqual({
-        button: {layoutPlans: 5, materializations: 5},
+        button: {layoutPlans: 6, materializations: 6},
         regularTextField: {layoutPlans: 3, materializations: 3},
         regularCheckboxField: {layoutPlans: 3, materializations: 3},
         compactSwitcherField: {layoutPlans: 3, materializations: 3},

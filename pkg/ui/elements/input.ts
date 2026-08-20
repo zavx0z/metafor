@@ -193,7 +193,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
 
   const chromeStyle: StyleProps = {
     ...style,
-    borderColor: style.borderColor === undefined ? active ? "cyan" : "borderDim" : style.borderColor,
+    borderColor: style.borderColor === undefined ? active ? "cyan" : "borderRule" : style.borderColor,
     borderRadius: style.borderRadius ?? uiShapeMetrics.lowRadius,
     borderWidth: style.borderWidth ?? uiShapeMetrics.borderWidth,
   }

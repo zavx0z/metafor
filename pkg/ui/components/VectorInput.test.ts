@@ -3,6 +3,7 @@ import {
   createInputEditState,
   focusInput,
   handleActiveInputKey,
+  uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -143,7 +144,7 @@ describe("public VectorInput", () => {
     expect(regular.roundedRects[0]?.[1]).toBe(9)
     expect(regular.roundedRects[0]?.[2]).toBeCloseTo(75.666667)
     expect(regular.roundedRects[0]?.[3]).toBe(22)
-    expect(regular.roundedRects[0]?.[4].radius).toBe(3)
+    expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
 
     const compact = new RecordingSurface()
     const compactHeight = measureVectorInputHeight({value: [1, 2, 3], density: "compact"})
@@ -155,7 +156,7 @@ describe("public VectorInput", () => {
       {x: 29, y: 31, w: 95, h: 22},
       {x: 29, y: 56, w: 95, h: 22},
     ])
-    expect(compact.roundedRects[0]?.[4].radius).toBe(3)
+    expect(compact.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
   })
 
   test("returns the same value standalone and through vector and rotation Field densities", () => {

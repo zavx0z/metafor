@@ -133,7 +133,7 @@ describe("public NumberInput", () => {
       borderWidth: uiShapeMetrics.borderWidth,
     })
     expect(style.fill).toEqual(palette.bgInput)
-    expect(style.border).toEqual(palette.borderDim)
+    expect(style.border).toEqual(palette.borderRule)
     expect(regularStyle.fill).toEqual(style.fill)
     expect(regularStyle.border).toEqual(style.border)
   })

@@ -1,4 +1,4 @@
-import {flexColumn, flexRow, palette, uiIcons, type UiSurface} from "@ui/elements"
+import {flexColumn, flexRow, palette, uiIcons, uiShapeMetrics, type UiSurface} from "@ui/elements"
 import {Button, IconButton, type ButtonProps, type IconButtonProps} from "./Button.ts"
 import {List, type ListItemProps, type ListProps} from "./List.ts"
 
@@ -136,9 +136,9 @@ type CollectionInputMetrics = Readonly<{
 
 function collectionInputMetrics(density: CollectionInputDensity | undefined): CollectionInputMetrics {
   if (density === "compact") {
-    return {rowHeight: 24, actionSize: 22, actionGap: 3, dockGap: 3, radius: 3, fontPx: 11}
+    return {rowHeight: 24, actionSize: 22, actionGap: 3, dockGap: 3, radius: uiShapeMetrics.lowRadius, fontPx: 11}
   }
-  return {rowHeight: 36, actionSize: 28, actionGap: 4, dockGap: 7, radius: 6, fontPx: 12}
+  return {rowHeight: 36, actionSize: 28, actionGap: 4, dockGap: 7, radius: uiShapeMetrics.lowRadius, fontPx: 12}
 }
 
 function collectionInputListItems(
@@ -252,7 +252,6 @@ function collectionActionProps(
   }
   if (metrics.actionSize === 22) {
     props.fill = palette.bgInput
-    props.border = palette.borderDim
   }
   if (action !== undefined) props.action = action
   return props
@@ -275,7 +274,6 @@ function collectionMoveActionProps(
   }
   if (metrics.actionSize === 22) {
     props.fill = palette.bgInput
-    props.border = palette.borderDim
   }
   if (action !== undefined) props.action = action
   return props

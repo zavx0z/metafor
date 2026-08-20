@@ -18,6 +18,7 @@ import {drawIcon} from "./icon.ts"
 import {createInputEditState, focusInput, handleActiveInputKey, input} from "./input.ts"
 import {li, liY, ul, ulContentHeight} from "./list.ts"
 import {flexColumn, flexRow} from "./flex.ts"
+import {select} from "./select.ts"
 
 class RetainedTestSurface extends UiSurface {
   constructor() {
@@ -177,6 +178,49 @@ class RetainedElementsSurface extends UiSurface {
     this.counters.siblingMaterializations += 1
     this.registerRenderKey("ambiguous-owner")
     this.drawRect(296, 8, 16, 160, new Color(0.7, 0.3, 0.2, 1))
+  }
+}
+
+class RetainedSelectSurface extends UiSurface {
+  readonly selectOwner: Object3D
+  readonly sibling: Object3D
+  selectMaterializations = 0
+  siblingMaterializations = 0
+  surfaceRenderPasses = 0
+  value = "multiply"
+  #mounted = false
+
+  constructor() {
+    super({bgColor: null, borderColor: null})
+    this.selectOwner = this.createRetainedParent()
+    this.sibling = this.createRetainedParent()
+  }
+
+  protected render(): void {
+    this.surfaceRenderPasses += 1
+    if (this.#mounted) return
+    this.#mounted = true
+    this.materializeRetainedParent(this.selectOwner, this.#drawSelect)
+    this.materializeRetainedParent(this.sibling, this.#drawSibling)
+  }
+
+  readonly #drawSelect = (): void => {
+    this.selectMaterializations += 1
+    select(this, 10, 10, 120, 22, {
+      key: "retained-select",
+      value: this.value,
+      options: [
+        {value: "add", label: "Add"},
+        {value: "multiply", label: "Multiply"},
+        {value: "subtract", label: "Subtract"},
+      ],
+      onChange: (value) => { this.value = value },
+    })
+  }
+
+  readonly #drawSibling = (): void => {
+    this.siblingMaterializations += 1
+    this.drawRect(160, 10, 30, 22, new Color(0.7, 0.3, 0.2, 1))
   }
 }
 
@@ -743,5 +787,41 @@ describe("UiSurface retained component parent", () => {
       globalThis.cancelAnimationFrame = originalCancelAnimationFrame
       surface.dispose()
     }
+  })
+
+  test("rematerializes only the exact select owner for disclosure and choice", () => {
+    const fake = createFakeRuntime()
+    const surface = new RetainedSelectSurface()
+    surface.attachCanvas(fake.runtime)
+    surface.setRect({x: 0, y: 0, w: 220, h: 140}, 0.001, font)
+
+    const siblingChildren = [...surface.sibling.children]
+    const siblingGeometry = (siblingChildren[0] as Mesh).geometry
+    expect({
+      select: surface.selectMaterializations,
+      sibling: surface.siblingMaterializations,
+    }).toEqual({select: 1, sibling: 1})
+
+    surface.onPointerDown({} as MouseEvent, 20, 20)
+    surface.onPointerUp({} as MouseEvent, 20, 20)
+    surface.flushPendingRender()
+    expect({
+      select: surface.selectMaterializations,
+      sibling: surface.siblingMaterializations,
+    }).toEqual({select: 2, sibling: 1})
+    expect(surface.sibling.children).toEqual(siblingChildren)
+    expect((surface.sibling.children[0] as Mesh).geometry).toBe(siblingGeometry)
+
+    surface.onPointerDown({} as MouseEvent, 20, 88)
+    surface.onPointerUp({} as MouseEvent, 20, 88)
+    surface.flushPendingRender()
+    expect(surface.value).toBe("subtract")
+    expect({
+      select: surface.selectMaterializations,
+      sibling: surface.siblingMaterializations,
+    }).toEqual({select: 3, sibling: 1})
+    expect(surface.sibling.children).toEqual(siblingChildren)
+    expect((surface.sibling.children[0] as Mesh).geometry).toBe(siblingGeometry)
+    surface.dispose()
   })
 })

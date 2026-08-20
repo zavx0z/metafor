@@ -151,12 +151,18 @@ describe("public PathInput", () => {
       {x: 4, y: 6, w: 95, h: uiShapeMetrics.controlHeight},
       {x: 102, y: 6, w: uiShapeMetrics.iconActionSlot, h: uiShapeMetrics.controlHeight},
     ])
-    for (const call of [...regular.roundedRects, ...compact.roundedRects]) {
+    const calls = [...regular.roundedRects, ...compact.roundedRects]
+    for (const call of calls) {
       expect(call[4].radius).toBe(uiShapeMetrics.lowRadius)
       expect(call[4].borderWidth).toBe(uiShapeMetrics.borderWidth)
       expect(call[4].fill).toEqual(palette.bgInput)
-      expect(call[4].border).toEqual(palette.borderDim)
     }
+    expect(calls.map((call) => call[4].border)).toEqual([
+      palette.borderRule,
+      palette.borderRule,
+      palette.borderRule,
+      palette.borderRule,
+    ])
   })
 
   test("returns the same raw callbacks standalone and through both path Field densities", () => {

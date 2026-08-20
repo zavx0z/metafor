@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {uiShapeMetrics as publicUiShapeMetrics} from "./index.ts"
+import {radii, uiShapeMetrics as publicUiShapeMetrics} from "./index.ts"
 import {uiShapeMetrics} from "./shape.ts"
 
 describe("shared UI shape metrics", () => {
@@ -7,7 +7,7 @@ describe("shared UI shape metrics", () => {
     expect(uiShapeMetrics).toEqual({
       controlHeight: 22,
       rowHeight: 24,
-      lowRadius: 3,
+      lowRadius: 4,
       borderWidth: 1,
       separatorWidth: 1,
       tightGap: 3,
@@ -19,6 +19,7 @@ describe("shared UI shape metrics", () => {
     })
     expect(Object.isFrozen(uiShapeMetrics)).toBeTrue()
     expect(publicUiShapeMetrics).toBe(uiShapeMetrics)
+    expect(radii.control).toBe(uiShapeMetrics.lowRadius)
   })
 
   test("keeps dense controls inside their shared row and rule rhythm", () => {

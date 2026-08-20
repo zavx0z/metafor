@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {
+  palette,
   uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
@@ -48,5 +49,26 @@ describe("component Button Elements boundary", () => {
     Button(surface, 10, 20, 100, 40, {children: "Run", textMaterial: surface.materials.cyan})
     expect(surface.centeredTexts[0]?.slice(0, 3)).toEqual(["Run", 60, 40])
     expect(surface.centeredTexts[0]?.[3].material).toBe(surface.materials.cyan)
+  })
+
+  test("uses one subtle neutral border owner while keeping semantic and interaction accents", () => {
+    for (const variant of ["outlined", "contained"] as const) {
+      const neutral = new RecordingSurface()
+      Button(neutral, 0, 0, 100, 22, {children: "Run", color: "neutral", variant})
+      expect(neutral.roundedRects[0]?.[4].border).toEqual(palette.borderRule)
+
+      const semantic = new RecordingSurface()
+      Button(semantic, 0, 0, 100, 22, {children: "Run", color: "success", variant})
+      expect(semantic.roundedRects[0]?.[4].border).toEqual(palette.green)
+    }
+
+    class HoverSurface extends RecordingSurface {
+      override hitState(): {hovered: boolean; pressed: boolean} {
+        return {hovered: true, pressed: false}
+      }
+    }
+    const hover = new HoverSurface()
+    Button(hover, 0, 0, 100, 22, {children: "Run", color: "neutral", variant: "contained"})
+    expect(hover.roundedRects[0]?.[4].border).toEqual(palette.cyan)
   })
 })

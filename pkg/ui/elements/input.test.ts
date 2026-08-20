@@ -3,6 +3,7 @@ import type {UiSurface} from "./surface.ts"
 import {UiSurface as BaseUiSurface} from "./surface.ts"
 import {createInputEditState, handleInputKey, input, insertInputText} from "./input.ts"
 import {uiShapeMetrics} from "./shape.ts"
+import {palette} from "./theme.ts"
 
 type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
 type TextCall = Parameters<UiSurface["drawText"]>
@@ -84,9 +85,20 @@ describe("input visible geometry", () => {
       radius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
     })
+    expect(chrome.border).toEqual(palette.borderRule)
     expect(surface.texts[0]?.slice(0, 3)).toEqual(["Text", 10 + uiShapeMetrics.tightGap * 2, 34.5])
     expect(surface.texts[0]?.[3]).toMatchObject({fontPx: uiShapeMetrics.compactFontPx})
     expect(surface.hits[0]?.slice(0, 4)).toEqual([10, 20, 100, 40])
+  })
+
+  test("uses subtle idle border while active input keeps cyan focus", () => {
+    const idle = new RecordingSurface()
+    input(idle, 0, 0, 100, 22, {key: "idle", value: "Text"})
+    expect(idle.roundedRects[0]?.[4].border).toEqual(palette.borderRule)
+
+    const active = new RecordingSurface()
+    input(active, 0, 0, 100, 22, {key: "active", value: "Text", active: true, cursorVisible: false})
+    expect(active.roundedRects[0]?.[4].border).toEqual(palette.cyan)
   })
 
   test("preserves explicit chrome, font, padding and palette styles", () => {

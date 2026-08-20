@@ -123,9 +123,14 @@ describe("@ui/elements package-owned Workbench stories", () => {
     const input = await ELEMENT_STORIES.load("input/state/inactive")
     expect(input.defaultArgs).toMatchObject({radius: uiShapeMetrics.lowRadius})
 
-    const select = await ELEMENT_STORIES.load("select/state/active")
+    const select = await ELEMENT_STORIES.load("select/state/open")
     expect(select.source(select.defaultArgs)).toContain('from "@ui/elements/select"')
-    expect(select.defaultArgs).toMatchObject({label: "Умножение", active: true, radius: uiShapeMetrics.lowRadius})
+    expect(select.defaultArgs).toMatchObject({label: "Умножение", open: true, radius: uiShapeMetrics.lowRadius})
+    expect(select.source(select.defaultArgs)).toContain("options")
+    for (const route of ["button/state/default", "input/state/inactive", "select/state/inactive"] as const) {
+      const control = await ELEMENT_STORIES.load(route)
+      expect(control.source(control.defaultArgs)).not.toContain("borderColor")
+    }
 
     const layout = await ELEMENT_STORIES.load("flex-css/sizes/fraction")
     expect(layout.source(layout.defaultArgs)).toContain('from "@ui/elements/flex-css"')
@@ -141,7 +146,7 @@ describe("@ui/elements package-owned Workbench stories", () => {
   })
 
   test("loads every published detail story with non-empty exact code", async () => {
-    expect(ELEMENT_STORY_ROUTES).toHaveLength(45)
+    expect(ELEMENT_STORY_ROUTES).toHaveLength(46)
     for (const route of ELEMENT_STORY_ROUTES) {
       const module = await ELEMENT_STORIES.load(route)
       const source = module.source(module.defaultArgs)

@@ -124,13 +124,14 @@ export const ELEMENT_STORIES = definePlaygroundStories({
           id: "select",
           label: "Выбор значения",
           apiName: "select",
-          tags: ["value", "chevron", "disabled"],
+          tags: ["value", "options", "dropdown", "disabled"],
           sections: [{
             id: "state",
             label: "Состояние",
             variants: [
               {id: "inactive", label: "Неактивный", title: "select · Неактивный", load: loadPrimitiveStory("select", "state", "inactive")},
               {id: "active", label: "Активный", title: "select · Активный", load: loadPrimitiveStory("select", "state", "active")},
+              {id: "open", label: "Раскрытый", title: "select · Раскрытый", load: loadPrimitiveStory("select", "state", "open")},
               {id: "disabled", label: "Недоступный", title: "select · Недоступный", load: loadPrimitiveStory("select", "state", "disabled")},
             ],
           }],

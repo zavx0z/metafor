@@ -41,7 +41,6 @@ export function PathInput(
     color: "neutral",
     variant: "contained",
     fill: palette.bgInput,
-    border: palette.borderDim,
     disabled,
     action: () => props.onBrowse?.(),
   }

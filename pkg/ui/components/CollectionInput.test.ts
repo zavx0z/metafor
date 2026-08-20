@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {
   type UiSurface,
   UiSurface as BaseUiSurface,
+  uiShapeMetrics,
 } from "@ui/elements"
 import {
   CollectionInput,
@@ -213,6 +214,7 @@ describe("public CollectionInput", () => {
     expect(regularText).toContainEqual({text: "Position", fontPx: 12})
     expect(regularText).toContainEqual({text: "Vector attribute", fontPx: 10})
     expectTextInsideRows(regular, 36)
+    expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
 
     const compact = new RecordingSurface()
     CollectionInput(compact, 0, 0, 180, 72, props([], {density: "compact"}))
@@ -221,6 +223,7 @@ describe("public CollectionInput", () => {
     expect(compactText.map(({text}) => text)).not.toContain("Vector attribute")
     expect(compactText.map(({text}) => text)).not.toContain("Disabled attribute")
     expectTextInsideRows(compact, 24)
+    expect(compact.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
   })
 
   test("keeps add independent while invalid, disabled and read-only state block mutation", () => {

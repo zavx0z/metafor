@@ -24,31 +24,26 @@ export type ButtonElementProps = Omit<InteractiveElementProps, "children" | "sty
   tooltipDelayMs?: number
 }
 
-const MIN_PRESS_VISUAL_MS = 120
-const pressedVisuals = new WeakMap<UiSurface, {key: string | null; timer: ReturnType<typeof setTimeout> | null}>()
-
 export function button(surface: UiSurface, x: number, y: number, width: number, height: number, props: ButtonElementProps = {}): void {
   const key = props.key ?? `button:${x}:${y}:${width}:${height}`
   const hit = surface.hitState(x, y, width, height, key)
-  const visualPressed = pressedVisualKey(surface) === key
-  const state: ButtonElementState = props.disabled === true ? "disabled" : hit.pressed || visualPressed ? "active" : hit.hovered ? "hover" : "idle"
+  const state: ButtonElementState = props.disabled === true ? "disabled" : hit.pressed ? "active" : hit.hovered ? "hover" : "idle"
   const rawStyle = typeof props.style === "function" ? props.style(state) : props.style
   const styleInput: {sx?: StyleProps; style?: StyleProps} = {}
   if (props.sx !== undefined) styleInput.sx = props.sx
   if (rawStyle !== undefined) styleInput.style = rawStyle
   const style = mergeStyle(styleInput)
-  const border = state === "disabled" ? "borderDim" : state === "idle" ? "border" : "cyan"
-  const fill = state === "disabled" ? "bgPanelDim" : "glass"
-  const active = state === "active"
-  const pressOffsetY = active ? 1 : 0
+  const border = state === "idle" || state === "disabled" ? "borderRule" : "cyan"
+  const fill = state === "disabled"
+    ? "bgPanelDim"
+    : state === "idle"
+      ? "glass"
+      : state === "hover"
+        ? "bgElevated"
+        : "bgHot"
   const chrome = controlChromeRect(x, y, width, height, style)
   const pad = controlChromePadding(style)
-  const visibleChrome = {
-    x: chrome.x,
-    y: chrome.y + pressOffsetY,
-    width: chrome.width,
-    height: Math.max(0, chrome.height - pressOffsetY),
-  }
+  const visibleChrome = chrome
   const fontPx = px(style.fontSize, buttonFontPx(props.size))
   const content = {
     x: visibleChrome.x + pad.left,
@@ -82,24 +77,30 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
     },
   })
 
-  const shouldRegisterHit = props.disabled !== true
-    || props.tooltip !== undefined
-    || props.onPointerEnter !== undefined
-    || props.onPointerLeave !== undefined
+  const shouldRegisterHit = props.disabled !== true || props.tooltip !== undefined
   if (shouldRegisterHit) {
     const hitOptions: HitOptions = {
       cursor: props.disabled === true ? "default" : "pointer",
       key,
     }
     if (props.disabled !== true) {
-      hitOptions.onPointerUp = () => {
-        props.onPointerUp?.()
-        holdPressedVisual(surface, key)
+      hitOptions.onPointerDown = (localX, localY, event) => {
+        props.onPointerDown?.(localX, localY, event)
+        surface.requestKeyedRender(key)
       }
-      if (props.onPointerDown !== undefined) hitOptions.onPointerDown = props.onPointerDown
+      hitOptions.onPointerUp = (event) => {
+        props.onPointerUp?.(event)
+        surface.requestKeyedRender(key)
+      }
+      hitOptions.onPointerEnter = () => {
+        props.onPointerEnter?.()
+        surface.requestKeyedRender(key)
+      }
+      hitOptions.onPointerLeave = () => {
+        props.onPointerLeave?.()
+        surface.requestKeyedRender(key)
+      }
     }
-    if (props.onPointerEnter !== undefined) hitOptions.onPointerEnter = props.onPointerEnter
-    if (props.onPointerLeave !== undefined) hitOptions.onPointerLeave = props.onPointerLeave
     if (props.tooltip !== undefined) {
       const action = props.disabled === true ? (() => {}) : props.onClick ?? (() => {})
       surface.hit(x, y, width, height, action, {
@@ -128,22 +129,4 @@ function buttonFontPx(size: ButtonElementSize | undefined): number {
   if (size === "small") return uiShapeMetrics.compactFontPx - uiShapeMetrics.borderWidth
   if (size === "large") return uiShapeMetrics.compactFontPx + uiShapeMetrics.tightGap
   return uiShapeMetrics.compactFontPx
-}
-
-function pressedVisualKey(surface: UiSurface): string | null {
-  return pressedVisuals.get(surface)?.key ?? null
-}
-
-function holdPressedVisual(surface: UiSurface, key: string): void {
-  const entry = pressedVisuals.get(surface) ?? {key: null, timer: null}
-  if (entry.timer !== null) clearTimeout(entry.timer)
-  entry.key = key
-  entry.timer = setTimeout(() => {
-    entry.timer = null
-    if (entry.key !== key) return
-    entry.key = null
-    surface.requestHitRender(key)
-  }, MIN_PRESS_VISUAL_MS)
-  pressedVisuals.set(surface, entry)
-  surface.requestHitRender(key)
 }

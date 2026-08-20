@@ -16,10 +16,10 @@
  * The screenshots consistently show one-pixel rules, low-radius corners,
  * contiguous or tightly spaced rows and adjacent actions. Source pixels are
  * not treated as local scene units: this mapping retains the already verified
- * Node compact rhythm (22-high controls, 24-high rows/header, 3-unit radius and
- * gap and 11-unit project font) while giving every UI consumer one immutable
- * owner. The 14-unit glyph is a chosen local mapping inside the 22-unit control,
- * not an exact source-image span. Palette and typography assets remain separate
+ * Node compact rhythm (22-high controls, 24-high rows/header, 3-unit gap and
+ * 11-unit project font) while giving every UI consumer one immutable owner.
+ * The 4-unit control radius and 14-unit glyph are explicit MetaFor mappings,
+ * not exact source-image spans. Palette and typography assets remain separate
  * theme concerns.
  */
 export type UiShapeMetrics = Readonly<{
@@ -39,7 +39,7 @@ export type UiShapeMetrics = Readonly<{
 export const uiShapeMetrics: UiShapeMetrics = Object.freeze({
   controlHeight: 22,
   rowHeight: 24,
-  lowRadius: 3,
+  lowRadius: 4,
   borderWidth: 1,
   separatorWidth: 1,
   tightGap: 3,

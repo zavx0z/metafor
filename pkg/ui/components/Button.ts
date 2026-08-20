@@ -107,19 +107,19 @@ function buttonStyleForState(
     style.borderColor = props.border ?? null
     style.color = textColor
   } else if (variant === "outlined") {
-    const border = props.border ?? toneBorder(tone)
+    const border = props.border ?? defaultToneBorder(tone)
     style.background = props.fill ?? outlinedFill(border, visualState)
-    style.borderColor = props.border ?? stateBorder(border, visualState)
+    style.borderColor = props.border ?? stateBorder(border, visualState, tone === "neutral")
     style.color = textColor
   } else if (variant === "contained") {
     const fill = props.fill ?? toneFill(tone)
-    const border = props.border ?? toneBorder(tone)
+    const border = props.border ?? defaultToneBorder(tone)
     style.background = props.fill ?? stateFill(fill, border, visualState)
-    style.borderColor = props.border ?? stateBorder(border, visualState)
+    style.borderColor = props.border ?? stateBorder(border, visualState, tone === "neutral")
     style.color = textColor
   } else {
-    if (props.fill !== undefined) style.background = stateFill(props.fill, props.border ?? toneBorder(tone), visualState)
-    if (props.border !== undefined) style.borderColor = stateBorder(props.border, visualState)
+    if (props.fill !== undefined) style.background = stateFill(props.fill, props.border ?? defaultToneBorder(tone), visualState)
+    if (props.border !== undefined) style.borderColor = stateBorder(props.border, visualState, false)
     style.color = textColor
   }
 
@@ -138,6 +138,10 @@ function buttonTextColor(tone: Tone): `rgba(${string})` {
   if (tone === "paused") return colorToRgba(palette.orange)
   if (tone === "warn") return colorToRgba(palette.red)
   return colorToRgba(palette.cyan)
+}
+
+function defaultToneBorder(tone: Tone): Color {
+  return tone === "neutral" ? palette.borderRule : toneBorder(tone)
 }
 
 function colorToRgba(color: Color): `rgba(${string})` {
@@ -168,8 +172,9 @@ function textFill(state: ButtonVisualState): Color | null {
   return null
 }
 
-function stateBorder(border: Color, state: ButtonVisualState): Color {
-  if (state === "disabled") return withAlpha(palette.borderDim, 0.62)
+function stateBorder(border: Color, state: ButtonVisualState, neutralAccent: boolean): Color {
+  if (state === "disabled") return withAlpha(border, 0.62)
+  if (neutralAccent && (state === "active" || state === "hover")) return palette.cyan
   if (state === "active") return withAlpha(mixColor(border, palette.text, 0.50), 1)
   if (state === "hover") return withAlpha(mixColor(border, palette.text, 0.34), 1)
   return border

@@ -37,7 +37,6 @@ export function ReferenceInput(
     children: props.value?.label ?? props.placeholder ?? "Не выбрано",
     variant: "contained",
     fill: palette.bgInput,
-    border: palette.borderDim,
     disabled,
     action: () => props.onActivate?.(),
   }
@@ -64,7 +63,6 @@ export function ReferenceInput(
             iconSrc: uiIcons.close,
             variant: "contained",
             fill: palette.bgInput,
-            border: palette.borderDim,
             disabled,
             action: () => props.onClear?.(),
           }

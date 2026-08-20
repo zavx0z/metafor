@@ -137,7 +137,7 @@ describe("public ReferenceInput", () => {
       expect(call[4].radius).toBe(uiShapeMetrics.lowRadius)
       expect(call[4].borderWidth).toBe(uiShapeMetrics.borderWidth)
       expect(call[4].fill).toEqual(palette.bgInput)
-      expect(call[4].border).toEqual(palette.borderDim)
+      expect(call[4].border).toEqual(palette.borderRule)
     }
   })
 

@@ -22,6 +22,7 @@ type PrimitiveStoryArgs = PlaygroundStoryArgs & Readonly<{
   radius: number
   disabled: boolean
   active: boolean
+  open: boolean
   fit: "cover" | "contain"
   mode: "regular" | "dense" | "interactive" | "scroll"
   align: CssTextAlign
@@ -107,7 +108,7 @@ function renderPrimitiveStory(
         globalThis.__elementsStoryControlBridge?.("clicks", args.clicks + 1)
         globalThis.__elementsStoryControlBridge?.("state", "click")
       },
-      style: {borderColor: args.tone, borderRadius: args.radius},
+      style: {borderRadius: args.radius},
     })
     return
   }
@@ -120,7 +121,7 @@ function renderPrimitiveStory(
       active: args.active,
       disabled: args.disabled,
       onChange: (value) => globalThis.__elementsStoryControlBridge?.("label", value),
-      style: {borderColor: args.active ? args.tone : "border", borderRadius: args.radius},
+      style: {borderRadius: args.radius},
     })
     return
   }
@@ -129,13 +130,25 @@ function renderPrimitiveStory(
     select(surface, frame.x + (frame.w - controlWidth) / 2, centerY - uiShapeMetrics.controlHeight / 2, controlWidth, uiShapeMetrics.controlHeight, {
       key: "elements-story-select",
       value: args.label,
+      options: [
+        {value: "Сложение", label: "Сложение"},
+        {value: "Умножение", label: "Умножение"},
+        {value: "Вычитание", label: "Вычитание"},
+        {value: "Деление", label: "Деление", disabled: true},
+      ],
+      open: args.open,
       active: args.active,
       disabled: args.disabled,
+      onChange: (value) => {
+        globalThis.__elementsStoryControlBridge?.("label", value)
+        globalThis.__elementsStoryControlBridge?.("state", `choice:${value}`)
+      },
+      onOpenChange: (open) => globalThis.__elementsStoryControlBridge?.("open", open),
       onClick: () => {
         globalThis.__elementsStoryControlBridge?.("clicks", args.clicks + 1)
         globalThis.__elementsStoryControlBridge?.("state", "click")
       },
-      style: {borderColor: args.active ? args.tone : "borderDim", borderRadius: args.radius},
+      style: {borderRadius: args.radius},
     })
     return
   }
@@ -284,6 +297,7 @@ function primitiveControls(
   if (component === "button" || component === "input" || component === "select") return [
     {key: "label", label: component === "button" ? "Подпись" : "Значение", group: "Содержимое", kind: "text"},
     {key: "disabled", label: "Недоступно", group: "Состояние", kind: "boolean"},
+    ...(component === "select" ? [{key: "open", label: "Раскрыто", group: "Состояние", kind: "boolean"} as const] : []),
     ...common,
   ]
   if (component === "img") return [
@@ -325,6 +339,7 @@ function primitiveArgs(options: Readonly<{
     radius: options.component === "button" || options.component === "input" || options.component === "select" ? uiShapeMetrics.lowRadius : 28,
     disabled: options.variant === "disabled",
     active: options.variant === "active",
+    open: options.variant === "open",
     fit: options.variant === "contain" ? "contain" : "cover",
     mode: options.component === "list" ? options.variant as PrimitiveStoryArgs["mode"] : "regular",
     align: options.component === "span" ? options.variant as CssTextAlign : "center",
@@ -368,7 +383,18 @@ function primitiveSource(
   if (options.component === "span") return `import {span} from "@ui/elements/span"\n\nspan(surface, x, y, w, h, {children: ${JSON.stringify(args.label)}, style: {textAlign: ${JSON.stringify(args.align)}, color: ${JSON.stringify(args.tone)}}})`
   if (options.component === "button") return `import {button} from "@ui/elements/button"\n\nbutton(surface, x, y, w, h, {children: ${JSON.stringify(args.label)}, disabled: ${args.disabled}, onClick})`
   if (options.component === "input") return `import {input} from "@ui/elements/input"\n\ninput(surface, x, y, w, h, {key: "value", value: ${JSON.stringify(args.label)}, active: ${args.active}, disabled: ${args.disabled}, onChange: setValue})`
-  if (options.component === "select") return `import {select} from "@ui/elements/select"\n\nselect(surface, x, y, w, h, {key: "value", value: ${JSON.stringify(args.label)}, active: ${args.active}, disabled: ${args.disabled}, onClick})`
+  if (options.component === "select") return [
+    'import {select, type SelectElementOption} from "@ui/elements/select"',
+    "",
+    'const options: readonly SelectElementOption<string>[] = [',
+    '  {value: "Сложение", label: "Сложение"},',
+    '  {value: "Умножение", label: "Умножение"},',
+    '  {value: "Вычитание", label: "Вычитание"},',
+    '  {value: "Деление", label: "Деление", disabled: true},',
+    "]",
+    "",
+    `select(surface, x, y, w, h, {key: "value", value: ${JSON.stringify(args.label)}, options, open: ${args.open}, active: ${args.active}, disabled: ${args.disabled}, onChange: setValue, onOpenChange: setOpen})`,
+  ].join("\n")
   if (options.component === "img") return `import {img} from "@ui/elements/img"\n\nimg(surface, x, y, w, h, {src: artworkUrl, fit: ${JSON.stringify(args.fit)}})`
   const listOptions = [
     `  dense: ${args.mode === "dense"},`,

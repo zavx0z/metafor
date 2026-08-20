@@ -93,7 +93,7 @@ describe("public EnumInput", () => {
     expect(options.map(({value}) => value)).toEqual(["add", "multiply", "subtract"])
   })
 
-  test("renders the selected cycle label and description and publishes one forward value", () => {
+  test("passes stable options to Elements dropdown and publishes only the chosen value", () => {
     const values: string[] = []
     const surface = new RecordingSurface()
     EnumInput(surface, 4, 6, 120, 28, enumProps(values))
@@ -102,6 +102,13 @@ describe("public EnumInput", () => {
     const hitOptions = surface.hits[0]?.[5]
     expect(typeof hitOptions === "object" ? hitOptions.tooltip?.label : undefined).toBe("Умножить значения")
     trigger(surface.hits[0])
+    surface.roundedRects.length = 0
+    surface.texts.length = 0
+    surface.images.length = 0
+    surface.hits.length = 0
+    EnumInput(surface, 4, 6, 120, 28, enumProps(values))
+    expect(surface.texts.map(([text]) => text)).toEqual(["Multiply", "Add", "Multiply", "Subtract"])
+    trigger(surface.hits[3])
     expect(values).toEqual(["subtract"])
   })
 
@@ -112,6 +119,9 @@ describe("public EnumInput", () => {
 
     expect(surface.texts.map(([text]) => text)).toEqual(["missing"])
     trigger(surface.hits[0])
+    surface.hits.length = 0
+    EnumInput(surface, 0, 0, 120, 28, enumProps(values, {value: "missing"}))
+    trigger(surface.hits[2])
     expect(values).toEqual(["multiply"])
   })
 
@@ -138,6 +148,11 @@ describe("public EnumInput", () => {
       palette.bgInput,
       palette.bgHot,
       palette.bgInput,
+    ])
+    expect(compact.roundedRects.map((call) => call[4].border)).toEqual([
+      palette.borderRule,
+      palette.cyan,
+      palette.borderRule,
     ])
   })
 
@@ -192,7 +207,7 @@ describe("public EnumInput", () => {
     expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
     expect(compact.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
     expect(compact.roundedRects[0]?.[4].fill).toEqual(palette.bgInput)
-    expect(compact.roundedRects[0]?.[4].border).toEqual(palette.borderDim)
+    expect(compact.roundedRects[0]?.[4].border).toEqual(palette.borderRule)
     expect(regular.roundedRects[0]?.[4].fill).toEqual(compact.roundedRects[0]?.[4].fill)
     expect(regular.roundedRects[0]?.[4].border).toEqual(compact.roundedRects[0]?.[4].border)
 
@@ -207,10 +222,19 @@ describe("public EnumInput", () => {
     const regularField = new RecordingSurface()
     Field(regularField, 0, 0, 120, definition(regularValues))
     trigger(regularField.hits[0])
+    regularField.hits.length = 0
+    Field(regularField, 0, 0, 120, definition(regularValues))
+    trigger(regularField.hits[3])
     const compactField = new RecordingSurface()
     Field(compactField, 0, 0, 120, definition(compactValues), {density: "compact"})
     trigger(compactField.hits[0])
+    compactField.hits.length = 0
+    Field(compactField, 0, 0, 120, definition(compactValues), {density: "compact"})
+    trigger(compactField.hits[3])
     trigger(regular.hits[0])
+    regular.hits.length = 0
+    EnumInput(regular, 4, 6, 120, 28, enumProps(standaloneValues))
+    trigger(regular.hits[3])
 
     expect(regularValues).toEqual(["subtract"])
     expect(compactValues).toEqual(regularValues)

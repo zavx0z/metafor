@@ -3,6 +3,7 @@ import {
   createInputEditState,
   focusInput,
   handleActiveInputKey,
+  uiShapeMetrics,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -135,7 +136,7 @@ describe("public MatrixInput", () => {
       {x: 4, y: 38, w: 100, h: 22},
       {x: 108, y: 38, w: 100, h: 22},
     ])
-    expect(regular.roundedRects[0]?.[4].radius).toBe(3)
+    expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
     expect(regular.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
     expect(regular.texts.map((call) => call[3].fontPx)).toEqual([9, 9, 9, 9])
 
@@ -147,7 +148,7 @@ describe("public MatrixInput", () => {
       {x: 4, y: 31, w: 60, h: 22},
       {x: 67, y: 31, w: 60, h: 22},
     ])
-    expect(compact.roundedRects[0]?.[4].radius).toBe(3)
+    expect(compact.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
     expect(compact.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
     expect(compact.texts.map((call) => call[3].fontPx)).toEqual([11, 11, 11, 11])
   })

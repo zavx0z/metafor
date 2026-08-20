@@ -5,6 +5,7 @@ export type EnumInputOption = Readonly<{
   value: string
   label: string
   description?: string
+  disabled?: boolean
 }>
 
 export type EnumInputDensity = "regular" | "compact"
@@ -67,14 +68,15 @@ export function EnumInput(
 
   const selected = findEnumInputOption(props.value, options)
   const disabled = enumInputDisabled(props)
-  const selectProps: SelectElementProps = {
-    value: selected?.label ?? props.value,
+  const selectProps: SelectElementProps<string> = {
+    value: props.value,
+    options,
     disabled,
   }
   const tooltip = selected?.description ?? props.tooltip
   if (tooltip !== undefined) selectProps.tooltip = tooltip
   if (!disabled && props.onChange !== undefined) {
-    selectProps.onClick = () => props.onChange!(nextEnumInputValue(props.value, options))
+    selectProps.onChange = props.onChange
   }
   select(host, x, y, width, height, selectProps)
 }
@@ -101,10 +103,11 @@ function drawExpandedEnumInput(
       height,
       draw: (slotX: number, slotY: number, slotW: number, slotH: number) => {
         const selected = option.value === props.value
-        const buttonProps = enumButtonProps(props, option.label, disabled, selected)
+        const optionDisabled = disabled || option.disabled === true
+        const buttonProps = enumButtonProps(props, option.label, optionDisabled, selected)
         const tooltip = option.description ?? (selected ? props.tooltip : undefined)
         if (tooltip !== undefined) buttonProps.tooltip = tooltip
-        if (!disabled && props.onChange !== undefined) {
+        if (!optionDisabled && props.onChange !== undefined) {
           buttonProps.action = () => props.onChange!(option.value)
         }
         Button(host, slotX, slotY, slotW, slotH, buttonProps)
@@ -134,9 +137,9 @@ function enumButtonProps(
     children: label,
     variant: "contained",
     fill: selected ? palette.bgHot : palette.bgInput,
-    border: selected ? palette.border : palette.borderDim,
     disabled,
     selected,
   }
+  if (selected) buttonProps.border = palette.cyan
   return buttonProps
 }
