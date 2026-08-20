@@ -80,8 +80,9 @@ checkpoint NODES-008.4 с общим исправлением левых инт�
 развивает production Components. NumberInput, ColorInput, VectorInput,
 MatrixInput, ReferenceInput и EnumInput имеют package-owned stories и
 package/live evidence. Текущий срез UI-010.7 добавляет public CollectionInput
-для rows/selection/add/remove; зависимая UI-010.8 story уже зарегистрирована и
-не даст сдвинуть acceptance snapshot следующим leaf до completeness checkpoint.
+для rows/selection/add/remove commit-ами `059deffc8` + `03b2c252b`; зависимая
+UI-010.8 package-owned story сейчас закрывает completeness/live gate до
+следующего public leaf.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
