@@ -9,6 +9,7 @@ import {
   normalizeNumberFieldValue,
   normalizeVectorFieldValue,
   parseFieldColor,
+  type CollectionFieldDefinition,
   type FieldDefinition,
 } from "./Field.ts"
 
@@ -24,6 +25,7 @@ describe("universal UI fields", () => {
       "rotation",
       "matrix",
       "reference",
+      "collection",
       "readonly",
     ])
   })
@@ -96,6 +98,7 @@ describe("universal UI fields", () => {
       {id: "rotation", label: "Rotation", kind: "rotation", value: [0, 0, 0]},
       {id: "matrix", label: "Matrix", kind: "matrix", value: [[1, 0], [0, 1]]},
       {id: "reference", label: "Reference", kind: "reference", value: null},
+      {id: "collection", label: "Collection", kind: "collection", items: [], selectedId: null},
       {id: "readonly", label: "Readonly", kind: "readonly", value: "value"},
     ]
     expect(fields.map((field) => measureFieldHeight(field)).every((height) => height > 0)).toBeTrue()
@@ -104,5 +107,12 @@ describe("universal UI fields", () => {
     expect(measureFieldHeight(fields[2]!, {density: "compact"})).toBe(22)
     expect(measureFieldHeight(fields[6]!, {density: "compact"})).toBe(97)
     expect(measureFieldHeight(fields[8]!, {density: "compact"})).toBe(72)
+    const collection = fields[10]! as CollectionFieldDefinition
+    expect(measureFieldHeight(collection)).toBe(129)
+    expect(measureFieldHeight(collection, {density: "compact"})).toBe(97)
+    expect(measureFieldHeight({...collection, compactLabel: "hidden"}, {density: "compact"})).toBe(72)
+    expect(measureFieldHeight({...collection, visibleRows: 1})).toBe(81)
+    expect(measureFieldHeight({...collection, visibleRows: 1}, {density: "compact"})).toBe(72)
+    expect(measureFieldHeight({...collection, visibleRows: 1, compactLabel: "hidden"}, {density: "compact"})).toBe(47)
   })
 })

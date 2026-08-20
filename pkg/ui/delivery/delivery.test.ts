@@ -51,6 +51,7 @@ const productionExports = Object.freeze({
     "./matrix-input": "./MatrixInput.ts",
     "./reference-input": "./ReferenceInput.ts",
     "./enum-input": "./EnumInput.ts",
+    "./collection-input": "./CollectionInput.ts",
     "./switcher": "./Switcher.ts",
     "./progress-checkbox": "./ProgressCheckbox.ts",
     "./slider-control": "./SliderControl.ts",
@@ -139,6 +140,7 @@ describe("production UI delivery baseline", () => {
       "exact-components-matrix-input.fixture.ts",
       "exact-components-reference-input.fixture.ts",
       "exact-components-enum-input.fixture.ts",
+      "exact-components-collection-input.fixture.ts",
       "exact-node-editor.fixture.ts",
       "root-api.fixture.ts",
     ]) {
@@ -226,6 +228,21 @@ describe("production UI delivery baseline", () => {
       .map(({source}) => source)
       .join("\n")
     expect(graph).toContain("function EnumInput")
+    expect(graph).not.toContain("function Field")
+    expect(graph).not.toContain("@nodes/ui")
+    expect(graph).not.toContain("NodeEditor")
+    expect(graph).not.toContain("@ui/playground")
+    expect(graph).not.toContain("definePlaygroundRoutes")
+  })
+
+  test("keeps the exact CollectionInput leaf on List and Button and independent from Field, Node and playground symbols", async () => {
+    const fixture = join(uiRoot, "delivery/fixtures/exact-components-collection-input.fixture.ts")
+    const graph = (await outputSources(await buildBrowser([fixture], false)))
+      .map(({source}) => source)
+      .join("\n")
+    expect(graph).toContain("function CollectionInput")
+    expect(graph).toContain("function List")
+    expect(graph).toContain("function Button")
     expect(graph).not.toContain("function Field")
     expect(graph).not.toContain("@nodes/ui")
     expect(graph).not.toContain("NodeEditor")

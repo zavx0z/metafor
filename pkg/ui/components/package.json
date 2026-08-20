@@ -21,6 +21,7 @@
     "./matrix-input": "./MatrixInput.ts",
     "./reference-input": "./ReferenceInput.ts",
     "./enum-input": "./EnumInput.ts",
+    "./collection-input": "./CollectionInput.ts",
     "./switcher": "./Switcher.ts",
     "./progress-checkbox": "./ProgressCheckbox.ts",
     "./slider-control": "./SliderControl.ts",

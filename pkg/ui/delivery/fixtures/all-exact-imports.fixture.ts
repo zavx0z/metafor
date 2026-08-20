@@ -31,6 +31,7 @@ import type * as componentsVectorInput from "@ui/components/vector-input"
 import type * as componentsMatrixInput from "@ui/components/matrix-input"
 import type * as componentsReferenceInput from "@ui/components/reference-input"
 import type * as componentsEnumInput from "@ui/components/enum-input"
+import type * as componentsCollectionInput from "@ui/components/collection-input"
 import type * as componentsSwitcher from "@ui/components/switcher"
 import type * as componentsProgressCheckbox from "@ui/components/progress-checkbox"
 import type * as componentsSliderControl from "@ui/components/slider-control"
@@ -78,6 +79,7 @@ export type ExactProductionImports = {
     typeof componentsMatrixInput,
     typeof componentsReferenceInput,
     typeof componentsEnumInput,
+    typeof componentsCollectionInput,
     typeof componentsSwitcher,
     typeof componentsProgressCheckbox,
     typeof componentsSliderControl,

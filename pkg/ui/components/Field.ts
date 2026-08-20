@@ -3,6 +3,13 @@ import {flexColumn, flexRow, type UiSurface} from "@ui/elements"
 import {Button} from "./Button.ts"
 import {Checkbox} from "./Checkbox.ts"
 import {
+  CollectionInput,
+  measureCollectionInputHeight,
+  type CollectionInputDensity,
+  type CollectionInputItem,
+  type CollectionInputProps,
+} from "./CollectionInput.ts"
+import {
   ColorInput,
   type ColorInputDensity,
   type ColorInputProps,
@@ -47,6 +54,7 @@ import {
 export type FieldColor = ColorInputValue
 export type FieldOption = EnumInputOption
 export type FieldReference = ReferenceInputValue
+export type FieldCollectionItem = CollectionInputItem
 
 export type FieldBase = Readonly<{
   id: string
@@ -130,6 +138,17 @@ export type ReferenceFieldDefinition = FieldBase & Readonly<{
   onClear?(): void
 }>
 
+export type CollectionFieldDefinition = FieldBase & Readonly<{
+  kind: "collection"
+  items: readonly FieldCollectionItem[]
+  selectedId: string | null
+  visibleRows?: number
+  emptyLabel?: string
+  onSelect?(id: string): void
+  onAdd?(): void
+  onRemove?(id: string): void
+}>
+
 export type ReadonlyFieldDefinition = FieldBase & Readonly<{
   kind: "readonly"
   value: string | number
@@ -145,6 +164,7 @@ export type FieldDefinition =
   | RotationFieldDefinition
   | MatrixFieldDefinition
   | ReferenceFieldDefinition
+  | CollectionFieldDefinition
   | ReadonlyFieldDefinition
 
 export type FieldRenderOptions = Readonly<{
@@ -161,6 +181,7 @@ export const FIELD_KINDS = Object.freeze([
   "rotation",
   "matrix",
   "reference",
+  "collection",
   "readonly",
 ] as const)
 
@@ -216,6 +237,7 @@ function drawFieldControl(
   else if (definition.kind === "vector" || definition.kind === "rotation") drawVectorField(host, x, y, width, height, definition)
   else if (definition.kind === "matrix") drawMatrixField(host, x, y, width, height, definition)
   else if (definition.kind === "reference") drawReferenceField(host, x, y, width, height, definition)
+  else if (definition.kind === "collection") drawCollectionField(host, x, y, width, height, definition)
   else drawReadonlyField(host, x, y, width, height, definition)
 }
 
@@ -225,6 +247,9 @@ export function measureFieldHeight(definition: FieldDefinition, options: FieldRe
   if (definition.kind === "number" && definition.presentation === "slider") return 66
   if (definition.kind === "matrix") {
     return LABEL_HEIGHT + FIELD_GAP + measureMatrixInputHeight(matrixInputProps(definition, "regular"))
+  }
+  if (definition.kind === "collection") {
+    return LABEL_HEIGHT + FIELD_GAP + measureCollectionInputHeight(collectionInputProps(definition, "regular"))
   }
   return LABEL_HEIGHT + FIELD_GAP + CONTROL_HEIGHT
 }
@@ -236,6 +261,10 @@ function compactFieldHeight(definition: FieldDefinition): number {
   }
   if (definition.kind === "matrix") {
     return metrics.control + metrics.gap + measureMatrixInputHeight(matrixInputProps(definition, "compact"))
+  }
+  if (definition.kind === "collection") {
+    const control = measureCollectionInputHeight(collectionInputProps(definition, "compact"))
+    return definition.compactLabel === "hidden" ? control : metrics.control + metrics.gap + control
   }
   return metrics.control
 }
@@ -256,6 +285,10 @@ function drawCompactField(
   }
   if (field.kind === "matrix") {
     drawCompactMatrixField(host, x, y, width, height, field, metrics)
+    return height
+  }
+  if (field.kind === "collection") {
+    drawCompactCollectionField(host, x, y, width, height, field, metrics)
     return height
   }
   if (field.kind === "number" && field.presentation === "slider" && field.max !== undefined) {
@@ -341,7 +374,7 @@ function drawCompactSingleRow(
   y: number,
   width: number,
   height: number,
-  field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition>,
+  field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition | CollectionFieldDefinition>,
   metrics: CompactMetrics,
 ): void {
   if (field.compactLabel === "hidden") {
@@ -372,7 +405,7 @@ function drawCompactControl(
   y: number,
   width: number,
   height: number,
-  field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition>,
+  field: Exclude<FieldDefinition, BooleanFieldDefinition | VectorFieldDefinition | RotationFieldDefinition | MatrixFieldDefinition | CollectionFieldDefinition>,
   metrics: CompactMetrics,
 ): void {
   const disabled = isFieldDisabled(field)
@@ -452,6 +485,36 @@ function drawCompactMatrixField(
       {height: metrics.control, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, fontPx: metrics.font})},
       {height: controlHeight, draw: (slotX, slotY, slotW, slotH) => {
         MatrixInput(host, slotX, slotY, slotW, slotH, props)
+      }},
+    ],
+  })
+}
+
+function drawCompactCollectionField(
+  host: UiSurface,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  field: CollectionFieldDefinition,
+  metrics: CompactMetrics,
+): void {
+  const props = collectionInputProps(field, "compact")
+  const controlHeight = measureCollectionInputHeight(props)
+  if (field.compactLabel === "hidden") {
+    CollectionInput(host, x, y, width, controlHeight, props)
+    return
+  }
+  flexColumn({
+    x,
+    y,
+    w: width,
+    h: height,
+    gap: metrics.gap,
+    items: [
+      {height: metrics.control, draw: (slotX, slotY, slotW, slotH) => Typography(host, slotX, slotY, slotW, slotH, {children: field.label, fontPx: metrics.font})},
+      {height: controlHeight, draw: (slotX, slotY, slotW, slotH) => {
+        CollectionInput(host, slotX, slotY, slotW, slotH, props)
       }},
     ],
   })
@@ -668,6 +731,30 @@ function referenceInputProps(
   if (field.readOnly !== undefined) props.readOnly = field.readOnly
   if (field.onActivate !== undefined) props.onActivate = field.onActivate
   if (field.onClear !== undefined) props.onClear = field.onClear
+  return props
+}
+
+function drawCollectionField(host: UiSurface, x: number, y: number, width: number, height: number, field: CollectionFieldDefinition): void {
+  CollectionInput(host, x, y, width, height, collectionInputProps(field, "regular"))
+}
+
+function collectionInputProps(
+  field: CollectionFieldDefinition,
+  density: CollectionInputDensity,
+): CollectionInputProps {
+  const props: CollectionInputProps = {
+    key: fieldKey(field),
+    items: field.items,
+    selectedId: field.selectedId,
+    density,
+  }
+  if (field.visibleRows !== undefined) props.visibleRows = field.visibleRows
+  if (field.emptyLabel !== undefined) props.emptyLabel = field.emptyLabel
+  if (field.disabled !== undefined) props.disabled = field.disabled
+  if (field.readOnly !== undefined) props.readOnly = field.readOnly
+  if (field.onSelect !== undefined) props.onSelect = field.onSelect
+  if (field.onAdd !== undefined) props.onAdd = field.onAdd
+  if (field.onRemove !== undefined) props.onRemove = field.onRemove
   return props
 }
 
