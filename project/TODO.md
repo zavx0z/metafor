@@ -97,7 +97,9 @@ controls ждут UI-015 shape foundation, чтобы не продолжать 
 Workbench на Blender 4.5.5 composition/form/rhythm. Текущий срез измеряет exact
 reference и уже ввёл Elements shape owner `af5ae43a8`; UI-015.2 подключает его
 к Input/Button primitive chrome commit-ом `e6f7669bf` с before/after evidence.
-Текущий UI-015.3 переводит scalar Components и regular Field rows.
+UI-015.3 зафиксировал dense scalar rows commit `813f48994`; live показал, что
+новый Elements select пока сохраняет старый click-cycle и не раскрывает options.
+Текущий UI-015.4 добавляет настоящий dropdown до grouped editors.
 
 [`UI-012 — Добавить мягкую производительную SDF-тень`](tasks/UI-012.md)
 создала package-level Engine/Elements primitive commit-ом `e5d484ddc`: один
