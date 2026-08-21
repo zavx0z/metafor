@@ -116,8 +116,9 @@ control нельзя опустить в Elements только ради повт
     входят в Field/Node public API.
 14. `NumberInput` единолично переводит generic pointer gestures Elements в
     numeric value: side click применяет step, center release/Ctrl открывает
-    text, horizontal scrub использует soft range, step и precision, Shift
-    уменьшает factor в десять раз, Escape/right возвращают исходное значение.
+    text с end-caret и select-all, horizontal scrub использует soft range, step
+    и precision, Shift уменьшает factor в десять раз, Escape/right возвращают
+    исходное значение.
     Hard `min/max` остаются единственным value clamp; `softMin/softMax` влияют
     только на pointer mapping, нормализуются внутри hard bounds, а при отсутствии
     выводятся из finite hard bound либо adaptive range текущего value. Vector и

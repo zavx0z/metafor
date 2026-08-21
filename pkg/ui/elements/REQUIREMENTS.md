@@ -103,6 +103,9 @@ FlexBox единолично вычисляет local child slots, а child то
     резервируются в общем text/content rect: idle, hover и active edit используют
     один origin для value, placeholder, caret, selection и pointer index, поэтому
     появление arrows не сдвигает value и поздний text draw не перекрывает icon.
+    Center release и initial Ctrl click переходят в numeric text edit с cursor в
+    конце и выделенным целым значением; первый ввод заменяет value. Ordinary text
+    input продолжает ставить caret по pointer X.
 17. Explicit controlled `input` синхронизирует inactive edit buffer с каждым
     новым owner value. Пока тот же input active, локальный text buffer, caret и
     selection сохраняются до submit/blur/cancel и не перетираются повторным

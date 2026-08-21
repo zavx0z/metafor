@@ -327,7 +327,21 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
           if (event?.ctrlKey === true) {
             cancelNumericInputGesture(surface, runtime)
             runtime.configs.get(key)?.onNumericGesture?.({kind: "text"})
-            activateInputText(surface, runtime, key, initialValue, controlled, props, localX, _localY, contentX, contentW, fontPx, event)
+            activateInputText(
+              surface,
+              runtime,
+              key,
+              initialValue,
+              controlled,
+              props,
+              localX,
+              _localY,
+              contentX,
+              contentW,
+              fontPx,
+              event,
+              {selectAll: true},
+            )
             return
           }
           if (runtime.numericDrag !== null) cancelNumericInputGesture(surface, runtime)
@@ -405,7 +419,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
                 contentW,
                 fontPx,
                 event,
-                false,
+                {notifyPointerDown: false, selectAll: true},
               )
             }
           }
@@ -763,7 +777,7 @@ function activateInputText(
   contentW: number,
   fontPx: number,
   event: MouseEvent | undefined,
-  notifyPointerDown = true,
+  options: Readonly<{notifyPointerDown?: boolean; selectAll?: boolean}> = {},
 ): void {
   blurActiveInput(surface, key)
   const editing = runtime.activeKey === key || props.active === true
@@ -771,22 +785,25 @@ function activateInputText(
   const style = mergeStyle(props)
   const align = style.textAlign ?? (props.type === "number" ? "right" : "left")
   const layout = planInputTextLayout(surface, next.value, next.cursor, fontPx, contentX, contentW, align)
-  const nextCursor = inputIndexFromX(
-    surface,
-    next.value,
-    layout.start,
-    fontPx,
-    localX - layout.originX,
-  )
-  const anchor = event?.shiftKey === true ? next.selectionAnchor ?? next.cursor : null
+  const selectAll = options.selectAll === true
+  const nextCursor = selectAll
+    ? next.value.length
+    : inputIndexFromX(
+      surface,
+      next.value,
+      layout.start,
+      fontPx,
+      localX - layout.originX,
+    )
+  const anchor = selectAll ? 0 : event?.shiftKey === true ? next.selectionAnchor ?? next.cursor : null
   runtime.activeKey = key
-  runtime.drag = {key, anchor: anchor ?? nextCursor}
+  runtime.drag = selectAll ? null : {key, anchor: anchor ?? nextCursor}
   next.cursor = nextCursor
   next.selectionAnchor = anchor
   applyInputResult(surface, key, clampInputState(next), runtime.configs.get(key))
   resetInputBlink(surface, runtime, key)
   props.onActivate?.()
-  if (notifyPointerDown) props.onPointerDown?.(localX, localY, event)
+  if (options.notifyPointerDown !== false) props.onPointerDown?.(localX, localY, event)
   surface.requestKeyedRender(key)
 }
 

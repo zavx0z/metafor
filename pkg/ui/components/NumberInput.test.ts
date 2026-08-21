@@ -4,6 +4,7 @@ import {
   createInputEditState,
   focusInput,
   handleActiveInputKey,
+  insertActiveInputText,
   blenderRgba8ToColor,
   resolveWidgetColors,
   surfaceHasActiveInput,
@@ -303,6 +304,9 @@ describe("public NumberInput", () => {
       }
       expect(values).toEqual([])
       expect(surfaceHasActiveInput(surface)).toBeTrue()
+      expect(insertActiveInputText(surface, "9")).toBeTrue()
+      expect(handleActiveInputKey(surface, enter())).toBeTrue()
+      expect(values).toEqual([9])
     }
   })
 

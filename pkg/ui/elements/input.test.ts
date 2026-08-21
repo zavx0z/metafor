@@ -8,8 +8,10 @@ import {
   handleActiveInputKey,
   handleInputKey,
   input,
+  insertActiveInputText,
   insertInputText,
   surfaceHasActiveInput,
+  type InputEditState,
 } from "./input.ts"
 import {prepareSurfaceInputFocus} from "./runtime.ts"
 import {blenderRgba8ToColor, blenderTheme, resolveNumericZoneColors, resolveWidgetColors} from "./blender-theme.ts"
@@ -468,6 +470,26 @@ describe("number input pointer gesture dispatch", () => {
       options.onPointerUp?.(pointer())
       expect(events).toEqual([{kind: "start", zone}, action, {kind: "end"}])
       expect(surfaceHasActiveInput(surface)).toBe(zone === "center")
+    }
+  })
+
+  test("starts numeric text transition at the end with the whole value selected", () => {
+    for (const ctrlKey of [false, true]) {
+      const states: InputEditState[] = []
+      const surface = new RecordingSurface()
+      input(surface, 0, 0, 100, 22, {
+        key: `select-all:${ctrlKey}`,
+        type: "number",
+        value: "12.5",
+        onNumericGesture() {},
+        onChange: (_value, state) => states.push(state),
+      })
+      const options = surface.hits[0]![5] as HitOptions
+      options.onPointerDown?.(50, 11, pointer({ctrlKey}))
+      if (!ctrlKey) options.onPointerUp?.(pointer())
+      expect(states.at(-1)).toEqual({value: "12.5", cursor: 4, selectionAnchor: 0})
+      expect(insertActiveInputText(surface, "9")).toBeTrue()
+      expect(states.at(-1)).toEqual({value: "9", cursor: 1, selectionAnchor: null})
     }
   })
 
