@@ -15,6 +15,7 @@ type NodeComponentStoryArgs = PlaygroundStoryArgs & Readonly<{
   "translation-linked": boolean
   "rotation-linked": boolean
   "rotation-output": boolean
+  "color-linked": boolean
   "target-node-id": string
 }>
 
@@ -34,6 +35,7 @@ export function createNodeComponentStory(
     translationLinked?: boolean
     rotationLinked?: boolean
     rotationOutput?: boolean
+    colorLinked?: boolean
     nodeId?: string
   }>,
 ): PlaygroundStoryModule {
@@ -48,6 +50,7 @@ export function createNodeComponentStory(
       "translation-linked": initialState?.translationLinked !== false,
       "rotation-linked": initialState?.rotationLinked === true,
       "rotation-output": initialState?.rotationOutput === true,
+      "color-linked": initialState?.colorLinked !== false,
       "target-node-id": initialState?.nodeId ?? NODE_EDITOR_STORY_NODE_IDS[initialState?.target ?? "expanded"],
       ...(initialState === undefined ? {} : {target: initialState.target}),
     },

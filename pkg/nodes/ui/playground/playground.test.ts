@@ -101,19 +101,20 @@ describe("Blender-like Node component playground", () => {
   })
 
   test("publishes one controlled route, args and source state for expanded and collapsed Nodes", async () => {
-    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 8)).toEqual([
+    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 9)).toEqual([
       "node-editor/scene/default",
       "node-editor/scene/selected",
       "node-editor/scene/rotation-linked",
       "node-editor/scene/translation-unlinked",
       "node-editor/scene/output-only",
       "node-editor/scene/mixed-sides",
+      "node-editor/scene/color-unlinked",
       "node-editor/collapsed/default",
       "node-editor/collapsed/selected",
     ])
     expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "collapsed", "popup"])
     expect(nodePlaygroundDockItems("node-editor/scene/default").map(({id}) => id)).toEqual([
-      "default", "selected", "rotation-linked", "translation-unlinked", "output-only", "mixed-sides",
+      "default", "selected", "rotation-linked", "translation-unlinked", "output-only", "mixed-sides", "color-unlinked",
     ])
     expect(nodePlaygroundDockItems("node-editor/collapsed/selected").map(({id}) => id)).toEqual(["default", "selected"])
     expect(nodePlaygroundDockItems("node-editor/popup/select-open").map(({id}) => id)).toEqual(["select-open"])
@@ -181,6 +182,26 @@ describe("Blender-like Node component playground", () => {
       const story = await NODE_COMPONENT_STORIES.load(route)
       expect(nodeEditorStoryState(story.defaultArgs).nodeId).toBe("scalar")
     }
+  })
+
+  test("publishes one unlinked Color evidence variant without changing the public Node composition", async () => {
+    expect(NODE_COMPONENT_STORY_ROUTES).toContain("node-editor/scene/color-unlinked")
+    const story = await NODE_COMPONENT_STORIES.load("node-editor/scene/color-unlinked")
+    expect(story.defaultArgs).toMatchObject({
+      component: "node-editor",
+      target: "expanded",
+      selected: false,
+      "color-linked": false,
+      "target-node-id": "shader",
+    })
+    expect(nodeEditorStoryState(story.defaultArgs).nodeId).toBe("shader")
+
+    const linked = createCatalogNodeTree()
+    const unlinked = createCatalogNodeTree({colorLinked: false})
+    expect(unlinked.links).toEqual(linked.links.filter(({link}) => link.id !== "transform-shader"))
+    expect(unlinked.nodes).toEqual(linked.nodes)
+    expect(unlinked.nodes.find(({node}) => node.id === "shader")?.node.parameters
+      ?.find(({id}) => id === "base-color")?.field).toMatchObject({kind: "color"})
   })
 
   test("publishes output-only and mixed-side one-Field label evidence variants", async () => {

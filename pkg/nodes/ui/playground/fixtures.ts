@@ -66,6 +66,7 @@ export function createCatalogNodeTree(
     translationLinked?: boolean
     rotationLinked?: boolean
     rotationOutput?: boolean
+    colorLinked?: boolean
   }> = {},
 ): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
   const frame: BlenderFrame = {id: "catalog-frame", label: "Система компонентов нод"}
@@ -171,6 +172,10 @@ export function createCatalogNodeTree(
   ]
   if (options.translationLinked === false) {
     const index = links.findIndex(({link}) => link.id === "scalar-transform")
+    if (index >= 0) links.splice(index, 1)
+  }
+  if (options.colorLinked === false) {
+    const index = links.findIndex(({link}) => link.id === "transform-shader")
     if (index >= 0) links.splice(index, 1)
   }
   if (options.rotationLinked === true) {

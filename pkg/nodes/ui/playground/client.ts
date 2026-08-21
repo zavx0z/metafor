@@ -313,6 +313,7 @@ try {
       translationLinked: storyArgs["translation-linked"] !== false,
       rotationLinked: storyArgs["rotation-linked"] === true,
       rotationOutput: storyArgs["rotation-output"] === true,
+      colorLinked: storyArgs["color-linked"] !== false,
     })
     if (nodeFieldRoute !== route) {
       nodeFieldRoute = route

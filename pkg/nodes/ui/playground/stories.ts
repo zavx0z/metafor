@@ -55,6 +55,7 @@ export type NodeEditorStoryRoute =
   | "node-editor/scene/translation-unlinked"
   | "node-editor/scene/output-only"
   | "node-editor/scene/mixed-sides"
+  | "node-editor/scene/color-unlinked"
   | "node-editor/collapsed/default"
   | "node-editor/collapsed/selected"
   | "node-editor/popup/select-open"
@@ -121,6 +122,7 @@ const loadNodeComponentStory = (
     translationLinked?: boolean
     rotationLinked?: boolean
     rotationOutput?: boolean
+    colorLinked?: boolean
     nodeId?: string
   }>,
 ) => async (): Promise<PlaygroundStoryModule> => {
@@ -230,6 +232,18 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
                 target: "expanded",
                 selected: false,
                 nodeId: "matrix",
+              }),
+            },
+            {
+              id: "color-unlinked",
+              label: "Color unlinked",
+              title: "Редактор нод · ColorInput без связи",
+              tags: ["expanded", "unlinked", "color", "interaction"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "shader",
+                colorLinked: false,
               }),
             },
           ],
