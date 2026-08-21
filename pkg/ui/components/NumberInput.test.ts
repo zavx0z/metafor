@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {
+  blurActiveInput,
   createInputEditState,
   focusInput,
   handleActiveInputKey,
@@ -303,6 +304,33 @@ describe("public NumberInput", () => {
       expect(values).toEqual([])
       expect(surfaceHasActiveInput(surface)).toBeTrue()
     }
+  })
+
+  test("commits valid text once on outside blur and restores numeric drag eligibility", () => {
+    const values: number[] = []
+    const surface = new RecordingSurface()
+    NumberInput(surface, 0, 0, 100, 22, {
+      key: "blur-number",
+      value: 3,
+      numberKind: "integer",
+      onChange: (value) => values.push(value),
+    })
+    focusInput(surface, "blur-number", createInputEditState("12"))
+    expect(blurActiveInput(surface, "outside")).toBeTrue()
+    expect(values).toEqual([12])
+    expect(surfaceHasActiveInput(surface)).toBeFalse()
+
+    const invalid = new RecordingSurface()
+    NumberInput(invalid, 0, 0, 100, 22, {
+      key: "invalid-number",
+      value: 3,
+      numberKind: "integer",
+      onChange: (value) => values.push(value),
+    })
+    focusInput(invalid, "invalid-number", createInputEditState("invalid"))
+    expect(blurActiveInput(invalid, null)).toBeTrue()
+    expect(values).toEqual([12])
+    expect(surfaceHasActiveInput(invalid)).toBeFalse()
   })
 
   test("parses a finite value with an optional unit and rejects invalid input", () => {

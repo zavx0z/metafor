@@ -193,7 +193,10 @@ export function handleActiveInputKey(surface: UiSurface, event: KeyboardEvent): 
   }
   resetInputBlink(surface, runtime, key)
   applyInputResult(surface, key, result.state, config)
-  if (result.submit) config?.onSubmit?.(result.state.value, result.state)
+  if (result.submit) {
+    releaseActiveInput(surface, runtime, key)
+    config?.onSubmit?.(result.state.value, result.state)
+  }
   return true
 }
 
@@ -214,8 +217,21 @@ export function surfaceHasActiveInput(surface: UiSurface): boolean {
   return runtime !== undefined && runtime.activeKey !== null
 }
 
+/** Commits and releases the active HTML-like input unless pointer focus stays on the same exact hit. */
+export function blurActiveInput(surface: UiSurface, nextHitKey: string | null = null): boolean {
+  const runtime = inputRuntime.get(surface)
+  const key = runtime?.activeKey ?? null
+  if (runtime === undefined || key === null || key === nextHitKey) return false
+  const state = runtime.values.get(key)
+  const config = runtime.configs.get(key)
+  releaseActiveInput(surface, runtime, key)
+  if (state !== undefined) config?.onSubmit?.(state.value, state)
+  return true
+}
+
 export function focusInput(surface: UiSurface, key: string, state?: InputEditState): void {
   const runtime = inputRuntimeFor(surface)
+  blurActiveInput(surface, key)
   if (state !== undefined) runtime.values.set(key, clampInputState(state))
   runtime.activeKey = key
   resetInputBlink(surface, runtime, key)
@@ -494,6 +510,23 @@ function resetInputBlink(surface: UiSurface, runtime: InputRuntimeState, key: st
   surface.requestKeyedRender(key)
 }
 
+function stopInputBlink(runtime: InputRuntimeState, key: string): void {
+  if (runtime.blinkKey !== key) return
+  runtime.blinkKey = null
+  runtime.caretVisible = true
+  if (runtime.blinkTimer !== null) {
+    clearInterval(runtime.blinkTimer)
+    runtime.blinkTimer = null
+  }
+}
+
+function releaseActiveInput(surface: UiSurface, runtime: InputRuntimeState, key: string): void {
+  if (runtime.activeKey === key) runtime.activeKey = null
+  if (runtime.drag?.key === key) runtime.drag = null
+  stopInputBlink(runtime, key)
+  surface.requestKeyedRender(key)
+}
+
 function inputStateFor(runtime: InputRuntimeState, key: string, value: string, controlled: boolean, props: InputProps): InputEditState {
   const current = runtime.values.get(key)
   if (controlled) {
@@ -693,6 +726,7 @@ function activateInputText(
   event: MouseEvent | undefined,
   notifyPointerDown = true,
 ): void {
+  blurActiveInput(surface, key)
   const next = {...inputStateFor(runtime, key, initialValue, controlled, props)}
   const style = mergeStyle(props)
   const align = style.textAlign ?? (props.type === "number" ? "right" : "left")

@@ -6,6 +6,8 @@ import {
   divScrollTo,
   focusInput,
   handleActiveInputKey,
+  prepareSurfaceInputFocus,
+  surfaceHasActiveInput,
   type DrawImageOpts,
   type UiRuntime,
   UiSurface,
@@ -402,6 +404,49 @@ describe("retained UI Components boundary", () => {
     } finally {
       surface.dispose()
       globalThis.setInterval = originalSetInterval
+    }
+  })
+
+  test("shares one focus lifecycle across editable and non-editing public Components", () => {
+    const originalSetInterval = globalThis.setInterval
+    const originalClearInterval = globalThis.clearInterval
+    globalThis.setInterval = (() => 1) as unknown as typeof setInterval
+    globalThis.clearInterval = (() => {}) as typeof clearInterval
+    const surface = new RetainedComponentsSurface()
+    try {
+      surface.attachCanvas(createFakeRuntime())
+      surface.setRect({x: 0, y: 0, w: 800, h: 420}, 0.001, font)
+
+      const textPoint = {x: 140, y: 84}
+      expect(surface.pointerHitKey(textPoint.x, textPoint.y)).toBe("field:regular-text")
+      focusInput(surface, "field:regular-text", createInputEditState("edited"))
+      expect(prepareSurfaceInputFocus(surface, textPoint.x, textPoint.y)).toBeFalse()
+      expect(surfaceHasActiveInput(surface)).toBeTrue()
+
+      for (const point of [
+        {x: 80, y: 36},
+        {x: 228, y: 151},
+        {x: 42, y: 251},
+        {x: 320, y: 40},
+        {x: 320, y: 190},
+      ]) {
+        focusInput(surface, "field:regular-text", createInputEditState(surface.regularText))
+        expect(prepareSurfaceInputFocus(surface, point.x, point.y)).toBeTrue()
+        expect(surfaceHasActiveInput(surface)).toBeFalse()
+      }
+
+      focusInput(surface, "retained-number", createInputEditState("4"))
+      expect(prepareSurfaceInputFocus(surface, 80, 36)).toBeTrue()
+      expect(surface.numberValue).toBe(4)
+      expect(surfaceHasActiveInput(surface)).toBeFalse()
+
+      for (const point of [{x: 80, y: 36}, {x: 228, y: 151}, {x: 42, y: 251}]) {
+        expect(surface.pointerHitKey(point.x, point.y)).not.toBeNull()
+      }
+    } finally {
+      surface.dispose()
+      globalThis.setInterval = originalSetInterval
+      globalThis.clearInterval = originalClearInterval
     }
   })
 

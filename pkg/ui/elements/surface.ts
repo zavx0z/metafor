@@ -1809,6 +1809,11 @@ export abstract class UiSurface implements UiSurfaceNode {
     this.requestRender()
   }
 
+  /** Exact hit identity under one Surface-local pointer, used by Runtime control-focus ownership. */
+  pointerHitKey(localX: number, localY: number): string | null {
+    return this.#hitAt(localX - this.#padLeft, localY - this.#padTop)?.key ?? null
+  }
+
   onPointerUp(_event: MouseEvent, localX: number, localY: number): void {
     const pressed = this.pressedHit
     if (pressed === null) return

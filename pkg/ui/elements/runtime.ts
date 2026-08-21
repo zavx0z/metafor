@@ -16,7 +16,7 @@ import {HUD} from "./targets/HUD.ts"
 import {UIDisplay} from "./targets/UIDisplay.ts"
 import {VirtualInput, type VirtualInputSoftKeyboardMode} from "./virtual-input.ts"
 import {surfacesShareActivePopoverChain, type PopoverChainSurface} from "./popover-owner.ts"
-import {handleActiveInputKey, insertActiveInputText, surfaceHasActiveInput} from "./input.ts"
+import {blurActiveInput, handleActiveInputKey, insertActiveInputText, surfaceHasActiveInput} from "./input.ts"
 
 export type UiSurfaceRect = {x: number; y: number; w: number; h: number; visible?: boolean}
 export type UiSurfaceLayoutFn = (canvas: {w: number; h: number}) => UiSurfaceRect
@@ -82,6 +82,7 @@ export interface UiSurfaceNode {
   onInputText?(text: string): void
   onPointerMove?(event: MouseEvent, localX: number, localY: number): void
   onPointerDown?(event: MouseEvent, localX: number, localY: number): void
+  pointerHitKey?(localX: number, localY: number): string | null
   onPointerUp?(event: MouseEvent, localX: number, localY: number): void
   onMultiTouchStart?(points: readonly UiTouchPoint[]): void
   onMultiTouchMove?(points: readonly UiTouchPoint[]): void
@@ -1378,6 +1379,7 @@ export class UiRuntime {
       this.#deactivateSurfaceWindow()
     }
     if (this.#focused === surface) return
+    if (this.#focused !== null) blurActiveInput(this.#focused as UiSurfaceForInput)
     this.#focused?.onDeactivate?.()
     this.#focused = surface
     surface?.onActivate?.()
@@ -1902,6 +1904,7 @@ export class UiRuntime {
         this.canvas.focus()
       }
       this.#positionInputProxy(event.clientX, event.clientY)
+      prepareSurfaceInputFocus(hudSlot.surface, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
       this.setFocused(hudSlot.surface)
       this.#pressedSlot = hudSlot
       hudSlot.surface.onPointerDown?.(event, canvasCoords.x - hudSlot.rect.x, canvasCoords.y - hudSlot.rect.y)
@@ -1940,6 +1943,7 @@ export class UiRuntime {
       this.#emitViewPointChange()
     }
     dismissOtherSurfaceLayers(this.#surfaces, slot.surface)
+    prepareSurfaceInputFocus(slot.surface, displayCoords.x - slot.rect.x, displayCoords.y - slot.rect.y)
     this.setFocused(slot.surface)
     this.#pressedSlot = slot
     if (displayCoords.displayId !== this.#surfaceDisplayId) this.#armDisplayDragCandidate(event, displayCoords.displayId)
@@ -2023,6 +2027,7 @@ export class UiRuntime {
       this.#emitViewPointChange()
     }
     dismissOtherSurfaceLayers(this.#surfaces, slot.surface)
+    prepareSurfaceInputFocus(slot.surface, localX, localY)
     this.setFocused(slot.surface)
     this.#pressedSlot = slot
     this.#activeTouchId = touch.identifier
@@ -2287,6 +2292,12 @@ export function dismissOtherSurfaceLayers(
     visited.add(surface)
     surface.dismissTopLayer?.("outside")
   }
+}
+
+/** Applies one same-Surface HTML control focus transition before pointer dispatch. */
+export function prepareSurfaceInputFocus(surface: UiSurfaceNode, localX: number, localY: number): boolean {
+  const nextKey = surface.pointerHitKey?.(localX, localY) ?? null
+  return blurActiveInput(surface as UiSurfaceForInput, nextKey)
 }
 
 function hasPopoverInteractionScope(surface: UiSurfaceNode): surface is UiSurfaceNode & PopoverChainSurface {

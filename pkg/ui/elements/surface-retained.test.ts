@@ -981,6 +981,20 @@ describe("UiSurface retained component parent", () => {
     expect((surface.sibling.children[0] as Mesh).geometry).toBe(siblingGeometry)
     surface.dispose()
   })
+
+  test("resolves the exact retained pointer hit key for control focus ownership", () => {
+    const fake = createFakeRuntime()
+    const surface = new RetainedTestSurface()
+    surface.attachCanvas(fake.runtime)
+    surface.setRect({x: 0, y: 0, w: 120, h: 100}, 0.001, font)
+    const parent = surface.createParent("focus-owner")
+    surface.materialize(parent, () => {
+      surface.stageHit(parent, {x: 10, y: 20, w: 40, h: 24}, () => {}, {key: "retained-input"})
+    })
+    expect(surface.pointerHitKey(20, 30)).toBe("retained-input")
+    expect(surface.pointerHitKey(80, 80)).toBeNull()
+    surface.dispose()
+  })
 })
 
 function requiredLayer(surface: UiSurface, name: string): Object3D {

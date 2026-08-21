@@ -2,13 +2,16 @@ import {describe, expect, test} from "bun:test"
 import type {HitOptions, UiSurface} from "./surface.ts"
 import {UiSurface as BaseUiSurface} from "./surface.ts"
 import {
+  blurActiveInput,
   createInputEditState,
+  focusInput,
   handleActiveInputKey,
   handleInputKey,
   input,
   insertInputText,
   surfaceHasActiveInput,
 } from "./input.ts"
+import {prepareSurfaceInputFocus} from "./runtime.ts"
 import {blenderRgba8ToColor, blenderTheme, resolveNumericZoneColors, resolveWidgetColors} from "./blender-theme.ts"
 import {uiShapeMetrics} from "./shape.ts"
 import {uiIcons} from "./icons.ts"
@@ -49,6 +52,10 @@ class RecordingSurface extends BaseUiSurface {
 
   override popClip(): void {}
 
+  protected render(): void {}
+}
+
+class HitSurface extends BaseUiSurface {
   protected render(): void {}
 }
 
@@ -96,6 +103,61 @@ describe("input editing", () => {
     const state = createInputEditState("run", 3)
     expect(handleInputKey(state, key("v", {metaKey: true})).paste).toBe(true)
     expect(handleInputKey(state, key("Enter"), {submitOnEnter: true}).submit).toBe(true)
+  })
+
+  test("releases active focus after Enter without submitting again on the next control", () => {
+    const submissions: string[] = []
+    const surface = new RecordingSurface()
+    input(surface, 0, 0, 100, 22, {
+      key: "first",
+      value: "seed",
+      submitOnEnter: true,
+      onSubmit: (value) => submissions.push(value),
+    })
+    focusInput(surface, "first", createInputEditState("edited"))
+    expect(handleActiveInputKey(surface, key("Enter"))).toBeTrue()
+    expect(surfaceHasActiveInput(surface)).toBeFalse()
+    expect(submissions).toEqual(["edited"])
+
+    focusInput(surface, "second", createInputEditState("next"))
+    expect(submissions).toEqual(["edited"])
+  })
+
+  test("keeps the same control focused and commits exactly once before another hit", () => {
+    const submissions: string[] = []
+    const surface = new RecordingSurface()
+    input(surface, 0, 0, 100, 22, {
+      key: "editor",
+      value: "seed",
+      onSubmit: (value) => submissions.push(value),
+    })
+    focusInput(surface, "editor", createInputEditState("edited"))
+
+    expect(blurActiveInput(surface, "editor")).toBeFalse()
+    expect(surfaceHasActiveInput(surface)).toBeTrue()
+    expect(submissions).toEqual([])
+
+    expect(blurActiveInput(surface, "other")).toBeTrue()
+    expect(surfaceHasActiveInput(surface)).toBeFalse()
+    expect(submissions).toEqual(["edited"])
+    expect(blurActiveInput(surface, null)).toBeFalse()
+    expect(submissions).toEqual(["edited"])
+  })
+
+  test("uses the exact Surface hit key to preserve or blur active control focus", () => {
+    const surface = new HitSurface()
+    surface.hit(0, 0, 20, 20, () => {}, {key: "editor"})
+    surface.hit(30, 0, 20, 20, () => {}, {key: "other"})
+    focusInput(surface, "editor", createInputEditState("seed"))
+
+    expect(prepareSurfaceInputFocus(surface, 10, 10)).toBeFalse()
+    expect(surfaceHasActiveInput(surface)).toBeTrue()
+    expect(prepareSurfaceInputFocus(surface, 40, 10)).toBeTrue()
+    expect(surfaceHasActiveInput(surface)).toBeFalse()
+
+    focusInput(surface, "editor", createInputEditState("seed"))
+    expect(prepareSurfaceInputFocus(surface, 80, 80)).toBeTrue()
+    expect(surfaceHasActiveInput(surface)).toBeFalse()
   })
 })
 
