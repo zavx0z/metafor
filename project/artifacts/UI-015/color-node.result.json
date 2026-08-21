@@ -1,0 +1,33 @@
+{
+  "sourceCommit": "4f9f0da3168d766c812c863c02fc684d73cba457",
+  "runtime": {
+    "nodePid": 59195,
+    "targetId": "809BF08D88E4582CA819EFE847FE1450",
+    "route": "node-editor/scene/color-unlinked",
+    "viewport": [1920, 1088, 2],
+    "consoleErrors": []
+  },
+  "fixture": {
+    "removedLink": "transform-shader",
+    "targetNodeId": "shader",
+    "linkCount": 4
+  },
+  "value": {"r": 0.88, "g": 0.08688193846554548, "b": 0.7245490427723332, "a": 1},
+  "popup": {
+    "overlayAboveRows": true,
+    "markersMoved": true,
+    "escapeClosed": true,
+    "outsideClosed": true
+  },
+  "captures": {
+    "open": {"file": "color-node-open.png", "bytes": 439783, "sha256": "ec10b24939e483549959affc70090b10684372e4e228746992c07619b3257e45"},
+    "drag": {"file": "color-node-wheel-value-drag.png", "bytes": 439754, "sha256": "331599bdbad85dca5bfdaf1730f28282d0f8bc43cfa5cf1a126ac2b740787f0d"},
+    "escape": {"file": "color-node-escape-closed.png", "bytes": 409745, "sha256": "b67779602364761f0e9ede00a137c0e4df0b2922a33c306a22e174cba93566ab"},
+    "outside": {"file": "color-node-outside-closed.png", "bytes": 409876, "sha256": "1b407e65a8c9464a390605ca1fb3a45aeb02751cdb1b8b2329d142b49f134257"}
+  },
+  "rejectedAttempts": [{"scenario": "outside", "reason": "render barrier timed out after 0 frames", "written": false}],
+  "routePreserved": true,
+  "focusEmulationRestored": true,
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}

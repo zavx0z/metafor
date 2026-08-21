@@ -1,0 +1,13 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":1284,"y":396},
+  {"kind":"pointer-down","x":1284,"y":396,"button":"left"},
+  {"kind":"pointer-up","x":1284,"y":396,"button":"left"},
+  {"kind":"pointer-drag","from":{"x":1242,"y":446},"to":{"x":1308,"y":430},"button":"left","segments":8},
+  {"kind":"pointer-drag","from":{"x":1365,"y":425},"to":{"x":1365,"y":510},"button":"left","segments":8},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"node-color-drag","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/color-node-wheel-value-drag.png"},
+  {"kind":"key-down","key":"Escape","code":"Escape"},
+  {"kind":"key-up","key":"Escape","code":"Escape"},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"node-color-escape","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/color-node-escape-closed.png"}
+]}

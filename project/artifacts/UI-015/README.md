@@ -214,6 +214,29 @@
   `9f3f00ee8b7b7977fc8ece5067f6e3e404e8bdbef73f7fe14a5336e2a15d1c67`.
 * Machine-readable Color/Link result: `interaction-tail.result.json`.
 
+## UI-015.9.2 — ColorInput inside expanded Node
+
+* Source commit `4f9f0da31`, source-fresh Node PID `59195`, target `809…`,
+  route `/node-editor/scene/color-unlinked`, native `1920×1088 @2`, console `0`.
+  The route removes only exact `transform-shader` and targets existing `shader`.
+* `color-node-open.png` — same compact popup is above later Node rows, `439783`
+  bytes, SHA-256
+  `ec10b24939e483549959affc70090b10684372e4e228746992c07619b3257e45`.
+* `color-node-wheel-value-drag.png` — markers move and controlled
+  `shader/base-color` becomes `{0.88,0.086881938…,0.724549043…,1}`, `439754`
+  bytes, SHA-256
+  `331599bdbad85dca5bfdaf1730f28282d0f8bc43cfa5cf1a126ac2b740787f0d`.
+* `color-node-escape-closed.png` — Escape closes popup while preserving new
+  swatch, `409745` bytes, SHA-256
+  `b67779602364761f0e9ede00a137c0e4df0b2922a33c306a22e174cba93566ab`.
+* `color-node-outside-closed.png` — outside click closes original-value popup,
+  `409876` bytes, SHA-256
+  `1b407e65a8c9464a390605ca1fb3a45aeb02751cdb1b8b2329d142b49f134257`.
+* First outside attempt was rejected before capture because its page barrier
+  received zero rAF. Health/log/console stayed green; after explicit reload the
+  same plan passed. Rejected output did not enter evidence.
+* Machine-readable result: `color-node.result.json`.
+
 ## UI-015.2.1 — Button size RED baseline
 
 * Источник: owner live screenshot, route `/button/sizes/large`, 2026-08-20.

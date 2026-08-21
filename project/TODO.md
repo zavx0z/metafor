@@ -249,7 +249,11 @@ focus. Standalone Color wheel/value markers и moved Rotation Link corridor
 также прошли exact pointer plans с console0; selected Link id =
 `scalar-transform-rotation`. UI-015.9.2 теперь добавляет только deterministic
 unlinked Color story variant, потому что обычный `transform-shader` link по
-Blender law скрывает editor; renderer/ColorInput не меняются.
+Blender law скрывает editor; renderer/ColorInput не меняются. Commit
+`4f9f0da31` + Node PID `59195` закрывают этот gate: wheel/value markers и owner
+RGBA меняются, Escape/outside закрывают popup, console0. UI-015.12 interaction
+capability/result complete; parent visual inventory и preview-toggle/window
+audit ещё не закрыты.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
