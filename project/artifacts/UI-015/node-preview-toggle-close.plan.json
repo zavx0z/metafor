@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settleMs": 80,
+  "steps": [
+    {"kind": "pointer-move", "x": 671, "y": 311},
+    {"kind": "pointer-down", "x": 671, "y": 311, "button": "left"},
+    {"kind": "pointer-up", "x": 671, "y": 311, "button": "left"},
+    {"kind": "settle", "ms": 100},
+    {"kind": "checkpoint", "name": "preview-closed-again", "dom": true}
+  ]
+}

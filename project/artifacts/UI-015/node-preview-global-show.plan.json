@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settleMs": 80,
+  "steps": [
+    {"kind": "pointer-move", "x": 1710, "y": 587},
+    {"kind": "pointer-down", "x": 1710, "y": 587, "button": "left"},
+    {"kind": "pointer-up", "x": 1710, "y": 587, "button": "left"},
+    {"kind": "settle", "ms": 100},
+    {"kind": "checkpoint", "name": "global-restored", "dom": true}
+  ]
+}

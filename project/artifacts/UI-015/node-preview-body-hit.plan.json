@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settleMs": 80,
+  "steps": [
+    {"kind": "pointer-move", "x": 560, "y": 397},
+    {"kind": "pointer-down", "x": 560, "y": 397, "button": "left"},
+    {"kind": "pointer-up", "x": 560, "y": 397, "button": "left"},
+    {"kind": "settle", "ms": 100},
+    {"kind": "checkpoint", "name": "body-selected", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/node-preview-body-selected.png"}
+  ]
+}

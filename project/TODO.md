@@ -270,7 +270,12 @@ deferred до отдельной widget keyboard-focus capability и не зая
 Source/result commit `818c08ed1` и no-HMR restart/reload evidence на PIDs
 `72235/72464/72694` закрыли этот dependency; synthetic matrix и console0
 зафиксированы в `material-state.result.json`, owner visual acceptance остаётся
-UI-015.10. Следующий active slice — UI-015.9.4 Node Preview.
+UI-015.10.
+UI-015.9.4 source commit `1e5660ae3` теперь добавляет controlled preview eye,
+per-node flags, global hide/show и extra-info image panel над неизменным body.
+Source-fresh PID `84993` закрывает toggle/buffer/multiple/non-previewable/body-hit
+matrix с console0; `node-preview.result.json` хранит exact evidence. .9.4 в
+REVIEW, active slice — UI-015.10 equal-scale owner visual matrix.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

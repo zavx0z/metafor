@@ -1,0 +1,36 @@
+{
+  "sourceCommit": "1e5660ae3",
+  "sourceFresh": true,
+  "selector": "node-ui",
+  "pid": 84993,
+  "targetId": "809BF08D88E4582CA819EFE847FE1450",
+  "viewport": {"width": 1920, "height": 1088, "dpr": 2},
+  "references": {
+    "contract": {"path": "/Users/zavx0z/repozitarium/blender-node-catalog/references/NODE_PREVIEW.md", "sha256": "6daffd5f5ad6dda41a29aa069b6bf4401f2f2a3e487adf40fd8dfb374d33266d"},
+    "officialImage": {"path": "/Users/zavx0z/repozitarium/blender-node-catalog/assets/official/4.0/Blender4.0_node_previews.png", "sha256": "00ca151ad5a95efd089fcb61ceabf31c88f113b969fcb42e5bca64b662fc4906"}
+  },
+  "checks": {
+    "focusedPreviewStory": "50/50",
+    "delivery": "18/18",
+    "typechecks": 3,
+    "builds": 2,
+    "fullNodeBaseline": "67 pass, 4 pre-existing Button/Workbench expectations"
+  },
+  "live": {
+    "toggle": "closed -> open -> closed",
+    "globalVisibility": "off/on preserved scalar:true",
+    "buffers": ["primary", "alternate", "missing", "zero"],
+    "multipleFlags": {"scalar": true, "shader": true},
+    "nonPreviewableFlags": {},
+    "bodyHit": {"kind": "node", "id": "scalar"},
+    "consoleErrors": 0
+  },
+  "invariants": [
+    "preview panel is above ordinary body and has its own culling envelope",
+    "body rect and hit, sockets and links remain ordinary presentation geometry",
+    "global visibility does not clear per-node flags",
+    "missing or zero-size buffers do not draw a fake panel",
+    "multiple nodes may keep independent enabled flags"
+  ],
+  "ownerAcceptance": false
+}
