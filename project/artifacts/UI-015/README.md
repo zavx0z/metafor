@@ -329,6 +329,28 @@
   `409180` bytes; visible value stays `3` in both directions.
 * Причина: Node story creates static Field values without `onChange`. This is a
   controlled-story owner RED, not Components/Integer/focus failure.
+* Result commit `dfd3a1bc1`: dev-only owner now publishes actual immutable
+  `nodeFieldValues`; source-fresh right/left plans produce `iterations=6/0`,
+  route preserved and console `0`.
+
+## UI-015.8.9 — Controlled numeric display RED
+
+* Источник: continuation of exact UI-015.9.1 Node plans after controlled story
+  owner commit `dfd3a1bc1`, Node PID `50416`, target `809…`, route
+  `/node-editor/scene/default`, native `1920×1088 @2`.
+* DOM fact: right/left runs publish owner values `6/0` in
+  `nodeFieldValues["scalar/iterations"]`.
+* Canvas fact: `integer-node-focus-blur-drag-right.png` and
+  `integer-node-focus-blur-drag-left.png` remain byte-identical, `409535` bytes,
+  SHA-256 `1abac8edcf76ca79cd770b960d8baecbf541549d134f96d82105f380a1b622fa`;
+  both visibly render `3`.
+* Standalone corroboration: `integer-components-scrub.png` shows story/source
+  owner value `6`, while the actual labeled control still renders `3`.
+* Cause: NumberInput passes editing through `onSubmit`; Elements Input infers
+  controlled mode only from `onChange`, retains the original string buffer and
+  ignores later owner value while inactive. This is a generic Input/NumberInput
+  contract defect, not a Node renderer or retained redraw workaround.
+* Machine-readable summary: `integer-controlled-display-red.result.json`.
 
 ## UI-015.5.3 — Linked Node measurement RED
 

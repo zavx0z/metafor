@@ -1,0 +1,24 @@
+{
+  "sourceCommit": "dfd3a1bc12f80c587828915ef127b2691848d356",
+  "selector": "node-ui",
+  "pid": 50416,
+  "targetId": "809BF08D88E4582CA819EFE847FE1450",
+  "route": "node-editor/scene/default",
+  "viewport": [1920, 1088, 2],
+  "ownerValues": {
+    "rightScrub": 6,
+    "leftScrub": 0
+  },
+  "visibleValue": 3,
+  "captures": {
+    "right": "integer-node-focus-blur-drag-right.png",
+    "left": "integer-node-focus-blur-drag-left.png",
+    "byteIdentical": true,
+    "bytes": 409535,
+    "sha256": "1abac8edcf76ca79cd770b960d8baecbf541549d134f96d82105f380a1b622fa"
+  },
+  "routePreserved": true,
+  "consoleErrors": [],
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}

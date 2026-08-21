@@ -236,7 +236,12 @@ Integer LIVE PASS: outside commit/blur, drag `3→6/0`, typed `12`,
 disabled/readOnly, console0. Escape/right cancel и broad Text/grouped/popup
 focus gates открыты. Node plan выявил UI-015.9.1: fixture Fields не имеют
 callbacks и static tree не меняет value. Новый dev-only controlled Field owner
-покрывает все mutable kinds без renderer-local state; UI-015.9.1 IN_PROGRESS.
+покрывает все mutable kinds без renderer-local state; commit `dfd3a1bc1`
+публикует actual Node dataset `3→6/0`. Canvas всё ещё рисует `3`: underlying
+Elements Input ошибочно считает NumberInput uncontrolled, потому что numeric
+owner использует `onSubmit`, а controlled mode выводится только из `onChange`.
+Новый UI-015.8.9 исправляет единый controlled numeric display contract для
+standalone/grouped/Node, после чего продолжаются cancel и broad focus gates.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
