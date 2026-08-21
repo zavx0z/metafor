@@ -4,6 +4,9 @@ import type {BlenderFrame, BlenderLink, BlenderNode, BlenderSocket} from "../ble
 
 export type NodeFieldValueState = Readonly<Record<string, unknown>>
 export type NodeFieldValueChange = (nodeId: string, fieldId: string, value: unknown) => void
+export type NodeFieldActionName = "browse" | "activate" | "pick" | "clear" | "add" | "select" | "remove" | "move-up" | "move-down"
+export type NodeFieldAction = Readonly<{nodeId: string; fieldId: string; action: NodeFieldActionName}>
+export type NodeFieldActionChange = (action: NodeFieldAction) => void
 type CatalogTree = PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame>
 
 export function nodeFieldStateKey(nodeId: string, fieldId: string): string {
@@ -36,6 +39,7 @@ export function bindNodeFieldValueState(
   tree: CatalogTree,
   state: NodeFieldValueState,
   onChange: NodeFieldValueChange,
+  onAction?: NodeFieldActionChange,
 ): CatalogTree {
   return Object.freeze({
     ...tree,
@@ -46,13 +50,13 @@ export function bindNodeFieldValueState(
         node: Object.freeze({
           ...node,
           ...(node.properties === undefined ? {} : {
-            properties: Object.freeze(node.properties.map((field) => bindField(node.id, field, state, onChange))),
+            properties: Object.freeze(node.properties.map((field) => bindField(node.id, field, state, onChange, onAction))),
           }),
           ...(node.parameters === undefined ? {} : {
             parameters: Object.freeze(node.parameters.map((parameter) => Object.freeze({
               ...parameter,
               ...(parameter.field === undefined ? {} : {
-                field: bindField(node.id, parameter.field, state, onChange),
+                field: bindField(node.id, parameter.field, state, onChange, onAction),
               }),
             }))),
           }),
@@ -82,10 +86,12 @@ function bindField(
   field: FieldDefinition,
   state: NodeFieldValueState,
   publish: NodeFieldValueChange,
+  publishAction: NodeFieldActionChange | undefined,
 ): FieldDefinition {
   const key = nodeFieldStateKey(nodeId, field.id)
   const stored = Object.hasOwn(state, key) ? state[key] : fieldValue(field)
   const changed = (value: unknown): void => publish(nodeId, field.id, cloneValue(value))
+  const action = (name: NodeFieldActionName): void => publishAction?.(Object.freeze({nodeId, fieldId: field.id, action: name}))
   if (field.kind === "text") return {...field, value: stored as string, onChange: (value: string) => { field.onChange?.(value); changed(value) }}
   if (field.kind === "number") return {...field, value: stored as number, onChange: (value: number) => { field.onChange?.(value); changed(value) }}
   if (field.kind === "integer") return {...field, value: stored as number, onChange: (value: number) => { field.onChange?.(value); changed(value) }}
@@ -95,12 +101,27 @@ function bindField(
   if (field.kind === "vector") return {...field, value: stored as readonly number[], onChange: (value: readonly number[]) => { field.onChange?.(value); changed(value) }}
   if (field.kind === "rotation") return {...field, value: stored as readonly number[], onChange: (value: readonly number[]) => { field.onChange?.(value); changed(value) }}
   if (field.kind === "matrix") return {...field, value: stored as readonly (readonly number[])[], onChange: (value: readonly (readonly number[])[]) => { field.onChange?.(value); changed(value) }}
-  if (field.kind === "path") return {...field, value: stored as string, onChange: (value: string) => { field.onChange?.(value); changed(value) }}
+  if (field.kind === "path") return {
+    ...field,
+    value: stored as string,
+    onChange: (value: string) => { field.onChange?.(value); changed(value) },
+    ...((field.onBrowse !== undefined || publishAction !== undefined) ? {
+      onBrowse: () => { field.onBrowse?.(); action("browse") },
+    } : {}),
+  }
   if (field.kind === "reference") {
     return {
       ...field,
       value: stored as typeof field.value,
-      onClear: () => { field.onClear?.(); changed(null) },
+      ...((field.onActivate !== undefined || publishAction !== undefined) ? {
+        onActivate: () => { field.onActivate?.(); action("activate") },
+      } : {}),
+      ...((field.onPick !== undefined || publishAction !== undefined) ? {
+        onPick: () => { field.onPick?.(); action("pick") },
+      } : {}),
+      ...((field.onClear !== undefined || publishAction !== undefined) ? {
+        onClear: () => { field.onClear?.(); action("clear"); changed(null) },
+      } : {}),
     }
   }
   if (field.kind === "collection") {
@@ -110,9 +131,13 @@ function bindField(
       ...field,
       items: value.items,
       selectedId: value.selectedId,
-      onSelect: (id) => { field.onSelect?.(id); publishCollection(value.items, id) },
+      onSelect: (id) => { field.onSelect?.(id); action("select"); publishCollection(value.items, id) },
+      ...((field.onAdd !== undefined || publishAction !== undefined) ? {
+        onAdd: () => { field.onAdd?.(); action("add") },
+      } : {}),
       onRemove: (id) => {
         field.onRemove?.(id)
+        action("remove")
         publishCollection(value.items.filter((item) => item.id !== id), value.selectedId === id ? null : value.selectedId)
       },
       onMove: (id, direction) => {
@@ -120,6 +145,7 @@ function bindField(
         const index = value.items.findIndex((item) => item.id === id)
         const target = index + (direction === "up" ? -1 : 1)
         if (index < 0 || target < 0 || target >= value.items.length) return
+        action(direction === "up" ? "move-up" : "move-down")
         const items = [...value.items]
         ;[items[index], items[target]] = [items[target]!, items[index]!]
         publishCollection(Object.freeze(items), value.selectedId)

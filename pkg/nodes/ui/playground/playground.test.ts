@@ -41,9 +41,8 @@ describe("Blender-like Node component playground", () => {
       ...(node.properties?.map(({kind}) => kind) ?? []),
       ...(node.parameters?.flatMap(({field}) => field === undefined ? [] : [field.kind]) ?? []),
     ]))
-    const knownUnrelatedMissing = new Set(["collection", "path"])
     for (const kind of FIELD_KINDS) {
-      expect(insideKinds.has(kind), kind).toBe(!knownUnrelatedMissing.has(kind))
+      expect(insideKinds.has(kind), kind).toBeTrue()
     }
     const surfaces = await Bun.file(join(playgroundRoot, "surfaces.ts")).text()
     expect(surfaces).not.toContain("FieldCatalogSurface")
@@ -101,7 +100,7 @@ describe("Blender-like Node component playground", () => {
   })
 
   test("publishes one controlled route, args and source state for expanded and collapsed Nodes", async () => {
-    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 9)).toEqual([
+    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 10)).toEqual([
       "node-editor/scene/default",
       "node-editor/scene/selected",
       "node-editor/scene/rotation-linked",
@@ -109,12 +108,13 @@ describe("Blender-like Node component playground", () => {
       "node-editor/scene/output-only",
       "node-editor/scene/mixed-sides",
       "node-editor/scene/color-unlinked",
+      "node-editor/scene/inventory",
       "node-editor/collapsed/default",
       "node-editor/collapsed/selected",
     ])
     expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "collapsed", "popup"])
     expect(nodePlaygroundDockItems("node-editor/scene/default").map(({id}) => id)).toEqual([
-      "default", "selected", "rotation-linked", "translation-unlinked", "output-only", "mixed-sides", "color-unlinked",
+      "default", "selected", "rotation-linked", "translation-unlinked", "output-only", "mixed-sides", "color-unlinked", "inventory",
     ])
     expect(nodePlaygroundDockItems("node-editor/collapsed/selected").map(({id}) => id)).toEqual(["default", "selected"])
     expect(nodePlaygroundDockItems("node-editor/popup/select-open").map(({id}) => id)).toEqual(["select-open"])
@@ -202,6 +202,25 @@ describe("Blender-like Node component playground", () => {
     expect(unlinked.nodes).toEqual(linked.nodes)
     expect(unlinked.nodes.find(({node}) => node.id === "shader")?.node.parameters
       ?.find(({id}) => id === "base-color")?.field).toMatchObject({kind: "color"})
+  })
+
+  test("publishes one complete Path Collection and Reference inventory route", async () => {
+    expect(NODE_COMPONENT_STORY_ROUTES).toContain("node-editor/scene/inventory")
+    const story = await NODE_COMPONENT_STORIES.load("node-editor/scene/inventory")
+    expect(story.defaultArgs).toMatchObject({
+      component: "node-editor",
+      target: "expanded",
+      selected: false,
+      "target-node-id": "asset",
+    })
+    expect(nodeEditorStoryState(story.defaultArgs).nodeId).toBe("asset")
+
+    const asset = createCatalogNodeTree().nodes.find(({node}) => node.id === "asset")?.node
+    const fields = [
+      ...(asset?.properties ?? []),
+      ...(asset?.parameters?.flatMap(({field}) => field === undefined ? [] : [field]) ?? []),
+    ]
+    expect(fields.map(({kind}) => kind)).toEqual(expect.arrayContaining(["path", "reference", "collection"]))
   })
 
   test("publishes output-only and mixed-side one-Field label evidence variants", async () => {

@@ -26,6 +26,7 @@ import {
   bindNodeFieldValueState,
   createNodeFieldValueState,
   updateNodeFieldValueState,
+  type NodeFieldAction,
   type NodeFieldValueState,
 } from "./controlled-fields.ts"
 import {createCatalogNodeTree, createNoiseComparisonTree} from "./fixtures.ts"
@@ -81,6 +82,7 @@ try {
   const comparisonTree = createNoiseComparisonTree()
   let nodeFieldRoute: NodePlaygroundRoute | null = null
   let nodeFieldValues: NodeFieldValueState = createNodeFieldValueState(tree)
+  let nodeFieldActions: readonly NodeFieldAction[] = Object.freeze([])
   let storyModule: PlaygroundStoryModule | null = null
   let storyArgs: PlaygroundStoryArgs = Object.freeze({})
   let storyPanelMode: PlaygroundStoryPanelMode = "controls"
@@ -303,6 +305,7 @@ try {
     document.documentElement.dataset.nodeStorySections = String(nodePlaygroundSections(route).length)
     document.documentElement.dataset.nodeStoryVariants = String(nodePlaygroundDockItems(route).length)
     document.documentElement.dataset.nodeFieldValues = JSON.stringify(nodeFieldValues)
+    document.documentElement.dataset.nodeFieldActions = JSON.stringify(nodeFieldActions)
     document.documentElement.dataset.nodeSocketSections = isNodeSocketStoryRoute(route) ? String(nodePlaygroundSections(route).length) : ""
     document.documentElement.dataset.nodeSocketVariants = isNodeSocketStoryRoute(route) ? String(nodePlaygroundDockItems(route).length) : ""
   }
@@ -318,6 +321,7 @@ try {
     if (nodeFieldRoute !== route) {
       nodeFieldRoute = route
       nodeFieldValues = createNodeFieldValueState(baseTree)
+      nodeFieldActions = Object.freeze([])
     }
     editor.setTree(bindNodeFieldValueState(baseTree, nodeFieldValues, (nodeId, fieldId, value) => {
       if (router.current !== route) return
@@ -325,8 +329,13 @@ try {
       applyProductionStoryState(route)
       publishStoryState()
       retainedObserver?.publishAfterFrame()
+    }, (action) => {
+      if (router.current !== route) return
+      nodeFieldActions = Object.freeze([...nodeFieldActions, action].slice(-32))
+      publishStoryState()
     }))
     document.documentElement.dataset.nodeFieldValues = JSON.stringify(nodeFieldValues)
+    document.documentElement.dataset.nodeFieldActions = JSON.stringify(nodeFieldActions)
     if (isNodeSocketStoryRoute(route)) return
     if (isNodeEditorStoryRoute(route)) {
       applyNodeEditorStoryState(storyArgs, {

@@ -5,6 +5,7 @@ import {
   createNodeFieldValueState,
   nodeFieldStateKey,
   updateNodeFieldValueState,
+  type NodeFieldAction,
 } from "./controlled-fields.ts"
 import {createCatalogNodeTree} from "./fixtures.ts"
 
@@ -18,6 +19,14 @@ describe("Node playground controlled Field owner", () => {
     expect(state[nodeFieldStateKey("transform", "rotation")]).toEqual([0, 45, 90])
     expect(state[nodeFieldStateKey("shader", "base-color")]).toEqual({r: 0.15, g: 0.42, b: 0.88, a: 1})
     expect(state[nodeFieldStateKey("asset", "name")]).toBe("Suzanne")
+    expect(state[nodeFieldStateKey("asset", "path")]).toBe("/textures/suzanne.png")
+    expect(state[nodeFieldStateKey("asset", "resources")]).toEqual({
+      items: [
+        {id: "suzanne", label: "Suzanne"},
+        {id: "cube", label: "Cube"},
+      ],
+      selectedId: "suzanne",
+    })
     expect(state[nodeFieldStateKey("matrix", "matrix-value")]).toEqual([[1, 0], [0, 1]])
     expect(Object.isFrozen(state)).toBeTrue()
     expect(Object.isFrozen(state[nodeFieldStateKey("transform", "rotation")])).toBeTrue()
@@ -50,6 +59,52 @@ describe("Node playground controlled Field owner", () => {
       {nodeId: "transform", fieldId: "rotation", value: [10, 20, 30]},
     ])
     expect(Object.isFrozen(changes[1]!.value)).toBeTrue()
+  })
+
+  test("publishes bounded owner actions without inventing unrelated values", () => {
+    const tree = createCatalogNodeTree()
+    let state = createNodeFieldValueState(tree)
+    const actions: NodeFieldAction[] = []
+    const bind = () => bindNodeFieldValueState(
+      tree,
+      state,
+      (nodeId, fieldId, value) => { state = updateNodeFieldValueState(state, nodeId, fieldId, value) },
+      (action) => actions.push(action),
+    )
+
+    let controlled = bind()
+    const path = field(controlled, "asset", "path")
+    const reference = field(controlled, "asset", "object")
+    const collection = field(controlled, "asset", "resources")
+    if (path.kind !== "path" || reference.kind !== "reference" || collection.kind !== "collection") {
+      throw new Error("Unexpected inventory Field kinds")
+    }
+    path.onBrowse?.()
+    reference.onActivate?.()
+    reference.onPick?.()
+    collection.onAdd?.()
+    expect(state[nodeFieldStateKey("asset", "path")]).toBe("/textures/suzanne.png")
+    expect(state[nodeFieldStateKey("asset", "object")]).toEqual({id: "suzanne", label: "Suzanne", kind: "object"})
+
+    collection.onSelect?.("cube")
+    controlled = bind()
+    const selected = field(controlled, "asset", "resources")
+    if (selected.kind !== "collection") throw new Error("Expected rebound collection")
+    selected.onMove?.("cube", "up")
+    controlled = bind()
+    const moved = field(controlled, "asset", "resources")
+    if (moved.kind !== "collection") throw new Error("Expected moved collection")
+    moved.onRemove?.("cube")
+    reference.onClear?.()
+
+    expect(actions.map(({action}) => action)).toEqual([
+      "browse", "activate", "pick", "add", "select", "move-up", "remove", "clear",
+    ])
+    expect(state[nodeFieldStateKey("asset", "object")]).toBeNull()
+    expect(state[nodeFieldStateKey("asset", "resources")]).toEqual({
+      items: [{id: "suzanne", label: "Suzanne"}],
+      selectedId: null,
+    })
   })
 })
 

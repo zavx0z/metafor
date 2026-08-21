@@ -56,6 +56,7 @@ export type NodeEditorStoryRoute =
   | "node-editor/scene/output-only"
   | "node-editor/scene/mixed-sides"
   | "node-editor/scene/color-unlinked"
+  | "node-editor/scene/inventory"
   | "node-editor/collapsed/default"
   | "node-editor/collapsed/selected"
   | "node-editor/popup/select-open"
@@ -244,6 +245,17 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
                 selected: false,
                 nodeId: "shader",
                 colorLinked: false,
+              }),
+            },
+            {
+              id: "inventory",
+              label: "Path + Collection",
+              title: "Редактор нод · Полный Field inventory",
+              tags: ["expanded", "path", "collection", "reference", "interaction"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "asset",
               }),
             },
           ],

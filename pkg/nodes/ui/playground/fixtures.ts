@@ -130,7 +130,20 @@ export function createCatalogNodeTree(
   const asset = blenderNode("asset", "Ввод ресурса", "Resource", [
     {id: "name", label: "Имя", kind: "text", value: "Suzanne"},
     {id: "object", label: "Объект", kind: "reference", value: {id: "suzanne", label: "Suzanne", kind: "object"}},
-  ], [], [
+    {id: "path", label: "Путь", kind: "path", value: "/textures/suzanne.png"},
+  ], [
+    parameter({
+      id: "resources",
+      label: "Ресурсы",
+      kind: "collection",
+      items: [
+        {id: "suzanne", label: "Suzanne"},
+        {id: "cube", label: "Cube"},
+      ],
+      selectedId: "suzanne",
+      visibleRows: 2,
+    }),
+  ], [
     socket("object", "Объект", "output", "object"),
     socket("image", "Изображение", "output", "image"),
     socket("string", "Имя", "output", "string"),
@@ -182,15 +195,35 @@ export function createCatalogNodeTree(
     links.push(link("scalar-transform-rotation", "scalar", "result", "transform", "rotation", "rotation", nodes))
   }
 
+  const dataFrameRect = {
+    x: 80,
+    y: 320,
+    w: 950,
+    h: frameHeightForNodes(nodes, "data-frame", 320, 300),
+  }
+  const catalogHeight = Math.max(650, dataFrameRect.y + dataFrameRect.h + 30)
+
   return {
-    bounds: {x: 0, y: 0, w: 1120, h: 650},
+    bounds: {x: 0, y: 0, w: 1120, h: catalogHeight},
     frames: [
-      {frame, rect: {x: 0, y: 0, w: 1120, h: 650}},
-      {frame: nestedFrame, rect: {x: 80, y: 320, w: 950, h: 300}},
+      {frame, rect: {x: 0, y: 0, w: 1120, h: catalogHeight}},
+      {frame: nestedFrame, rect: dataFrameRect},
     ],
     nodes,
     links,
   }
+}
+
+function frameHeightForNodes(
+  nodes: readonly PositionedNode<BlenderNode, BlenderSocket>[],
+  frameId: string,
+  y: number,
+  minimum: number,
+): number {
+  const bottom = Math.max(y, ...nodes
+    .filter(({node}) => node.frameId === frameId)
+    .map(({rect}) => rect.y + rect.h))
+  return Math.max(minimum, bottom - y + 30)
 }
 
 function positionCatalogNode(
