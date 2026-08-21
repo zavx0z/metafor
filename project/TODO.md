@@ -262,6 +262,11 @@ UI-015.9.4 теперь WAITING только на material/state matrix и за�
 настоящий Blender Node Preview: controlled eye toggle,
 persistent node flag, global preview visibility и extra-info image panel над
 body без изменения body/Socket/Link geometry.
+Перед Preview текущий UI-015.8.10 закрывает подтверждённые material gaps:
+raw Scrollbar вместо palette blue, one-pixel alignment-aware widget emboss,
+editorBorder отдельно от outline и distinct panel header/body roles. Panel
+radius `4` уже доказан формулой `.4×20×.5`; dormant `focused→activeDefault`
+deferred до отдельной widget keyboard-focus capability и не заявляется PASS.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
