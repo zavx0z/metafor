@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settleMs": 80,
+  "steps": [
+    {"kind": "pointer-move", "x": 925, "y": 608},
+    {"kind": "pointer-down", "x": 925, "y": 608, "button": "left"},
+    {"kind": "settle", "ms": 100},
+    {"kind": "checkpoint", "name": "pressed", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/material-elements-button-pressed.png"},
+    {"kind": "pointer-up", "x": 925, "y": 608, "button": "left"}
+  ]
+}

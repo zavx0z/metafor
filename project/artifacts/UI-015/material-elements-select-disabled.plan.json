@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "settleMs": 80,
+  "steps": [
+    {"kind": "pointer-move", "x": 925, "y": 696},
+    {"kind": "settle", "ms": 80},
+    {"kind": "checkpoint", "name": "disabled-row", "dom": true}
+  ]
+}

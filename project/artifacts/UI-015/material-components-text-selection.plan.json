@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "settleMs": 80,
+  "steps": [
+    {"kind": "pointer-move", "x": 925, "y": 595},
+    {"kind": "pointer-down", "x": 925, "y": 595, "button": "left"},
+    {"kind": "pointer-up", "x": 925, "y": 595, "button": "left"},
+    {"kind": "key-down", "key": "a", "code": "KeyA", "modifiers": ["meta"]},
+    {"kind": "key-up", "key": "a", "code": "KeyA", "modifiers": ["meta"]},
+    {"kind": "settle", "ms": 80},
+    {"kind": "checkpoint", "name": "selection", "dom": true}
+  ]
+}

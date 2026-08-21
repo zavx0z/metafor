@@ -267,6 +267,10 @@ raw Scrollbar вместо palette blue, one-pixel alignment-aware widget emboss
 editorBorder отдельно от outline и distinct panel header/body roles. Panel
 radius `4` уже доказан формулой `.4×20×.5`; dormant `focused→activeDefault`
 deferred до отдельной widget keyboard-focus capability и не заявляется PASS.
+Source/result commit `818c08ed1` и no-HMR restart/reload evidence на PIDs
+`72235/72464/72694` закрыли этот dependency; synthetic matrix и console0
+зафиксированы в `material-state.result.json`, owner visual acceptance остаётся
+UI-015.10. Следующий active slice — UI-015.9.4 Node Preview.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

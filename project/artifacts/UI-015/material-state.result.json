@@ -1,0 +1,39 @@
+{
+  "sourceCommit": "818c08ed1",
+  "selectors": {
+    "elements": {"pid": 72235, "targetId": "E2087390E08913DD8CA4142D5D9E8C48", "dpr": 2},
+    "components": {"pid": 72464, "targetId": "D0775AE44CFF0E299A0C28EECB3872D2", "dpr": 2},
+    "node-ui": {"pid": 72694, "targetId": "809BF08D88E4582CA819EFE847FE1450", "dpr": 2}
+  },
+  "sourceFresh": true,
+  "hmrUsed": false,
+  "restartAndExplicitReload": true,
+  "checks": {
+    "elements": "154/154",
+    "components": "152/152",
+    "delivery": "18/18",
+    "workbench": "26/26",
+    "typechecks": 6,
+    "browserBuilds": 3,
+    "nodeBaseline": "45 pass, 1 pre-existing active-vs-hover expectation"
+  },
+  "live": {
+    "button": ["idle", "hover", "pressed", "disabled"],
+    "text": ["focused-selection", "caret", "disabled"],
+    "number": ["left", "center", "right", "editing"],
+    "select": ["trigger", "selected", "hover-row", "disabled-row"],
+    "scrollbar": ["idle", "pressed"],
+    "nodeInventory": ["list", "boolean-option", "tool-operators", "workbench-toolbar", "workbench-tab", "grouped-emboss"]
+  },
+  "consoleErrors": 0,
+  "rejectedRunsExcluded": [
+    "button checkpoint Runtime.evaluate timeout before successful coordinate-correct retry",
+    "number 0-rAF run before successful explicit-reload retry",
+    "text 1-rAF multi-checkpoint run replaced by successful Components selection and deterministic caret routes"
+  ],
+  "remaining": [
+    "canvas evidence cannot prove the operating-system cursor over a disabled row",
+    "synthetic background interaction and PNG are not owner visual acceptance",
+    "focused-to-activeDefault stays deferred without a production keyboard-focus consumer"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settleMs": 80,
+  "steps": [
+    {"kind": "pointer-move", "x": 1233, "y": 550},
+    {"kind": "pointer-down", "x": 1233, "y": 550, "button": "left"},
+    {"kind": "settle", "ms": 80},
+    {"kind": "checkpoint", "name": "pressed", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/material-elements-scrollbar-pressed.png"},
+    {"kind": "pointer-up", "x": 1233, "y": 550, "button": "left"}
+  ]
+}
