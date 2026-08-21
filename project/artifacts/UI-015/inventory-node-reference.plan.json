@@ -1,0 +1,13 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":700,"y":700},
+  {"kind":"pointer-down","x":700,"y":700,"button":"left"},
+  {"kind":"pointer-up","x":700,"y":700,"button":"left"},
+  {"kind":"pointer-move","x":768,"y":700},
+  {"kind":"pointer-down","x":768,"y":700,"button":"left"},
+  {"kind":"pointer-up","x":768,"y":700,"button":"left"},
+  {"kind":"pointer-move","x":790,"y":700},
+  {"kind":"pointer-down","x":790,"y":700,"button":"left"},
+  {"kind":"pointer-up","x":790,"y":700,"button":"left"},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"inventory-reference","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/inventory-node-reference.png"}
+]}

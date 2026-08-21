@@ -237,6 +237,27 @@
   same plan passed. Rejected output did not enter evidence.
 * Machine-readable result: `color-node.result.json`.
 
+## UI-015.9.3 — Complete Node Field inventory
+
+* Source commit `b066077f9`, source-fresh Node PID `65875`, target `809…`,
+  route `/node-editor/scene/inventory`, native `1920×1088 @2`, console `0`.
+  `FIELD_KINDS` is complete through public Fields; renderer contains no local
+  Path/Reference/Collection controls.
+* `inventory-node-path.png` — controlled text becomes `/cache/test.exr`, then
+  folder action publishes `browse`; `425851` bytes, SHA-256
+  `ba2fb66f7e6c55f01f685e81cf407d9367852df9cdeee05cbef026c721841b9d`.
+* `inventory-node-reference.png` — main/picker/clear publish
+  `activate→pick→clear`; value becomes `null`, clear cell disappears while
+  picker remains; `422041` bytes, SHA-256
+  `3c56fa11cf62cf91a37a2b5bf210308bf3bfc962d9d6ed3512925600cfe5f223`.
+* `inventory-node-collection.png` — Cube select, add action, move-up and remove
+  publish exact actions; final items `[Suzanne]`, selected `null`; `426596`
+  bytes, SHA-256
+  `a83509b595c1ae3afdaa81cbbffb089697f57dd605f9140005755625f51bcf7b`.
+* Every plan preserves route and focus emulation and reports console `0`.
+  Tooltips in captures are real hovered action evidence, not permanent labels.
+* Machine-readable result: `node-field-inventory.result.json`.
+
 ## UI-015.2.1 — Button size RED baseline
 
 * Источник: owner live screenshot, route `/button/sizes/large`, 2026-08-20.

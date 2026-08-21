@@ -1,0 +1,30 @@
+{
+  "sourceCommit": "b066077f903e1476fd4277ca33895c05fd5b1d6a",
+  "runtime": {
+    "nodePid": 65875,
+    "targetId": "809BF08D88E4582CA819EFE847FE1450",
+    "route": "node-editor/scene/inventory",
+    "viewport": [1920, 1088, 2],
+    "consoleErrors": []
+  },
+  "path": {
+    "value": "/cache/test.exr",
+    "actions": ["browse"],
+    "capture": {"file": "inventory-node-path.png", "bytes": 425851, "sha256": "ba2fb66f7e6c55f01f685e81cf407d9367852df9cdeee05cbef026c721841b9d"}
+  },
+  "reference": {
+    "value": null,
+    "actions": ["activate", "pick", "clear"],
+    "capture": {"file": "inventory-node-reference.png", "bytes": 422041, "sha256": "3c56fa11cf62cf91a37a2b5bf210308bf3bfc962d9d6ed3512925600cfe5f223"}
+  },
+  "collection": {
+    "value": {"items": [{"id": "suzanne", "label": "Suzanne"}], "selectedId": null},
+    "actions": ["select", "add", "move-up", "remove"],
+    "capture": {"file": "inventory-node-collection.png", "bytes": 426596, "sha256": "a83509b595c1ae3afdaa81cbbffb089697f57dd605f9140005755625f51bcf7b"}
+  },
+  "actionsBounded": 32,
+  "routePreserved": true,
+  "focusEmulationRestored": true,
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}

@@ -255,9 +255,11 @@ RGBA меняются, Escape/outside закрывают popup, console0. UI-015
 capability/result complete; parent visual inventory и preview-toggle/window
 audit ещё не закрыты. Independent tail review подтвердил exact UI-015.9 gap:
 fixture не содержит Path/Collection, а Reference требует activate/pick/clear
-evidence. UI-015.9.3 IN_PROGRESS переиспользует controlled Field owner без
-renderer-local controls. Отдельный UI-015.9.4 READY после .9.3 и material/state
-matrix добавляет настоящий Blender Node Preview: controlled eye toggle,
+evidence. UI-015.9.3 commit `b066077f9` + source-fresh PID `65875` закрывают
+inventory: Path edit/browse, Reference activate/pick/clear и Collection
+select/add/move/remove публикуют exact values/actions, console0. Отдельный
+UI-015.9.4 теперь WAITING только на material/state matrix и затем добавляет
+настоящий Blender Node Preview: controlled eye toggle,
 persistent node flag, global preview visibility и extra-info image panel над
 body без изменения body/Socket/Link geometry.
 Public Elements остаются HTML-аналогами, составные controls принадлежат

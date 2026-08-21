@@ -1,0 +1,16 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":710,"y":722},
+  {"kind":"pointer-down","x":710,"y":722,"button":"left"},
+  {"kind":"pointer-up","x":710,"y":722,"button":"left"},
+  {"kind":"key-down","key":"a","code":"KeyA","modifiers":["meta"]},
+  {"kind":"key-up","key":"a","code":"KeyA","modifiers":["meta"]},
+  {"kind":"text","text":"/cache/test.exr"},
+  {"kind":"pointer-move","x":900,"y":700},
+  {"kind":"pointer-down","x":900,"y":700,"button":"left"},
+  {"kind":"pointer-up","x":900,"y":700,"button":"left"},
+  {"kind":"pointer-move","x":790,"y":722},
+  {"kind":"pointer-down","x":790,"y":722,"button":"left"},
+  {"kind":"pointer-up","x":790,"y":722,"button":"left"},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"inventory-path","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/inventory-node-path.png"}
+]}
