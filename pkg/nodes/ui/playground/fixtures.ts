@@ -67,6 +67,11 @@ export function createCatalogNodeTree(
     rotationLinked?: boolean
     rotationOutput?: boolean
     colorLinked?: boolean
+    previewEnabled?: boolean
+    previewNodeIds?: readonly string[]
+    previewEnabledByNode?: Readonly<Record<string, boolean>>
+    previewBuffer?: "primary" | "alternate" | "missing" | "zero"
+    onPreviewToggle?(nodeId: string, enabled: boolean): void
   }> = {},
 ): PositionedNodeTree<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame> {
   const frame: BlenderFrame = {id: "catalog-frame", label: "Система компонентов нод"}
@@ -127,6 +132,25 @@ export function createCatalogNodeTree(
     socket("material", "Материал", "input", "material", "material-value", "left"),
     socket("shader", "Шейдер", "output", "shader"),
   ])
+  const previewNodeIds = options.previewNodeIds ?? (
+    options.previewEnabled === undefined && options.onPreviewToggle === undefined ? [] : ["scalar"]
+  )
+  const previewableScalar = previewNodeIds.includes("scalar")
+    ? withNodePreview(
+        scalar,
+        options.previewEnabledByNode?.scalar ?? options.previewEnabled === true,
+        options.previewBuffer,
+        options.onPreviewToggle,
+      )
+    : scalar
+  const previewableShader = previewNodeIds.includes("shader")
+    ? withNodePreview(
+        shader,
+        options.previewEnabledByNode?.shader ?? true,
+        options.previewBuffer,
+        options.onPreviewToggle,
+      )
+    : shader
   const asset = blenderNode("asset", "Ввод ресурса", "Resource", [
     {id: "name", label: "Имя", kind: "text", value: "Suzanne"},
     {id: "object", label: "Объект", kind: "reference", value: {id: "suzanne", label: "Suzanne", kind: "object"}},
@@ -169,9 +193,9 @@ export function createCatalogNodeTree(
   }
 
   const nodes: PositionedNode<BlenderNode, BlenderSocket>[] = [
-    positionCatalogNode(scalar, 40, 70, 260),
+    positionCatalogNode(previewableScalar, 40, 70, 260),
     positionCatalogNode(transform, 340, 60),
-    positionCatalogNode(shader, 720, 65, 330),
+    positionCatalogNode(previewableShader, 720, 65, 330),
     positionCatalogNode(asset, 130, 360, 300),
     positionCatalogNode(collapsed, 450, 420, 120),
     positionCatalogNode(matrix, 590, 350, 390),
@@ -212,6 +236,36 @@ export function createCatalogNodeTree(
     nodes,
     links,
   }
+}
+
+function withNodePreview(
+  node: BlenderNode,
+  enabled: boolean,
+  buffer: "primary" | "alternate" | "missing" | "zero" | undefined,
+  onToggle: ((nodeId: string, enabled: boolean) => void) | undefined,
+): BlenderNode {
+  return {
+    ...node,
+    preview: {
+      enabled,
+      ...(buffer === "missing" ? {} : {
+        image: {
+          src: nodePreviewImage(buffer === "alternate" ? "alternate" : "primary"),
+          width: buffer === "zero" ? 0 : 320,
+          height: 90,
+        },
+      }),
+      ...(onToggle === undefined ? {} : {onToggle: (next) => onToggle(node.id, next)}),
+    },
+  }
+}
+
+function nodePreviewImage(variant: "primary" | "alternate"): string {
+  const colors = variant === "primary"
+    ? ["#16243d", "#4772b3", "#e6e6e6"]
+    : ["#381d22", "#b34b62", "#f0d7a1"]
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="90" viewBox="0 0 320 90"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${colors[0]}"/><stop offset="1" stop-color="${colors[1]}"/></linearGradient></defs><rect width="320" height="90" fill="url(#g)"/><circle cx="80" cy="45" r="28" fill="${colors[2]}" fill-opacity=".82"/><path d="M130 65 175 22l38 31 32-25 50 37Z" fill="${colors[2]}" fill-opacity=".62"/></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
 function frameHeightForNodes(

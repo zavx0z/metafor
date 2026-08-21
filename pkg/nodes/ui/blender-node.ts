@@ -1,12 +1,14 @@
 import {Color} from "@metafor/engine"
 import {
   Field,
+  IconButton,
   Typography,
   measureFieldLayout,
   type FieldColor,
   type FieldDefinition,
 } from "@ui/components"
-import {Z, flexColumn, flexRow, palette} from "@ui/elements"
+import {Z, flexColumn, flexRow, palette, uiIcons} from "@ui/elements"
+import {DEFAULT_NODE_CANVAS_OVERLAY_STATE} from "./node-editor.ts"
 import {sampleLinkBezierPath} from "./link-curve.ts"
 import type {
   Frame,
@@ -16,6 +18,7 @@ import type {
   Node,
   Parameter,
   NodeEditorRenderers,
+  NodeCanvasOverlayState,
   NodeRenderer,
   NodeRect,
   PositionedNode,
@@ -92,6 +95,18 @@ export type BlenderParameter = Parameter & Readonly<{
   description?: string
 }>
 
+export type BlenderNodePreviewImage = Readonly<{
+  src: string
+  width: number
+  height: number
+}>
+
+export type BlenderNodePreview = Readonly<{
+  enabled: boolean
+  image?: BlenderNodePreviewImage
+  onToggle?(enabled: boolean): void
+}>
+
 export type BlenderNode = Omit<Node, "parameters"> & Readonly<{
   title: string
   label?: string
@@ -101,6 +116,7 @@ export type BlenderNode = Omit<Node, "parameters"> & Readonly<{
   parameters?: readonly BlenderParameter[]
   sockets?: readonly BlenderSocket[]
   collapsed?: boolean
+  preview?: BlenderNodePreview
 }>
 
 export type BlenderLink = Link & Readonly<{
@@ -110,8 +126,15 @@ export type BlenderLink = Link & Readonly<{
 
 export type BlenderNodePlan = Readonly<{
   rect: NodeRect
+  bounds: NodeRect
   header: NodeRect
   body: NodeRect
+  preview: Readonly<{
+    capable: boolean
+    enabled: boolean
+    panel: NodeRect | null
+    image: (NodeRect & Readonly<{src: string}>) | null
+  }>
   fields: readonly Readonly<{
     field: FieldDefinition
     rect: NodeRect
@@ -176,7 +199,11 @@ export const BLENDER_SOCKET_VISUAL_POLICY: BlenderSocketVisualPolicy = Object.fr
 })
 
 const NODE_HEADER_HEIGHT = 24
+const NODE_HEADER_ACTION_WIDTH = 20
 const BLENDER_NODE_RADIUS = 6
+const NODE_PREVIEW_PADDING = 3
+const NODE_PREVIEW_PANEL_FILL = new Color(0x2b / 255, 0x2b / 255, 0x2b / 255, 0.65)
+const NODE_PREVIEW_PANEL_OUTLINE = new Color(0x11 / 255, 0x11 / 255, 0x11 / 255, 1)
 
 /**
  * Intrinsic Node shadow mapped from Blender's `node_draw_shadow` law.
@@ -257,6 +284,7 @@ function measureBlenderNodeWidth(node: BlenderNode): number {
     + BLENDER_NODE_HEADER_VISUAL_POLICY.iconSlotWidth
     + BLENDER_NODE_HEADER_VISUAL_POLICY.iconGap
     + measureNodeTextWidth(node.label ?? node.title)
+    + (node.preview === undefined ? 0 : NODE_HEADER_ACTION_WIDTH)
     + BLENDER_NODE_HEADER_VISUAL_POLICY.rightPadding
   if (node.collapsed) return Math.ceil(Math.max(NODE_MIN_WIDTH, NODE_DEFAULT_WIDTH, headerWidth))
   let contentWidth = 0
@@ -304,8 +332,9 @@ export function planBlenderNode(
   node: BlenderNode,
   frame: NodeRect,
   connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
+  overlayState: NodeCanvasOverlayState = DEFAULT_NODE_CANVAS_OVERLAY_STATE,
 ): BlenderNodePlan {
-  if (node.collapsed) return planCollapsedBlenderNode(node, frame)
+  if (node.collapsed) return planCollapsedBlenderNode(node, frame, overlayState)
   const measurement = measureBlenderNode(node, connectedSocketIds)
   const rect = {...frame, h: measurement.height}
   const regions = blenderNodeRegions(rect)
@@ -375,10 +404,24 @@ export function planBlenderNode(
       },
     })),
   })
-  return {rect, header: regions.header, body: regions.body, fields, parameters, sockets}
+  const preview = planBlenderNodePreview(node, rect, overlayState)
+  return {
+    rect,
+    bounds: preview.panel === null ? rect : unionNodeRects(rect, preview.panel),
+    header: regions.header,
+    body: regions.body,
+    preview,
+    fields,
+    parameters,
+    sockets,
+  }
 }
 
-function planCollapsedBlenderNode(node: BlenderNode, frame: NodeRect): BlenderNodePlan {
+function planCollapsedBlenderNode(
+  node: BlenderNode,
+  frame: NodeRect,
+  overlayState: NodeCanvasOverlayState,
+): BlenderNodePlan {
   const sockets: PositionedSocket<BlenderSocket>[] = []
   for (const side of ["left", "right"] as const) {
     const entries = (node.sockets ?? []).filter((socket) => socketSide(socket) === side)
@@ -391,7 +434,93 @@ function planCollapsedBlenderNode(node: BlenderNode, frame: NodeRect): BlenderNo
       },
     }))
   }
-  return {rect: frame, header: frame, body: {...frame, h: 0}, fields: [], parameters: [], sockets}
+  const preview = planBlenderNodePreview(node, frame, overlayState)
+  return {
+    rect: frame,
+    bounds: preview.panel === null ? frame : unionNodeRects(frame, preview.panel),
+    header: frame,
+    body: {...frame, h: 0},
+    preview,
+    fields: [],
+    parameters: [],
+    sockets,
+  }
+}
+
+function planBlenderNodePreview(
+  node: BlenderNode,
+  rect: NodeRect,
+  overlayState: NodeCanvasOverlayState,
+): BlenderNodePlan["preview"] {
+  const preview = node.preview
+  const capable = preview !== undefined
+  const enabled = preview?.enabled === true
+  const image = preview?.image
+  if (!capable || !enabled || !overlayState.overlays || !overlayState.previews || image === undefined ||
+    image.src.length === 0 || !Number.isFinite(image.width) || !Number.isFinite(image.height) ||
+    image.width <= 0 || image.height <= 0) {
+    return Object.freeze({capable, enabled, panel: null, image: null})
+  }
+
+  const panelWidth = Math.max(1, rect.w - NODE_PREVIEW_PADDING * 2)
+  const imageEnvelopeWidth = Math.max(1, panelWidth - NODE_PREVIEW_PADDING * 2)
+  let imageWidth: number
+  let imageHeight: number
+  let panelHeight: number
+  if (image.width > image.height) {
+    imageWidth = imageEnvelopeWidth
+    imageHeight = imageEnvelopeWidth * image.height / image.width
+    panelHeight = imageHeight + NODE_PREVIEW_PADDING * 2
+  } else {
+    panelHeight = panelWidth
+    imageHeight = Math.max(1, panelHeight - NODE_PREVIEW_PADDING * 2)
+    imageWidth = imageHeight * image.width / image.height
+  }
+  const panel: NodeRect = {
+    x: rect.x + NODE_PREVIEW_PADDING,
+    y: rect.y - panelHeight,
+    w: panelWidth,
+    h: panelHeight,
+  }
+  const imageRect = Object.freeze({
+    x: panel.x + (panel.w - imageWidth) / 2,
+    y: panel.y + NODE_PREVIEW_PADDING,
+    w: imageWidth,
+    h: imageHeight,
+    src: image.src,
+  })
+  return Object.freeze({capable, enabled, panel: Object.freeze(panel), image: imageRect})
+}
+
+function unionNodeRects(left: NodeRect, right: NodeRect): NodeRect {
+  const x = Math.min(left.x, right.x)
+  const y = Math.min(left.y, right.y)
+  return {
+    x,
+    y,
+    w: Math.max(left.x + left.w, right.x + right.w) - x,
+    h: Math.max(left.y + left.h, right.y + right.h) - y,
+  }
+}
+
+function drawBlenderNodePreview(
+  host: SocketRendererContext<BlenderSocket>["host"],
+  plan: BlenderNodePlan,
+): void {
+  const panel = plan.preview.panel
+  const image = plan.preview.image
+  if (panel === null || image === null) return
+  host.drawRoundedRect(panel.x, panel.y, panel.w, panel.h, {
+    radius: {tl: BLENDER_NODE_RADIUS, tr: BLENDER_NODE_RADIUS, br: 0, bl: 0},
+    fill: NODE_PREVIEW_PANEL_FILL,
+    border: NODE_PREVIEW_PANEL_OUTLINE,
+    borderWidth: 1,
+    z: Z.ELEMENT + 0.005,
+  })
+  host.drawImage(image.src, image.x, image.y, image.w, image.h, {
+    fit: "contain",
+    z: Z.ELEMENT + 0.006,
+  })
 }
 
 export function positionBlenderNode(node: BlenderNode, rect: NodeRect): PositionedNode<BlenderNode, BlenderSocket> {
@@ -445,16 +574,25 @@ export const blenderFrameRenderer: FrameRenderer<BlenderFrame> = Object.freeze({
 
 export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, BlenderNodePlan> = Object.freeze({
   measure: measureBlenderNode,
-  plan({entry, connectedSocketIds}) {
-    return planBlenderNode(entry.node, entry.rect, connectedSocketIds)
+  plan({entry, connectedSocketIds, overlayState}) {
+    return planBlenderNode(
+      entry.node,
+      entry.rect,
+      connectedSocketIds,
+      overlayState ?? DEFAULT_NODE_CANVAS_OVERLAY_STATE,
+    )
   },
   presentation({entry}, plan) {
     return {...entry, rect: plan.rect, sockets: plan.sockets}
+  },
+  bounds(_context, plan) {
+    return plan.bounds
   },
   render({host, entry, selected, plan}) {
     const {node} = entry
     const rect = plan.rect
     const header = nodeHeaderColor(node)
+    drawBlenderNodePreview(host, plan)
     host.drawRoundedShadow(rect.x, rect.y, rect.w, rect.h, {
       radius: BLENDER_NODE_RADIUS,
       blur: BLENDER_NODE_SHADOW_VISUAL_POLICY.blur,
@@ -503,6 +641,28 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
           fontPx: 11,
           color: selected ? "orange" : "text",
         })},
+        node.preview === undefined ? false : {
+          width: NODE_HEADER_ACTION_WIDTH,
+          height: plan.header.h,
+          draw: (slotX: number, slotY: number, slotW: number, slotH: number) => IconButton(
+            host,
+            slotX,
+            slotY,
+            slotW,
+            slotH,
+            {
+              label: "Node Preview",
+              iconSrc: node.preview!.enabled ? uiIcons.visibilityOn : uiIcons.visibilityOff,
+              iconSizePx: 12,
+              appearance: "tool",
+              size: "small",
+              selected: node.preview!.enabled,
+              disabled: node.preview!.onToggle === undefined,
+              sx: {background: null, borderColor: null},
+              onClick: () => node.preview!.onToggle?.(!node.preview!.enabled),
+            },
+          ),
+        },
       ],
     })
     const hiddenParameterIds = new Set(plan.fields.flatMap(({parameterId, editorVisible}) =>

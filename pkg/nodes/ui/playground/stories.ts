@@ -57,6 +57,14 @@ export type NodeEditorStoryRoute =
   | "node-editor/scene/mixed-sides"
   | "node-editor/scene/color-unlinked"
   | "node-editor/scene/inventory"
+  | "node-editor/preview/closed"
+  | "node-editor/preview/open"
+  | "node-editor/preview/global-hidden"
+  | "node-editor/preview/alternate"
+  | "node-editor/preview/missing"
+  | "node-editor/preview/zero"
+  | "node-editor/preview/multiple"
+  | "node-editor/preview/non-previewable"
   | "node-editor/collapsed/default"
   | "node-editor/collapsed/selected"
   | "node-editor/popup/select-open"
@@ -124,6 +132,11 @@ const loadNodeComponentStory = (
     rotationLinked?: boolean
     rotationOutput?: boolean
     colorLinked?: boolean
+    previewEnabled?: boolean
+    previewsVisible?: boolean
+    previewable?: boolean
+    previewBuffer?: "primary" | "alternate" | "missing" | "zero"
+    previewNodes?: readonly string[]
     nodeId?: string
   }>,
 ) => async (): Promise<PlaygroundStoryModule> => {
@@ -256,6 +269,119 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
                 target: "expanded",
                 selected: false,
                 nodeId: "asset",
+              }),
+            },
+          ],
+        }, {
+          id: "preview",
+          label: "Node Preview",
+          variants: [
+            {
+              id: "closed",
+              label: "Preview closed",
+              title: "Редактор нод · Preview toggle closed",
+              tags: ["preview", "toggle", "closed"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "scalar",
+                previewable: true,
+                previewEnabled: false,
+              }),
+            },
+            {
+              id: "open",
+              label: "Preview open",
+              title: "Редактор нод · Preview image open",
+              tags: ["preview", "toggle", "image", "open"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "scalar",
+                previewable: true,
+                previewEnabled: true,
+              }),
+            },
+            {
+              id: "global-hidden",
+              label: "Global Previews off",
+              title: "Редактор нод · Preview globally hidden",
+              tags: ["preview", "global", "hidden"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "scalar",
+                previewable: true,
+                previewEnabled: true,
+                previewsVisible: false,
+              }),
+            },
+            {
+              id: "alternate",
+              label: "Buffer updated",
+              title: "Редактор нод · Preview alternate buffer",
+              tags: ["preview", "buffer", "update"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "scalar",
+                previewable: true,
+                previewEnabled: true,
+                previewBuffer: "alternate",
+              }),
+            },
+            {
+              id: "missing",
+              label: "Missing buffer",
+              title: "Редактор нод · Preview buffer missing",
+              tags: ["preview", "buffer", "missing"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "scalar",
+                previewable: true,
+                previewEnabled: true,
+                previewBuffer: "missing",
+              }),
+            },
+            {
+              id: "zero",
+              label: "Zero-size buffer",
+              title: "Редактор нод · Preview buffer zero size",
+              tags: ["preview", "buffer", "zero"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "scalar",
+                previewable: true,
+                previewEnabled: true,
+                previewBuffer: "zero",
+              }),
+            },
+            {
+              id: "multiple",
+              label: "Multiple previews",
+              title: "Редактор нод · Multiple preview panels",
+              tags: ["preview", "multiple", "nodes"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "scalar",
+                previewable: true,
+                previewEnabled: true,
+                previewNodes: ["scalar", "shader"],
+              }),
+            },
+            {
+              id: "non-previewable",
+              label: "Non-previewable",
+              title: "Редактор нод · No preview capability",
+              tags: ["preview", "capability", "absent"],
+              load: loadNodeComponentStory("node-editor", {
+                target: "expanded",
+                selected: false,
+                nodeId: "transform",
+                previewable: false,
               }),
             },
           ],

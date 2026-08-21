@@ -99,6 +99,9 @@ format и автоматическое размещение принадлежа
    скрытого product state нет.
 5. Ручными координатами остаются только входная positioned Node geometry,
    exact Socket centers и Link route points. Это scene data, не layout children.
+   Renderer может вернуть отдельный culling envelope для внешнего overlay,
+   но ordinary Node presentation rect остаётся единственным body hit и не
+   меняет positioned tree geometry.
 6. NodeCanvas рисует intrinsic dot grid как retained child того же content-root.
    Linked Parameter определяется из `NodeTree.links`: его default control
    скрывается без дублирования connected state во входной модели.
@@ -127,6 +130,15 @@ format и автоматическое размещение принадлежа
     conversion и меняют тот же retained root. Transform-only input обновляет
     culling, hit mapping и material clip, не увеличивая layout или
     materialization counters.
+13. Node Preview является controlled Node capability, не Field и не Socket.
+    Только previewable Node показывает right-header eye toggle; node flag
+    сохраняется независимо от view-owned global Overlays/Previews. При обоих
+    global flags и enabled node flag drawable image buffer рисуется отдельной
+    extra-info panel над body: inset `3`, свой translucent TH_BACK/TH_NODE
+    material, top corners и aspect-preserving image inset `3`. Missing/zero
+    buffer не создаёт fake panel. Preview расширяет только renderer culling
+    envelope; body size/hit, Socket centers, Links, topology и values не
+    меняются. Несколько Node могут держать независимые enabled flags.
 
 ## Package boundary и удаление legacy
 

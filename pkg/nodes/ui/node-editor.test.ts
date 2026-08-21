@@ -14,6 +14,7 @@ import {
 import {
   NodeCanvas,
   NodeEditor,
+  DEFAULT_NODE_CANVAS_OVERLAY_STATE,
   fitNodeEditorTransform,
   nodeEditorRegions,
   orderNodeEditorLinksForPaint,
@@ -578,6 +579,71 @@ describe("generic Blender-like Node Editor contracts", () => {
     expect(canvas.selection).toBeNull()
     clickSurface(canvas, 80, 90)
     expect(canvas.selection).toEqual({kind: "node", id: "source"})
+    canvas.dispose()
+  })
+
+  test("culls by renderer preview bounds while preserving ordinary body hit and tree geometry", async () => {
+    type PreviewPlan = {rect: NodeRect; bounds: NodeRect}
+    const overlayStates: Array<Readonly<{overlays: boolean; previews: boolean}>> = []
+    const renderers: NodeEditorRenderers<TestNode, TestSocket, TestLink, TestFrame, PreviewPlan> = {
+      frame: {renderBackground() {}, renderForeground() {}},
+      node: {
+        plan({entry, overlayState}) {
+          const state = overlayState ?? DEFAULT_NODE_CANVAS_OVERLAY_STATE
+          overlayStates.push(state)
+          return {
+            rect: entry.rect,
+            bounds: state.overlays && state.previews
+              ? {x: entry.rect.x, y: entry.rect.y - 80, w: entry.rect.w, h: entry.rect.h + 80}
+              : entry.rect,
+          }
+        },
+        bounds(_context, plan) {
+          return plan.bounds
+        },
+        render({host, plan}) {
+          host.drawRoundedRect(plan.rect.x, plan.rect.y, plan.rect.w, plan.rect.h, {
+            radius: 4,
+            fill: new Color(0.2, 0.3, 0.4, 1),
+          })
+        },
+      },
+      socket: {render() {}},
+      link: {render() {}},
+    }
+    const previewTree: PositionedNodeTree<TestNode, TestSocket, TestLink, TestFrame> = {
+      bounds: {x: 20, y: 100, w: 140, h: 40},
+      frames: [],
+      nodes: [{node: {id: "preview", title: "Preview"}, rect: {x: 20, y: 100, w: 140, h: 40}, sockets: []}],
+      links: [],
+    }
+    const canvas = new NodeEditor<TestNode, TestSocket, TestLink, TestFrame, PreviewPlan>({
+      renderers,
+      toolbar: false,
+    })
+    attachPointerRuntime(canvas)
+    canvas.setTree(previewTree)
+    const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
+    canvas.setRect({x: 0, y: 0, w: 220, h: 80}, 0.001, new TrueTypeFont(fontBytes))
+    canvas.setCanvasTransform({x: 0, y: 0, scale: 1})
+    canvas.flushPendingRender()
+    const parent = requiredObject(canvas.node, "NodeCanvas.node:preview")
+    expect(parent.visible).toBeTrue()
+    clickSurface(canvas, 50, 40)
+    expect(canvas.selection).toBeNull()
+
+    const originalTree = canvas.tree
+    canvas.setOverlayState({overlays: true, previews: false})
+    canvas.flushPendingRender()
+    expect(canvas.tree).toBe(originalTree)
+    expect(parent.visible).toBeFalse()
+    canvas.setOverlayState({overlays: true, previews: true})
+    canvas.flushPendingRender()
+    expect(parent.visible).toBeTrue()
+    expect(overlayStates).toEqual(expect.arrayContaining([
+      {overlays: true, previews: true},
+      {overlays: true, previews: false},
+    ]))
     canvas.dispose()
   })
 

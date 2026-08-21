@@ -13,6 +13,7 @@ import {
 export type NodePoint = Readonly<{x: number; y: number}>
 export type NodeRect = Readonly<{x: number; y: number; w: number; h: number}>
 export type NodeCanvasTransform = Readonly<{x: number; y: number; scale: number}>
+export type NodeCanvasOverlayState = Readonly<{overlays: boolean; previews: boolean}>
 
 export type Parameter = Readonly<{
   id: string
@@ -123,6 +124,7 @@ export type NodeRendererPlanContext<TNode extends Node, TSocket extends Socket> 
   entry: PositionedNode<TNode, TSocket>
   connectedSocketIds: ReadonlySet<string>
   selected: boolean
+  overlayState?: NodeCanvasOverlayState
 }>
 
 export type NodeRendererContext<
@@ -154,6 +156,8 @@ export type NodeRenderer<TNode extends Node, TSocket extends Socket, TPlan = unk
     context: NodeRendererPlanContext<TNode, TSocket>,
     plan: TPlan,
   ): PositionedNode<TNode, TSocket>
+  /** Optional culling envelope; ordinary body hit remains presentation.rect. */
+  bounds?(context: NodeRendererPlanContext<TNode, TSocket>, plan: TPlan): NodeRect
   render(context: NodeRendererContext<TNode, TSocket, TPlan>): void
 }>
 
@@ -225,6 +229,7 @@ export type NodeCanvasOptions<
   toolbar?: boolean
   minScale?: number
   maxScale?: number
+  overlayState?: NodeCanvasOverlayState
   messages?: Readonly<{empty?: string; interactionHint?: string}>
   onSelectionChange?(selection: NodeEditorSelection): void
   onCanvasTransformChange?(transform: NodeCanvasTransform): void
@@ -239,6 +244,7 @@ export type NodeEditorOptions<
 > = NodeCanvasOptions<TNode, TSocket, TLink, TFrame, TNodePlan>
 
 const DEFAULT_TRANSFORM: NodeCanvasTransform = Object.freeze({x: 0, y: 0, scale: 1})
+export const DEFAULT_NODE_CANVAS_OVERLAY_STATE: NodeCanvasOverlayState = Object.freeze({overlays: true, previews: true})
 const TOOLBAR_HEIGHT = 38
 const EMPTY_IDS: ReadonlySet<string> = new Set()
 
@@ -248,6 +254,7 @@ type RetainedComponent<TEntry> = {
   presentation: TEntry | null
   selected: boolean | null
   stateKey: string
+  bounds: NodeRect | null
 }
 
 /** Read-only Blender-like Node canvas with no layout or product dependency. */
@@ -276,6 +283,7 @@ export class NodeCanvas<
   readonly #interactionDirtyParents = new Set<Object3D>()
   #tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
   #transform = DEFAULT_TRANSFORM
+  #overlayState: NodeCanvasOverlayState
   #selection: NodeEditorSelection = null
   #pan: Readonly<{x: number; y: number; transform: NodeCanvasTransform}> | null = null
   #pinch: RetainedNodeEditorPinchState | null = null
@@ -305,6 +313,7 @@ export class NodeCanvas<
     this.#toolbar = options.toolbar ?? true
     this.#minScale = Math.max(0.01, options.minScale ?? 0.16)
     this.#maxScale = Math.max(this.#minScale, options.maxScale ?? 3)
+    this.#overlayState = normalizeOverlayState(options.overlayState)
     this.#emptyMessage = options.messages?.empty ?? "Нет нод"
     this.#interactionHint = options.messages?.interactionHint ?? "Только просмотр"
     this.#onSelectionChange = options.onSelectionChange
@@ -327,6 +336,10 @@ export class NodeCanvas<
 
   get selection(): NodeEditorSelection {
     return this.#selection
+  }
+
+  get overlayState(): NodeCanvasOverlayState {
+    return this.#overlayState
   }
 
   /** Returns a frozen cumulative snapshot without changing render state. */
@@ -377,6 +390,15 @@ export class NodeCanvas<
     }
     this.#fitPending = false
     this.#presentTransform(next)
+    return true
+  }
+
+  setOverlayState(state: NodeCanvasOverlayState): boolean {
+    const next = normalizeOverlayState(state)
+    if (sameOverlayState(next, this.#overlayState)) return false
+    this.#overlayState = next
+    this.#contentClean = false
+    this.requestRender()
     return true
   }
 
@@ -522,17 +544,23 @@ export class NodeCanvas<
 
     const nodePlans = new Map<string, TNodePlan>()
     const nodePresentations = new Map<string, PositionedNode<TNode, TSocket>>()
+    const nodeBounds = new Map<string, NodeRect>()
     const dirtyNodeIds = new Set<string>()
     for (const entry of this.#tree.nodes) {
       const connectedSocketIds = connectedByNode.get(entry.node.id) ?? EMPTY_IDS
       const selected = isSelected(this.#selection, "node", entry.node.id)
-      const stateKey = [...connectedSocketIds].sort().join("\u0000")
+      const stateKey = nodeRendererStateKey(connectedSocketIds, this.#overlayState)
       const retained = this.#component(this.#nodes, entry.node.id, `NodeCanvas.node:${entry.node.id}`)
       if (retained.created) changed = true
       const dirty = forceAll || retained.component.entry !== entry || retained.component.selected !== selected ||
         retained.component.stateKey !== stateKey || this.#interactionDirtyParents.has(retained.component.parent)
       if (dirty) {
-        const context: NodeRendererPlanContext<TNode, TSocket> = {entry, connectedSocketIds, selected}
+        const context: NodeRendererPlanContext<TNode, TSocket> = {
+          entry,
+          connectedSocketIds,
+          selected,
+          overlayState: this.#overlayState,
+        }
         this.#diagnostics.localLayoutPlans += 1
         const plan = this.#renderers.node.plan(context)
         nodePlans.set(entry.node.id, plan)
@@ -540,9 +568,12 @@ export class NodeCanvas<
           entry.node.id,
           this.#renderers.node.presentation?.(context, plan) ?? entry,
         )
+        const presentation = nodePresentations.get(entry.node.id)!
+        nodeBounds.set(entry.node.id, this.#renderers.node.bounds?.(context, plan) ?? presentation.rect)
         dirtyNodeIds.add(entry.node.id)
       } else {
         nodePresentations.set(entry.node.id, retained.component.presentation ?? entry)
+        nodeBounds.set(entry.node.id, retained.component.bounds ?? retained.component.presentation?.rect ?? entry.rect)
       }
     }
 
@@ -643,7 +674,7 @@ export class NodeCanvas<
     for (const entry of this.#tree.nodes) {
       const connectedSocketIds = connectedByNode.get(entry.node.id) ?? EMPTY_IDS
       const selected = isSelected(this.#selection, "node", entry.node.id)
-      const stateKey = [...connectedSocketIds].sort().join("\u0000")
+      const stateKey = nodeRendererStateKey(connectedSocketIds, this.#overlayState)
       const retained = this.#nodes.get(entry.node.id)!
       if (dirtyNodeIds.has(entry.node.id)) {
         const plan = nodePlans.get(entry.node.id)!
@@ -652,6 +683,7 @@ export class NodeCanvas<
           entry: presentation,
           connectedSocketIds,
           selected,
+          overlayState: this.#overlayState,
         }
         this.#materializeComponent(retained.parent, () => {
           if (this.interactive()) this.retainedHit(
@@ -673,6 +705,7 @@ export class NodeCanvas<
         })
         retained.entry = entry
         retained.presentation = presentation
+        retained.bounds = nodeBounds.get(entry.node.id) ?? presentation.rect
         retained.selected = selected
         retained.stateKey = stateKey
         changed = true
@@ -711,7 +744,7 @@ export class NodeCanvas<
     if (current !== undefined) return {component: current, created: false}
     const parent = this.createRetainedParent(this.#contentRoot)
     parent.name = name
-    const component = {parent, entry: null, presentation: null, selected: null, stateKey: ""}
+    const component = {parent, entry: null, presentation: null, selected: null, stateKey: "", bounds: null}
     components.set(id, component)
     return {component, created: true}
   }
@@ -804,7 +837,7 @@ export class NodeCanvas<
     for (const entry of this.#tree.nodes) {
       const component = this.#nodes.get(entry.node.id)
       const presentation = component?.presentation ?? entry
-      const visible = intersects(presentation.rect, viewport)
+      const visible = intersects(component?.bounds ?? presentation.rect, viewport)
       if (component !== undefined) this.updateRetainedVisibility(component.parent, visible)
       if (visible) visibleNodeIds.add(entry.node.id)
     }
@@ -1356,6 +1389,22 @@ function rectStateKey(rect: NodeRect): string {
 
 function sameCanvasTransform(left: NodeCanvasTransform, right: NodeCanvasTransform): boolean {
   return left.x === right.x && left.y === right.y && left.scale === right.scale
+}
+
+function normalizeOverlayState(state: NodeCanvasOverlayState | undefined): NodeCanvasOverlayState {
+  if (state === undefined) return DEFAULT_NODE_CANVAS_OVERLAY_STATE
+  return Object.freeze({overlays: state.overlays === true, previews: state.previews === true})
+}
+
+function sameOverlayState(left: NodeCanvasOverlayState, right: NodeCanvasOverlayState): boolean {
+  return left.overlays === right.overlays && left.previews === right.previews
+}
+
+function nodeRendererStateKey(
+  connectedSocketIds: ReadonlySet<string>,
+  overlayState: NodeCanvasOverlayState,
+): string {
+  return `${overlayState.overlays ? 1 : 0}:${overlayState.previews ? 1 : 0}:${[...connectedSocketIds].sort().join("\u0000")}`
 }
 
 function positiveModulo(value: number, divisor: number): number {

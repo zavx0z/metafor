@@ -1,6 +1,6 @@
 import {beforeAll, describe, expect, test} from "bun:test"
 import {CachedText, Object3D, TrueTypeFont, Vector3, type Color} from "@metafor/engine"
-import {UiSurface, Z, createUiPolylineStrokeGeometry} from "@ui/elements"
+import {UiSurface, Z, createUiPolylineStrokeGeometry, uiIcons} from "@ui/elements"
 import {
   BLENDER_SOCKET_KINDS,
   BLENDER_SOCKET_PRESETS,
@@ -578,6 +578,89 @@ describe("Blender-like Node presets", () => {
       surface.dispose()
     }
   })
+
+  test("keeps preview toggle state separate from the image panel and ordinary Node geometry", () => {
+    const toggles: boolean[] = []
+    const base: BlenderNode = {
+      id: "previewable",
+      title: "Previewable",
+      preview: {
+        enabled: false,
+        image: {src: "preview-a.png", width: 160, height: 90},
+        onToggle: (enabled) => toggles.push(enabled),
+      },
+    }
+    const measured = measureBlenderNode(base)
+    const rect = {x: 20, y: 120, w: 180, h: measured.height}
+    const entry = positionBlenderNode(base, rect)
+    const visible = {overlays: true, previews: true} as const
+    const closed = planBlenderNode(base, rect, new Set(), visible)
+    expect(closed.preview).toMatchObject({capable: true, enabled: false, panel: null, image: null})
+    expect(closed.rect).toEqual(rect)
+    expect(closed.bounds).toEqual(rect)
+
+    const openNode: BlenderNode = {...base, preview: {...base.preview!, enabled: true}}
+    const openEntry = positionBlenderNode(openNode, rect)
+    const open = planBlenderNode(openNode, rect, new Set(), visible)
+    expect(open.rect).toEqual(rect)
+    expect(open.bounds.y).toBeLessThan(rect.y)
+    expect(open.bounds.x).toBe(rect.x)
+    expect(open.bounds.w).toBe(rect.w)
+    expect(open.preview?.panel).toMatchObject({x: rect.x + 3, w: rect.w - 6})
+    expect(open.preview?.image).toMatchObject({x: rect.x + 6, w: rect.w - 12})
+    expect(open.sockets).toEqual(closed.sockets)
+    expect(blenderNodeRenderer.bounds?.({
+      entry: openEntry,
+      connectedSocketIds: new Set(),
+      selected: false,
+      overlayState: visible,
+    }, open)).toEqual(open.bounds)
+
+    const globalHidden = planBlenderNode(openNode, rect, new Set(), {overlays: true, previews: false})
+    expect(globalHidden.preview).toMatchObject({capable: true, enabled: true, panel: null, image: null})
+    expect(globalHidden.bounds).toEqual(rect)
+    expect(planBlenderNode(openNode, rect, new Set(), {overlays: false, previews: true}).preview)
+      .toMatchObject({capable: true, enabled: true, panel: null, image: null})
+    const zero = planBlenderNode({
+      ...openNode,
+      preview: {...openNode.preview!, image: {src: "zero.png", width: 0, height: 90}},
+    }, rect, new Set(), visible)
+    expect(zero.preview?.panel).toBeNull()
+    expect(zero.preview?.image).toBeNull()
+
+    const surface = new PreviewRecordingSurface()
+    try {
+      surface.setRect({x: 0, y: 0, w: 260, h: 260}, HEADER_PIXEL_SCALE, projectFont)
+      const parent = surface.createParent()
+      surface.materialize(parent, () => blenderNodeRenderer.render({
+        host: surface,
+        entry,
+        connectedSocketIds: new Set(),
+        selected: false,
+        overlayState: visible,
+        plan: closed,
+      }))
+      expect(surface.images.map(([src]) => src)).toContain(uiIcons.visibilityOff)
+      surface.hits.at(-1)?.[4]()
+      expect(toggles).toEqual([true])
+
+      surface.clearRecording()
+      surface.materialize(parent, () => blenderNodeRenderer.render({
+        host: surface,
+        entry: openEntry,
+        connectedSocketIds: new Set(),
+        selected: false,
+        overlayState: visible,
+        plan: open,
+      }))
+      expect(surface.images.map(([src]) => src)).toEqual(expect.arrayContaining([
+        uiIcons.visibilityOn,
+        "preview-a.png",
+      ]))
+    } finally {
+      surface.dispose()
+    }
+  })
 })
 
 function paintedSocketBounds(
@@ -864,6 +947,27 @@ class RecordingShadowSurface extends RetainedHeaderSurface {
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.nodeRects.push(args)
     super.drawRoundedRect(...args)
+  }
+}
+
+type ImageCall = Parameters<UiSurface["drawImage"]>
+type HitCall = Parameters<UiSurface["hit"]>
+
+class PreviewRecordingSurface extends RetainedHeaderSurface {
+  readonly images: ImageCall[] = []
+  readonly hits: HitCall[] = []
+
+  override drawImage(...args: ImageCall): void {
+    this.images.push(args)
+  }
+
+  override hit(...args: HitCall): void {
+    this.hits.push(args)
+  }
+
+  clearRecording(): void {
+    this.images.length = 0
+    this.hits.length = 0
   }
 }
 

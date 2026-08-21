@@ -17,6 +17,12 @@ type NodeComponentStoryArgs = PlaygroundStoryArgs & Readonly<{
   "rotation-output": boolean
   "color-linked": boolean
   "target-node-id": string
+  "previewable": boolean
+  "preview-enabled": boolean
+  "overlays-visible": boolean
+  "previews-visible": boolean
+  "preview-buffer": "primary" | "alternate" | "missing" | "zero"
+  "preview-nodes": readonly string[]
 }>
 
 const COMPONENT_LABELS: Readonly<Record<NodeComponentId, string>> = Object.freeze({
@@ -36,6 +42,11 @@ export function createNodeComponentStory(
     rotationLinked?: boolean
     rotationOutput?: boolean
     colorLinked?: boolean
+    previewEnabled?: boolean
+    previewsVisible?: boolean
+    previewable?: boolean
+    previewBuffer?: "primary" | "alternate" | "missing" | "zero"
+    previewNodes?: readonly string[]
     nodeId?: string
   }>,
 ): PlaygroundStoryModule {
@@ -52,6 +63,12 @@ export function createNodeComponentStory(
       "rotation-output": initialState?.rotationOutput === true,
       "color-linked": initialState?.colorLinked !== false,
       "target-node-id": initialState?.nodeId ?? NODE_EDITOR_STORY_NODE_IDS[initialState?.target ?? "expanded"],
+      "previewable": initialState?.previewable === true,
+      "preview-enabled": initialState?.previewEnabled === true,
+      "overlays-visible": true,
+      "previews-visible": initialState?.previewsVisible !== false,
+      "preview-buffer": initialState?.previewBuffer ?? "primary",
+      "preview-nodes": initialState?.previewNodes ?? (initialState?.previewable === true ? ["scalar"] : []),
       ...(initialState === undefined ? {} : {target: initialState.target}),
     },
     controls: component === "node-editor"
@@ -68,6 +85,23 @@ export function createNodeComponentStory(
           },
           {key: "selected", label: "Выбрана", group: "Состояние", kind: "boolean"},
           {key: "select-open", label: "Select раскрыт", group: "Состояние", kind: "boolean"},
+          ...(initialState?.previewable === undefined ? [] : [
+            {key: "preview-enabled", label: "Preview ноды", group: "Preview", kind: "boolean" as const},
+            {key: "overlays-visible", label: "Global Overlays", group: "Preview", kind: "boolean" as const},
+            {key: "previews-visible", label: "Global Previews", group: "Preview", kind: "boolean" as const},
+            {
+              key: "preview-buffer",
+              label: "Buffer",
+              group: "Preview",
+              kind: "select" as const,
+              options: [
+                {value: "primary", label: "Primary"},
+                {value: "alternate", label: "Alternate"},
+                {value: "missing", label: "Missing"},
+                {value: "zero", label: "Zero size"},
+              ],
+            },
+          ]),
         ]
       : component === "frame" || component === "link"
         ? [{key: "selected", label: "Выбран", group: "Состояние", kind: "boolean"}]
@@ -118,6 +152,7 @@ export function createNodeComponentStory(
           "  renderers: createBlenderNodeRenderers(),",
           `  title: ${JSON.stringify(COMPONENT_LABELS[component])},`,
           "})",
+          `editor.setOverlayState({overlays: ${args["overlays-visible"]}, previews: ${args["previews-visible"]}})`,
           "editor.setTree(tree)",
           ...(state.selected
             ? ['editor.select({kind: "node", id: targetNodeId})']

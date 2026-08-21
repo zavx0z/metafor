@@ -100,7 +100,7 @@ describe("Blender-like Node component playground", () => {
   })
 
   test("publishes one controlled route, args and source state for expanded and collapsed Nodes", async () => {
-    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 10)).toEqual([
+    expect(NODE_COMPONENT_STORY_ROUTES.slice(0, 18)).toEqual([
       "node-editor/scene/default",
       "node-editor/scene/selected",
       "node-editor/scene/rotation-linked",
@@ -109,10 +109,18 @@ describe("Blender-like Node component playground", () => {
       "node-editor/scene/mixed-sides",
       "node-editor/scene/color-unlinked",
       "node-editor/scene/inventory",
+      "node-editor/preview/closed",
+      "node-editor/preview/open",
+      "node-editor/preview/global-hidden",
+      "node-editor/preview/alternate",
+      "node-editor/preview/missing",
+      "node-editor/preview/zero",
+      "node-editor/preview/multiple",
+      "node-editor/preview/non-previewable",
       "node-editor/collapsed/default",
       "node-editor/collapsed/selected",
     ])
-    expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "collapsed", "popup"])
+    expect(nodePlaygroundSections("node-editor/scene/default").map(({id}) => id)).toEqual(["scene", "preview", "collapsed", "popup"])
     expect(nodePlaygroundDockItems("node-editor/scene/default").map(({id}) => id)).toEqual([
       "default", "selected", "rotation-linked", "translation-unlinked", "output-only", "mixed-sides", "color-unlinked", "inventory",
     ])
@@ -160,6 +168,44 @@ describe("Blender-like Node component playground", () => {
       .find(({node}) => node.id === "scalar")?.node.properties
       ?.find(({id}) => id === "operation")).toMatchObject({kind: "enum", open: true})
     expect(NODE_EDITOR_STORY_NODE_IDS).toEqual({expanded: "scalar", collapsed: "collapsed"})
+  })
+
+  test("publishes controlled Node Preview routes without changing the ordinary Node model", async () => {
+    expect(nodePlaygroundDockItems("node-editor/preview/open").map(({id}) => id)).toEqual([
+      "closed", "open", "global-hidden", "alternate", "missing", "zero", "multiple", "non-previewable",
+    ])
+    const closed = await NODE_COMPONENT_STORIES.load("node-editor/preview/closed")
+    const open = await NODE_COMPONENT_STORIES.load("node-editor/preview/open")
+    const hidden = await NODE_COMPONENT_STORIES.load("node-editor/preview/global-hidden")
+    const absent = await NODE_COMPONENT_STORIES.load("node-editor/preview/non-previewable")
+    const multiple = await NODE_COMPONENT_STORIES.load("node-editor/preview/multiple")
+    expect(closed.defaultArgs).toMatchObject({
+      "previewable": true,
+      "preview-enabled": false,
+      "previews-visible": true,
+      "target-node-id": "scalar",
+    })
+    expect(open.defaultArgs).toMatchObject({"previewable": true, "preview-enabled": true})
+    expect(hidden.defaultArgs).toMatchObject({"preview-enabled": true, "previews-visible": false})
+    expect(absent.defaultArgs).toMatchObject({"previewable": false, "target-node-id": "transform"})
+    expect(multiple.defaultArgs).toMatchObject({"preview-nodes": ["scalar", "shader"]})
+    expect(open.controls.map(({key}) => key)).toEqual(expect.arrayContaining([
+      "preview-enabled", "overlays-visible", "previews-visible", "preview-buffer",
+    ]))
+
+    const ordinary = createCatalogNodeTree().nodes.find(({node}) => node.id === "scalar")!.node
+    const previewable = createCatalogNodeTree({previewEnabled: true}).nodes.find(({node}) => node.id === "scalar")!.node
+    const multiTree = createCatalogNodeTree({
+      previewNodeIds: ["scalar", "shader"],
+      previewEnabledByNode: {scalar: true, shader: true},
+    })
+    expect(ordinary.preview).toBeUndefined()
+    expect(previewable.preview).toMatchObject({enabled: true, image: {width: 320, height: 90}})
+    expect(previewable.parameters).toEqual(ordinary.parameters)
+    expect(previewable.sockets).toEqual(ordinary.sockets)
+    expect(multiTree.nodes.filter(({node}) => node.preview?.enabled === true).map(({node}) => node.id)).toEqual([
+      "scalar", "shader",
+    ])
   })
 
   test("publishes deterministic linked, shifted-link and unlinked Transform evidence variants", async () => {

@@ -83,6 +83,8 @@ try {
   let nodeFieldRoute: NodePlaygroundRoute | null = null
   let nodeFieldValues: NodeFieldValueState = createNodeFieldValueState(tree)
   let nodeFieldActions: readonly NodeFieldAction[] = Object.freeze([])
+  let previewRoute: NodePlaygroundRoute | null = null
+  let previewEnabledByNode: Readonly<Record<string, boolean>> = Object.freeze({})
   let storyModule: PlaygroundStoryModule | null = null
   let storyArgs: PlaygroundStoryArgs = Object.freeze({})
   let storyPanelMode: PlaygroundStoryPanelMode = "controls"
@@ -306,17 +308,52 @@ try {
     document.documentElement.dataset.nodeStoryVariants = String(nodePlaygroundDockItems(route).length)
     document.documentElement.dataset.nodeFieldValues = JSON.stringify(nodeFieldValues)
     document.documentElement.dataset.nodeFieldActions = JSON.stringify(nodeFieldActions)
+    document.documentElement.dataset.nodePreviewEnabled = storyArgs["preview-enabled"] === true ? "true" : "false"
+    document.documentElement.dataset.nodeOverlaysVisible = storyArgs["overlays-visible"] === false ? "false" : "true"
+    document.documentElement.dataset.nodePreviewsVisible = storyArgs["previews-visible"] === false ? "false" : "true"
+    document.documentElement.dataset.nodePreviewBuffer = String(storyArgs["preview-buffer"] ?? "")
+    document.documentElement.dataset.nodePreviewFlags = JSON.stringify(previewEnabledByNode)
     document.documentElement.dataset.nodeSocketSections = isNodeSocketStoryRoute(route) ? String(nodePlaygroundSections(route).length) : ""
     document.documentElement.dataset.nodeSocketVariants = isNodeSocketStoryRoute(route) ? String(nodePlaygroundDockItems(route).length) : ""
   }
 
   function applyProductionStoryState(route: NodePlaygroundRoute): void {
+    const previewable = storyArgs["previewable"] === true
+    const previewNodeIds = previewable && Array.isArray(storyArgs["preview-nodes"])
+      ? storyArgs["preview-nodes"].filter((value): value is string => typeof value === "string")
+      : []
+    if (previewRoute !== route) {
+      previewRoute = route
+      previewEnabledByNode = Object.freeze(Object.fromEntries(previewNodeIds.map((nodeId) => [
+        nodeId,
+        nodeId === "scalar" ? storyArgs["preview-enabled"] === true : true,
+      ])))
+    }
+    editor.setOverlayState({
+      overlays: storyArgs["overlays-visible"] !== false,
+      previews: storyArgs["previews-visible"] !== false,
+    })
     const baseTree = createCatalogNodeTree({
       openSelect: isNodeEditorStoryRoute(route) && storyArgs["select-open"] === true,
       translationLinked: storyArgs["translation-linked"] !== false,
       rotationLinked: storyArgs["rotation-linked"] === true,
       rotationOutput: storyArgs["rotation-output"] === true,
       colorLinked: storyArgs["color-linked"] !== false,
+      ...(previewable ? {
+        previewEnabled: storyArgs["preview-enabled"] === true,
+        previewNodeIds,
+        previewEnabledByNode,
+        previewBuffer: (storyArgs["preview-buffer"] ?? "primary") as "primary" | "alternate" | "missing" | "zero",
+        onPreviewToggle(nodeId: string, enabled: boolean) {
+          if (router.current !== route) return
+          previewEnabledByNode = Object.freeze({...previewEnabledByNode, [nodeId]: enabled})
+          if (nodeId === "scalar") storyArgs = Object.freeze({...storyArgs, "preview-enabled": enabled})
+          applyProductionStoryState(route)
+          storyPanel.setOptions(storyPanelOptions())
+          publishStoryState()
+          retainedObserver?.publishAfterFrame()
+        },
+      } : {}),
     })
     if (nodeFieldRoute !== route) {
       nodeFieldRoute = route
@@ -336,6 +373,11 @@ try {
     }))
     document.documentElement.dataset.nodeFieldValues = JSON.stringify(nodeFieldValues)
     document.documentElement.dataset.nodeFieldActions = JSON.stringify(nodeFieldActions)
+    document.documentElement.dataset.nodePreviewEnabled = storyArgs["preview-enabled"] === true ? "true" : "false"
+    document.documentElement.dataset.nodeOverlaysVisible = storyArgs["overlays-visible"] === false ? "false" : "true"
+    document.documentElement.dataset.nodePreviewsVisible = storyArgs["previews-visible"] === false ? "false" : "true"
+    document.documentElement.dataset.nodePreviewBuffer = String(storyArgs["preview-buffer"] ?? "")
+    document.documentElement.dataset.nodePreviewFlags = JSON.stringify(previewEnabledByNode)
     if (isNodeSocketStoryRoute(route)) return
     if (isNodeEditorStoryRoute(route)) {
       applyNodeEditorStoryState(storyArgs, {
