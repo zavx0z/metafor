@@ -57,19 +57,21 @@
 * [Пиринговая сеть и оркестрация Hamiltonian](../hamiltonian/README.md) задаёт
   общий закон доставки, размещения, знакомства, обновления и повторного
   воплощения. [Устойчивый запуск выпуска](../hamiltonian/startup/README.md#как-начинается-работа)
-  принадлежит `@hamiltonian/startup`,
+  принадлежит `@hamiltonian/startup` (далее — `startup`),
   [точный состав выпуска](../hamiltonian/release/README.md#что-называется-выпуском)
-  — `@hamiltonian/release`,
+  — `@hamiltonian/release` (далее — `release`),
   [закон внутренних пакетов](../hamiltonian/internal/README.md#внутренний-пакет-и-его-возможность)
-  — пространству `@internal/*`, а
+  — пространству `@internal/*` (далее — internal-пакеты), а
   [визуальная проекция Hamiltonian](../hamiltonian/internal/visual/README.md#как-появляется-сцена)
-  — пакету `@internal/visual`.
+  — пакету `@internal/visual` (далее — Visual).
 * [Node system](../pkg/nodes/README.md) — Blender-подобная компонентная
   библиотека `NodeTree → Frame / Node → Parameter → Socket → Link`, universal
-  fields и отдельно сохранённое layout-ядро `@nodes/layout`. Node Editor и его
+  fields и отдельно сохранённое layout-ядро `@nodes/layout` (далее — layout).
+  Node Editor и его
   FlexBox/view законы
-  принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md), временная
-  semantic/measured/Worker граница — [`nodes`](../pkg/nodes/REQUIREMENTS.md),
+  принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md) (далее — node UI),
+  временная semantic/measured/Worker граница —
+  [`nodes`](../pkg/nodes/REQUIREMENTS.md),
   а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
   [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),
@@ -108,10 +110,10 @@
 * Пример использовать только для пояснения закона, не вместо закона.
 * Использовать один термин для одной сущности и не подменять им соседние
   понятия внутри одного закона.
-* После первого точного имени пакета можно прямо в предложении объявить короткое
-  имя: `@scope/name` (далее — `name`). Одно короткое имя обозначает только этот
-  пакет и затем используется последовательно; namespace объявляется во
-  множественном числе и не называется пакетом.
+* Первое полное scoped-имя каждого пакета прямо в предложении объявляет короткое
+  имя: `@scope/name` (далее — `name`). Все следующие упоминания в том же
+  документе используют короткое имя. Namespace объявляется во множественном
+  числе, а уже короткое unscoped-имя не получает alias самому себе.
 * Включать перекрёстную ссылку в предложение с проверяемым законом и точным
   владельцем. Текст ссылки называет предмет закона, а не файл или документацию;
   предложение сохраняет смысл без Markdown-разметки.
