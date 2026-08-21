@@ -90,6 +90,12 @@ FlexBox единолично вычисляет local child slots, а child то
     Shift precision и Escape/right cancellation. Element не парсит число, не
     выбирает step/range и не публикует новое numeric value; это делает
     Component-владелец числового контракта.
+17. Explicit controlled `input` синхронизирует inactive edit buffer с каждым
+    новым owner value. Пока тот же input active, локальный text buffer, caret и
+    selection сохраняются до submit/blur/cancel и не перетираются повторным
+    render. Отсутствие `onChange` само по себе не превращает controlled
+    submit-only adapter в uncontrolled input; uncontrolled default-value
+    поведение остаётся отдельным явным режимом.
 
 ## Retained UI-закон
 

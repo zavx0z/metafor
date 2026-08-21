@@ -333,6 +333,31 @@ describe("public NumberInput", () => {
     expect(surfaceHasActiveInput(invalid)).toBeFalse()
   })
 
+  test("renders the latest controlled owner value without replacing an active edit buffer", () => {
+    const surface = new RecordingSurface()
+    let value = 3
+    const render = () => NumberInput(surface, 0, 0, 100, 22, {
+      key: "controlled-display",
+      value,
+      numberKind: "integer",
+      onChange: (next) => { value = next },
+    })
+
+    render()
+    expect(surface.texts.at(-1)?.[0]).toBe("3")
+    value = 6
+    render()
+    expect(surface.texts.at(-1)?.[0]).toBe("6")
+
+    focusInput(surface, "controlled-display", createInputEditState("12"))
+    render()
+    expect(surface.texts.at(-1)?.[0]).toBe("12")
+    expect(blurActiveInput(surface, "outside")).toBeTrue()
+    expect(value).toBe(12)
+    render()
+    expect(surface.texts.at(-1)?.[0]).toBe("12")
+  })
+
   test("parses a finite value with an optional unit and rejects invalid input", () => {
     const options = {min: 0, max: 2, step: 0.25, unit: "kg"} as const
     expect(parseNumberInputValue(" 1.26 kg ", options)).toBe(1.25)

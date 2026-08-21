@@ -65,6 +65,7 @@ export type InputNumericGesture =
 
 export type InputProps = DivProps & {
   value?: string
+  controlled?: boolean
   placeholder?: string
   active?: boolean
   disabled?: boolean
@@ -252,9 +253,9 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   surface.registerRenderKey(key)
   const hitState = surface.hitState(x, y, width, height, key)
   const initialValue = props.value ?? (typeof props.children === "string" || typeof props.children === "number" ? String(props.children) : "")
-  const controlled = props.onChange !== undefined
-  const state = inputStateFor(runtime, key, initialValue, controlled, props)
   const active = (props.active ?? runtime.activeKey === key) && !disabled
+  const controlled = props.controlled ?? (props.onChange !== undefined)
+  const state = inputStateFor(runtime, key, initialValue, controlled, active, props)
   const widgetClass = inputWidgetClass(props.type)
   const widgetState: BlenderWidgetState = {
     hovered: hitState.hovered,
@@ -359,7 +360,7 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
           return
         }
         if (runtime.drag?.key !== key) return
-        const current = inputStateFor(runtime, key, initialValue, controlled, props)
+        const current = inputStateFor(runtime, key, initialValue, controlled, true, props)
         const currentView = planInputTextLayout(surface, current.value, current.cursor, fontPx, contentX, contentW, textAlign)
         const nextCursor = inputIndexFromX(surface, current.value, currentView.start, fontPx, localX - currentView.originX)
         if (nextCursor === current.cursor && current.selectionAnchor === runtime.drag.anchor) return
@@ -527,8 +528,16 @@ function releaseActiveInput(surface: UiSurface, runtime: InputRuntimeState, key:
   surface.requestKeyedRender(key)
 }
 
-function inputStateFor(runtime: InputRuntimeState, key: string, value: string, controlled: boolean, props: InputProps): InputEditState {
+function inputStateFor(
+  runtime: InputRuntimeState,
+  key: string,
+  value: string,
+  controlled: boolean,
+  editing: boolean,
+  props: InputProps,
+): InputEditState {
   const current = runtime.values.get(key)
+  if (controlled && editing && current !== undefined) return current
   if (controlled) {
     const cursor = props.cursor ?? current?.cursor ?? value.length
     const selectionAnchor = props.selectionAnchor === undefined ? current?.selectionAnchor ?? null : props.selectionAnchor
@@ -727,7 +736,8 @@ function activateInputText(
   notifyPointerDown = true,
 ): void {
   blurActiveInput(surface, key)
-  const next = {...inputStateFor(runtime, key, initialValue, controlled, props)}
+  const editing = runtime.activeKey === key || props.active === true
+  const next = {...inputStateFor(runtime, key, initialValue, controlled, editing, props)}
   const style = mergeStyle(props)
   const align = style.textAlign ?? (props.type === "number" ? "right" : "left")
   const layout = planInputTextLayout(surface, next.value, next.cursor, fontPx, contentX, contentW, align)

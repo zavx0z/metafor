@@ -144,6 +144,37 @@ describe("input editing", () => {
     expect(submissions).toEqual(["edited"])
   })
 
+  test("syncs an explicit controlled value only while the input is inactive", () => {
+    const submissions: string[] = []
+    const surface = new RecordingSurface()
+    const render = (value: string) => input(surface, 0, 0, 100, 22, {
+      key: "controlled",
+      value,
+      controlled: true,
+      onSubmit: (next) => submissions.push(next),
+    })
+
+    render("3")
+    expect(surface.texts.at(-1)?.[0]).toBe("3")
+    render("6")
+    expect(surface.texts.at(-1)?.[0]).toBe("6")
+
+    focusInput(surface, "controlled", createInputEditState("12"))
+    render("7")
+    expect(surface.texts.at(-1)?.[0]).toBe("12")
+    expect(blurActiveInput(surface, "outside")).toBeTrue()
+    expect(submissions).toEqual(["12"])
+    render("7")
+    expect(surface.texts.at(-1)?.[0]).toBe("7")
+  })
+
+  test("keeps the existing uncontrolled value when a later render changes its default", () => {
+    const surface = new RecordingSurface()
+    input(surface, 0, 0, 100, 22, {key: "uncontrolled", value: "3"})
+    input(surface, 0, 0, 100, 22, {key: "uncontrolled", value: "6"})
+    expect(surface.texts.at(-1)?.[0]).toBe("3")
+  })
+
   test("uses the exact Surface hit key to preserve or blur active control focus", () => {
     const surface = new HitSurface()
     surface.hit(0, 0, 20, 20, () => {}, {key: "editor"})

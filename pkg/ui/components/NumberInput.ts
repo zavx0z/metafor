@@ -76,6 +76,7 @@ export function NumberInput(
   const textFieldProps: Parameters<typeof TextField>[5] = {
     key,
     value: formatNumberInputValue(props.value, props),
+    controlled: true,
     disabled,
     submitOnEnter: true,
     type: "number",

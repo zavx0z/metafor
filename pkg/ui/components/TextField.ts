@@ -16,6 +16,7 @@ import type {UiSurface, StyleProps} from "@ui/elements"
 export type TextFieldProps = {
   key?: string
   value?: string
+  controlled?: boolean
   children?: string
   placeholder?: string
   active?: boolean
@@ -41,6 +42,7 @@ export function TextField(host: UiSurface, x: number, y: number, width: number, 
     value: props.value ?? props.children ?? "",
   }
   if (props.key !== undefined) inputProps.key = props.key
+  if (props.controlled !== undefined) inputProps.controlled = props.controlled
   if (props.active !== undefined) inputProps.active = props.active
   if (props.sx !== undefined) inputProps.style = props.sx
   if (props.placeholder !== undefined) inputProps.placeholder = props.placeholder

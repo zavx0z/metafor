@@ -122,6 +122,11 @@ control нельзя опустить в Elements только ради повт
     только на pointer mapping, нормализуются внутри hard bounds, а при отсутствии
     выводятся из finite hard bound либо adaptive range текущего value. Vector и
     Matrix получают тот же закон только через public `NumberInput`.
+15. `NumberInput` всегда передаёт обязательный public `value` в explicit
+    controlled Elements buffer: inactive owner update немедленно меняет
+    visible numeric text, active text edit сохраняет локальный buffer до
+    commit/cancel. IntegerInput, Vector, Rotation, Matrix, Field и Node не
+    копируют эту синхронизацию и не подставляют fake `onChange`.
 
 ## Целевой состав control library
 
