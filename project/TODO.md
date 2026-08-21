@@ -281,7 +281,9 @@ arrow, хотя standalone labeled Integer и Elements draw regressions оста
 green. UI-015.8.11 commit `4ad33fcda` теперь резервирует обе generic numeric
 handle zones; source-fresh Number/Integer/Vector/Node captures показывают обе
 arrows без перекрытия value, console0. Active slice снова UI-015.10: пересобрать
-equal-scale matrix и получить explicit owner visual verdict.
+equal-scale matrix и получить explicit owner visual verdict. Восемь current
+pairs теперь готовы на source `4ad33fcda`; UI-015.10 переведена в GATE до
+решения владельца по scalar/enum/vector/path/reference/collection/color/shell.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

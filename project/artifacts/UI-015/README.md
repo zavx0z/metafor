@@ -550,3 +550,30 @@ Automated captures prove exact canvas state, not explicit owner acceptance.
   `a3582dbfe71bf7a345311d87bad64995e92ea719022ee89ede07a5c48e0040cc` /
   `5058c3c40a7bf4135c5b8b56b9d7207be9cd68b407317673a600e86553fbf5d1`.
   The `-red` pair remains the rejected before evidence.
+
+## UI-015.10 — Equal-scale owner visual matrix
+
+* Source boundary `4ad33fcda`; source-fresh Components/Node PIDs `2247/2415`,
+  exact targets `D077…/809…`, native `1920×1088 @2`. Each route was explicitly
+  reloaded; captures are non-black and console is `0`.
+* Meta full canvases are downscaled exactly `.5` to logical `1×` before crop.
+  Owner Retina scalar/enum/shell references are also `.5`; Blender manual
+  references retain original `1×`. Pair compositor does not scale either crop.
+* Current comparisons and SHA-256:
+  * `matrix-scalar-comparison.png` — `9f5d203460a97c8200c089e175df68dbc9f68a820862a2b35e72c01239f5eed4`;
+  * `matrix-enum-comparison.png` — `7201fce074e86582198e1e93deb6ac4bdcd67e4ccb81525ba1af8ed4420eccf7`;
+  * `matrix-vector-comparison.png` — `5058c3c40a7bf4135c5b8b56b9d7207be9cd68b407317673a600e86553fbf5d1`;
+  * `matrix-path-comparison.png` — `89e48b8f06daec0ead902a36d378f9271dddf58a4b69ab49de2e4bda8083f60d`;
+  * `matrix-reference-comparison.png` — `4adc3894ddce5d91d9b057965429c99552b163aad5d75f4e71b252d025de6093`;
+  * `matrix-collection-comparison.png` — `39c4200d51e1a3ee55fc6c813d23af962e7b994501c0eb3eedf6d7954669f407`;
+  * `matrix-color-comparison.png` — `05568e511ab54a54ea6950b7160264cf2834812f12bc845c18727755a06fa92b`;
+  * `matrix-shell-comparison.png` — `d366434ae4d86d98d7402137580e4432fdccf1652b890df1a5181ba34f5bcaee`.
+* Collection reference is official Blender 4.5 List View image
+  `https://docs.blender.org/manual/en/4.5/_images/interface_controls_templates_list-presets_view-filter.png`,
+  SHA-256 `3637aa79c220b33114f0995c5cd1a84930749aeb54d148c2e76b5d610b3a514e`;
+  the earlier Collection data-block selector pair was semantically invalid and
+  is excluded.
+* `visual-matrix.result.json` records every exact source/path/hash and keeps
+  `ownerAcceptance:false`. Different option names and Color values are
+  representative data, not a visual verdict. Project font is the accepted
+  divergence. Explicit owner review is mandatory before acceptance.

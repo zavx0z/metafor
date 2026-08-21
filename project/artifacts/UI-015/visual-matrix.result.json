@@ -1,0 +1,97 @@
+{
+  "task": "UI-015.10",
+  "sourceBoundary": "4ad33fcda522e2f241a3800aa484d7650efa59df",
+  "numericResult": "ef3d657ca",
+  "status": "waiting-owner",
+  "normalization": {
+    "metaCanvas": "native 1920x1088 at DPR 2, downscaled exactly 0.5 to logical 1x before cropping",
+    "retinaReferences": "owner Retina captures downscaled exactly 0.5",
+    "manualReferences": "Blender manual images kept at their original 1x pixels",
+    "pairScaling": "neither logical crop is rescaled inside a comparison pair"
+  },
+  "runtime": {
+    "components": {
+      "pid": 2247,
+      "targetId": "D0775AE44CFF0E299A0C28EECB3872D2",
+      "consoleErrors": 0
+    },
+    "node-ui": {
+      "pid": 2415,
+      "targetId": "809BF08D88E4582CA819EFE847FE1450",
+      "consoleErrors": 0
+    }
+  },
+  "rows": [
+    {
+      "kind": "scalar",
+      "metaRoute": "integer-input/basic/labeled",
+      "reference": "blender-labeled-number-reference.png",
+      "referenceSha256": "a8cc1077b898aaf06299fb40369b0237defa2fa9a27b8a2125867b3bc5740558",
+      "comparison": "matrix-scalar-comparison.png",
+      "comparisonSha256": "9f5d203460a97c8200c089e175df68dbc9f68a820862a2b35e72c01239f5eed4"
+    },
+    {
+      "kind": "enum",
+      "metaRoute": "enum-input/value/header-icons",
+      "reference": "blender-select-header-icons-reference.png",
+      "referenceSha256": "2ec224eb1bb3a9f946193eb01a45ed1942c867ec5a2082e42466fb96011f03ba",
+      "comparison": "matrix-enum-comparison.png",
+      "comparisonSha256": "7201fce074e86582198e1e93deb6ac4bdcd67e4ccb81525ba1af8ed4420eccf7"
+    },
+    {
+      "kind": "vector",
+      "metaRoute": "vector-input/basic/default",
+      "reference": "blender-node-catalog/assets/manual/4.5/node-types_FunctionNodeInputVector.webp",
+      "referenceSha256": "bd28455e0af5430b046070a9ef1603791fa33d99e790b1c2bc17a67822b9ef50",
+      "comparison": "matrix-vector-comparison.png",
+      "comparisonSha256": "5058c3c40a7bf4135c5b8b56b9d7207be9cd68b407317673a600e86553fbf5d1"
+    },
+    {
+      "kind": "path",
+      "metaRoute": "path-input/value/empty",
+      "reference": "blender-node-catalog/assets/manual/4.5/node-types_GeometryNodeImportCSV.webp",
+      "referenceSha256": "716967c514e1115bc822a764e76a03180d6ee078aba49e0ef3ae443f429748eb",
+      "comparison": "matrix-path-comparison.png",
+      "comparisonSha256": "89e48b8f06daec0ead902a36d378f9271dddf58a4b69ab49de2e4bda8083f60d"
+    },
+    {
+      "kind": "reference",
+      "metaRoute": "reference-input/basic/default after clear",
+      "reference": "blender-node-catalog/assets/manual/4.5/node-types_GeometryNodeInputObject.png",
+      "referenceSha256": "dfeb081b84f56639f2ffd406eebe841d9aed324bd90d80b31940f0c1c324ae93",
+      "comparison": "matrix-reference-comparison.png",
+      "comparisonSha256": "4adc3894ddce5d91d9b057965429c99552b163aad5d75f4e71b252d025de6093"
+    },
+    {
+      "kind": "collection",
+      "metaRoute": "collection-input/value/selected",
+      "reference": "blender-list-view-reference.png",
+      "referenceUrl": "https://docs.blender.org/manual/en/4.5/_images/interface_controls_templates_list-presets_view-filter.png",
+      "referenceSha256": "3637aa79c220b33114f0995c5cd1a84930749aeb54d148c2e76b5d610b3a514e",
+      "comparison": "matrix-collection-comparison.png",
+      "comparisonSha256": "39c4200d51e1a3ee55fc6c813d23af962e7b994501c0eb3eedf6d7954669f407"
+    },
+    {
+      "kind": "color",
+      "metaRoute": "color-input/presentation/expanded",
+      "reference": "blender-node-catalog/assets/manual/4.5/node-types_FunctionNodeInputColor.webp",
+      "referenceSha256": "36b644cd47e34060b8af7823040978324201a385d677eab6e6c5ba0868bfcb7f",
+      "comparison": "matrix-color-comparison.png",
+      "comparisonSha256": "05568e511ab54a54ea6950b7160264cf2834812f12bc845c18727755a06fa92b"
+    },
+    {
+      "kind": "shell",
+      "metaRoute": "node-editor/scene/inventory",
+      "reference": "workbench-accordion-reference.png",
+      "referenceSha256": "4bc3c4bde84a06c178ccc6a4ece645dc793309afab90af61900c1c31e5755e45",
+      "comparison": "matrix-shell-comparison.png",
+      "comparisonSha256": "d366434ae4d86d98d7402137580e4432fdccf1652b890df1a5181ba34f5bcaee"
+    }
+  ],
+  "limitations": [
+    "project font is the accepted divergence",
+    "captures compare representative composition; option names and color values are not normalized semantic data",
+    "synthetic background CDP evidence is not owner acceptance"
+  ],
+  "ownerAcceptance": false
+}
