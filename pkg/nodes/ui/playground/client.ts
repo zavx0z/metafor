@@ -22,6 +22,12 @@ import {
   type BlenderSocket,
 } from "../blender-node.ts"
 import {NodeEditor} from "../node-editor.ts"
+import {
+  bindNodeFieldValueState,
+  createNodeFieldValueState,
+  updateNodeFieldValueState,
+  type NodeFieldValueState,
+} from "./controlled-fields.ts"
 import {createCatalogNodeTree, createNoiseComparisonTree} from "./fixtures.ts"
 import {planNodeComponentPlaygroundFrames} from "./layout.ts"
 import {waitForReferenceFrame} from "./reference-readiness.ts"
@@ -73,6 +79,8 @@ try {
   const navigate = (route: NodePlaygroundRoute): void => router.go(route)
   const tree = createCatalogNodeTree()
   const comparisonTree = createNoiseComparisonTree()
+  let nodeFieldRoute: NodePlaygroundRoute | null = null
+  let nodeFieldValues: NodeFieldValueState = createNodeFieldValueState(tree)
   let storyModule: PlaygroundStoryModule | null = null
   let storyArgs: PlaygroundStoryArgs = Object.freeze({})
   let storyPanelMode: PlaygroundStoryPanelMode = "controls"
@@ -294,17 +302,30 @@ try {
       : ""
     document.documentElement.dataset.nodeStorySections = String(nodePlaygroundSections(route).length)
     document.documentElement.dataset.nodeStoryVariants = String(nodePlaygroundDockItems(route).length)
+    document.documentElement.dataset.nodeFieldValues = JSON.stringify(nodeFieldValues)
     document.documentElement.dataset.nodeSocketSections = isNodeSocketStoryRoute(route) ? String(nodePlaygroundSections(route).length) : ""
     document.documentElement.dataset.nodeSocketVariants = isNodeSocketStoryRoute(route) ? String(nodePlaygroundDockItems(route).length) : ""
   }
 
   function applyProductionStoryState(route: NodePlaygroundRoute): void {
-    editor.setTree(createCatalogNodeTree({
+    const baseTree = createCatalogNodeTree({
       openSelect: isNodeEditorStoryRoute(route) && storyArgs["select-open"] === true,
       translationLinked: storyArgs["translation-linked"] !== false,
       rotationLinked: storyArgs["rotation-linked"] === true,
       rotationOutput: storyArgs["rotation-output"] === true,
+    })
+    if (nodeFieldRoute !== route) {
+      nodeFieldRoute = route
+      nodeFieldValues = createNodeFieldValueState(baseTree)
+    }
+    editor.setTree(bindNodeFieldValueState(baseTree, nodeFieldValues, (nodeId, fieldId, value) => {
+      if (router.current !== route) return
+      nodeFieldValues = updateNodeFieldValueState(nodeFieldValues, nodeId, fieldId, value)
+      applyProductionStoryState(route)
+      publishStoryState()
+      retainedObserver?.publishAfterFrame()
     }))
+    document.documentElement.dataset.nodeFieldValues = JSON.stringify(nodeFieldValues)
     if (isNodeSocketStoryRoute(route)) return
     if (isNodeEditorStoryRoute(route)) {
       applyNodeEditorStoryState(storyArgs, {
