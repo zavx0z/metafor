@@ -504,3 +504,22 @@
   удалены до result commit и не являются artifact evidence.
 
 Automated captures prove exact canvas state, not explicit owner acceptance.
+
+## UI-015.8.11 — Vector numeric arrow overlap RED
+
+* Source: commit `2caaf89de`, Components PID `84831`, exact target `D0775…`,
+  route `/vector-input/basic/default`, native `1920×1088 @2`, console `0`.
+* `matrix-vector-hover.plan.json` moves the pointer into the X numeric left
+  handle and records an accepted exact-canvas PNG after two render frames.
+* `matrix-vector-meta-hover-full.png` is the source-fresh full canvas;
+  `matrix-vector-meta.png` is its logical `1×` control crop;
+  `matrix-vector-comparison.png` places that crop beside Blender 4.5
+  `FunctionNodeInputVector.webp` without per-side rescaling.
+* `vector-right-arrow-overlap-owner-red.png`, `348×194`, SHA-256
+  `65fc064b07a39aae4cfbbb53bf0541e47fb8709d7bed714753ca4ad2f2bb7ad6`,
+  is the direct owner crop. The Z-row right chevron is visibly underneath the
+  last `3.000` glyph, proving paint-order/content-inset overlap.
+* Expectation: both chevrons remain visible on numeric hover and only the left
+  zone is active. Fact: the left chevron/zone is visible, but right-aligned
+  `1.000` covers the right chevron. This is UI-015.8.11 RED, not owner visual
+  acceptance and not a failure of retained redraw.

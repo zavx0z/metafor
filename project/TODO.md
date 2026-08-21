@@ -275,7 +275,11 @@ UI-015.9.4 source commit `1e5660ae3` теперь добавляет controlled 
 per-node flags, global hide/show и extra-info image panel над неизменным body.
 Source-fresh PID `84993` закрывает toggle/buffer/multiple/non-previewable/body-hit
 matrix с console0; `node-preview.result.json` хранит exact evidence. .9.4 в
-REVIEW, active slice — UI-015.10 equal-scale owner visual matrix.
+REVIEW. Equal-scale UI-015.10 нашла новый точный numeric visual regression:
+right-aligned value-only NumberInput внутри Vector перекрывает правую hover
+arrow, хотя standalone labeled Integer и Elements draw regressions остаются
+green. Active slice UI-015.8.11 резервирует обе generic numeric handle zones;
+UI-015.10 ждёт его source/result checkpoint и затем пересобирает matrix.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

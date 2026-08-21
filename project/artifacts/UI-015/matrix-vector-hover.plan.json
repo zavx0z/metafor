@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "settleMs": 0,
+  "steps": [
+    {"kind": "pointer-move", "x": 880, "y": 573},
+    {"kind": "settle", "ms": 80},
+    {"kind": "checkpoint", "name": "vector-x-hover-left", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/matrix-vector-meta-hover-full.png"}
+  ]
+}
