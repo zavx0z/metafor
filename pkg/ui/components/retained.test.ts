@@ -6,6 +6,7 @@ import {
   divScrollTo,
   focusInput,
   handleActiveInputKey,
+  insertActiveInputText,
   prepareSurfaceInputFocus,
   surfaceHasActiveInput,
   type DrawImageOpts,
@@ -443,6 +444,24 @@ describe("retained UI Components boundary", () => {
       for (const point of [{x: 80, y: 36}, {x: 228, y: 151}, {x: 42, y: 251}]) {
         expect(surface.pointerHitKey(point.x, point.y)).not.toBeNull()
       }
+
+      const pointer = {button: 0, preventDefault() {}} as MouseEvent
+      surface.onPointerDown(pointer, 130, 301)
+      surface.flushPendingRender()
+      surface.onPointerUp(pointer, 130, 301)
+      surface.flushPendingRender()
+      expect(surfaceHasActiveInput(surface)).toBeTrue()
+      expect(insertActiveInputText(surface, "9")).toBeTrue()
+      surface.flushPendingRender()
+      expect(handleActiveInputKey(surface, {
+        key: "Enter",
+        metaKey: false,
+        ctrlKey: false,
+        shiftKey: false,
+        preventDefault() {},
+      } as KeyboardEvent)).toBeTrue()
+      surface.flushPendingRender()
+      expect(surface.numberValue).toBe(9)
     } finally {
       surface.dispose()
       globalThis.setInterval = originalSetInterval
