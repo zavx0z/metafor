@@ -284,6 +284,9 @@ arrows без перекрытия value, console0. Active slice снова UI-0
 equal-scale matrix и получить explicit owner visual verdict. Восемь current
 pairs теперь готовы на source `4ad33fcda`; UI-015.10 переведена в GATE до
 решения владельца по scalar/enum/vector/path/reference/collection/color/shell.
+Owner live finding открыл UI-015.8.12: center click numeric input ошибочно ставит
+caret перед right-aligned value, тогда как Blender начинает text edit с
+end-caret и select-all. Active slice — UI-015.8.12; UI-015.10 ждёт result.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

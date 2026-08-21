@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settleMs": 0,
+  "steps": [
+    {"kind": "pointer-move", "x": 925, "y": 590},
+    {"kind": "pointer-down", "x": 925, "y": 590, "button": "left"},
+    {"kind": "pointer-up", "x": 925, "y": 590, "button": "left"},
+    {"kind": "settle", "ms": 80},
+    {"kind": "checkpoint", "name": "center-click-edit", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/numeric-caret-center-red.png"}
+  ]
+}

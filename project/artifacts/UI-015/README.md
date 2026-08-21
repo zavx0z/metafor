@@ -577,3 +577,18 @@ Automated captures prove exact canvas state, not explicit owner acceptance.
   `ownerAcceptance:false`. Different option names and Color values are
   representative data, not a visual verdict. Project font is the accepted
   divergence. Explicit owner review is mandatory before acceptance.
+
+## UI-015.8.12 — Numeric caret transition RED
+
+* Direct owner finding: entering numeric text mode places the caret before the
+  right-aligned value instead of at its right edge.
+* Source-fresh commit `dbcf11aaa`, Components PID `80178`, target `D077…`, route
+  `/number-input/basic/default`, native `1920×1088 @2`, console `0`.
+* `numeric-caret-center-red.plan.json` clicks/releases the exact center zone and
+  records `numeric-caret-center-red.png`; logical crop
+  `numeric-caret-center-red-crop.png`, `210×100`, SHA-256
+  `2a3fad5fb8f612885c6c1457c4ef98125fb5ea0a02f4811fe9f7a5bdb7d5afca`.
+* Fact: MetaFor passes the center pointer X to ordinary text hit-testing; the
+  click left of `0.62` yields cursor index `0`. Blender 4.5.5
+  `interface_handlers.cc` instead initializes numeric text edit with cursor at
+  string end and full selection. This is UI-015.8.12 RED, not matrix acceptance.
