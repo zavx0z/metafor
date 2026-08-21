@@ -1,0 +1,39 @@
+{
+  "sourceCommit": "ed894664539695e1c38f7302ee44d8c87242db5e",
+  "runtime": {
+    "elementsPid": 53618,
+    "componentsPid": 53649,
+    "nodePid": 53620,
+    "dpr": 2,
+    "consoleErrors": []
+  },
+  "controlledDisplay": {
+    "standaloneRight": 6,
+    "standaloneLeft": 0,
+    "nodeRight": 6,
+    "nodeLeft": 0,
+    "visibleMatchesOwner": true
+  },
+  "cancel": {
+    "escape": 3,
+    "rightClick": 3,
+    "pressedReleased": true
+  },
+  "broadFocus": {
+    "textOutside": "Тест",
+    "vector": [1, 2.011, 3],
+    "nodeOperation": "add",
+    "nodeIterations": 6
+  },
+  "captures": {
+    "standaloneRight": {"file": "integer-components-focus-blur-drag-right.png", "bytes": 268425, "sha256": "8fbb1fabd1948d5dfbfbf6629aefdc2952070ca35fe7703542e5660ba88ae46c"},
+    "standaloneLeft": {"file": "integer-components-focus-blur-drag-left.png", "bytes": 268481, "sha256": "72da104e88e423947bc2e317417beedf31a694cf3049d1d6159b3ce7ac179168"},
+    "nodeRight": {"file": "integer-node-focus-blur-drag-right.png", "bytes": 409654, "sha256": "9971fa1e84e264dda0926f878fea86efda91606eabbb379ccab7fabad75b81f0"},
+    "nodeLeft": {"file": "integer-node-focus-blur-drag-left.png", "bytes": 409634, "sha256": "844c75af836e01522e2798dd6609d35ce88ce102766d9188938832c68f6abb99"},
+    "cancel": {"bytes": 268409, "sha256": "9dbbec0270415165cf72d8710f096e3596a13978f81fc37522dca3105195e1d7"}
+  },
+  "routePreserved": true,
+  "focusEmulationRestored": true,
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}

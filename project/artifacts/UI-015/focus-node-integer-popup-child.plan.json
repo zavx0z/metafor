@@ -1,0 +1,14 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":565,"y":424},
+  {"kind":"pointer-down","x":565,"y":424,"button":"left"},
+  {"kind":"pointer-up","x":565,"y":424,"button":"left"},
+  {"kind":"pointer-move","x":610,"y":379},
+  {"kind":"pointer-down","x":610,"y":379,"button":"left"},
+  {"kind":"pointer-up","x":610,"y":379,"button":"left"},
+  {"kind":"pointer-move","x":610,"y":422},
+  {"kind":"pointer-down","x":610,"y":422,"button":"left"},
+  {"kind":"pointer-up","x":610,"y":422,"button":"left"},
+  {"kind":"pointer-drag","from":{"x":565,"y":424},"to":{"x":585,"y":424},"button":"left","segments":8},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"integer-popup-child","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/focus-node-integer-popup-child.png"}
+]}

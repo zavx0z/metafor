@@ -351,6 +351,30 @@
   ignores later owner value while inactive. This is a generic Input/NumberInput
   contract defect, not a Node renderer or retained redraw workaround.
 * Machine-readable summary: `integer-controlled-display-red.result.json`.
+* Result commit `ed8946645`, source-fresh PIDs Elements/Components/Node
+  `53618/53649/53620`: standalone and Node right/left canvases now visibly show
+  distinct `6/0`, match DOM owner values, preserve routes and report console
+  `0`. Machine-readable result: `integer-controlled-display.result.json`.
+
+## UI-015.8.8 — Broad focus/cancel live result
+
+* Escape and right-click plans both restore Integer origin `3`, release pressed
+  state and produce identical neutral-hover PNG SHA-256
+  `9dbbec0270415165cf72d8710f096e3596a13978f81fc37522dca3105195e1d7`.
+* `focus-components-text-outside.*`: TextField owner changes
+  `Компонент UI→Тест` and outside click leaves no edit caret; PNG `254880`
+  bytes, SHA-256
+  `621204ec3310ab68a246156ad962a39c2a3a5e997a15cfe69618ef3c934ecc61`.
+* `focus-components-vector-sibling.*`: focus enters X, direct Y drag transfers
+  the exact grouped owner and changes only Y `2→2.011`; PNG `288974` bytes,
+  SHA-256
+  `07b1faa3e08f899829dbe2e962c45bca2e32be9816614e5a7242d640b3808441`.
+* `focus-node-integer-popup-child.*`: focused Integer yields to Select trigger;
+  popup child selects `add` without hitting the covered row; following Integer
+  scrub visibly reaches `6`. PNG `409471` bytes, SHA-256
+  `525f05975a4bd06e607cd6b25041e9a2557443024ee381757e381561144eed1c`.
+* All plans preserve exact route, restore focus emulation and report console
+  `0`. Synthetic background evidence is not physical-device owner acceptance.
 
 ## UI-015.5.3 — Linked Node measurement RED
 

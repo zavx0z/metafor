@@ -1,0 +1,9 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":925,"y":584},
+  {"kind":"pointer-down","x":925,"y":584,"button":"left"},
+  {"kind":"pointer-up","x":925,"y":584,"button":"left"},
+  {"kind":"settle","ms":40},
+  {"kind":"pointer-drag","from":{"x":925,"y":606},"to":{"x":945,"y":606},"button":"left","segments":8},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"vector-sibling","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/focus-components-vector-sibling.png"}
+]}

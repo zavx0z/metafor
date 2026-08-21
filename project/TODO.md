@@ -241,7 +241,11 @@ callbacks и static tree не меняет value. Новый dev-only controlled
 Elements Input ошибочно считает NumberInput uncontrolled, потому что numeric
 owner использует `onSubmit`, а controlled mode выводится только из `onChange`.
 Новый UI-015.8.9 исправляет единый controlled numeric display contract для
-standalone/grouped/Node, после чего продолжаются cancel и broad focus gates.
+standalone/grouped/Node commit-ом `ed8946645`: source-fresh canvases теперь
+реально показывают `6/0`. Escape/right cancel возвращают `3`; Text outside,
+grouped X→Y и Node Integer→Select child→Integer проходят с console0. Полные
+Elements/Components suites покрывают остальные public consumers без stale
+focus; дальнейшая Node control matrix остаётся UI-015.9.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

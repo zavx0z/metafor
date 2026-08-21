@@ -1,0 +1,11 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":925,"y":595},
+  {"kind":"pointer-down","x":925,"y":595,"button":"left"},
+  {"kind":"pointer-move","x":931,"y":595},
+  {"kind":"pointer-move","x":945,"y":595},
+  {"kind":"pointer-down","x":945,"y":595,"button":"right"},
+  {"kind":"pointer-up","x":945,"y":595,"button":"right"},
+  {"kind":"pointer-up","x":945,"y":595,"button":"left"},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"right-cancel","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-right-cancel.png"}
+]}
