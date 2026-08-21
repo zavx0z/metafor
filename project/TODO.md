@@ -253,7 +253,13 @@ Blender law скрывает editor; renderer/ColorInput не меняются. 
 `4f9f0da31` + Node PID `59195` закрывают этот gate: wheel/value markers и owner
 RGBA меняются, Escape/outside закрывают popup, console0. UI-015.12 interaction
 capability/result complete; parent visual inventory и preview-toggle/window
-audit ещё не закрыты.
+audit ещё не закрыты. Independent tail review подтвердил exact UI-015.9 gap:
+fixture не содержит Path/Collection, а Reference требует activate/pick/clear
+evidence. UI-015.9.3 IN_PROGRESS переиспользует controlled Field owner без
+renderer-local controls. Отдельный UI-015.9.4 READY после .9.3 и material/state
+matrix добавляет настоящий Blender Node Preview: controlled eye toggle,
+persistent node flag, global preview visibility и extra-info image panel над
+body без изменения body/Socket/Link geometry.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.
