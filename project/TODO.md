@@ -278,8 +278,10 @@ matrix с console0; `node-preview.result.json` хранит exact evidence. .9.4
 REVIEW. Equal-scale UI-015.10 нашла новый точный numeric visual regression:
 right-aligned value-only NumberInput внутри Vector перекрывает правую hover
 arrow, хотя standalone labeled Integer и Elements draw regressions остаются
-green. Active slice UI-015.8.11 резервирует обе generic numeric handle zones;
-UI-015.10 ждёт его source/result checkpoint и затем пересобирает matrix.
+green. UI-015.8.11 commit `4ad33fcda` теперь резервирует обе generic numeric
+handle zones; source-fresh Number/Integer/Vector/Node captures показывают обе
+arrows без перекрытия value, console0. Active slice снова UI-015.10: пересобрать
+equal-scale matrix и получить explicit owner visual verdict.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

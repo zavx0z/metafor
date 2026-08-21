@@ -512,8 +512,8 @@ Automated captures prove exact canvas state, not explicit owner acceptance.
 * `matrix-vector-hover.plan.json` moves the pointer into the X numeric left
   handle and records an accepted exact-canvas PNG after two render frames.
 * `matrix-vector-meta-hover-full.png` is the source-fresh full canvas;
-  `matrix-vector-meta.png` is its logical `1×` control crop;
-  `matrix-vector-comparison.png` places that crop beside Blender 4.5
+  `matrix-vector-meta-red.png` is its logical `1×` control crop;
+  `matrix-vector-comparison-red.png` places that crop beside Blender 4.5
   `FunctionNodeInputVector.webp` without per-side rescaling.
 * `vector-right-arrow-overlap-owner-red.png`, `348×194`, SHA-256
   `65fc064b07a39aae4cfbbb53bf0541e47fb8709d7bed714753ca4ad2f2bb7ad6`,
@@ -523,3 +523,30 @@ Automated captures prove exact canvas state, not explicit owner acceptance.
   zone is active. Fact: the left chevron/zone is visible, but right-aligned
   `1.000` covers the right chevron. This is UI-015.8.11 RED, not owner visual
   acceptance and not a failure of retained redraw.
+
+## UI-015.8.11 — Numeric handle inset result
+
+* Source commit `4ad33fcda`; after Codex HUP `$ui-dev ensure` started fresh
+  Elements/Components/Node PIDs `2062/2247/2415`, then reloaded the existing
+  targets `E208…/D077…/809…` at native `1920×1088 @2`.
+* Data-only plans `numeric-inset-{number,integer,vector,node-vector}-final.plan.json`
+  hover the left numeric zone after an independent reload and two-frame settle.
+  Every route is preserved, focus emulation restored and console is `0`.
+* Logical `1×` result crops:
+  * `numeric-inset-number-final.png`, `210×100`, SHA-256
+    `dbb846670049ea1fee0e80ce44d6da4df740a1ad8aaff8b3a2dd95e1125b7608`;
+  * `numeric-inset-integer-final.png`, `210×100`, SHA-256
+    `2f3a8926ea0315e0c93ecbdbffd1835d35f8b7104ceaec833a4a1790171dd55f`;
+  * `numeric-inset-vector-final.png`, `210×150`, SHA-256
+    `a3582dbfe71bf7a345311d87bad64995e92ea719022ee89ede07a5c48e0040cc`;
+  * `numeric-inset-node-vector-final.png`, `240×320`, SHA-256
+    `94a6e00876fd26d6b70f523b751a15c5202b3f61ec20dea9c30d6aaf0cb253f5`.
+* Fact: both arrows remain readable, only the hovered left zone is active, and
+  Number/Integer/Vector values end before the right icon in standalone and Node.
+  Exact machine summary is `numeric-inset.result.json`; synthetic evidence does
+  not set owner acceptance.
+* UI-015.10 current pair is now `matrix-vector-meta.png` plus
+  `matrix-vector-comparison.png`, SHA-256
+  `a3582dbfe71bf7a345311d87bad64995e92ea719022ee89ede07a5c48e0040cc` /
+  `5058c3c40a7bf4135c5b8b56b9d7207be9cd68b407317673a600e86553fbf5d1`.
+  The `-red` pair remains the rejected before evidence.

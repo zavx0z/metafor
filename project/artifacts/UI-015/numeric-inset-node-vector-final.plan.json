@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "settleMs": 0,
+  "steps": [
+    {"kind": "pointer-move", "x": 760, "y": 378},
+    {"kind": "settle", "ms": 80},
+    {"kind": "checkpoint", "name": "node-vector-x-left-hover", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/numeric-inset-node-vector-final-full.png"}
+  ]
+}

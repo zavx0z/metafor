@@ -1,0 +1,78 @@
+{
+  "task": "UI-015.8.11",
+  "sourceCommit": "4ad33fcda522e2f241a3800aa484d7650efa59df",
+  "preparationCommit": "24df15ed52da661920f2a960fc3a8aa71c33186b",
+  "nativeViewport": [1920, 1088, 2],
+  "selectors": {
+    "elements": {
+      "pid": 2062,
+      "targetId": "E2087390E08913DD8CA4142D5D9E8C48",
+      "freshnessRoute": "input/state/inactive"
+    },
+    "components": {
+      "pid": 2247,
+      "targetId": "D0775AE44CFF0E299A0C28EECB3872D2",
+      "routes": [
+        "number-input/basic/default",
+        "integer-input/basic/labeled",
+        "vector-input/basic/default"
+      ]
+    },
+    "node-ui": {
+      "pid": 2415,
+      "targetId": "809BF08D88E4582CA819EFE847FE1450",
+      "route": "node-editor/scene/translation-unlinked"
+    }
+  },
+  "captures": [
+    {
+      "kind": "number",
+      "path": "numeric-inset-number-final.png",
+      "sha256": "dbb846670049ea1fee0e80ce44d6da4df740a1ad8aaff8b3a2dd95e1125b7608"
+    },
+    {
+      "kind": "integer",
+      "path": "numeric-inset-integer-final.png",
+      "sha256": "2f3a8926ea0315e0c93ecbdbffd1835d35f8b7104ceaec833a4a1790171dd55f"
+    },
+    {
+      "kind": "vector",
+      "path": "numeric-inset-vector-final.png",
+      "sha256": "a3582dbfe71bf7a345311d87bad64995e92ea719022ee89ede07a5c48e0040cc"
+    },
+    {
+      "kind": "node-vector",
+      "path": "numeric-inset-node-vector-final.png",
+      "sha256": "94a6e00876fd26d6b70f523b751a15c5202b3f61ec20dea9c30d6aaf0cb253f5"
+    }
+  ],
+  "visualMatrix": {
+    "meta": "matrix-vector-meta.png",
+    "comparison": "matrix-vector-comparison.png",
+    "comparisonSha256": "5058c3c40a7bf4135c5b8b56b9d7207be9cd68b407317673a600e86553fbf5d1",
+    "redMeta": "matrix-vector-meta-red.png",
+    "redComparison": "matrix-vector-comparison-red.png"
+  },
+  "observations": {
+    "bothArrowsVisible": true,
+    "onlyLeftZoneActive": true,
+    "rightValueEdgeBeforeIcon": true,
+    "routePreserved": true,
+    "consoleErrors": 0,
+    "focusEmulationRestored": true
+  },
+  "checks": {
+    "focused": "49/49",
+    "elements": "155/155, 1247 assertions",
+    "components": "153/153, 1520 assertions",
+    "delivery": "18/18, 536 assertions",
+    "typechecks": 6,
+    "browserBuilds": {
+      "elements": "130 modules, 13 files",
+      "components": "158 modules, 29 files",
+      "node-ui": "160 modules, 13 files"
+    }
+  },
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}
