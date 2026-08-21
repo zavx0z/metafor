@@ -79,12 +79,22 @@ FlexBox единолично вычисляет local child slots, а child то
     border/outline, checker colors/size и class roundness. Standard radius
     вычисляется из `.2 × widget unit/actual rect`; scroll/panel/popup не получают
     тот же radius без собственного source law.
+    Widget emboss рисуется одним сдвинутым на logical pixel analytical quad под
+    standalone Button/Input; joined ControlGroup владеет ровно одним outer
+    emboss, а aligned-down/grouped cells не дублируют его. Scrollbar использует
+    raw `scroll` track/outline/item и повышает RGB thumb на пять только при
+    press/drag, не на обычном hover. Blender panel radius доказывается отдельно
+    как `.4 × widget_unit(20) × .5 = 4`.
 15. Resolver precedence детерминирован и повторяет source order. Generic class
     сначала получает list-item override и alpha, затем selected/pressed либо
     active-default/hover; menu item использует собственную mutually-exclusive
     chain. Numeric zone является отдельным secondary draw result поверх base.
     Raw и resolved tuples/namespaces deep-frozen; HSL/alpha math проверяется
     exact byte/clamp tests.
+    Compatibility `Button.focused → activeDefault` остаётся явно помеченной
+    inference без production keyboard-focus consumer; Workbench keyboard focus
+    использует отдельный editor outline. Это mapping не считается Blender
+    focus parity до отдельного runtime/source evidence.
 16. `input type="number"` владеет только generic pointer gesture lifecycle и
     zone dispatch: side/center hit, horizontal drag threshold, text transition,
     Shift precision и Escape/right cancellation. Element не парсит число, не

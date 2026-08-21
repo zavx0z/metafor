@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {
   input,
   blenderRgba8ToColor,
+  blenderTheme,
   resolveWidgetColors,
   type StyleProps,
   type UiSurface,
@@ -93,6 +94,8 @@ describe("public ControlGroup", () => {
     ControlGroup(surface, 10, 20, 120, 66, {rows: 3, columns: 2})
 
     const outer = surface.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)
+    const emboss = outer.find((call) => call[1] === 21)
+    expect(emboss?.[4].fill).toEqual(blenderRgba8ToColor(blenderTheme.material.widgetEmboss))
     expect(outer.map((call) => ({
       x: call[0],
       y: call[1],
@@ -103,6 +106,7 @@ describe("public ControlGroup", () => {
       z: call[4].z,
     }))).toEqual([
       {x: 10, y: 20, width: 120, height: 66, radius: 4, borderWidth: 0, z: Z.CONTAINER},
+      {x: 10, y: 21, width: 120, height: 66, radius: 4, borderWidth: 0, z: Z.CONTAINER - 0.01},
       {x: 10, y: 20, width: 120, height: 66, radius: 4, borderWidth: 1, z: Z.ELEMENT_RULE},
     ])
     const rules = surface.roundedRects.filter((call) => call[4].radius === 0)

@@ -3,6 +3,7 @@ import {
   blenderRgba8ToColor,
   resolveWidgetColors,
   uiShapeMetrics,
+  Z,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -204,7 +205,9 @@ describe("public EnumInput", () => {
     const surface = new RecordingSurface()
     EnumInput(surface, 4, 6, 128, 28, enumProps(values, {presentation: "expanded"}))
 
-    const expandedRects = surface.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))
+    const expandedRects = surface.roundedRects
+      .filter((call) => call[4].z !== Z.ELEMENT - 0.01)
+      .map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))
     expect(expandedRects).toHaveLength(3)
     expect(expandedRects[0]).toEqual({x: 4, y: 9, w: 122 / 3, h: uiShapeMetrics.controlHeight})
     expect(expandedRects[1]).toEqual({x: 4 + 122 / 3 + uiShapeMetrics.tightGap, y: 9, w: 122 / 3, h: uiShapeMetrics.controlHeight})
@@ -218,12 +221,13 @@ describe("public EnumInput", () => {
       density: "compact",
       presentation: "expanded",
     }))
-    expect(compact.roundedRects.map((call) => call[4].fill)).toEqual([
+    const compactChrome = compact.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01)
+    expect(compactChrome.map((call) => call[4].fill)).toEqual([
       blenderRgba8ToColor(resolveWidgetColors("toggle").inner),
       blenderRgba8ToColor(resolveWidgetColors("toggle", {selected: true}).inner),
       blenderRgba8ToColor(resolveWidgetColors("toggle").inner),
     ])
-    expect(compact.roundedRects.map((call) => call[4].border)).toEqual([
+    expect(compactChrome.map((call) => call[4].border)).toEqual([
       blenderRgba8ToColor(resolveWidgetColors("toggle").outline),
       blenderRgba8ToColor(resolveWidgetColors("toggle", {selected: true}).outline),
       blenderRgba8ToColor(resolveWidgetColors("toggle").outline),
@@ -269,13 +273,13 @@ describe("public EnumInput", () => {
 
     const regular = new RecordingSurface()
     EnumInput(regular, 4, 6, 120, 28, enumProps(standaloneValues))
-    expect(regular.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
+    expect(regular.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01).map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
       {x: 4, y: 9, w: 120, h: uiShapeMetrics.controlHeight},
     ])
 
     const compact = new RecordingSurface()
     EnumInput(compact, 4, 6, 120, 22, enumProps([], {density: "compact"}))
-    expect(compact.roundedRects.map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
+    expect(compact.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01).map((call) => ({x: call[0], y: call[1], w: call[2], h: call[3]}))).toEqual([
       {x: 4, y: 6, w: 120, h: uiShapeMetrics.controlHeight},
     ])
     expect(regular.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)

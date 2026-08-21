@@ -197,7 +197,9 @@ const SOURCE_EVENTS_TAB_OWNER = "source-tab:events"
 const workbenchText = rgba8ToColor(activeUiTheme.widgets.box.text)
 const workbenchMuted = rgba8ToColor(activeUiTheme.widgets.menuBack.text)
 const workbenchNavigationFill = rgba8ToColor(activeUiTheme.spaceNode.list)
-const workbenchSectionFill = rgba8ToColor(activeUiTheme.spaceNode.panel.back)
+const workbenchSectionHeaderFill = rgba8ToColor(activeUiTheme.spaceNode.panel.header)
+const workbenchSectionBodyFill = rgba8ToColor(activeUiTheme.spaceNode.panel.back)
+const workbenchEditorBorder = rgba8ToColor(activeUiTheme.material.editorBorder)
 const workbenchFocusOutline = rgba8ToColor(activeUiTheme.material.editorOutlineActive)
 
 abstract class RetainedPlaygroundSurface extends UiSurface {
@@ -725,7 +727,7 @@ function drawNavigationSection<Route extends string>(
     disablePadding: true,
     itemHeight: uiShapeMetrics.rowHeight,
     style: {
-      background: workbenchSectionFill,
+      background: workbenchSectionBodyFill,
       borderColor: null,
       borderRadius: uiShapeMetrics.lowRadius,
       borderWidth: 0,
@@ -742,6 +744,12 @@ function drawNavigationSection<Route extends string>(
       borderWidth: 0,
     },
     children: (state) => {
+      drawNavigationRowFill(surface, frame.w, uiShapeMetrics.rowHeight, workbenchSectionHeaderFill, {
+        topLeft: true,
+        topRight: true,
+        bottomLeft: frame.h === uiShapeMetrics.rowHeight,
+        bottomRight: frame.h === uiShapeMetrics.rowHeight,
+      })
       drawNavigationRowFill(surface, frame.w, uiShapeMetrics.rowHeight, blenderRgba8ToColor(state.colors.inner), {
         topLeft: true,
         topRight: true,
@@ -937,12 +945,21 @@ function drawNavigationPanel(surface: UiSurface, width: number, height: number, 
   div(surface, 0, 0, width, height, {
     style: {
       background: workbenchNavigationFill,
+      borderColor: workbenchEditorBorder,
+      borderRadius: uiShapeMetrics.lowRadius,
+      borderWidth: uiShapeMetrics.borderWidth,
+      zIndex: -0.12,
+    },
+  })
+  div(surface, 0, 0, width, height, {
+    style: {
+      background: null,
       borderColor: blenderRgba8ToColor(
         active ? activeUiTheme.material.editorOutlineActive : activeUiTheme.material.editorOutline,
       ),
       borderRadius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
-      zIndex: -0.12,
+      zIndex: -0.11,
     },
   })
 }

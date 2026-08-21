@@ -6,6 +6,7 @@ import {
   handleActiveInputKey,
   resolveWidgetColors,
   uiShapeMetrics,
+  Z,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -263,7 +264,7 @@ describe("public VectorInput", () => {
       {x: 26, y: 28, w: 124, h: 22},
       {x: 26, y: 50, w: 124, h: 22},
     ])
-    expect(regular.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
+    expect(regular.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius && call[4].z !== Z.CONTAINER - 0.01)).toHaveLength(2)
     expect(regular.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
 
     const compact = new RecordingSurface()
@@ -275,7 +276,7 @@ describe("public VectorInput", () => {
       {x: 26, y: 28, w: 124, h: 22},
       {x: 26, y: 50, w: 124, h: 22},
     ])
-    expect(compact.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
+    expect(compact.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius && call[4].z !== Z.CONTAINER - 0.01)).toHaveLength(2)
     expect(compact.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
   })
 

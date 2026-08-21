@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {HitOptions, UiSurface} from "./surface.ts"
-import {UiSurface as BaseUiSurface} from "./surface.ts"
+import {UiSurface as BaseUiSurface, Z} from "./surface.ts"
 import {
   blurActiveInput,
   createInputEditState,
@@ -355,7 +355,7 @@ describe("input visible geometry", () => {
       const surface = new NumericHoverSurface(pointerX)
       input(surface, 0, 0, 100, 22, {key: zone, type: "number", value: "1"})
       const state = {hovered: true, numericZone: zone} as const
-      expect(surface.roundedRects.slice(1).map((call) => call[4].fill)).toEqual(
+      expect(surface.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01).slice(1).map((call) => call[4].fill)).toEqual(
         (["left", "center", "right"] as const).map((target) => blenderRgba8ToColor(
           resolveNumericZoneColors("number", state, target)!.colors.inner,
         )),
@@ -376,7 +376,7 @@ describe("input visible geometry", () => {
 
     const editing = new NumericHoverSurface(4)
     input(editing, 0, 0, 100, 22, {key: "editing", type: "number", value: "1", active: true, cursorVisible: false})
-    expect(editing.roundedRects).toHaveLength(1)
+    expect(editing.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01)).toHaveLength(1)
     expect(editing.images).toHaveLength(0)
     expect(editing.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(
       resolveWidgetColors("number", {hovered: true, selected: true, textInput: true, numericZone: "left"}).inner,

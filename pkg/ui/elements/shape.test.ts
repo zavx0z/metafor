@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {radii, uiShapeMetrics as publicUiShapeMetrics} from "./index.ts"
+import {blenderTheme} from "./blender-theme.ts"
 import {uiShapeMetrics} from "./shape.ts"
 
 describe("shared UI shape metrics", () => {
@@ -20,6 +21,7 @@ describe("shared UI shape metrics", () => {
     expect(Object.isFrozen(uiShapeMetrics)).toBeTrue()
     expect(publicUiShapeMetrics).toBe(uiShapeMetrics)
     expect(radii.control).toBe(uiShapeMetrics.lowRadius)
+    expect(blenderTheme.material.panelRoundness * 20 * 0.5).toBe(uiShapeMetrics.lowRadius)
   })
 
   test("keeps dense controls inside their shared row and rule rhythm", () => {

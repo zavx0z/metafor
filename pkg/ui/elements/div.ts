@@ -1,5 +1,5 @@
 import {Z, type HitOptions, type UiSurface} from "./surface.ts"
-import {DEFAULT_ACTIVE_THUMB, scrollbar} from "./scrollbar.ts"
+import {scrollbar} from "./scrollbar.ts"
 import {span} from "./span.ts"
 import {
   backgroundColor,
@@ -365,7 +365,6 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
     const thumbY = scrollbarY + thumb.y
     const thumbKey = `${scrollbarKey}:thumb`
     const thumbState = surface.hitState(scrollbarX, thumbY, layout.trackWidth, thumb.h, thumbKey)
-    const active = thumbState.hovered || thumbState.pressed || state.dragY !== null
     surface.hit(scrollbarX, scrollbarY, layout.trackWidth, scrollbarH, () => {}, {
       key: scrollbarKey,
       cursor: "pointer",
@@ -405,7 +404,8 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       total: layout.contentH,
       trackWidth: layout.trackWidth,
       ...(style.scrollbarTrackColor === undefined ? {} : {trackColor: cssColor(style.scrollbarTrackColor)}),
-      ...(active ? {thumbColor: activeScrollbarThumb(style)} : {}),
+      ...(style.scrollbarColor === undefined ? {} : {thumbColor: cssColor(style.scrollbarColor)}),
+      pressed: thumbState.pressed || state.dragY !== null,
     })
   }
 
@@ -421,7 +421,6 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
     const thumbX = scrollbarX + thumb.y
     const thumbKey = `${scrollbarKey}:thumb`
     const thumbState = surface.hitState(thumbX, scrollbarY, thumb.h, layout.trackWidth, thumbKey)
-    const active = thumbState.hovered || thumbState.pressed || state.dragX !== null
     surface.hit(scrollbarX, scrollbarY, scrollbarW, layout.trackWidth, () => {}, {
       key: scrollbarKey,
       cursor: "pointer",
@@ -462,13 +461,10 @@ function renderDivScrollbars(surface: UiSurface, layout: DivScrollLayout): void 
       total: layout.contentW,
       trackWidth: layout.trackWidth,
       ...(style.scrollbarTrackColor === undefined ? {} : {trackColor: cssColor(style.scrollbarTrackColor)}),
-      ...(active ? {thumbColor: activeScrollbarThumb(style)} : {}),
+      ...(style.scrollbarColor === undefined ? {} : {thumbColor: cssColor(style.scrollbarColor)}),
+      pressed: thumbState.pressed || state.dragX !== null,
     })
   }
-}
-
-function activeScrollbarThumb(style: StyleProps): Color {
-  return style.scrollbarColor === undefined ? DEFAULT_ACTIVE_THUMB : cssColor(style.scrollbarColor)
 }
 
 function divScrollState(surface: UiSurface, key: string): DivScrollState {

@@ -41,6 +41,8 @@ describe("shared Workbench chrome", () => {
     expect(sharedSources[0]).toContain('appearance: "panel"')
     expect(sharedSources[0]).toContain('appearance: "box"')
     expect(sharedSources[0]).toContain("resolveOpaqueRgba8")
+    expect(sharedSources[0]).toContain("material.editorBorder")
+    expect(sharedSources[0]).toContain("spaceNode.panel.header")
     expect(sharedSources[0]).not.toContain("drawBackdropGradient")
     expect(sharedSources[0]).not.toContain("palette.bgHot")
     expect(sharedSources[0]).not.toContain("palette.cyan")

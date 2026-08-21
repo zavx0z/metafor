@@ -45,15 +45,26 @@ export function Pane(host: UiSurface, x: number, y: number, width: number, heigh
   div(host, x, y, width, height, {
     ...divProps,
   })
+  if (props.appearance === "panel" && props.sx?.borderColor === undefined) {
+    div(host, x, y, width, height, {
+      style: {
+        background: null,
+        borderColor: blenderRgba8ToColor(
+          props.active === true ? blenderTheme.material.editorOutlineActive : blenderTheme.material.editorOutline,
+        ),
+        borderRadius: uiShapeMetrics.lowRadius,
+        borderWidth: uiShapeMetrics.borderWidth,
+        zIndex: (props.sx?.zIndex ?? Z.CONTAINER) + 0.01,
+      },
+    })
+  }
 }
 
 function paneAppearanceStyle(props: PaneProps): StyleProps {
   if (props.appearance === "panel") {
     return {
       background: blenderRgba8ToColor(blenderTheme.spaceNode.panel.back),
-      borderColor: blenderRgba8ToColor(
-        props.active === true ? blenderTheme.material.editorOutlineActive : blenderTheme.material.editorOutline,
-      ),
+      borderColor: blenderRgba8ToColor(blenderTheme.material.editorBorder),
       borderRadius: uiShapeMetrics.lowRadius,
       borderWidth: uiShapeMetrics.borderWidth,
     }

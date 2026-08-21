@@ -1,5 +1,6 @@
 import {
   div,
+  drawWidgetEmboss,
   blenderRgba8ToColor,
   flexColumn,
   flexRow,
@@ -80,7 +81,6 @@ export function ControlGroup(
       zIndex: Z.CONTAINER,
     },
   })
-
   props.children?.(controlGroupContext(
     rows,
     columns,
@@ -90,6 +90,14 @@ export function ControlGroup(
 
   drawControlGroupRowRules(surface, x, y, width, height, rows, outline)
   drawControlGroupColumnRules(surface, x, y, width, height, columnTracks, outline)
+
+  drawWidgetEmboss(
+    surface,
+    {x, y, width, height},
+    uiShapeMetrics.lowRadius,
+    true,
+    Z.CONTAINER - 0.01,
+  )
 
   div(surface, x, y, width, height, {
     style: {

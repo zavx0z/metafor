@@ -13,6 +13,7 @@ import {
   type GroupedCellAppearance,
   type GroupedCellCorners,
 } from "./grouped-cell.ts"
+import {drawWidgetEmboss, widgetEmbossVisible} from "./widget-emboss.ts"
 import {
   blenderRgba8ToColor,
   blenderTheme,
@@ -295,7 +296,16 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   const chromeProps: DivProps = {style: chromeStyle}
   chromeProps.key = key
   if (groupedAppearance !== null) drawGroupedCellChrome(surface, chrome, chromeStyle, groupedAppearance)
-  else div(surface, chrome.x, chrome.y, chrome.width, chrome.height, chromeProps)
+  else {
+    div(surface, chrome.x, chrome.y, chrome.width, chrome.height, chromeProps)
+    drawWidgetEmboss(
+      surface,
+      chrome,
+      px(style.borderRadius, uiShapeMetrics.lowRadius),
+      widgetEmbossVisible(chromeStyle),
+      (chromeStyle.zIndex ?? Z.ELEMENT) - 0.01,
+    )
+  }
   drawNumericInputZone(surface, chrome, widgetClass, widgetState, groupedAppearance)
   if (!disabled) {
     const numericPointer = props.type === "number" && props.onNumericGesture !== undefined && !active

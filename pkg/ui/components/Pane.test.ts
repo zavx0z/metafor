@@ -23,12 +23,17 @@ describe("Pane Blender appearance", () => {
     Pane(panel, 0, 0, 100, 80, {appearance: "panel"})
     expect(panel.roundedRects[0]?.[4]).toMatchObject({
       fill: blenderRgba8ToColor(blenderTheme.spaceNode.panel.back),
+      border: blenderRgba8ToColor(blenderTheme.material.editorBorder),
+    })
+    expect(panel.roundedRects[1]?.[4]).toMatchObject({
+      fill: null,
       border: blenderRgba8ToColor(blenderTheme.material.editorOutline),
     })
 
     const active = new RecordingSurface()
     Pane(active, 0, 0, 100, 80, {appearance: "panel", active: true})
-    expect(active.roundedRects[0]?.[4].border).toEqual(blenderRgba8ToColor(blenderTheme.material.editorOutlineActive))
+    expect(active.roundedRects[0]?.[4].border).toEqual(blenderRgba8ToColor(blenderTheme.material.editorBorder))
+    expect(active.roundedRects[1]?.[4].border).toEqual(blenderRgba8ToColor(blenderTheme.material.editorOutlineActive))
 
     const box = new RecordingSurface()
     Pane(box, 0, 0, 100, 80, {appearance: "box"})

@@ -4,6 +4,7 @@ import {
   focusInput,
   handleActiveInputKey,
   uiShapeMetrics,
+  Z,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -187,7 +188,7 @@ describe("public MatrixInput", () => {
       {x: 4, y: 28, w: 73, h: 22},
       {x: 77, y: 28, w: 73, h: 22},
     ])
-    expect(regular.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
+    expect(regular.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius && call[4].z !== Z.CONTAINER - 0.01)).toHaveLength(2)
     expect(regular.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
     expect(regular.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
     expect(regular.texts.map((call) => call[3].fontPx)).toEqual([11, 11, 11, 11])
@@ -200,7 +201,7 @@ describe("public MatrixInput", () => {
       {x: 4, y: 28, w: 73, h: 22},
       {x: 77, y: 28, w: 73, h: 22},
     ])
-    expect(compact.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius)).toHaveLength(2)
+    expect(compact.roundedRects.filter((call) => call[4].radius === uiShapeMetrics.lowRadius && call[4].z !== Z.CONTAINER - 0.01)).toHaveLength(2)
     expect(compact.roundedRects.filter((call) => call[4].radius === 0)).toHaveLength(2)
     expect(compact.texts.map(([text]) => text)).toEqual(["1.00", "0.00", "0.00", "1.00"])
     expect(compact.texts.map((call) => call[3].fontPx)).toEqual([11, 11, 11, 11])

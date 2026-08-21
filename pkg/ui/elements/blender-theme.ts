@@ -67,6 +67,12 @@ export type ResolvedBlenderNumericZone = Readonly<{
   colors: ResolvedBlenderWidgetColors
 }>
 
+export type ResolvedBlenderScrollbarColors = Readonly<{
+  track: BlenderRgba8
+  outline: BlenderRgba8
+  thumb: BlenderRgba8
+}>
+
 export type BlenderThemeStateColors = Readonly<{
   error: BlenderRgba8
   warning: BlenderRgba8
@@ -536,6 +542,24 @@ export function resolveNumericZoneColors(
   return Object.freeze({
     zone: targetZone,
     colors: freezeResolved(colors),
+  })
+}
+
+/** Blender scroll track + thumb material. Pressed thumb RGB is raised by five bytes. */
+export function resolveScrollbarColors(pressed = false): ResolvedBlenderScrollbarColors {
+  const source = blenderTheme.widgets.scroll
+  const item = source.item
+  return Object.freeze({
+    track: source.inner,
+    outline: source.outline,
+    thumb: pressed
+      ? rgba8(
+        Math.min(255, item[0] + 5),
+        Math.min(255, item[1] + 5),
+        Math.min(255, item[2] + 5),
+        item[3],
+      )
+      : item,
   })
 }
 

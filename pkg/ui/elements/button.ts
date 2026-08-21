@@ -7,6 +7,7 @@ import {uiShapeMetrics} from "./shape.ts"
 import {drawGroupedCellChrome, type GroupedCellAppearance} from "./grouped-cell.ts"
 import {planButtonSize, type ButtonElementSize} from "./button-size.ts"
 import {buttonHitRect, type ButtonInternalProps} from "./button-internal.ts"
+import {drawWidgetEmboss, widgetEmbossVisible} from "./widget-emboss.ts"
 import {
   blenderRgba8ToColor,
   resolveWidgetColors,
@@ -37,6 +38,7 @@ export type ButtonElementProps = Omit<InteractiveElementProps, "children" | "sty
   style?: StyleProps | ((state: ButtonElementState) => StyleProps)
   disabled?: boolean
   selected?: boolean
+  /** Compatibility inference to Blender activeDefault; not a proven keyboard-focus mapping. */
   focused?: boolean
   appearance?: ButtonElementAppearance
   groupedCell?: GroupedCellAppearance
@@ -107,6 +109,13 @@ export function button(surface: UiSurface, x: number, y: number, width: number, 
       key,
       style: chromeStyle,
     })
+    drawWidgetEmboss(
+      surface,
+      visibleChrome,
+      sizePlan?.radius ?? px(style.borderRadius, 0),
+      widgetEmbossVisible(chromeStyle),
+      (chromeStyle.zIndex ?? Z.ELEMENT) - 0.01,
+    )
   } else {
     drawGroupedCellChrome(surface, visibleChrome, chromeStyle, props.groupedCell)
     customChildren?.(state, layout)

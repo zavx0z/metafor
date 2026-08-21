@@ -73,3 +73,7 @@ playground. Он не владеет production semantics UI Components либо
     local Blender reference. Он не растягивает input на большую часть desktop
     только ради заполнения центральной панели; свободное место остаётся рабочей
     областью editor, а не причиной менять форму control.
+18. Workbench различает outer editor region border и focus outline, а panel
+    header/body получают отдельные raw ThemeSpace roles даже при совпадающих
+    default bytes. Keyboard focus не заменяет route selection или disclosure;
+    accordion header/body не схлопываются в один локальный fill alias.

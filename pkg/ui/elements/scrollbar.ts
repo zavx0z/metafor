@@ -1,6 +1,6 @@
-import {Color} from "@metafor/engine"
+import type {Color} from "@metafor/engine"
+import {blenderRgba8ToColor, resolveScrollbarColors} from "./blender-theme.ts"
 import {Z, type UiSurface} from "./surface.ts"
-import {palette} from "./theme.ts"
 
 export type ScrollbarOpts = {
   /** Current scroll offset in px. */
@@ -20,10 +20,12 @@ export type ScrollbarOpts = {
   trackColor?: Color
   thumbColor?: Color
   thumbWidth?: number
+  /** Pressed/dragged thumb state. Hover alone does not change Blender material. */
+  pressed?: boolean
 }
 
-const DEFAULT_THUMB = new Color(0.45, 0.51, 0.60, 0.62)
-export const DEFAULT_ACTIVE_THUMB = new Color(0.56, 0.65, 0.76, 0.86)
+const DEFAULT_THUMB = blenderRgba8ToColor(resolveScrollbarColors(false).thumb)
+export const DEFAULT_ACTIVE_THUMB = blenderRgba8ToColor(resolveScrollbarColors(true).thumb)
 
 export function scrollbarThumbCross(trackWidth: number, thumbWidth?: number): number {
   return Math.min(trackWidth, thumbWidth ?? Math.max(3, trackWidth - 2))
@@ -34,8 +36,10 @@ export function scrollbar(surface: UiSurface, x: number, y: number, h: number, o
   const axis = opts.axis ?? opts.orientation ?? "vertical"
   const tw = opts.trackWidth ?? 4
   const minThumb = opts.minThumbHeight ?? 16
-  const trackColor = opts.trackColor ?? palette.borderDim
-  const thumbColor = opts.thumbColor ?? DEFAULT_THUMB
+  const colors = resolveScrollbarColors(opts.pressed === true)
+  const trackColor = opts.trackColor ?? blenderRgba8ToColor(colors.track)
+  const thumbColor = opts.thumbColor ?? (opts.pressed === true ? DEFAULT_ACTIVE_THUMB : DEFAULT_THUMB)
+  const outline = blenderRgba8ToColor(colors.outline)
   const thumbCross = scrollbarThumbCross(tw, opts.thumbWidth)
   const crossOffset = (tw - thumbCross) / 2
 
@@ -46,6 +50,8 @@ export function scrollbar(surface: UiSurface, x: number, y: number, h: number, o
   surface.drawRoundedRect(trackX, trackY, trackW, trackH, {
     radius: thumbCross / 2,
     fill: trackColor,
+    border: outline,
+    borderWidth: 1,
     z: Z.SEPARATOR,
   })
 
@@ -61,6 +67,8 @@ export function scrollbar(surface: UiSurface, x: number, y: number, h: number, o
   surface.drawRoundedRect(thumbX, thumbY, thumbW, thumbH, {
     radius: thumbCross / 2,
     fill: thumbColor,
+    border: outline,
+    borderWidth: 1,
     z: Z.TEXT,
   })
 }

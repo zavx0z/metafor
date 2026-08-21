@@ -4,6 +4,7 @@ import {
   blenderRgba8ToColor,
   resolveWidgetColors,
   uiShapeMetrics,
+  Z,
   type UiSurface as UiSurfaceType,
 } from "@ui/elements"
 import {Switcher} from "./Switcher.ts"
@@ -26,7 +27,7 @@ describe("Switcher compatibility toggle", () => {
     Switcher(surface, 0, 0, 42, 22, {checked: true, onChange: (value) => values.push(value)})
 
     const colors = resolveWidgetColors("toggle", {selected: true})
-    expect(surface.roundedRects).toHaveLength(1)
+    expect(surface.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01)).toHaveLength(1)
     expect(surface.roundedRects[0]?.slice(0, 4)).toEqual([0, 0, 42, 22])
     expect(surface.roundedRects[0]?.[4]).toMatchObject({
       radius: uiShapeMetrics.lowRadius,

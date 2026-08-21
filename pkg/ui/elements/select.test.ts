@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {UiSurface} from "./surface.ts"
-import {UiSurface as BaseUiSurface} from "./surface.ts"
+import {UiSurface as BaseUiSurface, Z} from "./surface.ts"
 import {select, type SelectElementOption} from "./select.ts"
 import {blenderRgba8ToColor, resolveWidgetColors} from "./blender-theme.ts"
 import {uiShapeMetrics} from "./shape.ts"
@@ -47,6 +47,10 @@ class RecordingSurface extends BaseUiSurface {
     this.dismissables.length = 0
     this.rects.length = 0
   }
+}
+
+function visibleRoundedRects(surface: RecordingSurface): RoundedRectCall[] {
+  return surface.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01)
 }
 
 class PointerStateSurface extends RecordingSurface {
@@ -157,7 +161,7 @@ describe("select element", () => {
       "Divide",
     ])
     expect(surface.shadows).toHaveLength(1)
-    expect(surface.roundedRects.map((call) => call[4].fill)).toEqual([
+    expect(visibleRoundedRects(surface).map((call) => call[4].fill)).toEqual([
       blenderRgba8ToColor(resolveWidgetColors("menu", {pressed: true}).inner),
       blenderRgba8ToColor(resolveWidgetColors("menuBack").inner),
       blenderRgba8ToColor(resolveWidgetColors("menuItem").inner),
@@ -233,7 +237,7 @@ describe("select element", () => {
     }))
     expect(optionContexts[1]).toEqual(expect.objectContaining({selected: true}))
     expect(optionContexts[3]).toEqual(expect.objectContaining({disabled: true}))
-    expect(surface.roundedRects[1]?.slice(0, 4)).toEqual([10, 43, 146, 113])
+    expect(visibleRoundedRects(surface)[1]?.slice(0, 4)).toEqual([10, 43, 146, 113])
     expect(surface.rects[0]?.slice(0, 4)).toEqual([11, 66, 144, uiShapeMetrics.borderWidth])
     expect(surface.hits.map(hitKey)).toEqual([
       "labelled",
@@ -245,7 +249,7 @@ describe("select element", () => {
 
     const plain = new RecordingSurface()
     select(plain, 10, 20, 146, 22, {key: "plain", value: "multiply", options, open: true})
-    expect(plain.roundedRects[1]?.slice(0, 4)).toEqual([10, 43, 146, 90])
+    expect(visibleRoundedRects(plain)[1]?.slice(0, 4)).toEqual([10, 43, 146, 90])
     expect(plain.texts.map(([text]) => text)).not.toContain("Operation")
   })
 
@@ -280,8 +284,9 @@ describe("select element", () => {
       open: true,
     })
 
-    const menu = surface.roundedRects[1]?.[4]
-    const rows = surface.roundedRects.slice(2).map((call) => call[4])
+    const visible = visibleRoundedRects(surface)
+    const menu = visible[1]?.[4]
+    const rows = visible.slice(2).map((call) => call[4])
     expect(menu).toMatchObject({radius: uiShapeMetrics.lowRadius, borderWidth: uiShapeMetrics.borderWidth})
     expect(menu?.border).toEqual(blenderRgba8ToColor(resolveWidgetColors("menuBack").outline))
     expect(rows.map(({radius, border}) => ({radius, border}))).toEqual([
@@ -322,7 +327,7 @@ describe("select element", () => {
     select(surface, 0, 70, 146, 22, props)
 
     expect(surface.dismissables).toHaveLength(1)
-    expect(surface.roundedRects[1]?.[1]).toBe(0)
+    expect(visibleRoundedRects(surface)[1]?.[1]).toBe(0)
     surface.dismissables[0]?.dismiss("outside")
     surface.clearRecording()
     select(surface, 0, 70, 146, 22, props)

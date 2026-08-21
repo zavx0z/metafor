@@ -3,6 +3,7 @@ import {
   blenderRgba8ToColor,
   resolveWidgetColors,
   uiShapeMetrics,
+  Z,
   type UiSurface,
   UiSurface as BaseUiSurface,
 } from "@ui/elements"
@@ -127,7 +128,7 @@ describe("universal UI fields", () => {
     }
     const regular = new RecordingSurface()
     expect(Field(regular, 0, 10, 200, definition)).toBe(uiShapeMetrics.rowHeight)
-    expect(regular.roundedRects).toHaveLength(1)
+    expect(regular.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01)).toHaveLength(1)
     expect(regular.hits).toHaveLength(1)
     expect(regular.roundedRects[0]?.[1]).toBe(11)
     expect(regular.roundedRects[0]?.[2]).toBeCloseTo(116.4)
@@ -135,7 +136,7 @@ describe("universal UI fields", () => {
 
     const compact = new RecordingSurface()
     expect(Field(compact, 0, 10, 200, definition, {density: "compact"})).toBe(uiShapeMetrics.controlHeight)
-    expect(compact.roundedRects).toHaveLength(1)
+    expect(compact.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01)).toHaveLength(1)
     expect(compact.hits).toHaveLength(1)
     expect(compact.roundedRects[0]?.[2]).toBeCloseTo(116.4)
     expect(compact.roundedRects[0]?.[3]).toBe(uiShapeMetrics.controlHeight)
@@ -177,7 +178,7 @@ describe("universal UI fields", () => {
     })
     expect(height).toBe(uiShapeMetrics.rowHeight)
     expect(surface.hits).toHaveLength(1)
-    expect(surface.roundedRects).toHaveLength(1)
+    expect(surface.roundedRects.filter((call) => call[4].z !== Z.ELEMENT - 0.01)).toHaveLength(1)
     expect(surface.roundedRects[0]?.[4].radius).toBe(uiShapeMetrics.lowRadius)
     const [hitX, , hitWidth] = surface.hits[0]!
     expect(hitX + hitWidth).toBeLessThanOrEqual(width)

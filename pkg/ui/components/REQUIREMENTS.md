@@ -159,6 +159,10 @@ control нельзя опустить в Elements только ради повт
    kind, не копируют rendering. Новый IntegerInput leaf проходит package-owned
    story, manifest completeness, exact delivery/root build и Node INT gate до
    acceptance.
+8. Pane panel сохраняет разные material roles: `editorBorder` является base
+   border региона, а inactive/active editor outline рисуется отдельным
+   transparent overlay. ControlGroup владеет одним outer widget emboss; его
+   Button/Input cells не создают собственные emboss islands.
 
 ## Источник терминов
 
