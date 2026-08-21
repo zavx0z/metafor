@@ -303,6 +303,32 @@
   controls in expanded Node. This is a Surface focus-owner correction, not
   Integer-specific styling. Before/after interaction plans and captures are
   added only after source preparation/patch.
+* Result commit `97acb6843`, source-fresh PIDs Elements/Components/Node
+  `43008/43199/43191`, native `1920×1088 @2`, console `0`.
+* `integer-focus-lifecycle.result.json` records:
+  * focus→empty→drag right `3→6` and left `3→0`;
+  * typed `12` committed by outside click;
+  * disabled/readOnly remained `3`;
+  * route preserved and focus emulation restored.
+* Standalone captures/plans:
+  `integer-components-editing`, `integer-components-focus-blur-drag-right`,
+  `integer-components-focus-blur-drag-left`,
+  `integer-components-edit-outside-commit`, `integer-components-disabled-live`,
+  `integer-components-readonly-live`. Independent focus primitive SOURCE PASS
+  and standalone Integer LIVE PASS. Escape/right cancel and broad focus matrix
+  remain open.
+
+## UI-015.9.1 — Node controlled Field owner RED
+
+* Exact source-fresh plans/captures:
+  `integer-node-focus-blur-drag-right.*` and
+  `integer-node-focus-blur-drag-left.*`, Node PID `43191`, target `809…`, route
+  `/node-editor/scene/default`, same DPR, console `0`.
+* Факт: focus release works and arrows render, but both PNGs are byte-identical
+  SHA-256 `264445f0b8bd7cbfe9c901094fd214cfacaa11c03dc71d1e251daf575a1ed657`,
+  `409180` bytes; visible value stays `3` in both directions.
+* Причина: Node story creates static Field values without `onChange`. This is a
+  controlled-story owner RED, not Components/Integer/focus failure.
 
 ## UI-015.5.3 — Linked Node measurement RED
 

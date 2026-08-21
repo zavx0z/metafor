@@ -1,0 +1,13 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":925,"y":595},
+  {"kind":"pointer-down","x":925,"y":595,"button":"left"},
+  {"kind":"pointer-up","x":925,"y":595,"button":"left"},
+  {"kind":"key-down","key":"a","code":"KeyA","modifiers":["meta"]},
+  {"kind":"key-up","key":"a","code":"KeyA","modifiers":["meta"]},
+  {"kind":"text","text":"12"},
+  {"kind":"pointer-move","x":1100,"y":595},
+  {"kind":"pointer-down","x":1100,"y":595,"button":"left"},
+  {"kind":"pointer-up","x":1100,"y":595,"button":"left"},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"edit-outside-commit","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-edit-outside-commit.png"}
+]}

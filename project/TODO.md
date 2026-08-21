@@ -231,6 +231,12 @@ Owner затем открыл UI-015.8.8: focus не снимается по out
 active numeric control поэтому теряет scrub path. Новый общий Surface focus
 owner проверяет все focusable Elements, Components и те же controls в Node;
 Integer-only blur запрещён.
+UI-015.8.8 commit `97acb6843` получил independent SOURCE PASS и standalone
+Integer LIVE PASS: outside commit/blur, drag `3→6/0`, typed `12`,
+disabled/readOnly, console0. Escape/right cancel и broad Text/grouped/popup
+focus gates открыты. Node plan выявил UI-015.9.1: fixture Fields не имеют
+callbacks и static tree не меняет value. Новый dev-only controlled Field owner
+покрывает все mutable kinds без renderer-local state; UI-015.9.1 IN_PROGRESS.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

@@ -1,0 +1,7 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":925,"y":595},
+  {"kind":"pointer-down","x":925,"y":595,"button":"left"},
+  {"kind":"pointer-up","x":925,"y":595,"button":"left"},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"editing","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-editing.png"}
+]}

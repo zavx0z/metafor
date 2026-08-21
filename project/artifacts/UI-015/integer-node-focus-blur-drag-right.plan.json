@@ -1,0 +1,11 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":565,"y":424},
+  {"kind":"pointer-down","x":565,"y":424,"button":"left"},
+  {"kind":"pointer-up","x":565,"y":424,"button":"left"},
+  {"kind":"pointer-move","x":700,"y":520},
+  {"kind":"pointer-down","x":700,"y":520,"button":"left"},
+  {"kind":"pointer-up","x":700,"y":520,"button":"left"},
+  {"kind":"pointer-drag","from":{"x":565,"y":424},"to":{"x":585,"y":424},"button":"left","segments":8},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"node-blur-drag-right","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-node-focus-blur-drag-right.png"}
+]}

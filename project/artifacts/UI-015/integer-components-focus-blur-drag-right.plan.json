@@ -1,0 +1,8 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-move","x":1100,"y":595},
+  {"kind":"pointer-down","x":1100,"y":595,"button":"left"},
+  {"kind":"pointer-up","x":1100,"y":595,"button":"left"},
+  {"kind":"pointer-drag","from":{"x":925,"y":595},"to":{"x":945,"y":595},"button":"left","segments":8},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"blur-drag-right","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/integer-components-focus-blur-drag-right.png"}
+]}

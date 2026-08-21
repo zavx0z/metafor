@@ -1,0 +1,39 @@
+{
+  "sourceCommits": {
+    "hover": "ecb2ddbe30419a3933fef0cedb211515bc6cd8c6",
+    "accumulator": "8af8989e77b400c181bf8bd0fddfef0025f7484f",
+    "focus": "97acb6843"
+  },
+  "runtime": {
+    "elementsPid": 43008,
+    "componentsPid": 43199,
+    "nodePid": 43191,
+    "viewport": [1920, 1088, 2],
+    "consoleErrors": []
+  },
+  "standalone": {
+    "focusEmptyDragRight": {"initial": 3, "final": 6},
+    "focusEmptyDragLeft": {"initial": 3, "final": 0},
+    "editOutsideCommit": {"typed": 12, "final": 12},
+    "disabledClick": {"initial": 3, "final": 3},
+    "readOnlyClick": {"initial": 3, "final": 3},
+    "routePreserved": true,
+    "focusEmulationRestored": true
+  },
+  "captures": {
+    "editing": {"file": "integer-components-editing.png", "bytes": 267433, "sha256": "bc4bb446d53a5cede3f2e8dacf7d9b6e7c70aeaff083ca598d96f96cf9bb9534"},
+    "blurDragRight": {"file": "integer-components-focus-blur-drag-right.png", "bytes": 268423, "sha256": "bad88b2c141f343baa7b64c5f4a771021759788565f88a5fbda56684f08c83c2"},
+    "blurDragLeft": {"file": "integer-components-focus-blur-drag-left.png", "bytes": 268484, "sha256": "c975578b6feee986f379b6fea95b8e57e0b9aa24b05d976ace1daba8ce803026"},
+    "outsideCommit": {"file": "integer-components-edit-outside-commit.png", "bytes": 267581, "sha256": "ea18460998e4a1812203cace52df647282b0746dcd0a0c53855aa3b0397181b3"},
+    "disabled": {"file": "integer-components-disabled-live.png", "bytes": 269709, "sha256": "fce708021284945762c6f84e2f17812c4a2d4be6ecb73ca32f9c6676721b8e86"},
+    "readOnly": {"file": "integer-components-readonly-live.png", "bytes": 269441, "sha256": "0fcabc10a0103ffb2898f22773c874dec46d402226a43d9b5151199e5c36c62c"}
+  },
+  "nodeRed": {
+    "rightAndLeftCapturesIdentical": true,
+    "value": 3,
+    "arrowsVisible": true,
+    "cause": "Node story Field has no onChange owner and rebuilds a static fixture tree"
+  },
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}
