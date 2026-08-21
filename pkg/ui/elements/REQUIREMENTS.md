@@ -99,7 +99,10 @@ FlexBox единолично вычисляет local child slots, а child то
     zone dispatch: side/center hit, horizontal drag threshold, text transition,
     Shift precision и Escape/right cancellation. Element не парсит число, не
     выбирает step/range и не публикует новое numeric value; это делает
-    Component-владелец числового контракта.
+    Component-владелец числового контракта. Обе side-handle zones всегда
+    резервируются в общем text/content rect: idle, hover и active edit используют
+    один origin для value, placeholder, caret, selection и pointer index, поэтому
+    появление arrows не сдвигает value и поздний text draw не перекрывает icon.
 17. Explicit controlled `input` синхронизирует inactive edit buffer с каждым
     новым owner value. Пока тот же input active, локальный text buffer, caret и
     selection сохраняются до submit/blur/cancel и не перетираются повторным

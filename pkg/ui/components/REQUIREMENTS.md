@@ -126,7 +126,10 @@ control нельзя опустить в Elements только ради повт
     controlled Elements buffer: inactive owner update немедленно меняет
     visible numeric text, active text edit сохраняет локальный buffer до
     commit/cancel. IntegerInput, Vector, Rotation, Matrix, Field и Node не
-    копируют эту синхронизацию и не подставляют fake `onChange`.
+    копируют эту синхронизацию и не подставляют fake `onChange`. Value-only и
+    labeled presentations одинаково наследуют Elements-owned left/right handle
+    insets; Component не рисует arrows и не добавляет локальный Vector/Matrix
+    padding, а value/caret никогда не занимают icon zones.
 
 ## Целевой состав control library
 

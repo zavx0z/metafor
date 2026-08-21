@@ -28,12 +28,14 @@ type RoundedRectCall = Parameters<UiSurface["drawRoundedRect"]>
 type RectCall = Parameters<UiSurface["drawRect"]>
 type TextCall = Parameters<UiSurface["drawText"]>
 type HitCall = Parameters<UiSurface["hit"]>
+type ImageCall = Parameters<UiSurface["drawImage"]>
 
 class RecordingSurface extends BaseUiSurface {
   readonly roundedRects: RoundedRectCall[] = []
   readonly rects: RectCall[] = []
   readonly texts: TextCall[] = []
   readonly hits: HitCall[] = []
+  readonly images: ImageCall[] = []
 
   override drawRoundedRect(...args: RoundedRectCall): void {
     this.roundedRects.push(args)
@@ -58,6 +60,10 @@ class RecordingSurface extends BaseUiSurface {
 
   override hit(...args: HitCall): void {
     this.hits.push(args)
+  }
+
+  override drawImage(...args: ImageCall): void {
+    this.images.push(args)
   }
 
   override pushClip(): void {}
@@ -110,9 +116,9 @@ describe("public VectorInput", () => {
 
     const byValue = new Map(surface.texts.map((call) => [call[0], call]))
     expect(byValue.get("X")?.[1]).toBe(95)
-    expect(byValue.get("1.000")?.[1]).toBe(197)
-    expect(byValue.get("2.000")?.[1]).toBe(197)
-    expect(byValue.get("3.000")?.[1]).toBe(197)
+    expect(byValue.get("1.000")?.[1]).toBeCloseTo(184.6)
+    expect(byValue.get("2.000")?.[1]).toBeCloseTo(184.6)
+    expect(byValue.get("3.000")?.[1]).toBeCloseTo(184.6)
     expect(byValue.get("X")?.[3].material.color).toEqual(blenderRgba8ToColor(resolveWidgetColors("number").text))
     expect(surface.hits.map((call) => call.slice(0, 4))).toEqual([
       [109, 4, 124, 22],
@@ -126,6 +132,23 @@ describe("public VectorInput", () => {
     expect(disabledAxis?.[3].material.color).toEqual(blenderRgba8ToColor(
       resolveWidgetColors("number", {disabled: true}).text,
     ))
+  })
+
+  test("keeps the right numeric arrow clear of the right-aligned Vector value", () => {
+    class VectorHoverSurface extends RecordingSurface {
+      override hitState(_x: number, _y: number, _width: number, _height: number, key?: string): {hovered: boolean; pressed: boolean} {
+        return {hovered: key === "vector-hover:0", pressed: false}
+      }
+
+      override hoveredPointer(): Readonly<{x: number; y: number}> { return {x: 26, y: 11} }
+    }
+
+    const surface = new VectorHoverSurface()
+    VectorInput(surface, 0, 0, 146, 66, {key: "vector-hover", value: [1, 2, 3], dimensions: 3})
+    const value = surface.texts.find(([text]) => text === "1.000")!
+    const rightIcon = surface.images[1]!
+    expect(surface.images).toHaveLength(2)
+    expect(value[1] + surface.measureText(value[0], value[3].fontPx)).toBeLessThanOrEqual(rightIcon[1])
   })
 
   test("maps plain Vector to precision 3 and Rotation to value-owned degree precision 0", () => {

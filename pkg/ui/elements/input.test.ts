@@ -35,7 +35,7 @@ class RecordingSurface extends BaseUiSurface {
 
   override drawRect(...args: RectCall): void { this.rects.push(args) }
 
-  override measureText(value: string): number { return value.length * 6 }
+  override measureText(value: string, _fontPx?: number): number { return value.length * 6 }
 
   override drawText(...args: TextCall): number {
     this.texts.push(args)
@@ -318,9 +318,12 @@ describe("input visible geometry", () => {
       onChange() {},
     })
 
-    expect(active.texts[0]?.slice(0, 3)).toEqual(["12°", 76, 5.5])
-    expect(active.rects[0]?.slice(0, 4)).toEqual([76, 4, 12, 14])
-    expect(active.rects[1]?.slice(0, 4)).toEqual([88, 6, 2, 13])
+    expect(active.texts[0]?.[0]).toBe("12°")
+    expect(active.texts[0]?.[1]).toBeCloseTo(63.6)
+    expect(active.texts[0]?.[2]).toBe(5.5)
+    expect(active.rects[0]?.[0]).toBeCloseTo(63.6)
+    expect(active.rects[0]?.slice(1, 4)).toEqual([4, 12, 14])
+    expect(active.rects[1]?.slice(0, 4)).toEqual([76, 6, 2, 13])
 
     const pointerStates: Array<Readonly<{cursor: number; selectionAnchor: number | null}>> = []
     const pointerSurface = new RecordingSurface()
@@ -331,7 +334,7 @@ describe("input visible geometry", () => {
       onChange: (_value, state) => pointerStates.push({cursor: state.cursor, selectionAnchor: state.selectionAnchor}),
     })
     const pointerHit = pointerSurface.hits[0]?.[5]
-    if (typeof pointerHit === "object") pointerHit.onPointerDown?.(83, 11, pointer())
+    if (typeof pointerHit === "object") pointerHit.onPointerDown?.(active.texts[0]![1] + 7, 11, pointer())
     expect(pointerStates.at(-1)).toEqual({cursor: 1, selectionAnchor: null})
 
     const explicitLeft = new RecordingSurface()
@@ -341,7 +344,7 @@ describe("input visible geometry", () => {
       value: "12°",
       style: {textAlign: "left"},
     })
-    expect(explicitLeft.texts[0]?.[1]).toBe(6)
+    expect(explicitLeft.texts[0]?.[1]).toBeCloseTo(18.4)
   })
 
   test("draws left, center and right numeric hover zones as secondary results", () => {
@@ -381,6 +384,39 @@ describe("input visible geometry", () => {
     expect(editing.roundedRects[0]?.[4].fill).toEqual(blenderRgba8ToColor(
       resolveWidgetColors("number", {hovered: true, selected: true, textInput: true, numericZone: "left"}).inner,
     ))
+  })
+
+  test("reserves both numeric handle zones before drawing right-aligned text", () => {
+    class NumericHoverSurface extends RecordingSurface {
+      override hitState(): {hovered: boolean; pressed: boolean} { return {hovered: true, pressed: false} }
+      override hoveredPointer(): Readonly<{x: number; y: number}> { return {x: 4, y: 11} }
+    }
+
+    const hover = new NumericHoverSurface()
+    input(hover, 0, 0, 100, 22, {key: "hover-insets", type: "number", value: "123"})
+    const hoverText = hover.texts[0]!
+    const rightIcon = hover.images[1]!
+    const hoverRightEdge = hoverText[1] + hover.measureText(hoverText[0], hoverText[3].fontPx)
+    expect(hover.images.map(([src]) => src)).toEqual([uiIcons.chevronLeft, uiIcons.chevronRight])
+    expect(hoverRightEdge).toBeLessThanOrEqual(rightIcon[1])
+
+    const idle = new RecordingSurface()
+    input(idle, 0, 0, 100, 22, {key: "idle-insets", type: "number", value: "123"})
+    const idleText = idle.texts[0]!
+    expect(idleText[1] + idle.measureText(idleText[0], idleText[3].fontPx)).toBe(hoverRightEdge)
+
+    const editing = new NumericHoverSurface()
+    input(editing, 0, 0, 100, 22, {
+      key: "editing-insets",
+      type: "number",
+      value: "123",
+      active: true,
+      cursor: 3,
+      onChange() {},
+    })
+    const editingText = editing.texts[0]!
+    expect(editingText[1] + editing.measureText(editingText[0], editingText[3].fontPx)).toBe(hoverRightEdge)
+    expect(editing.rects.at(-1)?.[0]).toBe(Math.round(hoverRightEdge))
   })
 
   test("preserves explicit chrome, font, padding and palette styles", () => {

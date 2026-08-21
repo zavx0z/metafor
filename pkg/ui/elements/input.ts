@@ -270,8 +270,9 @@ export function input(surface: UiSurface, x: number, y: number, width: number, h
   const value = state.value
   const cursor = state.cursor
   const selectionAnchor = state.selectionAnchor
-  const contentX = chrome.x + padding.left
-  const contentW = Math.max(1, chrome.width - padding.left - padding.right)
+  const contentInsets = inputContentInsets(props.type, chrome, padding)
+  const contentX = chrome.x + contentInsets.left
+  const contentW = Math.max(1, chrome.width - contentInsets.left - contentInsets.right)
   const textAlign = style.textAlign ?? (props.type === "number" ? "right" : "left")
   const view = planInputTextLayout(surface, value, cursor, fontPx, contentX, contentW, textAlign)
   if (active && props.cursorVisible !== false) ensureInputBlink(surface, runtime, key)
@@ -724,10 +725,29 @@ function inputNumericZoneFromX(
   chrome: Readonly<{x: number; width: number; height: number}>,
   pointerX: number,
 ): InputNumericZone {
-  const handleWidth = Math.min(chrome.width / 3, chrome.height * 0.7)
+  const handleWidth = inputNumericHandleWidth(chrome)
   if (pointerX < chrome.x + handleWidth) return "left"
   if (pointerX > chrome.x + chrome.width - handleWidth) return "right"
   return "center"
+}
+
+function inputContentInsets(
+  type: InputType | undefined,
+  chrome: Readonly<{width: number; height: number}>,
+  padding: Readonly<{left: number; right: number}>,
+): Readonly<{left: number; right: number}> {
+  if (type !== "number") return padding
+  const handleInset = inputNumericHandleWidth(chrome) + uiShapeMetrics.tightGap
+  return Object.freeze({
+    left: Math.max(padding.left, handleInset),
+    right: Math.max(padding.right, handleInset),
+  })
+}
+
+function inputNumericHandleWidth(
+  chrome: Readonly<{width: number; height: number}>,
+): number {
+  return Math.min(chrome.width / 3, chrome.height * 0.7)
 }
 
 function activateInputText(
@@ -787,7 +807,7 @@ function drawNumericInputZone(
 ): void {
   if (kind === "text") return
   if (!state.numericZone || !state.hovered || state.textInput) return
-  const handleWidth = Math.min(chrome.width / 3, chrome.height * 0.7)
+  const handleWidth = inputNumericHandleWidth(chrome)
   const cellRadii = groupedCellCornerRadii(groupedAppearance)
   for (const target of ["left", "center", "right"] as const) {
     const zone = resolveNumericZoneColors(kind, state, target)
