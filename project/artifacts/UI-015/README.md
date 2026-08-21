@@ -592,3 +592,24 @@ Automated captures prove exact canvas state, not explicit owner acceptance.
   click left of `0.62` yields cursor index `0`. Blender 4.5.5
   `interface_handlers.cc` instead initializes numeric text edit with cursor at
   string end and full selection. This is UI-015.8.12 RED, not matrix acceptance.
+
+## UI-015.8.12 — Numeric caret transition result
+
+* Source `67d896ca6`, retained regression `827ce5896`; source-fresh PIDs
+  Elements/Components/Node `82171/82553/82719`, exact targets
+  `E208…/D077…/809…`, native `1920×1088 @2`.
+* Selection plans and logical crops:
+  * `numeric-caret-number-select-final-crop.png`, SHA-256
+    `14bf16f9e0895fb8867fe4bfd8739cf62bba37ce90903d0cc58858d034905fc8`;
+  * `numeric-caret-integer-select-final-crop.png`, SHA-256
+    `d67b5289e9bf1a6f8b5b3de5561b6cc000961ef7a6ab05923f0f74855f8fe998`;
+  * `numeric-caret-vector-select-final-crop.png`, SHA-256
+    `bd334ac23b46375b7ad08c873459be21b47c1f87806291de48ecbf8fd4d1dac9`;
+  * `numeric-caret-node-select-final-crop.png`, SHA-256
+    `3d01e91ce7d6c2aa968a23e1aaa9ce7f5106dbe68f93ec5e159357046fe46d62`.
+* Separate key-event replacement plans publish Number `0.9`, Integer `9`,
+  Vector `[9,2,3]` and Node Translation `[9,2,3]`; every accepted plan keeps
+  route, restores focus emulation and reports console `0`.
+* One late Runtime timeout, one zero-frame barrier and synthetic `Input.insertText`
+  after barrier are rejected evidence. `numeric-caret.result.json` records the
+  exact accepted boundary and keeps `ownerAcceptance:false`.

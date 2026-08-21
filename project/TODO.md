@@ -286,7 +286,9 @@ pairs теперь готовы на source `4ad33fcda`; UI-015.10 переве�
 решения владельца по scalar/enum/vector/path/reference/collection/color/shell.
 Owner live finding открыл UI-015.8.12: center click numeric input ошибочно ставит
 caret перед right-aligned value, тогда как Blender начинает text edit с
-end-caret и select-all. Active slice — UI-015.8.12; UI-015.10 ждёт result.
+end-caret и select-all. Commits `67d896ca6` + `827ce5896` закрыли source/live:
+Number/Integer/Vector/Node выделяют whole value, caret справа, first key заменяет
+значение, console0. Active slice снова UI-015.10 GATE для owner visual verdict.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "settleMs": 0,
+  "steps": [
+    {"kind": "pointer-move", "x": 810, "y": 378},
+    {"kind": "pointer-down", "x": 810, "y": 378, "button": "left"},
+    {"kind": "pointer-up", "x": 810, "y": 378, "button": "left"},
+    {"kind": "settle", "ms": 80},
+    {"kind": "checkpoint", "name": "node-select-all", "dom": true, "canvas": "/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/numeric-caret-node-select-final.png"}
+  ]
+}

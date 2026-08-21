@@ -1,0 +1,81 @@
+{
+  "task": "UI-015.8.12",
+  "preparationCommit": "ee252c873d299da2233bd3d7a5574f37433dc2a1",
+  "sourceCommit": "67d896ca657585cddbf47a67cccc3639c4cefbe2",
+  "retainedRegressionCommit": "827ce5896",
+  "nativeViewport": [1920, 1088, 2],
+  "selectors": {
+    "elements": {
+      "pid": 82171,
+      "targetId": "E2087390E08913DD8CA4142D5D9E8C48",
+      "route": "input/state/inactive"
+    },
+    "components": {
+      "pid": 82553,
+      "targetId": "D0775AE44CFF0E299A0C28EECB3872D2",
+      "routes": [
+        "number-input/basic/default",
+        "integer-input/basic/labeled",
+        "vector-input/basic/default"
+      ]
+    },
+    "node-ui": {
+      "pid": 82719,
+      "targetId": "809BF08D88E4582CA819EFE847FE1450",
+      "route": "node-editor/scene/translation-unlinked"
+    }
+  },
+  "selectionCaptures": [
+    {
+      "kind": "number",
+      "path": "numeric-caret-number-select-final-crop.png",
+      "sha256": "14bf16f9e0895fb8867fe4bfd8739cf62bba37ce90903d0cc58858d034905fc8"
+    },
+    {
+      "kind": "integer",
+      "path": "numeric-caret-integer-select-final-crop.png",
+      "sha256": "d67b5289e9bf1a6f8b5b3de5561b6cc000961ef7a6ab05923f0f74855f8fe998"
+    },
+    {
+      "kind": "vector",
+      "path": "numeric-caret-vector-select-final-crop.png",
+      "sha256": "bd334ac23b46375b7ad08c873459be21b47c1f87806291de48ecbf8fd4d1dac9"
+    },
+    {
+      "kind": "node-vector",
+      "path": "numeric-caret-node-select-final-crop.png",
+      "sha256": "3d01e91ce7d6c2aa968a23e1aaa9ce7f5106dbe68f93ec5e159357046fe46d62"
+    }
+  ],
+  "replacementResults": {
+    "number": 0.9,
+    "integer": 9,
+    "vector": [9, 2, 3],
+    "nodeTranslation": [9, 2, 3]
+  },
+  "observations": {
+    "cursorAtEnd": true,
+    "wholeValueSelected": true,
+    "firstKeyReplacesValue": true,
+    "ordinaryTextPointerPlacementUnchanged": true,
+    "routePreserved": true,
+    "consoleErrors": 0,
+    "focusEmulationRestored": true
+  },
+  "checks": {
+    "elements": "156/156, 1256 assertions",
+    "components": "153/153, 1530 assertions",
+    "delivery": "18/18, 536 assertions",
+    "nodeFocused": "14/14, 508 assertions",
+    "retained": "3/3, 441 assertions",
+    "typechecks": 6,
+    "browserBuildFiles": [13, 29, 13]
+  },
+  "rejectedEvidence": [
+    "one combined Number select+replace plan timed out during a late Runtime.evaluate despite final owner value 0.9",
+    "one Vector replacement attempt had a zero-frame barrier",
+    "Input.insertText after a barrier was excluded; successful replacement uses key-down/up"
+  ],
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}

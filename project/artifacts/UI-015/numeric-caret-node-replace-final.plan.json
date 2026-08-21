@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "settleMs": 80,
+  "steps": [
+    {"kind": "pointer-move", "x": 810, "y": 378},
+    {"kind": "pointer-down", "x": 810, "y": 378, "button": "left"},
+    {"kind": "pointer-up", "x": 810, "y": 378, "button": "left"},
+    {"kind": "settle", "ms": 80},
+    {"kind": "key-down", "key": "9", "code": "Digit9"},
+    {"kind": "key-up", "key": "9", "code": "Digit9"},
+    {"kind": "key-down", "key": "Enter", "code": "Enter"},
+    {"kind": "key-up", "key": "Enter", "code": "Enter"}
+  ]
+}
