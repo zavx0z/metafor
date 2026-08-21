@@ -245,7 +245,11 @@ standalone/grouped/Node commit-ом `ed8946645`: source-fresh canvases тепе�
 реально показывают `6/0`. Escape/right cancel возвращают `3`; Text outside,
 grouped X→Y и Node Integer→Select child→Integer проходят с console0. Полные
 Elements/Components suites покрывают остальные public consumers без stale
-focus; дальнейшая Node control matrix остаётся UI-015.9.
+focus. Standalone Color wheel/value markers и moved Rotation Link corridor
+также прошли exact pointer plans с console0; selected Link id =
+`scalar-transform-rotation`. UI-015.9.2 теперь добавляет только deterministic
+unlinked Color story variant, потому что обычный `transform-shader` link по
+Blender law скрывает editor; renderer/ColorInput не меняются.
 Public Elements остаются HTML-аналогами, составные controls принадлежат
 Components; UI-015.9 сразу подключает необходимые Components в Node UI до общей
 visual matrix.

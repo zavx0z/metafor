@@ -191,6 +191,28 @@
   Фактическое наблюдение: vertical Value strip white→gray→black без hue tint;
   compact сохраняет popup shadow, expanded остаётся inline без него. Static
   reviewer PASS; pointer/marker и same ColorInput inside Node остаются open.
+* Live pointer result, Components PID `53649`, target `D0775…`, route
+  `/color-input/state/open`, console `0`:
+  * `color-components-wheel-drag.png` — marker moved to magenta, owner RGBA
+    `{0.92,0.330777…,0.822902…,0.72}`, `321979` bytes, SHA-256
+    `6baaecdffa683788efc80a82488471b655b0c965aeeea00a5662978845191ca2`;
+  * `color-components-value-drag.png` — achromatic indicator moved down and
+    value darkened to `{0.120714…,0.043401…,0.107973…,0.72}`, `317968` bytes,
+    SHA-256
+    `ce5c85ed937ae85aa067ca9dc7a3650b28e6144cb23fc7c97a99537b465329d2`.
+  Popup stays open; route and focus-emulation restoration are preserved.
+
+## UI-015.5.3 — Moved Link live pointer result
+
+* Source-fresh Node PID `53620`, target `809…`, route
+  `/node-editor/scene/rotation-linked`, native `1920×1088 @2`, console `0`.
+* `node-moved-link-select.plan.json` clicks CSS point `(704,374)` on the raised
+  orthogonal corridor. DOM publishes `selectedKind=link` and exact
+  `selectedId=scalar-transform-rotation`.
+* `node-moved-link-selected.png` visibly shows the selected purple path ending
+  at the raised Rotation diamond; `406676` bytes, SHA-256
+  `9f3f00ee8b7b7977fc8ece5067f6e3e404e8bdbef73f7fe14a5336e2a15d1c67`.
+* Machine-readable Color/Link result: `interaction-tail.result.json`.
 
 ## UI-015.2.1 — Button size RED baseline
 

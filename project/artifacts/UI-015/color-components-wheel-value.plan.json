@@ -1,0 +1,8 @@
+{"version":1,"settleMs":0,"steps":[
+  {"kind":"pointer-drag","from":{"x":877,"y":458},"to":{"x":940,"y":430},"button":"left","segments":8},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"wheel-drag","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/color-components-wheel-drag.png"},
+  {"kind":"pointer-drag","from":{"x":984,"y":410},"to":{"x":984,"y":500},"button":"left","segments":8},
+  {"kind":"settle","ms":80},
+  {"kind":"checkpoint","name":"value-drag","dom":true,"canvas":"/Users/zavx0z/repozitarium/metafor/project/artifacts/UI-015/color-components-value-drag.png"}
+]}

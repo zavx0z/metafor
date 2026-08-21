@@ -1,0 +1,27 @@
+{
+  "sourceCommit": "ed894664539695e1c38f7302ee44d8c87242db5e",
+  "runtime": {
+    "componentsPid": 53649,
+    "nodePid": 53620,
+    "viewport": [1920, 1088, 2],
+    "consoleErrors": []
+  },
+  "color": {
+    "route": "color-input/state/open",
+    "openAfterDrag": true,
+    "wheelValue": {"r": 0.9199999999999999, "g": 0.3307774107039293, "b": 0.8229020587092655, "a": 0.72},
+    "finalValue": {"r": 0.1207142627589134, "g": 0.04340168616350776, "b": 0.10797392971726201, "a": 0.72},
+    "wheelCapture": {"file": "color-components-wheel-drag.png", "bytes": 321979, "sha256": "6baaecdffa683788efc80a82488471b655b0c965aeeea00a5662978845191ca2"},
+    "valueCapture": {"file": "color-components-value-drag.png", "bytes": 317968, "sha256": "ce5c85ed937ae85aa067ca9dc7a3650b28e6144cb23fc7c97a99537b465329d2"}
+  },
+  "movedLink": {
+    "route": "node-editor/scene/rotation-linked",
+    "selectedKind": "link",
+    "selectedId": "scalar-transform-rotation",
+    "capture": {"file": "node-moved-link-selected.png", "bytes": 406676, "sha256": "9f3f00ee8b7b7977fc8ece5067f6e3e404e8bdbef73f7fe14a5336e2a15d1c67"}
+  },
+  "routePreserved": true,
+  "focusEmulationRestored": true,
+  "syntheticInput": true,
+  "ownerAcceptance": false
+}
