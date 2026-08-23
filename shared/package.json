@@ -33,5 +33,8 @@
     "./protocol/bulk/store": "./protocol/bulk/store.ts",
     "./protocol/metafor/authoring": "./protocol/metafor/authoring.ts",
     "./protocol/metafor/observation": "./protocol/metafor/observation.ts"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*"
   }
 }
