@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {fileURLToPath} from "node:url"
 
-const hamiltonianRoot = fileURLToPath(new URL(".", import.meta.url))
+const cosmosRoot = fileURLToPath(new URL(".", import.meta.url))
 const serverPath = fileURLToPath(new URL("./server.ts", import.meta.url))
 const releaseDeliveryPath = fileURLToPath(new URL("./release/server/http/delivery.ts", import.meta.url))
 const releaseUpdatePath = fileURLToPath(new URL("./release/server/release/update.ts", import.meta.url))
@@ -12,7 +12,7 @@ const routes = [
   '"/manifest.webmanifest"',
   '"/assets/fonts/JetBrainsMono-Bold.ttf"',
   '"/assets/*"',
-  '"/@hamiltonian/:module"',
+  '"/@cosmos/:module"',
   '"/@internal/:module"',
   '"/@metafor/:module"',
   '"/code"',
@@ -20,21 +20,21 @@ const routes = [
   '"/*"',
 ] as const
 
-describe("Hamiltonian singleton server boundary", () => {
+describe("Cosmos singleton server boundary", () => {
   test("keeps one Bun server and the complete root route composition in server.ts", async () => {
     const source = await Bun.file(serverPath).text()
-    const packageJson = await Bun.file(`${hamiltonianRoot}/package.json`).json() as {
+    const packageJson = await Bun.file(`${cosmosRoot}/package.json`).json() as {
       scripts?: {start?: string}
     }
 
     expect(packageJson.scripts?.start).toBe(
-      "bun --conditions=hamiltonian:server --conditions=internal:server --port=4444 server",
+      "bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
     )
     expect(source.match(/Bun\.serve</g)).toHaveLength(1)
     expect(source.indexOf("await recoverPublication()"))
       .toBeLessThan(source.indexOf("Bun.serve<RpcSocketData>"))
     expect(source).not.toContain("class ")
-    expect(source).toContain('from "@hamiltonian/release"')
+    expect(source).toContain('from "@cosmos/release"')
     expect(source).not.toContain("@internal/rpc")
     expect(source).toContain("GET: getRelease")
     expect(source).toMatch(/POST: \(request: Request, server: Bun\.Server<RpcSocketData>\) => publishRelease\(request/)
@@ -71,7 +71,7 @@ describe("Hamiltonian singleton server boundary", () => {
     expect(rpcServer).not.toMatch(/Bun\.serve\s*[<(]/)
   })
 
-  test("keeps the complete RPC implementation inside @hamiltonian/release server env", async () => {
+  test("keeps the complete RPC implementation inside @cosmos/release server env", async () => {
     const source = await Bun.file(rpcServerPath).text()
     expect(source).toContain("socket.subscribe(rpcServiceTopic)")
     expect(source).toContain("socket.unsubscribe(rpcServiceTopic)")
