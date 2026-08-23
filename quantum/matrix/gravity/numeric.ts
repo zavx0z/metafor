@@ -1,5 +1,5 @@
-import type { ConvertedSuperposition, NamedSuperposition } from "@metafor/types/matrix/gravity"
-import type { MatrixCollapse } from "@metafor/types/matrix/data"
+import type { ConvertedSuperposition, NamedSuperposition } from "@matrix/types/gravity"
+import type { MatrixCollapse } from "@matrix/types/data"
 
 export function convertToNumeric(
   superposition: NamedSuperposition,
@@ -21,29 +21,21 @@ export function convertToNumeric(
     const fromTransitions: Array<MatrixCollapse> = []
     for (const [toState, conditions] of Object.entries(transObj)) {
       const toIdx = stateIndex.get(toState)
-      if (toIdx === undefined) {
-        throw new Error(`Unknown state: ${toState}`)
-      }
+      if (toIdx === undefined) throw new Error(`Unknown state: ${toState}`)
       if (!conditions) {
         fromTransitions.push(null)
       } else {
         const converted: Record<number, any> = {}
         for (const [fieldName, condition] of Object.entries(conditions)) {
           const fieldIdx = fieldNameIndex.get(fieldName)
-          if (fieldIdx === undefined) {
-            throw new Error(`Field '${fieldName}' not found`)
-          }
+          if (fieldIdx === undefined) throw new Error(`Field '${fieldName}' not found`)
           converted[fieldIdx] = condition
         }
         fromTransitions.push([toIdx, converted])
       }
     }
-
     transitions.push(fromTransitions)
   }
 
-  return {
-    states,
-    matrix: { transitions },
-  }
+  return {states, matrix: {transitions}}
 }
