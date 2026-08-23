@@ -4,6 +4,7 @@
   "private": true,
   "exports": {
     "./metafor/fields": "./metafor/fields.ts",
+    "./metafor/mass": "./metafor/mass.ts",
     "./metafor/superposition": "./metafor/superposition.ts",
     "./metafor/action": "./metafor/action.ts",
     "./metafor/process": "./metafor/process.ts",
