@@ -1,4 +1,4 @@
-import type { StringInterner } from "@metafor/types/matrix/strong"
+import type { StringInterner } from "@matrix/types/strong"
 
 /**
  * Изменяемая дедуплицированная таблица строк, которой владеет strong-слой.
