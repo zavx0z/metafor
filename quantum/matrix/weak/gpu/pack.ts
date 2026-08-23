@@ -4,9 +4,9 @@
  * Модуль не меняет канонический store и работает только с локальными derived-структурами.
  */
 
-import type { GpuPackContext, MatrixEncodedValueResult } from "@metafor/types/matrix/gpu"
-import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
-import type { MatrixValue } from "@metafor/types/matrix/store"
+import type { GpuPackContext, MatrixEncodedValueResult } from "@matrix/types/gpu"
+import type { MatrixFieldRecord } from "@matrix/types/data"
+import type { MatrixValue } from "@matrix/types/store"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 
 /**
