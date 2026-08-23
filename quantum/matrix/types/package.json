@@ -1,0 +1,21 @@
+{
+  "name": "@matrix/types",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./condition": "./condition.ts",
+    "./cpu": "./cpu.ts",
+    "./data": "./data.ts",
+    "./entanglement": "./entanglement.ts",
+    "./gpu": "./gpu.ts",
+    "./gravity": "./gravity.ts",
+    "./runtime": "./runtime.ts",
+    "./store": "./store.ts",
+    "./strong": "./strong.ts",
+    "./weak": "./weak.ts"
+  },
+  "dependencies": {
+    "shared": "workspace:*"
+  }
+}
