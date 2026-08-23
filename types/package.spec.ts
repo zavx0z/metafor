@@ -1,28 +1,38 @@
 import {describe, expect, test} from "bun:test"
-import {existsSync, readFileSync} from "node:fs"
+import {existsSync, readFileSync, readdirSync} from "node:fs"
 import {join} from "node:path"
 
 type TypesPackage = {
   exports: Record<string, string>
+  dependencies?: Record<string, string>
 }
 
 const definition = JSON.parse(
   readFileSync(join(import.meta.dir, "package.json"), "utf8"),
 ) as TypesPackage
 
-const compatibilityFacades: Record<string, string> = {
-  "./metafor/authoring": 'export * from "shared/protocol/metafor/authoring"\n',
-  "./metafor/observation": 'export * from "shared/protocol/metafor/observation"\n',
-  "./boundary/initial": 'export * from "shared/protocol/boundary/initial"\n',
-  "./boundary/runtime": 'export * from "shared/protocol/boundary/runtime"\n',
-  "./boundary/matter": 'export * from "@boundary/types/matter"\n',
-  "./boundary/wimp": 'export * from "@boundary/types/wimp"\n',
-  "./bulk/browser": 'export * from "shared/protocol/bulk/browser"\n',
-  "./bulk/capture": 'export * from "shared/protocol/bulk/capture"\n',
-  "./bulk/store": 'export * from "shared/protocol/bulk/store"\n',
-}
+const expectedExports = [
+  "./metafor/fields",
+  "./metafor/mass",
+  "./metafor/superposition",
+  "./metafor/action",
+  "./metafor/process",
+  "./metafor/finally",
+  "./metafor/reactions",
+  "./metafor/matter",
+  "./metafor/schema",
+  "./metafor/graph",
+  "./boundary/atom",
+  "./boundary/value",
+  "./boundary/topology",
+  "./bulk/manifest",
+].toSorted()
 
-describe("@metafor/types public exports", () => {
+describe("@metafor/types ownership", () => {
+  test("exports exactly the fundamental semantic contracts", () => {
+    expect(Object.keys(definition.exports).toSorted()).toEqual(expectedExports)
+  })
+
   test("every declared subpath resolves to an existing source file", () => {
     const missing = Object.entries(definition.exports)
       .filter(([, target]) => !existsSync(join(import.meta.dir, target)))
@@ -31,28 +41,30 @@ describe("@metafor/types public exports", () => {
     expect(missing).toEqual([])
   })
 
-  test("does not own Quantum runtime/domain contracts", () => {
-    expect(Object.keys(definition.exports).some((subpath) => subpath.startsWith("./matrix/"))).toBe(false)
-    expect(Object.keys(definition.exports).some((subpath) => subpath.startsWith("./energy/"))).toBe(false)
-    expect(Object.keys(definition.exports).some((subpath) => subpath.startsWith("./dark/"))).toBe(false)
+  test("does not depend on protocol or domain-owner packages", () => {
+    expect(definition.dependencies).toBeUndefined()
   })
 
-  test("compatibility exports remain thin re-exports instead of regaining ownership", () => {
-    for (const [subpath, expected] of Object.entries(compatibilityFacades)) {
-      const target = definition.exports[subpath]
-      expect(target).toBeDefined()
-      expect(readFileSync(join(import.meta.dir, target!), "utf8")).toBe(expected)
-    }
-  })
-
-  test("keeps fundamental cross-domain semantic contracts in the package", () => {
-    for (const subpath of [
-      "./metafor/graph",
-      "./metafor/schema",
-      "./boundary/atom",
-      "./boundary/value",
-      "./boundary/topology",
-      "./bulk/manifest",
-    ]) expect(definition.exports).toHaveProperty(subpath)
+  test("contains no compatibility facade files", () => {
+    expect(readdirSync(join(import.meta.dir, "metafor")).toSorted()).toEqual([
+      "action.ts",
+      "fields.ts",
+      "finally.ts",
+      "graph.ts",
+      "mass.ts",
+      "matter.ts",
+      "process.ts",
+      "reactions.ts",
+      "schema.ts",
+      "superposition.ts",
+    ])
+    expect(readdirSync(join(import.meta.dir, "boundary")).toSorted()).toEqual([
+      "atom.ts",
+      "topology.ts",
+      "value.ts",
+    ])
+    expect(readdirSync(join(import.meta.dir, "bulk")).toSorted()).toEqual([
+      "manifest.ts",
+    ])
   })
 })

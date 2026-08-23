@@ -13,21 +13,9 @@
     "./metafor/matter": "./metafor/matter.ts",
     "./metafor/schema": "./metafor/schema.ts",
     "./metafor/graph": "./metafor/graph.ts",
-    "./metafor/authoring": "./metafor/authoring.ts",
-    "./metafor/observation": "./metafor/observation.ts",
     "./boundary/atom": "./boundary/atom.ts",
     "./boundary/value": "./boundary/value.ts",
     "./boundary/topology": "./boundary/topology.ts",
-    "./boundary/wimp": "./boundary/wimp.ts",
-    "./boundary/matter": "./boundary/matter.ts",
-    "./boundary/runtime": "./boundary/runtime.ts",
-    "./boundary/initial": "./boundary/initial.ts",
-    "./bulk/manifest": "./bulk/manifest.ts",
-    "./bulk/browser": "./bulk/browser.ts",
-    "./bulk/capture": "./bulk/capture.ts",
-    "./bulk/store": "./bulk/store.ts"
-  },
-  "dependencies": {
-    "shared": "workspace:*"
+    "./bulk/manifest": "./bulk/manifest.ts"
   }
 }
