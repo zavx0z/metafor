@@ -22,8 +22,6 @@
     "./boundary/matter": "./boundary/matter.ts",
     "./boundary/runtime": "./boundary/runtime.ts",
     "./boundary/initial": "./boundary/initial.ts",
-    "./dark/history-resolution": "./dark/history-resolution.ts",
-    "./dark/checkpoint": "./dark/checkpoint.ts",
     "./bulk/manifest": "./bulk/manifest.ts",
     "./bulk/store": "./bulk/store.ts"
   },
