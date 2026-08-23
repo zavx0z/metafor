@@ -1,7 +1,7 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
-import type { ArrayHeapSlot, GpuRuntimeContext } from "@metafor/types/matrix/gpu"
-import type { MatrixFieldValueRecord, MatrixStore, MatrixValue } from "@metafor/types/matrix/store"
-import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode, WeakStructuralUpdate } from "@metafor/types/matrix/weak"
+import type { ArrayHeapSlot, GpuRuntimeContext } from "@matrix/types/gpu"
+import type { MatrixFieldValueRecord, MatrixStore, MatrixValue } from "@matrix/types/store"
+import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode, WeakStructuralUpdate } from "@matrix/types/weak"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 import { braneHasPatternCondition, deriveWeakBraneBytecode, deriveWeakData } from "./derived"
 import { findFieldValueOffset, packMeta } from "./layout-heap"
@@ -99,10 +99,6 @@ function destroyContext(context: GpuRuntimeContext): void {
  * через области ошибок WebGPU. Первая ошибка операции или потеря устройства
  * сохраняется в {@link fault}; все последующие границы чтения завершаются этой
  * ошибкой. Переход на CPU внутри уже начатой причинной трассы не выполняется.
- *
- * @see [Отложенная ошибка и ошибка проверки WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.gpu.test.ts#L94-L130)
- * @see [Потеря устройства передаётся наблюдателю](https://github.com/zavx0z/metafor/blob/main/matrix/weak/device.spec.ts#L37-L55)
- * @see [F32, U32, BOOL, null, строки и массивы совпадают с CPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
  */
 export class GPUWeakRuntime implements WeakRuntime {
   private context: GpuRuntimeContext
@@ -173,32 +169,15 @@ export class GPUWeakRuntime implements WeakRuntime {
     return this.faultError?.message ?? null
   }
 
-  /**
-   * Синхронизирует канонические изменения с GPU без полной пересборки контекста.
-   *
-   * Если текущий derived layout больше не подходит, обновляет только затронутые
-   * производные буферы.
-   */
   heapUpdate(updates: WeakHeapUpdate[]): void {
     this.schedule(() => {
-      if (updates.length === 0) {
-        return
-      }
-
+      if (updates.length === 0) return
       const stringTableChanged = this.store$.stringTable.length !== this.context.stringTableSize
-      if (stringTableChanged) {
-        this.syncStringBuffers()
-      }
-
-      if (!this.tryApplyHeapUpdates(updates)) {
-        this.refreshHeapBuffers()
-      }
+      if (stringTableChanged) this.syncStringBuffers()
+      if (!this.tryApplyHeapUpdates(updates)) this.refreshHeapBuffers()
       const patternBranes = new Set<number>()
       for (const update of updates) {
-        if (
-          update.kind === "field" &&
-          braneHasPatternCondition(this.store$, update.braneIndex, update.fieldIndex)
-        ) {
+        if (update.kind === "field" && braneHasPatternCondition(this.store$, update.braneIndex, update.fieldIndex)) {
           patternBranes.add(update.braneIndex)
         }
       }
@@ -233,23 +212,11 @@ export class GPUWeakRuntime implements WeakRuntime {
         }
         const ptr = this.appendCanonicalBlock(this.collectBraneFields(braneIndex), refs, brane.lock)
         this.context.braneBlockPtrs[braneIndex] = ptr
-        this.context.device.queue.writeBuffer(
-          this.context.buffers.braneBlockPtrs,
-          braneIndex * 4,
-          new Uint32Array([ptr]),
-        )
+        this.context.device.queue.writeBuffer(this.context.buffers.braneBlockPtrs, braneIndex * 4, new Uint32Array([ptr]))
         const state = this.store$.states[braneIndex] ?? 0
         this.lastStates[braneIndex] = state
-        this.context.device.queue.writeBuffer(
-          this.context.buffers.states,
-          braneIndex * 4,
-          Uint32Array.from([state]),
-        )
-        this.context.device.queue.writeBuffer(
-          this.context.buffers.dirtyFlags,
-          braneIndex * 4,
-          new Uint32Array([0]),
-        )
+        this.context.device.queue.writeBuffer(this.context.buffers.states, braneIndex * 4, Uint32Array.from([state]))
+        this.context.device.queue.writeBuffer(this.context.buffers.dirtyFlags, braneIndex * 4, new Uint32Array([0]))
       }
 
       const bytecodeBranes = new Set(update.graphBraneIndexes)
@@ -261,22 +228,12 @@ export class GPUWeakRuntime implements WeakRuntime {
           if (braneHasPatternCondition(this.store$, braneIndex)) bytecodeBranes.add(braneIndex)
         }
       }
-      for (const braneIndex of bytecodeBranes) {
-        this.replaceBraneBytecode(braneIndex)
-      }
+      for (const braneIndex of bytecodeBranes) this.replaceBraneBytecode(braneIndex)
 
       this.context.braneCount = this.store$.branes.length
-      this.context.device.queue.writeBuffer(
-        this.context.buffers.uniforms,
-        0,
-        new Uint32Array([this.context.braneCount]),
-      )
-      if (this.context.deadHeapWords > Math.max(1024, Math.floor(this.context.heapWords / 2))) {
-        this.refreshHeapBuffers()
-      }
-      if (this.context.deadBytecodeWords > Math.max(1024, Math.floor(this.context.bytecodeWords / 2))) {
-        this.refreshBytecodeBuffers()
-      }
+      this.context.device.queue.writeBuffer(this.context.buffers.uniforms, 0, new Uint32Array([this.context.braneCount]))
+      if (this.context.deadHeapWords > Math.max(1024, Math.floor(this.context.heapWords / 2))) this.refreshHeapBuffers()
+      if (this.context.deadBytecodeWords > Math.max(1024, Math.floor(this.context.bytecodeWords / 2))) this.refreshBytecodeBuffers()
     })
   }
 
@@ -284,31 +241,20 @@ export class GPUWeakRuntime implements WeakRuntime {
     if (this.closed) return
     this.closed = true
     this.lastStates = []
-    const scheduled = this.pending.then(() =>
-      enqueueSerializedGpuOperation(() => destroyContext(this.context)),
-    )
-    this.pending = scheduled.then(
-      () => undefined,
-      () => undefined,
-    )
+    const scheduled = this.pending.then(() => enqueueSerializedGpuOperation(() => destroyContext(this.context)))
+    this.pending = scheduled.then(() => undefined, () => undefined)
     void scheduled.catch(() => undefined)
   }
 
   private enqueue<T>(task: () => Promise<T> | T): Promise<T> {
     const scheduled = this.pending.then(() => this.execute(task))
-    this.pending = scheduled.then(
-      () => undefined,
-      () => undefined,
-    )
+    this.pending = scheduled.then(() => undefined, () => undefined)
     return scheduled
   }
 
   private schedule(task: () => Promise<void> | void): void {
     const scheduled = this.pending.then(() => this.execute(task))
-    this.pending = scheduled.then(
-      () => undefined,
-      () => undefined,
-    )
+    this.pending = scheduled.then(() => undefined, () => undefined)
     void scheduled.catch(() => undefined)
   }
 
@@ -327,9 +273,7 @@ export class GPUWeakRuntime implements WeakRuntime {
   }
 
   private recordFault(error: unknown): Error {
-    if (!this.faultError) {
-      this.faultError = new Error(`Сбой WebGPU Matrix: ${asError(error).message}`)
-    }
+    if (!this.faultError) this.faultError = new Error(`Сбой WebGPU Matrix: ${asError(error).message}`)
     return this.faultError
   }
 
@@ -355,19 +299,11 @@ export class GPUWeakRuntime implements WeakRuntime {
     return fields
   }
 
-  private appendCanonicalBlock(
-    fields: MatrixFieldValueRecord[],
-    sharedPtrs: number[],
-    lock: boolean,
-  ): number {
-    const blockWords = 3 + fields.length * 2 + sharedPtrs.length + fields.reduce((total, record) => {
-      return total + (this.store$.fields[record.fieldIndex] ? 2 : 0)
-    }, 0)
+  private appendCanonicalBlock(fields: MatrixFieldValueRecord[], sharedPtrs: number[], lock: boolean): number {
+    const blockWords = 3 + fields.length * 2 + sharedPtrs.length + fields.reduce((total, record) => total + (this.store$.fields[record.fieldIndex] ? 2 : 0), 0)
     const arrayWords = fields.reduce((total, record) => {
       const field = this.store$.fields[record.fieldIndex]
-      return total + (field?.type === FIELD_TYPE.ARRAY_PTR && Array.isArray(record.value) && record.value.length > 0
-        ? 1 + record.value.length
-        : 0)
+      return total + (field?.type === FIELD_TYPE.ARRAY_PTR && Array.isArray(record.value) && record.value.length > 0 ? 1 + record.value.length : 0)
     }, 0)
     const blockPtr = this.context.heapWords
     const end = blockPtr + blockWords + arrayWords
@@ -402,11 +338,7 @@ export class GPUWeakRuntime implements WeakRuntime {
     for (const ptr of sharedPtrs) heap[descriptorOffset++] = ptr
     this.context.heapWords = end
     this.context.blockAllocationWordsByPtr.set(blockPtr, end - blockPtr)
-    this.context.device.queue.writeBuffer(
-      this.context.buffers.heap,
-      blockPtr * 4,
-      heap.subarray(blockPtr, end),
-    )
+    this.context.device.queue.writeBuffer(this.context.buffers.heap, blockPtr * 4, heap.subarray(blockPtr, end))
     return blockPtr
   }
 
@@ -422,11 +354,7 @@ export class GPUWeakRuntime implements WeakRuntime {
     const mirror = new Uint32Array(capacity)
     mirror.set(this.context.heapMirror.subarray(0, this.context.heapWords))
     const previous = this.context.buffers.heap
-    this.context.buffers.heap = createStorageBufferWithCapacity(
-      this.context.device,
-      mirror.subarray(0, this.context.heapWords),
-      capacity,
-    )
+    this.context.buffers.heap = createStorageBufferWithCapacity(this.context.device, mirror.subarray(0, this.context.heapWords), capacity)
     this.context.heapMirror = mirror
     this.context.heapCapacityWords = capacity
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
@@ -439,11 +367,7 @@ export class GPUWeakRuntime implements WeakRuntime {
     const mirror = new Uint32Array(capacity)
     mirror.set(this.context.bytecodeMirror.subarray(0, this.context.bytecodeWords))
     const previous = this.context.buffers.bytecode
-    this.context.buffers.bytecode = createStorageBufferWithCapacity(
-      this.context.device,
-      mirror.subarray(0, this.context.bytecodeWords),
-      capacity,
-    )
+    this.context.buffers.bytecode = createStorageBufferWithCapacity(this.context.device, mirror.subarray(0, this.context.bytecodeWords), capacity)
     this.context.bytecodeMirror = mirror
     this.context.bytecodeCapacityWords = capacity
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
@@ -457,19 +381,11 @@ export class GPUWeakRuntime implements WeakRuntime {
     const offset = this.context.bytecodeWords
     this.ensureBytecodeCapacity(offset + words.length)
     this.context.bytecodeMirror.set(words, offset)
-    this.context.device.queue.writeBuffer(
-      this.context.buffers.bytecode,
-      offset * 4,
-      words,
-    )
+    this.context.device.queue.writeBuffer(this.context.buffers.bytecode, offset * 4, words)
     this.context.bytecodeWords += words.length
     this.context.bytecodeOffsets[braneIndex] = offset
     this.context.bytecodeWordsByBrane[braneIndex] = words.length
-    this.context.device.queue.writeBuffer(
-      this.context.buffers.bytecodeOffsets,
-      braneIndex * 4,
-      new Uint32Array([offset]),
-    )
+    this.context.device.queue.writeBuffer(this.context.buffers.bytecodeOffsets, braneIndex * 4, new Uint32Array([offset]))
   }
 
   private ensureBraneCapacity(requiredBranes: number): void {
@@ -482,49 +398,18 @@ export class GPUWeakRuntime implements WeakRuntime {
       bytecodeOffsets: this.context.buffers.bytecodeOffsets,
       stagingBuffer: this.context.stagingBuffer,
     }
-    this.context.buffers.braneBlockPtrs = createStorageBufferWithCapacity(
-      this.context.device,
-      Uint32Array.from(this.context.braneBlockPtrs),
-      capacity,
-    )
-    this.context.buffers.states = createStorageBufferWithCapacity(
-      this.context.device,
-      Uint32Array.from(this.lastStates),
-      capacity,
-      true,
-    )
-    this.context.buffers.dirtyFlags = createStorageBufferWithCapacity(
-      this.context.device,
-      new Uint32Array(requiredBranes),
-      capacity,
-      true,
-    )
-    this.context.buffers.bytecodeOffsets = createStorageBufferWithCapacity(
-      this.context.device,
-      Uint32Array.from(this.context.bytecodeOffsets),
-      capacity,
-    )
-    this.context.stagingBuffer = this.context.device.createBuffer({
-      size: capacity * 8,
-      usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
-    })
+    this.context.buffers.braneBlockPtrs = createStorageBufferWithCapacity(this.context.device, Uint32Array.from(this.context.braneBlockPtrs), capacity)
+    this.context.buffers.states = createStorageBufferWithCapacity(this.context.device, Uint32Array.from(this.lastStates), capacity, true)
+    this.context.buffers.dirtyFlags = createStorageBufferWithCapacity(this.context.device, new Uint32Array(requiredBranes), capacity, true)
+    this.context.buffers.bytecodeOffsets = createStorageBufferWithCapacity(this.context.device, Uint32Array.from(this.context.bytecodeOffsets), capacity)
+    this.context.stagingBuffer = this.context.device.createBuffer({size: capacity * 8, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST})
     this.context.braneCapacity = capacity
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
-    destroyBuffers([
-      previous.braneBlockPtrs,
-      previous.states,
-      previous.dirtyFlags,
-      previous.bytecodeOffsets,
-      previous.stagingBuffer,
-    ])
+    destroyBuffers([previous.braneBlockPtrs, previous.states, previous.dirtyFlags, previous.bytecodeOffsets, previous.stagingBuffer])
   }
 
   private syncStringBuffers(): void {
-    if (this.tryAppendStringBuffers()) {
-      return
-    }
-
-    this.refreshStringBuffers()
+    if (!this.tryAppendStringBuffers()) this.refreshStringBuffers()
   }
 
   private refreshStringBuffers(): void {
@@ -533,18 +418,8 @@ export class GPUWeakRuntime implements WeakRuntime {
     const nextStringHeapWords = atlas.heap.length > 0 ? atlas.heap.length : 1
     const nextStringRegistryCapacityWords = nextCapacityWords(nextStringRegistryWords)
     const nextStringHeapCapacityWords = nextCapacityWords(nextStringHeapWords)
-    const nextStringRegistry = createStorageBufferWithCapacity(
-      this.context.device,
-      atlas.registry.length > 0 ? atlas.registry : new Uint32Array(1),
-      nextStringRegistryCapacityWords,
-      true,
-    )
-    const nextStringHeap = createStorageBufferWithCapacity(
-      this.context.device,
-      atlas.heap.length > 0 ? atlas.heap : new Uint32Array(1),
-      nextStringHeapCapacityWords,
-      true,
-    )
+    const nextStringRegistry = createStorageBufferWithCapacity(this.context.device, atlas.registry.length > 0 ? atlas.registry : new Uint32Array(1), nextStringRegistryCapacityWords, true)
+    const nextStringHeap = createStorageBufferWithCapacity(this.context.device, atlas.heap.length > 0 ? atlas.heap : new Uint32Array(1), nextStringHeapCapacityWords, true)
     const previousStringRegistry = this.context.buffers.stringRegistry
     const previousStringHeap = this.context.buffers.stringHeap
 
@@ -557,23 +432,14 @@ export class GPUWeakRuntime implements WeakRuntime {
     this.context.stringHeapWords = nextStringHeapWords
     this.context.stringHeapCapacityWords = nextStringHeapCapacityWords
     this.context.stringTableSnapshot = [...this.store$.stringTable]
-
     destroyBuffers([previousStringRegistry, previousStringHeap])
   }
 
   private tryAppendStringBuffers(): boolean {
     const previousTable = this.context.stringTableSnapshot
     const nextTable = this.store$.stringTable
-
-    if (nextTable.length < previousTable.length) {
-      return false
-    }
-
-    for (let index = 0; index < previousTable.length; index++) {
-      if (nextTable[index] !== previousTable[index]) {
-        return false
-      }
-    }
+    if (nextTable.length < previousTable.length) return false
+    for (let index = 0; index < previousTable.length; index++) if (nextTable[index] !== previousTable[index]) return false
 
     const appended = createStringAtlasAppendExport(nextTable, previousTable.length, this.context.stringHeapWords)
     if (appended.count === 0) {
@@ -582,30 +448,11 @@ export class GPUWeakRuntime implements WeakRuntime {
       return true
     }
 
-    const canGrowRegistryInPlace =
-      this.context.stringRegistryWords + appended.registry.length <= this.context.stringRegistryCapacityWords
-    const canGrowHeapInPlace =
-      this.context.stringHeapWords + appended.heap.length <= this.context.stringHeapCapacityWords
+    const canGrowRegistryInPlace = this.context.stringRegistryWords + appended.registry.length <= this.context.stringRegistryCapacityWords
+    const canGrowHeapInPlace = this.context.stringHeapWords + appended.heap.length <= this.context.stringHeapCapacityWords
     if (canGrowRegistryInPlace && canGrowHeapInPlace) {
-      if (appended.registry.length > 0) {
-        this.context.device.queue.writeBuffer(
-          this.context.buffers.stringRegistry,
-          this.context.stringRegistryWords * 4,
-          appended.registry.buffer,
-          appended.registry.byteOffset,
-          appended.registry.byteLength,
-        )
-      }
-      if (appended.heap.length > 0) {
-        this.context.device.queue.writeBuffer(
-          this.context.buffers.stringHeap,
-          this.context.stringHeapWords * 4,
-          appended.heap.buffer,
-          appended.heap.byteOffset,
-          appended.heap.byteLength,
-        )
-      }
-
+      if (appended.registry.length > 0) this.context.device.queue.writeBuffer(this.context.buffers.stringRegistry, this.context.stringRegistryWords * 4, appended.registry.buffer, appended.registry.byteOffset, appended.registry.byteLength)
+      if (appended.heap.length > 0) this.context.device.queue.writeBuffer(this.context.buffers.stringHeap, this.context.stringHeapWords * 4, appended.heap.buffer, appended.heap.byteOffset, appended.heap.byteLength)
       this.context.stringTableSize = nextTable.length
       this.context.stringRegistryWords += appended.registry.length
       this.context.stringHeapWords += appended.heap.length
@@ -619,42 +466,16 @@ export class GPUWeakRuntime implements WeakRuntime {
     const nextStringHeapWords = this.context.stringHeapWords + appended.heap.length
     const nextStringRegistryCapacityWords = nextCapacityWords(nextStringRegistryWords)
     const nextStringHeapCapacityWords = nextCapacityWords(nextStringHeapWords)
-    const nextStringRegistry = this.context.device.createBuffer({
-      size: nextStringRegistryCapacityWords * 4,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
-    })
-    const nextStringHeap = this.context.device.createBuffer({
-      size: nextStringHeapCapacityWords * 4,
-      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
-    })
+    const nextStringRegistry = this.context.device.createBuffer({size: nextStringRegistryCapacityWords * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC})
+    const nextStringHeap = this.context.device.createBuffer({size: nextStringHeapCapacityWords * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC})
 
     const command = this.context.device.createCommandEncoder()
-    if (this.context.stringRegistryWords > 0) {
-      command.copyBufferToBuffer(previousStringRegistry, 0, nextStringRegistry, 0, this.context.stringRegistryWords * 4)
-    }
-    if (this.context.stringHeapWords > 0) {
-      command.copyBufferToBuffer(previousStringHeap, 0, nextStringHeap, 0, this.context.stringHeapWords * 4)
-    }
+    if (this.context.stringRegistryWords > 0) command.copyBufferToBuffer(previousStringRegistry, 0, nextStringRegistry, 0, this.context.stringRegistryWords * 4)
+    if (this.context.stringHeapWords > 0) command.copyBufferToBuffer(previousStringHeap, 0, nextStringHeap, 0, this.context.stringHeapWords * 4)
     this.context.device.queue.submit([command.finish()])
 
-    if (appended.registry.length > 0) {
-      this.context.device.queue.writeBuffer(
-        nextStringRegistry,
-        this.context.stringRegistryWords * 4,
-        appended.registry.buffer,
-        appended.registry.byteOffset,
-        appended.registry.byteLength,
-      )
-    }
-    if (appended.heap.length > 0) {
-      this.context.device.queue.writeBuffer(
-        nextStringHeap,
-        this.context.stringHeapWords * 4,
-        appended.heap.buffer,
-        appended.heap.byteOffset,
-        appended.heap.byteLength,
-      )
-    }
+    if (appended.registry.length > 0) this.context.device.queue.writeBuffer(nextStringRegistry, this.context.stringRegistryWords * 4, appended.registry.buffer, appended.registry.byteOffset, appended.registry.byteLength)
+    if (appended.heap.length > 0) this.context.device.queue.writeBuffer(nextStringHeap, this.context.stringHeapWords * 4, appended.heap.buffer, appended.heap.byteOffset, appended.heap.byteLength)
 
     this.context.buffers.stringRegistry = nextStringRegistry
     this.context.buffers.stringHeap = nextStringHeap
@@ -665,25 +486,16 @@ export class GPUWeakRuntime implements WeakRuntime {
     this.context.stringHeapWords = nextStringHeapWords
     this.context.stringHeapCapacityWords = nextStringHeapCapacityWords
     this.context.stringTableSnapshot = [...nextTable]
-
     destroyBuffers([previousStringRegistry, previousStringHeap])
     return true
   }
 
   private refreshHeapBuffers(): void {
     const nextDerived = deriveWeakData(this.store$)
-    const nextBraneBlockPtrs = createStorageBufferWithCapacity(
-      this.context.device,
-      Uint32Array.from(nextDerived.blockPtrs),
-      this.context.braneCapacity,
-    )
+    const nextBraneBlockPtrs = createStorageBufferWithCapacity(this.context.device, Uint32Array.from(nextDerived.blockPtrs), this.context.braneCapacity)
     const nextHeapWords = nextDerived.heap.length > 0 ? nextDerived.heap.length : 1
     const nextHeapCapacityWords = nextCapacityWords(nextHeapWords)
-    const nextHeap = createStorageBufferWithCapacity(
-      this.context.device,
-      nextDerived.heap.length > 0 ? nextDerived.heap : new Uint32Array(1),
-      nextHeapCapacityWords,
-    )
+    const nextHeap = createStorageBufferWithCapacity(this.context.device, nextDerived.heap.length > 0 ? nextDerived.heap : new Uint32Array(1), nextHeapCapacityWords)
     const previousBraneBlockPtrs = this.context.buffers.braneBlockPtrs
     const previousHeap = this.context.buffers.heap
 
@@ -697,20 +509,11 @@ export class GPUWeakRuntime implements WeakRuntime {
     this.context.heapCapacityWords = nextHeapCapacityWords
     this.context.braneBlockPtrs = nextDerived.blockPtrs
     this.context.sharedBlockPtrs = nextDerived.sharedBlockPtrs
-    this.context.arraySlots = createInitialArrayHeapIndex(
-      nextDerived.heap,
-      nextDerived.blockPtrs,
-      nextDerived.sharedBlockPtrs,
-      this.store$.fields,
-    )
+    this.context.arraySlots = createInitialArrayHeapIndex(nextDerived.heap, nextDerived.blockPtrs, nextDerived.sharedBlockPtrs, this.store$.fields)
     this.context.arrayFreeList = []
     this.context.stringTableSize = this.store$.stringTable.length
-    this.context.blockAllocationWordsByPtr = new Map(
-      [...nextDerived.sharedBlockPtrs, ...nextDerived.blockPtrs]
-        .map((ptr) => [ptr, this.packedBlockWords(nextDerived.heap, ptr)]),
-    )
+    this.context.blockAllocationWordsByPtr = new Map([...nextDerived.sharedBlockPtrs, ...nextDerived.blockPtrs].map((ptr) => [ptr, this.packedBlockWords(nextDerived.heap, ptr)]))
     this.context.deadHeapWords = 0
-
     destroyBuffers([previousBraneBlockPtrs, previousHeap])
   }
 
@@ -722,24 +525,13 @@ export class GPUWeakRuntime implements WeakRuntime {
     mirror.set(derived.bytecode)
     const previousBytecode = this.context.buffers.bytecode
     const previousOffsets = this.context.buffers.bytecodeOffsets
-    this.context.buffers.bytecode = createStorageBufferWithCapacity(
-      this.context.device,
-      derived.bytecode.length > 0 ? derived.bytecode : new Uint32Array(1),
-      capacity,
-    )
-    this.context.buffers.bytecodeOffsets = createStorageBufferWithCapacity(
-      this.context.device,
-      derived.bytecodeOffsets.length > 0 ? derived.bytecodeOffsets : new Uint32Array(1),
-      this.context.braneCapacity,
-    )
+    this.context.buffers.bytecode = createStorageBufferWithCapacity(this.context.device, derived.bytecode.length > 0 ? derived.bytecode : new Uint32Array(1), capacity)
+    this.context.buffers.bytecodeOffsets = createStorageBufferWithCapacity(this.context.device, derived.bytecodeOffsets.length > 0 ? derived.bytecodeOffsets : new Uint32Array(1), this.context.braneCapacity)
     this.context.bytecodeMirror = mirror
     this.context.bytecodeWords = words
     this.context.bytecodeCapacityWords = capacity
     this.context.bytecodeOffsets = Array.from(derived.bytecodeOffsets)
-    this.context.bytecodeWordsByBrane = Array.from(
-      derived.bytecodeOffsets,
-      (offset, index) => (derived.bytecodeOffsets[index + 1] ?? derived.bytecode.length) - offset,
-    )
+    this.context.bytecodeWordsByBrane = Array.from(derived.bytecodeOffsets, (offset, index) => (derived.bytecodeOffsets[index + 1] ?? derived.bytecode.length) - offset)
     this.context.deadBytecodeWords = 0
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
     destroyBuffers([previousBytecode, previousOffsets])
@@ -766,301 +558,142 @@ export class GPUWeakRuntime implements WeakRuntime {
     const writes: Array<{ offset: number; value1: number; value2?: number }> = []
     let heapMirror = this.context.heapMirror
     let requiresFullHeapWrite = false
-
     for (const update of updates) {
       if (update.kind === "lock") {
         const blockPtr = this.context.braneBlockPtrs[update.braneIndex]
-        if (blockPtr === undefined) {
-          return false
-        }
+        if (blockPtr === undefined) return false
         writes.push({ offset: blockPtr + 2, value1: update.value ? 1 : 0 })
         heapMirror[blockPtr + 2] = update.value ? 1 : 0
         continue
       }
-
-      if (this.store$.fields[update.fieldIndex]?.type === FIELD_TYPE.ARRAY_PTR) {
-        requiresFullHeapWrite = true
-      }
+      if (this.store$.fields[update.fieldIndex]?.type === FIELD_TYPE.ARRAY_PTR) requiresFullHeapWrite = true
       const nextResult = this.resolveFieldWrites(update.braneIndex, update.fieldIndex, heapMirror)
-      if (!nextResult) {
-        return false
-      }
-
+      if (!nextResult) return false
       if (nextResult.heapMirror && nextResult.heapMirror !== heapMirror) {
         heapMirror = nextResult.heapMirror
         this.replaceHeapBuffer(heapMirror)
       }
-
-      for (const write of nextResult.writes) {
-        writes.push(write)
-      }
+      for (const write of nextResult.writes) writes.push(write)
     }
-
     this.context.heapMirror = heapMirror
-    if (requiresFullHeapWrite) {
-      this.context.device.queue.writeBuffer(
-        this.context.buffers.heap,
-        0,
-        heapMirror.buffer,
-        heapMirror.byteOffset,
-        heapMirror.byteLength,
-      )
-    } else {
-      updateGpuHeapFields(this.context.device, this.context.buffers.heap, writes)
-    }
+    if (requiresFullHeapWrite) this.context.device.queue.writeBuffer(this.context.buffers.heap, 0, heapMirror.buffer, heapMirror.byteOffset, heapMirror.byteLength)
+    else updateGpuHeapFields(this.context.device, this.context.buffers.heap, writes)
     return true
   }
 
-  private resolveFieldWrites(
-    braneIndex: number,
-    fieldIndex: number,
-    heapMirror: Uint32Array,
-  ): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
+  private resolveFieldWrites(braneIndex: number, fieldIndex: number, heapMirror: Uint32Array): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
     const location = this.store$.getFieldLocation(braneIndex, fieldIndex)
     const field = this.store$.fields[fieldIndex]
-    if (!location || !field) {
-      return null
-    }
-
-    const blockPtr =
-      location.scope === "local"
-        ? this.context.braneBlockPtrs[braneIndex]
-        : this.context.sharedBlockPtrs[location.blockIndex]
-    if (blockPtr === undefined) {
-      return null
-    }
-
+    if (!location || !field) return null
+    const blockPtr = location.scope === "local" ? this.context.braneBlockPtrs[braneIndex] : this.context.sharedBlockPtrs[location.blockIndex]
+    if (blockPtr === undefined) return null
     const valueOffset = findFieldValueOffset(heapMirror, blockPtr, fieldIndex)
-    if (valueOffset === null) {
-      return null
-    }
-
-    if (field.type === FIELD_TYPE.ARRAY_PTR) {
-      return this.resolveArrayWrites(heapMirror, valueOffset, fieldIndex, location.record.value)
-    }
-
+    if (valueOffset === null) return null
+    if (field.type === FIELD_TYPE.ARRAY_PTR) return this.resolveArrayWrites(heapMirror, valueOffset, fieldIndex, location.record.value)
     const encoded = encodeValue(location.record.value, createPackContext(field, this.store$.stringTable))
     heapMirror[valueOffset] = encoded.value1
-
     heapMirror[valueOffset + 1] = encoded.value2
     return { writes: [{ offset: valueOffset, value1: encoded.value1, value2: encoded.value2 }] }
   }
 
-  private resolveArrayWrites(
-    heapMirror: Uint32Array,
-    valueOffset: number,
-    fieldIndex: number,
-    value: MatrixValue,
-  ): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
-    if (value !== null && !Array.isArray(value)) {
-      return null
-    }
-
+  private resolveArrayWrites(heapMirror: Uint32Array, valueOffset: number, fieldIndex: number, value: MatrixValue): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
+    if (value !== null && !Array.isArray(value)) return null
     const currentPtr = heapMirror[valueOffset] ?? 0
     const currentSlot = this.context.arraySlots.get(valueOffset)
     if (value === null) {
-      if (currentSlot) {
-        this.releaseArraySlot(currentSlot)
-        this.context.arraySlots.delete(valueOffset)
-      }
+      if (currentSlot) { this.releaseArraySlot(currentSlot); this.context.arraySlots.delete(valueOffset) }
       heapMirror[valueOffset] = 0
       heapMirror[valueOffset + 1] = 0
       return { writes: [{ offset: valueOffset, value1: 0, value2: 0 }] }
     }
-
     if (value.length === 0) {
-      if (currentSlot) {
-        this.releaseArraySlot(currentSlot)
-        this.context.arraySlots.delete(valueOffset)
-      }
+      if (currentSlot) { this.releaseArraySlot(currentSlot); this.context.arraySlots.delete(valueOffset) }
       heapMirror[valueOffset] = 0
       heapMirror[valueOffset + 1] = 1
       return { writes: [{ offset: valueOffset, value1: 0, value2: 1 }] }
     }
-
     const currentLength = currentPtr === 0 ? 0 : (heapMirror[currentPtr] ?? 0)
     if (currentLength !== value.length) {
       const field = this.store$.fields[fieldIndex]
-      if (!field) {
-        return null
-      }
-
+      if (!field) return null
       const requiredSize = 1 + value.length
       let targetSlot = currentSlot
-      if (targetSlot && targetSlot.size < requiredSize) {
-        this.releaseArraySlot(targetSlot)
-        this.context.arraySlots.delete(valueOffset)
-        targetSlot = undefined
-      }
-
-      if (!targetSlot) {
-        targetSlot = this.takeArraySlot(requiredSize)
-      }
-
+      if (targetSlot && targetSlot.size < requiredSize) { this.releaseArraySlot(targetSlot); this.context.arraySlots.delete(valueOffset); targetSlot = undefined }
+      if (!targetSlot) targetSlot = this.takeArraySlot(requiredSize)
       let nextHeapMirror = heapMirror
-      if (!targetSlot) {
-        const allocation = this.allocateArrayTail(requiredSize, heapMirror)
-        nextHeapMirror = allocation.heapMirror
-        targetSlot = allocation.slot
-      }
-
-      if (currentSlot && targetSlot.ptr === currentSlot.ptr && currentSlot.size > requiredSize) {
-        this.releaseArraySlot({ ptr: currentSlot.ptr + requiredSize, size: currentSlot.size - requiredSize })
-      }
-
+      if (!targetSlot) { const allocation = this.allocateArrayTail(requiredSize, heapMirror); nextHeapMirror = allocation.heapMirror; targetSlot = allocation.slot }
+      if (currentSlot && targetSlot.ptr === currentSlot.ptr && currentSlot.size > requiredSize) this.releaseArraySlot({ ptr: currentSlot.ptr + requiredSize, size: currentSlot.size - requiredSize })
       nextHeapMirror[targetSlot.ptr] = value.length
       const arrayContext = createPackContext(field, this.store$.stringTable)
-      value.forEach((item, index) => {
-        nextHeapMirror[targetSlot.ptr + 1 + index] = encodeValue(
-          item,
-          {
-            type: arrayContext.subType ?? VALUE_TYPE.FLOAT,
-            stringTable: this.store$.stringTable,
-          },
-        ).value1
-      })
-
+      value.forEach((item, index) => { nextHeapMirror[targetSlot!.ptr + 1 + index] = encodeValue(item, {type: arrayContext.subType ?? VALUE_TYPE.FLOAT, stringTable: this.store$.stringTable}).value1 })
       nextHeapMirror[valueOffset] = targetSlot.ptr
       nextHeapMirror[valueOffset + 1] = 1
       this.context.arraySlots.set(valueOffset, { ptr: targetSlot.ptr, size: requiredSize })
-      return {
-        heapMirror: nextHeapMirror,
-        writes: [
-          { offset: valueOffset, value1: targetSlot.ptr, value2: 1 },
-          ...Array.from({ length: requiredSize }, (_, index) => ({
-            offset: targetSlot!.ptr + index,
-            value1: nextHeapMirror[targetSlot!.ptr + index]!,
-          })),
-        ],
-      }
+      return {heapMirror: nextHeapMirror, writes: [{ offset: valueOffset, value1: targetSlot.ptr, value2: 1 }, ...Array.from({ length: requiredSize }, (_, index) => ({offset: targetSlot!.ptr + index, value1: nextHeapMirror[targetSlot!.ptr + index]!}))]}
     }
-
     const field = this.store$.fields[fieldIndex]
-    if (!field) {
-      return null
-    }
-
+    if (!field) return null
     const arrayContext = createPackContext(field, this.store$.stringTable)
-    const encodedItems = value.map((item) =>
-      encodeValue(
-        item,
-        {
-          type: arrayContext.subType ?? VALUE_TYPE.FLOAT,
-          stringTable: this.store$.stringTable,
-        },
-      ).value1,
-    )
-
+    const encodedItems = value.map((item) => encodeValue(item, {type: arrayContext.subType ?? VALUE_TYPE.FLOAT, stringTable: this.store$.stringTable}).value1)
     const arrayWords = new Uint32Array(1 + encodedItems.length)
     arrayWords[0] = value.length
-    encodedItems.forEach((item, index) => {
-      arrayWords[index + 1] = item
-      heapMirror[currentPtr + 1 + index] = item
-    })
-
+    encodedItems.forEach((item, index) => { arrayWords[index + 1] = item; heapMirror[currentPtr + 1 + index] = item })
     heapMirror[currentPtr] = value.length
     heapMirror[valueOffset] = currentPtr
     heapMirror[valueOffset + 1] = 1
     this.context.arraySlots.set(valueOffset, { ptr: currentPtr, size: 1 + value.length })
-
-    return {
-      writes: [
-        { offset: valueOffset, value1: currentPtr, value2: 1 },
-        ...Array.from(arrayWords).map((word, index) => ({
-          offset: currentPtr + index,
-          value1: word,
-        })),
-      ],
-    }
+    return {writes: [{ offset: valueOffset, value1: currentPtr, value2: 1 }, ...Array.from(arrayWords).map((word, index) => ({offset: currentPtr + index, value1: word}))]}
   }
 
   private replaceHeapBuffer(nextHeapMirror: Uint32Array): void {
     const nextHeapWords = nextHeapMirror.length > 0 ? nextHeapMirror.length : 1
     if (nextHeapWords <= this.context.heapCapacityWords) {
       this.context.device.queue.writeBuffer(this.context.buffers.heap, 0, nextHeapMirror.buffer, nextHeapMirror.byteOffset, nextHeapMirror.byteLength)
-    this.context.heapWords = nextHeapWords
-    return
+      this.context.heapWords = nextHeapWords
+      return
     }
-
     const previousHeap = this.context.buffers.heap
     const nextHeapCapacityWords = nextCapacityWords(nextHeapWords)
-    const nextHeap = createStorageBufferWithCapacity(
-      this.context.device,
-      nextHeapMirror.length > 0 ? nextHeapMirror : new Uint32Array(1),
-      nextHeapCapacityWords,
-    )
-
-    this.context.buffers.heap = nextHeap
+    this.context.buffers.heap = createStorageBufferWithCapacity(this.context.device, nextHeapMirror.length > 0 ? nextHeapMirror : new Uint32Array(1), nextHeapCapacityWords)
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
     this.context.heapWords = nextHeapWords
     this.context.heapCapacityWords = nextHeapCapacityWords
-
     destroyBuffers([previousHeap])
   }
 
   private allocateArrayTail(requiredSize: number, heapMirror: Uint32Array): { heapMirror: Uint32Array; slot: ArrayHeapSlot } {
     const previousHeapWords = this.context.heapWords
     const nextHeapWords = this.context.heapWords + requiredSize
-    if (nextHeapWords <= heapMirror.length) {
-      this.context.heapWords = nextHeapWords
-      return {
-        heapMirror,
-        slot: { ptr: previousHeapWords, size: requiredSize },
-      }
-    }
-
+    if (nextHeapWords <= heapMirror.length) { this.context.heapWords = nextHeapWords; return {heapMirror, slot: { ptr: previousHeapWords, size: requiredSize }} }
     const expandedCapacityWords = nextCapacityWords(nextHeapWords)
     const nextHeapMirror = new Uint32Array(expandedCapacityWords)
     nextHeapMirror.set(heapMirror.subarray(0, this.context.heapWords))
     this.context.heapWords = nextHeapWords
-    return {
-      heapMirror: nextHeapMirror,
-      slot: { ptr: previousHeapWords, size: requiredSize },
-    }
+    return {heapMirror: nextHeapMirror, slot: { ptr: previousHeapWords, size: requiredSize }}
   }
 
   private takeArraySlot(requiredSize: number): ArrayHeapSlot | undefined {
     let bestIndex = -1
     let bestSize = Number.POSITIVE_INFINITY
-
     for (let index = 0; index < this.context.arrayFreeList.length; index++) {
       const slot = this.context.arrayFreeList[index]!
-      if (slot.size < requiredSize) {
-        continue
-      }
-      if (slot.size < bestSize) {
-        bestIndex = index
-        bestSize = slot.size
-      }
+      if (slot.size < requiredSize) continue
+      if (slot.size < bestSize) { bestIndex = index; bestSize = slot.size }
     }
-
-    if (bestIndex === -1) {
-      return undefined
-    }
-
+    if (bestIndex === -1) return undefined
     const slot = this.context.arrayFreeList.splice(bestIndex, 1)[0]!
-    if (slot.size > requiredSize) {
-      this.releaseArraySlot({ ptr: slot.ptr + requiredSize, size: slot.size - requiredSize })
-      return { ptr: slot.ptr, size: requiredSize }
-    }
+    if (slot.size > requiredSize) { this.releaseArraySlot({ ptr: slot.ptr + requiredSize, size: slot.size - requiredSize }); return { ptr: slot.ptr, size: requiredSize } }
     return slot
   }
 
   private releaseArraySlot(slot: ArrayHeapSlot): void {
-    if (slot.size <= 0) {
-      return
-    }
-
-    let nextSlot = slot
-    const freeList = [...this.context.arrayFreeList, nextSlot].sort((left, right) => left.ptr - right.ptr)
+    if (slot.size <= 0) return
+    const freeList = [...this.context.arrayFreeList, slot].sort((left, right) => left.ptr - right.ptr)
     const merged: ArrayHeapSlot[] = []
     for (const candidate of freeList) {
       const previous = merged[merged.length - 1]
-      if (previous && previous.ptr + previous.size === candidate.ptr) {
-        previous.size += candidate.size
-      } else {
-        merged.push({ ptr: candidate.ptr, size: candidate.size })
-      }
+      if (previous && previous.ptr + previous.size === candidate.ptr) previous.size += candidate.size
+      else merged.push({ ptr: candidate.ptr, size: candidate.size })
     }
     this.context.arrayFreeList = merged
   }
