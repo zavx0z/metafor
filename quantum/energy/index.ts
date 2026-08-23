@@ -1,4 +1,4 @@
-import type { ProcessEnv } from "@metafor/types/energy/process"
+import type {ProcessEnv} from "@energy/types/process"
 
 export function readEnergyEnv(value: unknown): ProcessEnv | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null
