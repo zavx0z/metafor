@@ -11,8 +11,8 @@
  * @packageDocumentation
  */
 
-import type {MatrixInputData} from "@metafor/types/matrix/data"
-import type {MatrixData} from "@metafor/types/matrix/store"
+import type {MatrixInputData} from "@matrix/types/data"
+import type {MatrixData} from "@matrix/types/store"
 import {flattenMatrixData, validateData} from "gravity"
 import {assembleStoredMatrixData} from "strong"
 
