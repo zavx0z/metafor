@@ -236,7 +236,7 @@ describe("production UI delivery baseline", () => {
       .map(({source}) => source)
       .join("\n")
     expect(graph).toContain("function ColorInput")
-    expect(graph).toContain("class ColorPickerMaterial")
+    expect(graph).not.toContain("class ColorPickerMaterial")
     expect(graph).toContain("drawColorPickerPlane")
     expect(graph).toContain("function colorPickerPlane")
     expect(graph).not.toContain("@ui/elements/color-picker")
@@ -397,12 +397,17 @@ describe("production UI delivery baseline", () => {
     expect(splitGraph).not.toContain("@ui/playground")
 
     const independentEntries = [
-      join(fixtureRoot, "exact-components-field.fixture.ts"),
-      join(fixtureRoot, "exact-elements-button.fixture.ts"),
-      join(fixtureRoot, "exact-node-editor.fixture.ts"),
+      join(fixtureRoot, "self-contained-field-product.fixture.ts"),
+      join(fixtureRoot, "self-contained-button-product.fixture.ts"),
+      join(fixtureRoot, "self-contained-node-editor-product.fixture.ts"),
     ]
     const independentOutputs = await Promise.all(independentEntries.map(async (entry) =>
       await buildBrowser([entry], false)))
+    for (const outputs of independentOutputs) {
+      const graph = (await outputSources(outputs)).map(({source}) => source).join("\n")
+      expect(occurrences(graph, "class Renderer")).toBe(1)
+      expect(occurrences(graph, "class UiRuntime")).toBe(1)
+    }
     const independentBytes = independentOutputs.flat().reduce((sum, output) => sum + output.size, 0)
     const splitBytes = splitOutputs.reduce((sum, output) => sum + output.size, 0)
     expect(splitBytes).toBeLessThan(independentBytes * 0.6)
