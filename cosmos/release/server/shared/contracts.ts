@@ -4,7 +4,7 @@ import type {
 } from "../../../shared/package/environment"
 import type {BrowserPackageIdentity} from "../../../shared/package/integrity"
 
-/** Hamiltonian package, который предоставляет browser artifact. */
+/** Cosmos package, который предоставляет browser artifact. */
 export type BuildablePackage = string
 
 /** Package, который входит в сменяемый browser release. */
