@@ -6,7 +6,7 @@ import { compileSuperposition, compileConditions, compileEnsemble } from "../wea
 import {compileFlattenedSuperposition as compileGpuSuperposition} from "../weak/gpu/bytecode"
 import { OP } from "../weak"
 import { FieldType } from "../gravity"
-import type { MatrixCollapse } from "@metafor/types/matrix/data"
+import type { MatrixCollapse } from "@matrix/types/data"
 
 describe("compileConditions — компиляция условий", () => {
   beforeEach(() => {
