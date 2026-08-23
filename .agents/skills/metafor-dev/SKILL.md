@@ -15,6 +15,7 @@ scripts/metafor-dev.sh focus <checkout>
 scripts/metafor-dev.sh logs <checkout>
 scripts/metafor-dev.sh restart <checkout>
 scripts/metafor-dev.sh clear-site-data <checkout>
+scripts/metafor-dev.sh sizes <checkout>
 scripts/metafor-dev.sh stop <checkout>
 ```
 
@@ -63,6 +64,11 @@ cache, reloads the same managed target, and waits for the new document. This is
 the permitted direct-CDP path owned by this skill and does not require the
 general-purpose `@meta/chrome` REST service. Do not reproduce its CDP calls by
 hand.
+
+Use `sizes` for package and storage diagnostics. It reports decoded package
+identity bytes, negotiated wire bytes, external source maps, every Cache
+Storage entry, and browser quota usage. The diagnostic uses Bun `fetch`, so
+Brotli support does not depend on the system `curl` build.
 
 Never attach Puppeteer to this persistent Chrome without
 `defaultViewport: null`: Puppeteer's default `800×600` viewport survives on the

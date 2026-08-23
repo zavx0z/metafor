@@ -35,7 +35,7 @@ if (action === "clear-site-data") {
     await send("Page.reload", {ignoreCache: true})
   })
   await waitForDocument(page.webSocketDebuggerUrl)
-  await waitForServiceWorker(page.webSocketDebuggerUrl)
+  await waitForServiceWorker(page.webSocketDebuggerUrl, port, origin)
   const state = await waitForSiteState(page.webSocketDebuggerUrl)
   console.info(`site data: cleared ${origin}`)
   console.info(`target: reloaded ${targetId}`)
@@ -183,8 +183,10 @@ async function readSiteState(url: string) {
   })
 }
 
-async function waitForServiceWorker(url: string) {
+async function waitForServiceWorker(url: string, cdpPort: number, pageOrigin: string) {
+  const resumed = new Set<string>()
   for (let attempt = 0; attempt < 50; attempt++) {
+    await resumeManagedServiceWorkers(cdpPort, pageOrigin, resumed)
     try {
       const active = await withCdp(url, async (send) => {
         const response = await send("Runtime.evaluate", {
@@ -203,6 +205,35 @@ async function waitForServiceWorker(url: string) {
     await Bun.sleep(200)
   }
   throw new Error(`service worker did not become active after site-data cleanup: ${targetId}`)
+}
+
+async function resumeManagedServiceWorkers(
+  cdpPort: number,
+  pageOrigin: string,
+  resumed: Set<string>,
+) {
+  const expectedUrl = new URL("/@cosmos/startup?env=service", pageOrigin).href
+  const targets = await fetch(`http://127.0.0.1:${cdpPort}/json/list`).then(
+    (response) => response.json() as Promise<CdpTarget[]>,
+  )
+  const workers = targets.filter((target) =>
+    target.type === "service_worker"
+    && target.url === expectedUrl
+    && target.webSocketDebuggerUrl
+  )
+  await Promise.all(workers.map(async (target) => {
+    try {
+      await withCdp(target.webSocketDebuggerUrl!, async (send) => {
+        await send("Runtime.runIfWaitingForDebugger")
+      })
+      if (!resumed.has(target.id)) {
+        resumed.add(target.id)
+        console.info(`worker: resumed ${target.id} ${expectedUrl}`)
+      }
+    } catch {
+      // A superseded worker may close between target discovery and resume.
+    }
+  }))
 }
 
 async function waitForSiteState(url: string) {

@@ -43,7 +43,8 @@ fi
 
 if [[ -x $script_dir/metafor-dev.sh \
   && -x $script_dir/terminal-runner.sh \
-  && -f $script_dir/chrome-target.ts ]]; then
+  && -f $script_dir/chrome-target.ts \
+  && -f $script_dir/package-sizes.ts ]]; then
   ok "metafor-dev lifecycle scripts"
 else
   fail "metafor-dev lifecycle scripts are not executable"
