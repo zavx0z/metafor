@@ -12,6 +12,7 @@
     "start": "bun server.ts"
   },
   "dependencies": {
+    "@dark/types": "workspace:*",
     "@metafor/types": "workspace:*",
     "create-metafor": "workspace:*",
     "shared": "workspace:*"
