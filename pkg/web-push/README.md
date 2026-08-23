@@ -8,8 +8,8 @@ server. Публичный закон находится в [`CONTRACT.md`](CONT
 `/server` и `/server/bun`; так browser consumer не затягивает server service.
 
 Пакет не открывает `BroadcastChannel`. Для наблюдения приложение передаёт
-необязательный lifecycle hook; Hamiltonian публикует события в собственную
-browser-local шину из этого hook.
+необязательный lifecycle hook и само решает, куда публиковать безопасные
+события этого hook.
 
 Client использует только системный запрос разрешения на уведомления. `denied`
 не запрашивается повторно, а закрытый prompt оставляет `default`, поэтому
