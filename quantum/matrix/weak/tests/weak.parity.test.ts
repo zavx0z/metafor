@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { CPUWeakRuntime } from "../cpu"
 import { GPUWeakRuntime } from "../gpu"
 import { STATE_NONE, StepMode } from "../constants"
-import type { MatrixStore } from "@metafor/types/matrix/store"
+import type { MatrixStore } from "@matrix/types/store"
 import {
   createAlreadyDefinedStateFixture,
   createBranchingFixture,
