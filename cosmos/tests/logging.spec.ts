@@ -10,12 +10,12 @@ import {
   type DiagnosticLevel,
 } from "./fixture/diagnostic-matrix"
 
-const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
+const cosmos = fileURLToPath(new URL("../", import.meta.url))
 const helperScopes = new Map([
-  ["release/server/http/delivery.ts", "[@hamiltonian/release:server:delivery]"],
-  ["release/server/package/build.ts", "[@hamiltonian/release:server:build]"],
-  ["release/server/release/publication.ts", "[@hamiltonian/release:server:update]"],
-  ["release/server/release/update.ts", "[@hamiltonian/release:server:update]"],
+  ["release/server/http/delivery.ts", "[@cosmos/release:server:delivery]"],
+  ["release/server/package/build.ts", "[@cosmos/release:server:build]"],
+  ["release/server/release/publication.ts", "[@cosmos/release:server:update]"],
+  ["release/server/release/update.ts", "[@cosmos/release:server:update]"],
 ])
 
 interface FoundCheckpoint extends DiagnosticCheckpoint {
@@ -32,7 +32,7 @@ test("UPD-003.16 assigns every production diagnostic to one tested story", async
     expect(story.checkpoints.length).toBeGreaterThan(0)
     expect(story.proofs.length).toBeGreaterThan(0)
     for (const proof of story.proofs) {
-      const source = await Bun.file(join(hamiltonian, "tests", proof.file)).text()
+      const source = await Bun.file(join(cosmos, "tests", proof.file)).text()
       expect(source).toContain(JSON.stringify(proof.test))
     }
   }
@@ -52,14 +52,14 @@ test("UPD-003.16 assigns every production diagnostic to one tested story", async
 test("UPD-003.16 keeps all diagnostics structured and owner-scoped", async () => {
   const diagnostics = await productionDiagnostics()
   for (const entry of diagnostics) {
-    expect(entry.scope).toMatch(/^\[@(?:hamiltonian|internal)\/[a-z-]+(?::[a-z-]+)*\]$/)
+    expect(entry.scope).toMatch(/^\[@(?:cosmos|internal)\/[a-z-]+(?::[a-z-]+)*\]$/)
     expect(entry.event.length).toBeGreaterThan(0)
     expect(entry.details.length).toBeGreaterThan(0)
   }
 })
 
 async function productionDiagnostics() {
-  const files = await sourceFiles(hamiltonian)
+  const files = await sourceFiles(cosmos)
   return (await Promise.all(files.map(readDiagnostics))).flat()
 }
 
@@ -76,7 +76,7 @@ async function sourceFiles(root: string): Promise<string[]> {
 }
 
 async function readDiagnostics(path: string) {
-  const file = relative(hamiltonian, path)
+  const file = relative(cosmos, path)
   const source = await Bun.file(path).text()
   const tree = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
   const found: FoundCheckpoint[] = []
