@@ -1,4 +1,4 @@
-import type { MatrixStrongStore } from "@metafor/types/matrix/strong"
+import type { MatrixStrongStore } from "@matrix/types/strong"
 
 export const strong$: MatrixStrongStore = {
   runtimeFieldIndexByWimpFieldId: new Map(),
