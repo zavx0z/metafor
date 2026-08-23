@@ -1,6 +1,6 @@
-# Разработка Hamiltonian
+# Разработка Cosmos
 
-Hamiltonian работает постоянно на `http://127.0.0.1:4444/`. Для обновления
+Cosmos работает постоянно на `http://127.0.0.1:4444/`. Для обновления
 клиентской сборки server не останавливать и не перезапускать.
 
 Skill запускает development contour через `bun run dev`. Этот режим
@@ -11,7 +11,7 @@ source map. Временные diagnostics писать через `console.debu
 третьим — структурированные данные, например:
 
 ```ts
-console.debug("[@hamiltonian/release:service:update]", "новая сборка загружена", {
+console.debug("[@cosmos/release:service:update]", "новая сборка загружена", {
   cache,
   source,
   status,
@@ -82,11 +82,11 @@ environment flags только ради тестирования. После suc
 
 ## Пакеты
 
-* `@internal/*` — внутренняя функциональность Hamiltonian. Один package может
+* `@internal/*` — внутренняя функциональность Cosmos. Один package может
   содержать разные entrypoints для Window, browser Worker, Service Worker,
   Bun server и server Worker; новую функциональность размещать в принадлежащем
   ей internal package.
-* `@hamiltonian/release` — один package с env `main`, `service` и
+* `@cosmos/release` — один package с env `main`, `service` и
   `server`. Он определяет состав используемых `@internal/*` packages и
   меняется вместе с этим составом. RPC Service Worker является внутренней
   частью env `service`, а не отдельным browser package.
@@ -97,10 +97,10 @@ environment flags только ради тестирования. После suc
   Env `server` того же package владеет чтением manifests, сборкой, версиями,
   атомарной публикацией, routes, `/code` и server-реализацией RPC; его artifact
   не загружается browser.
-* `@hamiltonian/startup` — один фиксированный package с env `main` и
+* `@cosmos/startup` — один фиксированный package с env `main` и
   `service`. В обычной разработке его не менять и через endpoint
   обновления не передавать. Он объявляет dependency на
-  `@hamiltonian/release`; public loader/dependencies/runtime types принадлежат
+  `@cosmos/release`; public loader/dependencies/runtime types принадлежат
   release, а startup предоставляет реализацию через type-only bare import.
   Startup синхронно регистрирует `install`, `activate`, `fetch`, `message`,
   сразу запускает release и только связывает browser event с текущим runtime.
@@ -108,13 +108,13 @@ environment flags только ради тестирования. После suc
 
 Имя модуля брать только из поля `name` его `package.json`.
 Сменяемый package также объявляет точную `version`. Cache owner не записывать в
-manifest: `@hamiltonian/startup` принадлежит `startup`,
-`@hamiltonian/release` — `release`, `@internal/*` — `internal`, а
+manifest: `@cosmos/startup` принадлежит `startup`,
+`@cosmos/release` — `release`, `@internal/*` — `internal`, а
 `@metafor/*` — `metafor`.
-Последние доказанные версии перечислены в dependencies корневого Hamiltonian
+Последние доказанные версии перечислены в dependencies корневого Cosmos
 package как `workspace:^<version>`.
 
-Caret dependencies `@hamiltonian/release` и `@internal/*` являются полным
+Caret dependencies `@cosmos/release` и `@internal/*` являются полным
 browser release membership. Runtime dependency участника обязан находиться в
 том же membership, а выбранная version — удовлетворять его workspace range.
 Не обходить эту проверку ручным удалением либо несовместимым version bump.
@@ -149,7 +149,7 @@ fallback не добавлять: builder и TypeScript выбирают нуж�
 | `server-worker` | Worker, созданный Bun server | `bun` |
 
 `Service Worker` остаётся полным названием браузерной технологии и стандартных
-Web API. Во всех управляемых Hamiltonian именах — env, condition, source path,
+Web API. Во всех управляемых Cosmos именах — env, condition, source path,
 build script, outfile, URL/cache identity, RPC metadata и lifecycle kind — её
 единственное сокращение имеет точный вид `service`. Проектный токен
 `service-worker` не поддерживается. `server-worker` является отдельной Bun-средой
@@ -210,7 +210,7 @@ GET /<package-name>?env=<env>&version=<semver>
 ```
 
 Service Worker перехватывает стабильный package URL, но сохраняет code только
-по точному versioned endpoint в cache владельца: `@hamiltonian/release` —
+по точному versioned endpoint в cache владельца: `@cosmos/release` —
 `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`. Имя отдельного
 package в правила кэширования не добавлять. После commit каждый canonical owner cache
 содержит ровно одну exact entry на `(package, env)` и не содержит stable либо
@@ -222,7 +222,7 @@ marker `/transaction`; delta, desired composition и IDs в marker не хран
 Worker сохраняет там только проверенные `update` artifacts, добавляет все
 candidates в canonical caches без old deletion и повторно проверяет полный
 candidate composition. После этого cleanup идёт только вперёд; старый
-`@hamiltonian/release:service` удаляется последним из old entries,
+`@cosmos/release:service` удаляется последним из old entries,
 а `transaction` — последней durable операцией после final verification.
 
 После остановки release заново собирает canonical current и получает fresh
@@ -243,7 +243,7 @@ verification и удаления `transaction`. Затем startup направ�
 Пример:
 
 ```text
-GET http://127.0.0.1:4444/@hamiltonian/release?env=service
+GET http://127.0.0.1:4444/@cosmos/release?env=service
 GET http://127.0.0.1:4444/@internal/visual?env=main&version=0.1.3
 ```
 
@@ -278,7 +278,7 @@ Content-Type: application/json
 
 {
   "packages": [
-    {"name": "@hamiltonian/release", "change": "patch"},
+    {"name": "@cosmos/release", "change": "patch"},
     {"name": "@internal/visual", "change": "minor"}
   ]
 }
@@ -286,7 +286,7 @@ Content-Type: application/json
 
 `change` принимает только `patch`, `minor` или `major`. Готовый номер версии не
 передавать: host вычисляет его от последней доказанной версии. Передавать одной
-группой все изменённые взаимозависимые `@hamiltonian/release` и `@internal/*`
+группой все изменённые взаимозависимые `@cosmos/release` и `@internal/*`
 packages.
 Query parameters для `POST` не использовать. После успешного ответа browser
 транзакционно обновит всю группу и перезагрузится сам.
@@ -321,5 +321,5 @@ startup до открытия listener доводит видимый root intent
 
 После `200` проверить, что страница снова загрузилась и работает с ожидаемым
 изменением. Если Worker спал или пропустил RPC, он сверится через `GET /code`
-после подключения и применит то же обновление. Hamiltonian не перезапускать и
+после подключения и применит то же обновление. Cosmos не перезапускать и
 страницу вручную не перезагружать.

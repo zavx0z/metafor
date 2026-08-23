@@ -6,7 +6,7 @@ action=${1:-status}
 script_dir=$(cd "$(dirname "$0")" && pwd)
 default_repo=$(cd "$script_dir/../../../.." && pwd)
 repo=${2:-$default_repo}
-hamiltonian="$repo/hamiltonian"
+cosmos="$repo/cosmos"
 iterm_app=/Applications/iTerm.app
 chrome_app=/Applications/Google\ Chrome.app
 chrome_executable="$chrome_app/Contents/MacOS/Google Chrome"
@@ -22,16 +22,16 @@ validate_repo() {
   root=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null) \
     || die "not a Git checkout: $repo"
   [[ $root == "$repo" ]] || die "pass the exact checkout root, got: $repo"
-  [[ -f $hamiltonian/package.json && -f $hamiltonian/server.ts ]] \
-    || die "Hamiltonian package is missing: $hamiltonian"
+  [[ -f $cosmos/package.json && -f $cosmos/server.ts ]] \
+    || die "Cosmos package is missing: $cosmos"
   jq -e '.scripts.dev | type == "string" and length > 0' \
-    "$hamiltonian/package.json" >/dev/null \
-    || die "hamiltonian scripts.dev is missing"
+    "$cosmos/package.json" >/dev/null \
+    || die "cosmos scripts.dev is missing"
 }
 
 package_port() {
   jq -r '.scripts.dev | try capture("--port=(?<port>[0-9]+)").port catch ""' \
-    "$hamiltonian/package.json"
+    "$cosmos/package.json"
 }
 
 repo_key() {
@@ -50,61 +50,86 @@ on run argv
   set markerValue to item 1 of argv
   set operationName to item 2 of argv
   set commandText to item 3 of argv
-  set foundSession to missing value
+  set matchedWindowId to missing value
+  set matchedTabPosition to missing value
+  set matchedSessionPosition to missing value
+  set matchedSessionId to missing value
+  set matchedTty to missing value
 
   tell application "iTerm2"
     if operationName is "window-count" then return count of windows
 
     repeat with terminalWindow in windows
+      set tabPosition to 0
       repeat with terminalTab in tabs of terminalWindow
+        set tabPosition to tabPosition + 1
+        set sessionPosition to 0
         repeat with terminalSession in sessions of terminalTab
+          set sessionPosition to sessionPosition + 1
           set currentMarker to ""
           try
             tell terminalSession to set currentMarker to variable named "user.metaforDev"
             if currentMarker is markerValue then
-              set foundSession to terminalSession
+              set matchedWindowId to id of terminalWindow
+              set matchedTabPosition to tabPosition
+              set matchedSessionPosition to sessionPosition
+              set matchedSessionId to unique id of terminalSession
+              set matchedTty to tty of terminalSession
               exit repeat
             end if
           end try
         end repeat
-        if foundSession is not missing value then exit repeat
+        if matchedSessionId is not missing value then exit repeat
       end repeat
-      if foundSession is not missing value then exit repeat
+      if matchedSessionId is not missing value then exit repeat
     end repeat
 
-    if foundSession is missing value then
-      if operationName is "adopt" then
-        if (count of windows) is not 1 then return "ambiguous"
-        set foundSession to current session of current tab of current window
-        tell foundSession to set variable named "user.metaforDev" to markerValue
-        tell foundSession to write text (ASCII character 3) newline NO
-        delay 0.1
-        tell foundSession to write text commandText
-        return "adopted\t" & (tty of foundSession)
-      else if operationName is "create" then
+    if matchedSessionId is not missing value then
+      set matchedWindow to window id matchedWindowId
+      set matchedTab to tab matchedTabPosition of matchedWindow
+      set matchedSession to session matchedSessionPosition of matchedTab
+      if unique id of matchedSession is not matchedSessionId then return "changed"
+
+      if operationName is "focus" then
         activate
-        set newWindow to create window with default profile command commandText
-        set foundSession to current session of current tab of newWindow
-        tell foundSession to set variable named "user.metaforDev" to markerValue
-        return "created\t" & (tty of foundSession)
+        tell matchedWindow to select
+        tell matchedTab to select
+        tell matchedSession to select
+      else if operationName is "write" then
+        activate
+        tell matchedWindow to select
+        tell matchedTab to select
+        tell matchedSession to select
+        tell matchedSession to write text (ASCII character 3) newline NO
+        delay 0.1
+        tell matchedSession to write text commandText
+      else if operationName is "logs" then
+        return contents of matchedSession
       end if
-      return "missing"
-    end if
-
-    if operationName is "focus" then
-      activate
-      select foundSession
-    else if operationName is "write" then
-      activate
-      select foundSession
-      tell foundSession to write text (ASCII character 3) newline NO
+      return "found\t" & matchedTty
+    else if operationName is "adopt" then
+      if (count of windows) is not 1 then return "ambiguous"
+      set adoptedWindow to current window
+      set adoptedTab to current tab of adoptedWindow
+      set adoptedSession to current session of adoptedTab
+      tell adoptedWindow to select
+      tell adoptedTab to select
+      tell adoptedSession to select
+      tell adoptedSession to set variable named "user.metaforDev" to markerValue
+      tell adoptedSession to write text (ASCII character 3) newline NO
       delay 0.1
-      tell foundSession to write text commandText
-    else if operationName is "logs" then
-      return contents of foundSession
+      tell adoptedSession to write text commandText
+      return "adopted\t" & (tty of adoptedSession)
+    else if operationName is "create" then
+      activate
+      set newWindow to create window with default profile command commandText
+      set newTab to current tab of newWindow
+      set newSession to current session of newTab
+      tell newSession to set variable named "user.metaforDev" to markerValue
+      return "created\t" & (tty of newSession)
     end if
 
-    return "found\t" & (tty of foundSession)
+    return "missing"
   end tell
 end run
 APPLESCRIPT
@@ -140,7 +165,7 @@ repo_processes() {
     [[ -n $pid ]] || continue
     cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null \
       | sed -n 's/^n//p' | head -1 || true)
-    [[ $cwd == "$hamiltonian" ]] || continue
+    [[ $cwd == "$cosmos" ]] || continue
     command=$(ps -p "$pid" -o command= 2>/dev/null || true)
     case "$command" in
       *"bun run dev"*|*"bun run start"*|*"bun run server.ts"*|*"bun --port=$expected_port server"*) ;;
@@ -162,13 +187,13 @@ ensure_process_ownership() {
   tty_value=$(iterm_tty 2>/dev/null || true)
   if [[ -z $tty_value ]]; then
     printf '%s\n' "$processes" >&2
-    die "Hamiltonian already runs outside the managed iTerm session"
+    die "Cosmos already runs outside the managed iTerm session"
   fi
   tty_value=${tty_value#/dev/}
   foreign=$(awk -F '\t' -v tty_value="$tty_value" '$2 != tty_value {print}' <<<"$processes")
   if [[ -n $foreign ]]; then
     printf '%s\n' "$foreign" >&2
-    die "Hamiltonian process does not belong to managed iTerm TTY $tty_value"
+    die "Cosmos process does not belong to managed iTerm TTY $tty_value"
   fi
 }
 
@@ -238,16 +263,16 @@ shell_command() {
   printf '/bin/zsh -l -c %q' "exec $quoted_script $quoted_repo"
 }
 
-wait_hamiltonian() {
+wait_cosmos() {
   local origin=$1 attempt
   for attempt in $(seq 1 100); do
     if curl -fsS --max-time 1 "$origin/" >/dev/null 2>&1; then
-      printf 'hamiltonian: ready %s\n' "$origin"
+      printf 'cosmos: ready %s\n' "$origin"
       return
     fi
     sleep 0.2
   done
-  die "Hamiltonian did not become ready at $origin"
+  die "Cosmos did not become ready at $origin"
 }
 
 ensure_target() {
@@ -272,7 +297,7 @@ ensure_target() {
 start_contour() {
   local port origin processes state command_text listeners window_count
   port=$(package_port)
-  [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Hamiltonian port from scripts.dev"
+  [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Cosmos port from scripts.dev"
   origin="http://127.0.0.1:$port"
   processes=$(repo_processes)
   state=$(iterm_state)
@@ -281,14 +306,14 @@ start_contour() {
     ensure_process_ownership
     ensure_chrome "$origin/"
     iterm_query focus >/dev/null
-    wait_hamiltonian "$origin"
+    wait_cosmos "$origin"
     ensure_target "$origin"
     printf 'iterm: reused %s\n' "$(iterm_tty)"
     return
   fi
 
   listeners=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
-  [[ -z $listeners ]] || die "Hamiltonian port $port is occupied by process $listeners"
+  [[ -z $listeners ]] || die "Cosmos port $port is occupied by process $listeners"
   ensure_chrome "$origin/"
   command_text=$(shell_command)
   if [[ $state == found$'\t'* ]]; then
@@ -311,7 +336,7 @@ start_contour() {
       printf 'iterm: created %s\n' "${state#*$'\t'}"
     fi
   fi
-  wait_hamiltonian "$origin"
+  wait_cosmos "$origin"
   ensure_process_ownership
   ensure_target "$origin"
 }
@@ -323,41 +348,41 @@ stop_contour() {
   ensure_process_ownership
   parents=$(parent_processes)
   if [[ -z $parents ]]; then
-    printf 'hamiltonian: stopped\niterm: preserved %s\n' "${state#*$'\t'}"
+    printf 'cosmos: stopped\niterm: preserved %s\n' "${state#*$'\t'}"
     return
   fi
-  [[ $(wc -l <<<"$parents" | tr -d ' ') == 1 ]] || die "multiple Hamiltonian parents found"
+  [[ $(wc -l <<<"$parents" | tr -d ' ') == 1 ]] || die "multiple Cosmos parents found"
   parent_pid=$(awk -F '\t' '{print $1}' <<<"$parents")
   kill -TERM "$parent_pid"
   for attempt in $(seq 1 50); do
     kill -0 "$parent_pid" 2>/dev/null || break
     sleep 0.2
   done
-  kill -0 "$parent_pid" 2>/dev/null && die "Hamiltonian did not stop: $parent_pid"
-  printf 'hamiltonian: stopped %s\niterm: preserved %s\n' "$parent_pid" "${state#*$'\t'}"
+  kill -0 "$parent_pid" 2>/dev/null && die "Cosmos did not stop: $parent_pid"
+  printf 'cosmos: stopped %s\niterm: preserved %s\n' "$parent_pid" "${state#*$'\t'}"
 }
 
 clear_site_data() {
   local port origin processes expected targets target_ids target_count target_id
   port=$(package_port)
-  [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Hamiltonian port from scripts.dev"
+  [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Cosmos port from scripts.dev"
   origin="http://127.0.0.1:$port"
   processes=$(repo_processes)
-  [[ -n $processes ]] || die "managed Hamiltonian is not running"
+  [[ -n $processes ]] || die "managed Cosmos is not running"
   ensure_process_ownership
   cdp_ready || die "managed CDP Chrome is unavailable on port $chrome_port"
   expected=$(expected_chrome_processes)
   [[ -n $expected ]] || die "CDP port $chrome_port belongs to another Chrome profile"
   [[ $(wc -l <<<"$expected" | tr -d ' ') == 1 ]] \
     || die "multiple MetaFor CDP Chrome processes found"
-  wait_hamiltonian "$origin"
+  wait_cosmos "$origin"
   targets=$(curl -fsS --max-time 2 "http://127.0.0.1:$chrome_port/json/list")
   target_ids=$(jq -r --arg origin "$origin" \
     '.[] | select(.type == "page" and (.url | startswith($origin))) | .id' \
     <<<"$targets")
   target_count=$(grep -c . <<<"$target_ids" || true)
   [[ $target_count == 1 ]] \
-    || die "expected exactly one Hamiltonian target for $origin, found $target_count"
+    || die "expected exactly one Cosmos target for $origin, found $target_count"
   target_id=$target_ids
   bun "$script_dir/chrome-target.ts" clear-site-data \
     "$chrome_port" "$target_id" "$origin"
@@ -378,9 +403,9 @@ print_status() {
     printf 'iterm: %s\n' "$state"
   fi
   if [[ -n $processes ]]; then
-    printf 'hamiltonian:\n%s\n' "$processes"
+    printf 'cosmos:\n%s\n' "$processes"
   else
-    printf 'hamiltonian: stopped\n'
+    printf 'cosmos: stopped\n'
   fi
   if cdp_ready; then
     if [[ -n $expected ]]; then

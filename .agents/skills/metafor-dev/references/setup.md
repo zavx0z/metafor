@@ -1,7 +1,7 @@
 # Optional Inspector setup
 
 Read this reference only for first WebGPU Inspector installation, repair, or
-environment migration. Hamiltonian development, browser functional checks, and
+environment migration. Cosmos development, browser functional checks, and
 the visible iTerm lifecycle do not require Inspector.
 
 ## Required profiling components

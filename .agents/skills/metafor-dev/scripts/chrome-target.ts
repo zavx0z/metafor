@@ -36,7 +36,7 @@ if (action === "clear-site-data") {
   })
   await waitForDocument(page.webSocketDebuggerUrl)
   await waitForServiceWorker(page.webSocketDebuggerUrl)
-  const state = await readSiteState(page.webSocketDebuggerUrl)
+  const state = await waitForSiteState(page.webSocketDebuggerUrl)
   console.info(`site data: cleared ${origin}`)
   console.info(`target: reloaded ${targetId}`)
   console.info(`site state: ${JSON.stringify(state)}`)
@@ -185,18 +185,35 @@ async function readSiteState(url: string) {
 
 async function waitForServiceWorker(url: string) {
   for (let attempt = 0; attempt < 50; attempt++) {
-    const active = await withCdp(url, async (send) => {
-      const response = await send("Runtime.evaluate", {
-        expression: `navigator.serviceWorker.getRegistrations().then((items) =>
-          items.some((item) => item.active !== null),
-        )`,
-        awaitPromise: true,
-        returnByValue: true,
-      }) as {result?: {value?: unknown}}
-      return response.result?.value === true
-    })
-    if (active) return
+    try {
+      const active = await withCdp(url, async (send) => {
+        const response = await send("Runtime.evaluate", {
+          expression: `navigator.serviceWorker.getRegistrations().then((items) =>
+            items.some((item) => item.active !== null),
+          )`,
+          awaitPromise: true,
+          returnByValue: true,
+        }) as {result?: {value?: unknown}}
+        return response.result?.value === true
+      })
+      if (active) return
+    } catch {
+      // Startup and release may navigate the managed Window while the worker activates.
+    }
     await Bun.sleep(200)
   }
   throw new Error(`service worker did not become active after site-data cleanup: ${targetId}`)
+}
+
+async function waitForSiteState(url: string) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    try {
+      const state = await readSiteState(url)
+      if (state !== undefined) return state
+    } catch {
+      // Release activation may replace the Runtime context before the final read.
+    }
+    await Bun.sleep(200)
+  }
+  throw new Error(`site state did not settle after site-data cleanup: ${targetId}`)
 }

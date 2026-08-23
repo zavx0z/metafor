@@ -28,10 +28,10 @@ if [[ -d $repo ]] && git -C "$repo" rev-parse --show-toplevel >/dev/null 2>&1; t
   branch=$(git -C "$repo" branch --show-current 2>/dev/null || true)
   ok "branch ${branch:-detached}"
   if jq -e '.scripts.dev | type == "string" and length > 0' \
-    "$repo/hamiltonian/package.json" >/dev/null 2>&1; then
-    ok "hamiltonian scripts.dev"
+    "$repo/cosmos/package.json" >/dev/null 2>&1; then
+    ok "cosmos scripts.dev"
   else
-    fail "hamiltonian scripts.dev is missing"
+    fail "cosmos scripts.dev is missing"
   fi
 else
   fail "invalid MetaFor checkout: $repo"
