@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@metafor/types": "workspace:*"
+    "@metafor/types": "workspace:*",
+    "@metafor/template": "workspace:*"
   }
 }
