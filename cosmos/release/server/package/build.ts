@@ -227,7 +227,7 @@ function buildContractFailure(result: PackageBuildResult, artifact: string): Pac
 
 function debug(event: string, details: unknown) {
   if (Bun.env.NODE_ENV === "development")
-    console.debug("[@hamiltonian/release:server:build]", event, details)
+    console.debug("[@cosmos/release:server:build]", event, details)
 }
 
 function errorMessage(error: unknown) {
