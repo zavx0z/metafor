@@ -39,17 +39,17 @@ export async function updateRelease(
   if (delta.update.length === 0 && delta.remove.length === 0) {
     if (!interrupted) return []
     const candidate = await currentReleasePackages()
-    console.debug("[@hamiltonian/release:service:prepare]", "восстановление transaction начато", {
+    console.debug("[@cosmos/release:service:prepare]", "восстановление transaction начато", {
       packages: candidate.map(({name, env, version}) => ({name, env, version})),
     })
     await verifyCandidateComposition(candidate)
     const removed = await cleanupCanonicalComposition(candidate)
-    console.debug("[@hamiltonian/release:service:activate]", "canonical cleanup завершён", {
+    console.debug("[@cosmos/release:service:activate]", "canonical cleanup завершён", {
       removed,
     })
     await verifyFinalComposition(candidate)
     await commitTransaction()
-    console.debug("[@hamiltonian/release:service:activate]", "transaction завершена", {
+    console.debug("[@cosmos/release:service:activate]", "transaction завершена", {
       changed: removed,
       mode: "recovery",
     })
@@ -57,7 +57,7 @@ export async function updateRelease(
   }
 
   const resumed = await beginTransaction()
-  console.debug("[@hamiltonian/release:service:prepare]", "transaction начата", {
+  console.debug("[@cosmos/release:service:prepare]", "transaction начата", {
     mode: resumed ? "recovery" : "fresh",
     remove: delta.remove,
     update: delta.update,
@@ -70,7 +70,7 @@ export async function updateRelease(
     if (cached) {
       try {
         await verifyPackageResponse(cached, entry)
-        console.debug("[@hamiltonian/release:service:prepare]", "exact artifact подготовлен", {
+        console.debug("[@cosmos/release:service:prepare]", "exact artifact подготовлен", {
           env: entry.env,
           name: entry.name,
           source: "transaction",
@@ -89,7 +89,7 @@ export async function updateRelease(
     )
     const response = await verifyPackageResponse(startup.verify(network), entry)
     await preparePackage(entry, response)
-    console.debug("[@hamiltonian/release:service:prepare]", "exact artifact подготовлен", {
+    console.debug("[@cosmos/release:service:prepare]", "exact artifact подготовлен", {
       env: entry.env,
       name: entry.name,
       source: request.url,
@@ -125,7 +125,7 @@ export async function updateRelease(
   let runtimeActivated = false
   try {
     await verifyCandidateComposition(candidate)
-    console.debug("[@hamiltonian/release:service:activate]", "полный candidate composition проверен", {
+    console.debug("[@cosmos/release:service:activate]", "полный candidate composition проверен", {
       packages: candidate.map(({name, env, version}) => ({name, env, version})),
     })
 
@@ -135,7 +135,7 @@ export async function updateRelease(
       throw new Error("Candidate composition не содержит release service")
     if (releaseTouched && nextRelease && handover) {
       runtimeCandidate = await handover.prepare(exactRequest(nextRelease))
-      console.debug("[@hamiltonian/release:service:activate]", "release runtime candidate подготовлен", {
+      console.debug("[@cosmos/release:service:activate]", "release runtime candidate подготовлен", {
         env: nextRelease.env,
         name: nextRelease.name,
         version: nextRelease.version,
@@ -147,13 +147,13 @@ export async function updateRelease(
       await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
       changed.add(entry.slot ?? entry.request.url)
     }
-    console.debug("[@hamiltonian/release:service:activate]", "canonical cleanup завершён", {
+    console.debug("[@cosmos/release:service:activate]", "canonical cleanup завершён", {
       removed: removals.map(({owner, request}) => ({cache: owner, source: request.url})),
     })
 
     await verifyFinalComposition(candidate)
     await commitTransaction()
-    console.debug("[@hamiltonian/release:service:activate]", "transaction завершена", {
+    console.debug("[@cosmos/release:service:activate]", "transaction завершена", {
       changed: [...changed],
       mode: resumed ? "recovery" : "fresh",
     })
@@ -281,7 +281,7 @@ function canonicalKey(owner: string, url: string) {
 }
 
 function isServiceWorkerRelease(entry: Pick<ReleasePackage, "name" | "env">) {
-  return entry.name === "@hamiltonian/release" && entry.env === "service"
+  return entry.name === "@cosmos/release" && entry.env === "service"
 }
 
 function exactRequest(entry: Pick<ReleasePackage, "name" | "env" | "version">) {
