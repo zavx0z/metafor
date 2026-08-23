@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import {prepareMatrixData} from "../prepare.ts"
-import type { MatrixData } from "@metafor/types/matrix/store"
+import type { MatrixData } from "@matrix/types/store"
 import { FieldType } from "../gravity"
-import type { MatrixInputData } from "@metafor/types/matrix/data"
+import type { MatrixInputData } from "@matrix/types/data"
 
 function getBraneLocalValues(store: MatrixData, braneIndex: number) {
   const brane = store.branes[braneIndex]
