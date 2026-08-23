@@ -3,7 +3,7 @@ import type {ReleaseLoader} from "../runtime"
 
 const startupResources = [
   "/",
-  "/@hamiltonian/startup?env=main",
+  "/@cosmos/startup?env=main",
   "/manifest.webmanifest",
 ]
 
