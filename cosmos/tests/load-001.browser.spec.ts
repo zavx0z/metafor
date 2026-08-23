@@ -16,12 +16,12 @@ import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 setDefaultTimeout(180_000)
 
-const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
+const cosmos = fileURLToPath(new URL("../", import.meta.url))
 const chrome = resolveChrome()
-const startupMainUrl = "/@hamiltonian/startup?env=main"
-const startupServiceUrl = "/@hamiltonian/startup?env=service"
-const releaseMainUrl = "/@hamiltonian/release?env=main"
-const releaseServiceUrl = "/@hamiltonian/release?env=service"
+const startupMainUrl = "/@cosmos/startup?env=main"
+const startupServiceUrl = "/@cosmos/startup?env=service"
+const releaseMainUrl = "/@cosmos/release?env=main"
+const releaseServiceUrl = "/@cosmos/release?env=service"
 const internalVisualUrl = "/@internal/visual?env=main"
 
 interface RunningServer {
@@ -47,7 +47,7 @@ type FixtureFault =
 type ServerMode = "production-fixture" | "update" | FixtureFault
 
 interface FixtureArtifact {
-  name: "@hamiltonian/startup" | "@hamiltonian/release" | "@internal/visual"
+  name: "@cosmos/startup" | "@cosmos/release" | "@internal/visual"
   env: "main" | "service"
   version: string
   path: string
@@ -58,18 +58,18 @@ let fixtureArtifacts: FixtureArtifact[] = []
 let workingState: Awaited<ReturnType<typeof releaseWorkspaceState>> = {}
 
 beforeAll(async () => {
-  workingState = await releaseWorkspaceState(hamiltonian)
+  workingState = await releaseWorkspaceState(cosmos)
   fixtureDirectory = await mkdtemp(join(tmpdir(), "metafor-load-artifacts-"))
   const [startup, release, visual] = await Promise.all([
-    Bun.file(join(hamiltonian, "startup/package.json")).json() as Promise<{version: string}>,
-    Bun.file(join(hamiltonian, "release/package.json")).json() as Promise<{version: string}>,
-    Bun.file(join(hamiltonian, "internal/visual/package.json")).json() as Promise<{version: string}>,
+    Bun.file(join(cosmos, "startup/package.json")).json() as Promise<{version: string}>,
+    Bun.file(join(cosmos, "release/package.json")).json() as Promise<{version: string}>,
+    Bun.file(join(cosmos, "internal/visual/package.json")).json() as Promise<{version: string}>,
   ])
   const plans = [
-    {name: "@hamiltonian/startup", env: "main", version: startup.version},
-    {name: "@hamiltonian/startup", env: "service", version: startup.version},
-    {name: "@hamiltonian/release", env: "main", version: release.version},
-    {name: "@hamiltonian/release", env: "service", version: release.version},
+    {name: "@cosmos/startup", env: "main", version: startup.version},
+    {name: "@cosmos/startup", env: "service", version: startup.version},
+    {name: "@cosmos/release", env: "main", version: release.version},
+    {name: "@cosmos/release", env: "service", version: release.version},
     {name: "@internal/visual", env: "main", version: visual.version},
   ] as const
   const results = await buildBrowserFixtures(plans.map((plan, index) => ({
@@ -86,7 +86,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (fixtureDirectory !== "") await rm(fixtureDirectory, {recursive: true, force: true})
   expect(existsSync(fixtureDirectory)).toBeFalse()
-  expect(await releaseWorkspaceState(hamiltonian)).toEqual(workingState)
+  expect(await releaseWorkspaceState(cosmos)).toEqual(workingState)
 })
 
 async function buildBrowserFixtures(
@@ -102,14 +102,14 @@ async function buildBrowserFixtures(
   }))
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
-    "--conditions=hamiltonian:server",
+    "--conditions=cosmos:server",
     "--conditions=internal:server",
     "-e",
     `import {buildPackage} from "./release/server"
 const plans=${JSON.stringify(input)}
 console.log(JSON.stringify(await Promise.all(plans.map(async ({name,env,path})=>({name,env,path,result:await buildPackage(name,{env,artifact:path})})))))`,
   ], {
-    cwd: hamiltonian,
+    cwd: cosmos,
     env: {...process.env, NODE_ENV: "development"},
     stdout: "pipe",
     stderr: "pipe",
@@ -259,9 +259,9 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(await secondPage.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
 
     const packages = [
-      {name: "@hamiltonian/release", change: "patch"},
+      {name: "@cosmos/release", change: "patch"},
       {name: "@internal/visual", change: "patch"},
-      {name: "@hamiltonian/release", change: "patch"},
+      {name: "@cosmos/release", change: "patch"},
     ] as const
     const requestsBefore = await fixtureRequests(server.root)
     const sourceBefore = await updateSources(firstPage)
@@ -278,7 +278,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     })
 
     const legacyUrl = new URL("/code", server.root)
-    legacyUrl.searchParams.set("module", "@hamiltonian/release")
+    legacyUrl.searchParams.set("module", "@cosmos/release")
     expect((await fetch(legacyUrl, {method: "POST"})).status).toBe(415)
     expect((await fetch(new URL("/code", server.root), {
       method: "POST",
@@ -288,7 +288,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect((await fetch(new URL("/code", server.root), {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({packages: [{name: "@hamiltonian/startup", change: "patch"}]}),
+      body: JSON.stringify({packages: [{name: "@cosmos/startup", change: "patch"}]}),
     })).status).toBe(404)
 
     const failed = await requestBuild(server.root, packages)
@@ -304,8 +304,8 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(build.status).toBe(200)
     expect(build.body.success).toBe(true)
     expect(build.body.results.map((result) => result.module)).toEqual([
-      "@hamiltonian/release",
-      "@hamiltonian/release",
+      "@cosmos/release",
+      "@cosmos/release",
       "@internal/visual",
     ])
     expect(build.body.results.map((result) => result.version)).toEqual(
@@ -341,9 +341,9 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
       countMatches(server.output(), "подписка release service создана") > connectionsBefore + 1)
     const sourceAfter = await updateSources(firstPage)
     expect(sourceAfter.releaseMain).not.toBe(sourceBefore.releaseMain)
-    expect(sourceAfter.releaseMain).toContain("fixture @hamiltonian/release 1")
+    expect(sourceAfter.releaseMain).toContain("fixture @cosmos/release 1")
     expect(sourceAfter.releaseService).not.toBe(sourceBefore.releaseService)
-    expect(sourceAfter.releaseService).toContain("fixture @hamiltonian/release 1")
+    expect(sourceAfter.releaseService).toContain("fixture @cosmos/release 1")
     expect(sourceAfter.internalVisual).not.toBe(sourceBefore.internalVisual)
     expect(sourceAfter.internalVisual).toContain("fixture @internal/visual 1")
     const requestsAfter = await fixtureRequests(server.root)
@@ -372,8 +372,8 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     await browser.close()
     browser = null
     const disconnectedBuild = await requestBuild(server.root, [
-      {name: "@hamiltonian/release", change: "patch"},
-      {name: "@hamiltonian/release", change: "patch"},
+      {name: "@cosmos/release", change: "patch"},
+      {name: "@cosmos/release", change: "patch"},
       {name: "@internal/visual", change: "patch"},
     ])
     expect(disconnectedBuild.status).toBe(200)
@@ -403,8 +403,8 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     await waitUntil(async () => {
       try {
         const sources = await updateSources(restoredPage)
-        return sources.releaseMain.includes("fixture @hamiltonian/release 2")
-          && sources.releaseService.includes("fixture @hamiltonian/release 2")
+        return sources.releaseMain.includes("fixture @cosmos/release 2")
+          && sources.releaseService.includes("fixture @cosmos/release 2")
           && sources.internalVisual.includes("fixture @internal/visual 2")
       } catch {
         return false
@@ -452,8 +452,8 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
       return interrupted!
     })()
     const build = await requestBuild(server.root, [
-      {name: "@hamiltonian/release", change: "patch"},
-      {name: "@hamiltonian/release", change: "patch"},
+      {name: "@cosmos/release", change: "patch"},
+      {name: "@cosmos/release", change: "patch"},
     ])
     expect(build.status).toBe(200)
 
@@ -470,8 +470,8 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
     await waitUntil(async () => {
       try {
         const sources = await updateSources(page)
-        return sources.releaseMain.includes("fixture @hamiltonian/release 1")
-          && sources.releaseService.includes("fixture @hamiltonian/release 1")
+        return sources.releaseMain.includes("fixture @cosmos/release 1")
+          && sources.releaseService.includes("fixture @cosmos/release 1")
       } catch {
         return false
       }
@@ -588,10 +588,10 @@ test.serial("UPD-003 resumes after canonical put and commits a removal-only delt
           size: number
         }>
       }
-      const current = state.packages.find(({name}) => name === "@hamiltonian/release")
+      const current = state.packages.find(({name}) => name === "@cosmos/release")
       if (!current) throw new Error("Release main state is missing")
       const cache = await caches.open("release")
-      const currentUrl = `/@hamiltonian/release?env=main&version=${current.version}`
+      const currentUrl = `/@cosmos/release?env=main&version=${current.version}`
       const currentResponse = await cache.match(currentUrl)
       if (!currentResponse) throw new Error("Release main exact response is missing")
       const bytes = await currentResponse.clone().arrayBuffer()
@@ -604,7 +604,7 @@ test.serial("UPD-003 resumes after canonical put and commits a removal-only delt
       headers.set("X-Package-SHA256", digest)
       headers.set("X-Package-Size", String(bytes.byteLength))
       await cache.put(
-        `/@hamiltonian/release?env=main&version=${staleVersion}`,
+        `/@cosmos/release?env=main&version=${staleVersion}`,
         new Response(bytes, {headers}),
       )
 
@@ -617,7 +617,7 @@ test.serial("UPD-003 resumes after canonical put and commits a removal-only delt
     const interrupted = await cacheSnapshot(page)
     expect(interrupted.transaction).toEqual(["/transaction"])
     expect((interrupted.release ?? []).filter((path) =>
-      new URL(path, "http://cache.test").pathname === "/@hamiltonian/release")).toHaveLength(3)
+      new URL(path, "http://cache.test").pathname === "/@cosmos/release")).toHaveLength(3)
 
     let navigations = 0
     page.on("framenavigated", (frame) => {
@@ -674,8 +674,8 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
         path,
         status: (await fetch(new URL(path, server.root))).status,
       })))
-      const queryArtifact = await fetch(new URL("/code?module=@hamiltonian/release", server.root))
-      const serverEnvironment = await fetch(new URL("/@hamiltonian/release?env=server", server.root))
+      const queryArtifact = await fetch(new URL("/code?module=@cosmos/release", server.root))
+      const serverEnvironment = await fetch(new URL("/@cosmos/release?env=server", server.root))
       const releaseState = await (await fetch(new URL("/code", server.root))).json() as {
         packages: Array<{name: string, env: string}>
       }
@@ -685,7 +685,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
         queryArtifactStatus: queryArtifact.status,
         serverEnvironmentStatus: serverEnvironment.status,
         releaseEnvironments: releaseState.packages
-          .filter(({name}) => name === "@hamiltonian/release")
+          .filter(({name}) => name === "@cosmos/release")
           .map(({env}) => env),
       }
     })([releaseMainUrl, releaseServiceUrl, internalVisualUrl])
@@ -746,8 +746,8 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(initial.startup).not.toContain(releaseMainUrl)
     expect(initial.startup).not.toContain(releaseServiceUrl)
     expect(initial.startup).not.toContain(internalVisualUrl)
-    expect(hasCachedSlot(initial, "release", "@hamiltonian/release", "main")).toBe(true)
-    expect(hasCachedSlot(initial, "release", "@hamiltonian/release", "service")).toBe(true)
+    expect(hasCachedSlot(initial, "release", "@cosmos/release", "main")).toBe(true)
+    expect(hasCachedSlot(initial, "release", "@cosmos/release", "service")).toBe(true)
     expect(initial.release).not.toContain(releaseMainUrl)
     expect(initial.release).not.toContain(releaseServiceUrl)
     expect(initial.release).not.toContain(internalVisualUrl)
@@ -854,8 +854,8 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
       "/manifest.webmanifest",
       startupMainUrl,
     ]))
-    expect(hasCachedSlot(cold, "release", "@hamiltonian/release", "main")).toBe(true)
-    expect(hasCachedSlot(cold, "release", "@hamiltonian/release", "service")).toBe(true)
+    expect(hasCachedSlot(cold, "release", "@cosmos/release", "main")).toBe(true)
+    expect(hasCachedSlot(cold, "release", "@cosmos/release", "service")).toBe(true)
     expect(cold.release).not.toContain(releaseMainUrl)
     expect(cold.release).not.toContain(releaseServiceUrl)
     expect(hasCachedPackage(cold, "internal", "@internal/visual")).toBe(true)
@@ -887,8 +887,8 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
       await waitForAcceptedCaches(page)
 
       const recovered = await cacheSnapshot(page)
-      expect(hasCachedSlot(recovered, "release", "@hamiltonian/release", "main")).toBe(true)
-      expect(hasCachedSlot(recovered, "release", "@hamiltonian/release", "service")).toBe(true)
+      expect(hasCachedSlot(recovered, "release", "@cosmos/release", "main")).toBe(true)
+      expect(hasCachedSlot(recovered, "release", "@cosmos/release", "service")).toBe(true)
       expect(hasCachedSlot(recovered, "internal", "@internal/visual", "main")).toBe(true)
       expect(recovered.metafor).toBeUndefined()
     } catch (error) {
@@ -912,7 +912,7 @@ async function startServer(
   let stderr = ""
 
   const child = Bun.spawn(command, {
-    cwd: hamiltonian,
+    cwd: cosmos,
     env: {
       ...process.env,
       LOAD_TEST_FAULT: fault,
@@ -929,7 +929,7 @@ async function startServer(
   const root = `http://127.0.0.1:${port}`
 
   await waitUntil(async () => {
-    if (child.exitCode !== null) throw new Error(`Hamiltonian test server exited with ${child.exitCode}`)
+    if (child.exitCode !== null) throw new Error(`Cosmos test server exited with ${child.exitCode}`)
     try {
       const response = await fetch(root, {headers: {Accept: "text/html"}})
       return response.ok
@@ -1079,13 +1079,13 @@ async function waitForAcceptedCaches(page: Page) {
               : undefined
           }
           const [releaseMain, releaseService, visual] = await Promise.all([
-            cachedPackage("@hamiltonian/release", "main", releases),
-            cachedPackage("@hamiltonian/release", "service", releases),
+            cachedPackage("@cosmos/release", "main", releases),
+            cachedPackage("@cosmos/release", "service", releases),
             cachedPackage("@internal/visual", "main", internal),
           ])
           return Boolean(
             await startup.match("/")
-            && await startup.match("/@hamiltonian/startup?env=main")
+            && await startup.match("/@cosmos/startup?env=main")
             && await startup.match("/manifest.webmanifest")
             && releaseMain
             && releaseService
@@ -1161,8 +1161,8 @@ async function expectCanonicalReleaseCaches(page: Page) {
 
   expect(Object.keys(snapshot).sort()).toEqual(["internal", "release", "startup"])
   for (const {name, env, owner} of [
-    {name: "@hamiltonian/release", env: "main", owner: "release"},
-    {name: "@hamiltonian/release", env: "service", owner: "release"},
+    {name: "@cosmos/release", env: "main", owner: "release"},
+    {name: "@cosmos/release", env: "service", owner: "release"},
     {name: "@internal/visual", env: "main", owner: "internal"},
   ] as const) {
     const packageEntries = snapshot[owner]?.filter((path) => {
@@ -1238,8 +1238,8 @@ async function updateSources(page: Page) {
 
     return {
       internalVisual: await source("@internal/visual", "main", "internal"),
-      releaseMain: await source("@hamiltonian/release", "main", "release"),
-      releaseService: await source("@hamiltonian/release", "service", "release"),
+      releaseMain: await source("@cosmos/release", "main", "release"),
+      releaseService: await source("@cosmos/release", "service", "release"),
     }
   })
 }
@@ -1291,7 +1291,7 @@ function resolveChrome() {
 function withServerOutput(error: unknown, output: string) {
   const cause = error instanceof Error ? error : new Error(String(error))
   if (!output) return cause
-  return new Error(`${cause.message}\n\nHamiltonian test server output:\n${output}`, {cause})
+  return new Error(`${cause.message}\n\nCosmos test server output:\n${output}`, {cause})
 }
 
 function countMatches(value: string, expected: string) {
