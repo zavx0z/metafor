@@ -7,7 +7,7 @@ import {
   type MetaSourceRevision,
 } from "@metafor/types/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
-import {evaluateMetaSource} from "../../dark/load.ts"
+import {evaluateMetaSource} from "../../quantum/dark/load.ts"
 import {
   DeclarationPatchError,
   planMetaDeclarationPatch,

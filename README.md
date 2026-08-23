@@ -89,7 +89,7 @@ Matrix рождается последней, получает от Boundary о�
 в состояние; Atom со States, но без выбранного State, на первом такте входит в
 первый объявленный State. Process блокирует переходы только этого Atom, а не
 всю Matrix. Полный жизненный цикл и все основные случаи описаны в
-[`matrix/README.md`](matrix/README.md).
+[`quantum/matrix/README.md`](quantum/matrix/README.md).
 
 ## Запуск ядра
 
@@ -163,7 +163,7 @@ archive/pre-core-split-2026-07-11
 - [Агентные Вселенные](docs/AGENT_UNIVERSES.md)
 - [Архитектура](docs/ARCHITECTURE.md)
 - [Доменные контракты](docs/domains/README.md)
-- [Matrix](matrix/README.md)
+- [Matrix](quantum/matrix/README.md)
 - [Force](docs/FORCE.md)
 - [Meta-пакеты](docs/META_PACKAGES.md)
 - [Разработка](docs/DEVELOPMENT.md)

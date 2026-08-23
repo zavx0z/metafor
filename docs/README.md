@@ -29,13 +29,13 @@
   history, relay и fail-stop внутри Dark process.
 * [Immutable checkpoints](CHECKPOINTS.md) — coherent Boundary+Mass capture,
   отдельный Git provenance и forward-only replay.
-* [Boundary](../boundary/DOMAIN.md) — каноническое состояние, identity,
+* [Boundary](../quantum/boundary/DOMAIN.md) — каноническое состояние, identity,
   materialization и commit.
-* [Matrix](../matrix/README.md) — жизненный цикл State, Transition и Process,
+* [Matrix](../quantum/matrix/README.md) — жизненный цикл State, Transition и Process,
   включая рождение, блокировку, перестройку и ошибки.
 * [Energy](domains/ENERGY.md) — Process, Mass, Energy и lifecycle живых
   ресурсов.
-* [Bulk Store и Visual projection](../bulk/VISUAL.md) — единый browser Store,
+* [Bulk Store и Visual projection](../quantum/bulk/VISUAL.md) — единый browser Store,
   локальные Force handlers и принадлежащая `pkg/visual` геометрия.
 * [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
   один полный Bulk scene snapshot.

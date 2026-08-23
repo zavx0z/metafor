@@ -2,8 +2,8 @@
 
 Weak связывает State, выбор Energy, выполнение Process и канонический commit
 результата. Доменные законы находятся в документации
-[Matrix](../../matrix/README.md), [Energy](../domains/ENERGY.md) и
-[Boundary](../../boundary/DOMAIN.md); точная форма сообщений опубликована в
+[Matrix](../../quantum/matrix/README.md), [Energy](../domains/ENERGY.md) и
+[Boundary](../../quantum/boundary/DOMAIN.md); точная форма сообщений опубликована в
 TypeDoc Matrix.
 
 ## Один проход

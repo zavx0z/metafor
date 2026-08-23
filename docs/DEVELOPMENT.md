@@ -64,7 +64,7 @@ canonical live `mass/`:
 METAFOR_MASS_PATH=/absolute/temporary/mass bun run test
 ```
 
-Первый позиционный аргумент `boundary/server.ts` имеет приоритет над
+Первый позиционный аргумент `../quantum/boundary/server.ts` имеет приоритет над
 `BOUNDARY_PATH`. Parent directory создаётся автоматически. Boundary tests
 используют отдельные `:memory:` databases и всегда закрывают их; development
 database в tests не открывается.

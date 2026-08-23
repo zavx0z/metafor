@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <title>MetaFor</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #050b12;
+      }
+
+      html.metafor-app-fullscreen-fallback,
+      html.metafor-app-fullscreen-fallback body {
+        width: 100vw;
+        width: 100dvw;
+        height: 100vh;
+        height: 100dvh;
+        max-width: 100vw;
+        max-width: 100dvw;
+        max-height: 100vh;
+        max-height: 100dvh;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+
+      html.metafor-app-fullscreen-fallback body {
+        position: fixed;
+        inset: 0;
+      }
+
+      #bulk-canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        touch-action: none;
+      }
+
+      #bulk-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 2;
+        display: grid;
+        place-items: center;
+        color: #b9c9d8;
+        background: #050b12;
+        font: 600 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: 0.08em;
+      }
+
+      #bulk-loader[hidden] {
+        display: none;
+      }
+
+      #bulk-loader-card {
+        display: grid;
+        min-width: 13rem;
+        gap: 0.8rem;
+        text-align: center;
+      }
+
+      #bulk-loader-meter {
+        height: 2px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #183447, #5ad7c4, #183447);
+        box-shadow: 0 0 16px rgba(90, 215, 196, 0.42);
+      }
+
+      #bulk-loader[data-error="true"] {
+        color: #ff9d9d;
+      }
+
+      html.metafor-app-fullscreen-fallback #bulk-canvas {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        width: 100dvw;
+        height: 100vh;
+        height: 100dvh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bulk-loader" role="status" aria-live="polite">
+      <div id="bulk-loader-card">
+        <div id="bulk-loader-status">Загрузка Bulk Store…</div>
+        <div id="bulk-loader-meter" aria-hidden="true"></div>
+      </div>
+    </div>
+    <canvas id="bulk-canvas"></canvas>
+    <script>
+      performance.mark("bulk.initial-fetch-start")
+      window.__METAFOR_BULK_INITIAL_RESPONSE__ = fetch("/initial", {
+        cache: "no-store",
+        headers: {accept: "application/json"},
+      })
+    </script>
+    <script type="module" src="client.ts"></script>
+  </body>
+</html>

@@ -79,7 +79,7 @@ The private implementation has one explicit fixture boundary.
 `ForceStories.ts` owns only the eight-part catalog, metadata and routes;
 `PhotonForceStory.ts` and `fixture/PhotonStoryFixture.ts` own the recorded
 Photon case, closure and provenance. `ForceStoryLabAdapter.ts` uses the public
-`bulk/visual` lifecycle to hydrate and update the projection, compose both
+`../../quantum/bulk/visual` lifecycle to hydrate and update the projection, compose both
 layout scenes and expose the shared activity/session snapshot. It remains
 private only because it binds that recorded fixture to a dedicated
 `VisualSceneViewport`; it does not import Bulk implementation files.

@@ -235,7 +235,7 @@ owning-parent relation переустанавливает binding только �
 ## Field binding и Matrix entanglement
 
 Полный действующий контракт этого механизма находится в
-[документации Matrix](../matrix/README.md).
+[документации Matrix](../quantum/matrix/README.md).
 
 `fields=${...}` не является третьим Energy runtime binding. Точная top-level
 пара `childKey: parentField` для `string`/`number`/`boolean` материализуется в

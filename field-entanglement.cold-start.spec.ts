@@ -3,16 +3,16 @@ import {mkdtemp, rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import type {DeclarationPath} from "shared/protocol/force/declaration"
-import {open, type BoundaryDatabase} from "./boundary/sqlite.ts"
+import {open, type BoundaryDatabase} from "./quantum/boundary/sqlite.ts"
 import {
   buildMatrixRuntime,
   consumePreparedMatrixBirth,
-} from "./matrix/birth.ts"
-import {applyIncrementalMatrixProjection} from "./matrix/incremental.ts"
-import {applyMatrixProjectionParticle} from "./matrix/projection.ts"
-import {matrix$} from "./matrix/store.ts"
-import {prepareIncrementalMatrixFixture} from "./matrix/tests/shared/fixtures.ts"
-import {weak$} from "./matrix/weak/index.ts"
+} from "./quantum/matrix/birth.ts"
+import {applyIncrementalMatrixProjection} from "./quantum/matrix/incremental.ts"
+import {applyMatrixProjectionParticle} from "./quantum/matrix/projection.ts"
+import {matrix$} from "./quantum/matrix/store.ts"
+import {prepareIncrementalMatrixFixture} from "./quantum/matrix/tests/shared/fixtures.ts"
+import {weak$} from "./quantum/matrix/weak/index.ts"
 
 const PARENT = "zavx0z/capsule"
 const CHILD = "zavx0z/capsule/screenshot"

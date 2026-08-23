@@ -31,36 +31,36 @@ import type {
 import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
 import type {Particle} from "shared/protocol/force/particle"
 import {MassCatalog, massFileName} from "../shared/mass.ts"
-import {open as openBoundary, type BoundaryDatabase} from "../boundary/sqlite.ts"
-import {assembleGraphForRoot} from "../dark/oracle/graph.ts"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/graph.ts"
-import {readBoundaryGraphProjectionForRoot} from "../boundary/graph.ts"
+import {open as openBoundary, type BoundaryDatabase} from "../quantum/boundary/sqlite.ts"
+import {assembleGraphForRoot} from "../quantum/dark/oracle/graph.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "../quantum/dark/graph.ts"
+import {readBoundaryGraphProjectionForRoot} from "../quantum/boundary/graph.ts"
 import {
   BOUNDARY_DISSOLVE_PROPOSAL_V1,
   type BoundaryDissolveProposalV1,
-} from "../boundary/dissolve-staging.ts"
+} from "../quantum/boundary/dissolve-staging.ts"
 import {
   DetachedBoundaryDissolveCandidateStaging,
-} from "../boundary/dissolve-candidate-staging.ts"
+} from "../quantum/boundary/dissolve-candidate-staging.ts"
 import {
   createIsolatedBoundaryDissolveMassEvidenceReader,
-} from "../boundary/dissolve-mass-evidence.ts"
+} from "../quantum/boundary/dissolve-mass-evidence.ts"
 import {
   executeDetachedBoundaryDissolveCandidate,
-} from "../boundary/dissolve-candidate-execution.ts"
+} from "../quantum/boundary/dissolve-candidate-execution.ts"
 import {
   createDetachedDissolveCandidateBundle,
   type CandidateFileDigestV1,
-} from "../dark/checkpoint/dissolve-candidate.ts"
+} from "../quantum/dark/checkpoint/dissolve-candidate.ts"
 import {
   captureDetachedDissolveRootFrame,
   produceBulkRootPromotionReceipt,
-} from "../dark/checkpoint/dissolve-promotion.ts"
-import {canonicalizeGraph} from "../dark/checkpoint/projection.ts"
-import {readCheckpointControlState} from "../dark/checkpoint/control.ts"
-import {DarkForceHistory} from "../dark/force/history.ts"
-import {BulkProjectionStore} from "../bulk/projection.ts"
-import {buildBulkManifestation} from "../bulk/manifestation.ts"
+} from "../quantum/dark/checkpoint/dissolve-promotion.ts"
+import {canonicalizeGraph} from "../quantum/dark/checkpoint/projection.ts"
+import {readCheckpointControlState} from "../quantum/dark/checkpoint/control.ts"
+import {DarkForceHistory} from "../quantum/dark/force/history.ts"
+import {BulkProjectionStore} from "../quantum/bulk/projection.ts"
+import {buildBulkManifestation} from "../quantum/bulk/manifestation.ts"
 
 const SOURCE = parseMetaAddress("zavx0z/inference")!
 const TARGET = parseMetaAddress("zavx0z/lada")!

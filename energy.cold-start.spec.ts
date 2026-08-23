@@ -8,9 +8,9 @@ import type {EnergyMassStore} from "@metafor/types/energy/mass"
 import {BOUNDARY_INITIAL_PROJECTION_METHOD, type BoundaryInitialProjection} from "@metafor/types/boundary/initial"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
-import {open, type BoundaryDatabase} from "./boundary/sqlite.ts"
-import {birthEnergyRuntime, type EnergyRuntimeForce} from "./energy/birth.ts"
-import {EnergyOracle} from "./energy/oracle.ts"
+import {open, type BoundaryDatabase} from "./quantum/boundary/sqlite.ts"
+import {birthEnergyRuntime, type EnergyRuntimeForce} from "./quantum/energy/birth.ts"
+import {EnergyOracle} from "./quantum/energy/oracle.ts"
 
 type TestForce = EnergyRuntimeForce & {
   readonly sent: ForceMessage[]

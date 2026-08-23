@@ -238,7 +238,7 @@ Behavior-preserving migration сохраняет действующие routing 
 
 Canonical source содержит единственный server, ingress, `OracleRouter`,
 `ForceLifecycle`, relay/routing, channel Store, fixtures, health, `/force`,
-`/oracle/*` и browser gateway внутри Dark. `dark/server.ts` слушает один
+`/oracle/*` и browser gateway внутри Dark. `../quantum/dark/server.ts` слушает один
 настраиваемый порт, локальный Dark adapter заменяет self-WebSocket, а Boundary,
 Matrix, Energy и Bulk подключают к Dark отдельные исходящие Oracle и Force
 WebSocket без собственных listeners.

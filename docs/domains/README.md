@@ -6,13 +6,13 @@
 
 Сейчас выделены самостоятельные контракты:
 
-- [Boundary](../../boundary/DOMAIN.md) — canonical persistence, identity,
+- [Boundary](../../quantum/boundary/DOMAIN.md) — canonical persistence, identity,
   materialization и commit.
-- [Matrix](../../matrix/README.md) — жизненный цикл State, Transition и Process,
+- [Matrix](../../quantum/matrix/README.md) — жизненный цикл State, Transition и Process,
   включая рождение, блокировку и структурные изменения.
 - [Energy](ENERGY.md) — исполнение Process, живые runtime-сущности и их
   декларация в DSL.
-- [Bulk manifestation и Visual projection](../../bulk/VISUAL.md) —
+- [Bulk manifestation и Visual projection](../../quantum/bulk/VISUAL.md) —
   semantic manifestation и граница геометрии `pkg/visual`.
 
 Для Dark и Bulk целиком полного доменного контракта пока нет. До его появления
