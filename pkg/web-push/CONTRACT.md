@@ -3,7 +3,7 @@
 ## Назначение
 
 Пакет предоставляет переиспользуемый Web Push без привязки к UI, графу,
-Hamiltonian или конкретному transport приложения. Он разделяет:
+конкретному runtime-контру или transport приложения. Он разделяет:
 
 1. browser permission на уведомления;
 2. создание и серверную регистрацию `PushSubscription`;
@@ -24,8 +24,8 @@ points не импортируют server-код. Корневой export сод
 runtime-neutral `protocol` и `lifecycle`; исполняемые API импортируются через
 явные subpath `client`, `worker`, `server` и `server/bun`.
 
-Core не знает о WSS, Force, Oracle, Hamiltonian identity, `wakeProof`, нодах и
-визуальной сцене.
+Core не знает о WSS, Force, Oracle, identity внешней системы, `wakeProof`, нодах
+и визуальной сцене.
 
 ## Разрешение на уведомления
 
@@ -66,10 +66,10 @@ Worker может получить отдельный injected `beforeNotificati
 а не lifecycle observer: его ошибка прекращает показ и становится явным
 `worker.notification-failed`.
 
-Пакет не предоставляет `BroadcastChannel`. Hamiltonian при необходимости
-передаёт hook, который публикует безопасный event в принадлежащий Hamiltonian
-versioned channel. Другой проект может использовать иной observer или вообще
-не подключать hooks.
+Пакет не предоставляет `BroadcastChannel`. Потребитель при необходимости
+передаёт hook, который публикует безопасный event в принадлежащий ему channel
+или observer. Другой consumer может использовать иной observer или вообще не
+подключать hooks.
 
 ## Subscription и VAPID
 
