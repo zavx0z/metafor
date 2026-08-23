@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import type {EnergyForce} from "@metafor/types/energy/protocol"
-import type {EnergyMassStore} from "@metafor/types/energy/mass"
+import type {EnergyForce} from "@energy/types/protocol"
+import type {EnergyMassStore} from "@energy/types/mass"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {
   REACTION_SIGNAL_KIND,
