@@ -4,7 +4,7 @@ import {
   parseMetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
-import type {CheckpointJsonValue} from "@metafor/types/dark/checkpoint"
+import type {CheckpointJsonValue} from "@dark/types/checkpoint"
 import {
   applyGraphPatch,
   canonicalizeGraph,
