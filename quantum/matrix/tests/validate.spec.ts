@@ -4,7 +4,7 @@
 import { test, expect, describe } from "bun:test"
 import { validateData } from "../gravity/validate"
 import { FieldType } from "../gravity"
-import type { MatrixInputData } from "@metafor/types/matrix/data"
+import type { MatrixInputData } from "@matrix/types/data"
 
 describe("validateData — валидация входных данных", () => {
   test("должен принимать валидные данные", () => {
