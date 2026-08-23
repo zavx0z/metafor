@@ -98,7 +98,7 @@ import type {
   EnergyInputCheck,
   MetaForFn,
 } from "@metafor/types/metafor/schema"
-import {massFactory, normalizeMassDeclarations} from "./types/metafor/mass.ts"
+import {massFactory, normalizeMassDeclarations} from "./mass.ts"
 
 const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
@@ -115,8 +115,8 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
           const normalizedSuperposition = superposition as SuperpositionInput<ɸ, ψ>
           validateNoUnconditionalCycles(normalizedSuperposition)
           return {
-            mass<Schema extends Record<string, import("./types/metafor/mass.ts").MassDeclaration>>(
-              declaration: (mass: import("./types/metafor/mass.ts").MassFactory) => Schema,
+            mass<Schema extends Record<string, import("@metafor/types/metafor/mass").MassDeclaration>>(
+              declaration: (mass: import("@metafor/types/metafor/mass").MassFactory) => Schema,
             ) {
               const mass = declaration(massFactory)
               return {
@@ -124,7 +124,7 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
                   void _check
                   const dslFields = Object.entries(fields).map(([key, definition]) => ({key, ...definition}))
                   const dslSuperposition = Object.entries(normalizedSuperposition).map(([name, transitions]) => ({name, transitions}))
-                  const schema: MetaDSL<ɸ, 𝛴, import("./types/metafor/mass.ts").MassHandles<Schema>, e> = {
+                  const schema: MetaDSL<ɸ, 𝛴, import("@metafor/types/metafor/mass").MassHandles<Schema>, e> = {
                     name,
                     superposition: dslSuperposition,
                     fields: dslFields,
@@ -132,13 +132,13 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
                   }
                   if (desc) schema.desc = desc
                   return {
-                    processes(process: ProcessesDeclaration<ɸ, 𝛴, import("./types/metafor/mass.ts").MassHandles<Schema>, ψ, e> = () => []) {
+                    processes(process: ProcessesDeclaration<ɸ, 𝛴, import("@metafor/types/metafor/mass").MassHandles<Schema>, ψ, e> = () => []) {
                       const processes = processesSchema(process, Object.keys(fields))
                       if (processes) {
                         schema.processes = Object.entries(processes).map(([key, declaration]) => ({key, declaration}))
                       }
                       return {
-                        reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, import("./types/metafor/mass.ts").MassHandles<Schema>> = () => []) {
+                        reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, import("@metafor/types/metafor/mass").MassHandles<Schema>> = () => []) {
                           const reactions = reactionsSchema(reaction)
                           if (reactions) {
                             schema.reactions = Object.entries(reactions.reactions).map(([key, config]) => ({
@@ -155,10 +155,10 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
                             }))
                           }
                           return {
-                            matter(matter?: MatterDeclaration<ɸ, import("./types/metafor/mass.ts").MassHandles<Schema>, 𝛴, e>) {
+                            matter(matter?: MatterDeclaration<ɸ, import("@metafor/types/metafor/mass").MassHandles<Schema>, 𝛴, e>) {
                               if (matter) schema.matter = parseMatter(matter, fields, name)
                               return {
-                                bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, import("./types/metafor/mass.ts").MassHandles<Schema>, e> {
+                                bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, import("@metafor/types/metafor/mass").MassHandles<Schema>, e> {
                                   if (bulk && "view" in bulk) {
                                     schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
                                   }
