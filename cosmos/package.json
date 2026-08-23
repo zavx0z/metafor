@@ -14,5 +14,8 @@
     "@cosmos/release": "workspace:^0.1.9",
     "@cosmos/startup": "workspace:*",
     "@internal/visual": "workspace:^0.1.10"
+  },
+  "devDependencies": {
+    "puppeteer-core": "25.4.0"
   }
 }
