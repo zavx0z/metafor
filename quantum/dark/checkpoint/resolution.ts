@@ -2,7 +2,7 @@ import type {
   MassHistoryResolutionDecisionV1,
   MassHistoryResolutionMetricsV1,
   MassHistoryResolutionPolicyV1,
-} from "@metafor/types/dark/history-resolution"
+} from "@dark/types/history-resolution"
 
 const finiteNonNegative = (value: number): boolean => Number.isFinite(value) && value >= 0
 
