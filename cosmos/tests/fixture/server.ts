@@ -36,12 +36,12 @@ const requests = {
 }
 const revisions: Record<ReleasablePackage, number> = {
   "@internal/visual": 0,
-  "@hamiltonian/release": 0,
+  "@cosmos/release": 0,
 }
 const versions = new Map<ReleasablePackage, string>()
 const environments = new Map<ReleasablePackage, BrowserPackageEnvironment[]>()
 for (const {name, env, version} of artifactConfig.values()) {
-  if (name !== "@hamiltonian/release" && name !== "@internal/visual") continue
+  if (name !== "@cosmos/release" && name !== "@internal/visual") continue
   const previousVersion = versions.get(name)
   if (previousVersion !== undefined && previousVersion !== version)
     throw new Error(`Fixture package ${name} mixes versions ${previousVersion} and ${version}`)
@@ -81,7 +81,7 @@ const server = Bun.serve<RpcSocketData>({
       if (!await file.exists()) return new Response(null, {status: 404})
       return new Response(file)
     },
-    "/@hamiltonian/:module": {GET: fixtureArtifactResponse},
+    "/@cosmos/:module": {GET: fixtureArtifactResponse},
     "/@internal/:module": {GET: fixtureArtifactResponse},
     "/@metafor/:module": {GET: fixtureArtifactResponse},
     "/code": {
@@ -192,16 +192,16 @@ async function fixtureArtifactResponse(request: Request) {
   if (artifact === null) return new Response(null, {status: 404})
   const configured = artifactConfig.get(artifactKey(artifact.name, artifact.env))
   if (!configured) return new Response(null, {status: 404})
-  const currentVersion = artifact.name === "@hamiltonian/startup"
+  const currentVersion = artifact.name === "@cosmos/startup"
     ? configured.version
     : versions.get(artifact.name as ReleasablePackage)
   if (artifact.version !== null && artifact.version !== currentVersion)
     return new Response(null, {status: 404})
 
   switch (artifact.name) {
-    case "@hamiltonian/startup":
+    case "@cosmos/startup":
       return await staticArtifactResponse(configured)
-    case "@hamiltonian/release": {
+    case "@cosmos/release": {
       if (artifact.env === "main") {
         requests.releaseMain += 1
         return await artifactResponse(artifact.name, artifact.env)
