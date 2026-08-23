@@ -14,19 +14,19 @@ import {
 import type {PackageEnvironment} from "../shared/package/environment"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
-const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
+const cosmos = fileURLToPath(new URL("../", import.meta.url))
 const repository = fileURLToPath(new URL("../../", import.meta.url))
 const packages = {
   startup: {
     path: "startup",
-    name: "@hamiltonian/startup",
-    scope: "hamiltonian",
+    name: "@cosmos/startup",
+    scope: "cosmos",
     environments: ["main", "service"],
   },
   release: {
     path: "release",
-    name: "@hamiltonian/release",
-    scope: "hamiltonian",
+    name: "@cosmos/release",
+    scope: "cosmos",
     environments: ["main", "service", "server"],
   },
   visual: {
@@ -39,22 +39,22 @@ const packages = {
 
 setDefaultTimeout(30_000)
 
-test("every Hamiltonian package owns direct env entrypoints and one typecheck", async () => {
-  const root = await Bun.file(join(hamiltonian, "package.json")).json() as {
+test("every Cosmos package owns direct env entrypoints and one typecheck", async () => {
+  const root = await Bun.file(join(cosmos, "package.json")).json() as {
     scripts?: Record<string, string>
   }
   expect(root.scripts?.dev).toBe(
-    "NODE_ENV=development bun --conditions=hamiltonian:server --conditions=internal:server --port=4444 server",
+    "NODE_ENV=development bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
   )
   expect(root.scripts?.start).toBe(
-    "bun --conditions=hamiltonian:server --conditions=internal:server --port=4444 server",
+    "bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
   )
   expect(root.scripts?.build).toBe(
-    "NODE_ENV=production bun --conditions=hamiltonian:server --conditions=internal:server build.ts",
+    "NODE_ENV=production bun --conditions=cosmos:server --conditions=internal:server build.ts",
   )
 
   for (const descriptor of Object.values(packages)) {
-    const manifest = await Bun.file(join(hamiltonian, descriptor.path, "package.json")).json() as {
+    const manifest = await Bun.file(join(cosmos, descriptor.path, "package.json")).json() as {
       exports?: {"."?: Record<string, unknown>}
       scripts?: Record<string, string>
     }
@@ -74,7 +74,7 @@ test("every Hamiltonian package owns direct env entrypoints and one typecheck", 
   }
 })
 
-test("Hamiltonian packages do not re-export types owned by another package", async () => {
+test("Cosmos packages do not re-export types owned by another package", async () => {
   expect(await crossPackageTypeReexports()).toEqual([])
 })
 
@@ -122,7 +122,7 @@ test("type re-export ownership covers every supported export form", async () => 
 })
 
 test("build executor resolves package contracts without a module registry", async () => {
-  const source = await Bun.file(join(hamiltonian, "release/server/package/manifest.ts")).text()
+  const source = await Bun.file(join(cosmos, "release/server/package/manifest.ts")).text()
   expect(source).not.toContain('join(root, "dist/index.js")')
 
   for (const descriptor of Object.values(packages)) {
@@ -213,19 +213,19 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
       scripts?: Record<string, string>
     }>,
     Bun.file(join(repository, "tsconfig.json")).text(),
-    Bun.file(join(hamiltonian, "tests/tsconfig.json")).text(),
-    Bun.file(join(hamiltonian, "release/server/index.ts")).text(),
-    Bun.file(join(hamiltonian, "release/service/index.ts")).text(),
+    Bun.file(join(cosmos, "tests/tsconfig.json")).text(),
+    Bun.file(join(cosmos, "release/server/index.ts")).text(),
+    Bun.file(join(cosmos, "release/service/index.ts")).text(),
   ])
 
   expect(rootPackage.scripts?.typecheck).toBe(
-    "bun run --filter @hamiltonian/startup typecheck && bun run --filter @hamiltonian/release typecheck && bun run --filter @internal/visual typecheck && tsc --project hamiltonian/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
+    "bun run --filter @cosmos/startup typecheck && bun run --filter @cosmos/release typecheck && bun run --filter @internal/visual typecheck && tsc --project cosmos/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
   )
-  expect(rootConfig).toContain('"hamiltonian/release/**/*"')
-  expect(rootConfig).toContain('"hamiltonian/startup/**/*"')
-  expect(rootConfig).toContain('"hamiltonian/internal/visual/**/*"')
-  expect(rootConfig).toContain('"hamiltonian/tests/**/*"')
-  expect(testConfig).toContain('"hamiltonian:service"')
+  expect(rootConfig).toContain('"cosmos/release/**/*"')
+  expect(rootConfig).toContain('"cosmos/startup/**/*"')
+  expect(rootConfig).toContain('"cosmos/internal/visual/**/*"')
+  expect(rootConfig).toContain('"cosmos/tests/**/*"')
+  expect(testConfig).toContain('"cosmos:service"')
   expect(testConfig).toContain('"serviceworker"')
 
   for (const contract of [
@@ -242,14 +242,14 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
   try {
     const service = await typecheckPackageEnvironment(
       directory,
-      "hamiltonian:service",
+      "cosmos:service",
       `
         import type {
           ReleaseDependencies,
           ReleaseFactory,
           ReleaseLoader,
           ReleaseRuntime,
-        } from "@hamiltonian/release"
+        } from "@cosmos/release"
         export type RuntimeContracts = [
           ReleaseDependencies,
           ReleaseFactory,
@@ -263,16 +263,16 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
 
     const server = await typecheckPackageEnvironment(
       directory,
-      "hamiltonian:server",
+      "cosmos:server",
       `
         // @ts-expect-error service-only contract is not public in env server
-        import type {ReleaseDependencies} from "@hamiltonian/release"
+        import type {ReleaseDependencies} from "@cosmos/release"
         // @ts-expect-error service-only contract is not public in env server
-        import type {ReleaseFactory} from "@hamiltonian/release"
+        import type {ReleaseFactory} from "@cosmos/release"
         // @ts-expect-error service-only contract is not public in env server
-        import type {ReleaseLoader} from "@hamiltonian/release"
+        import type {ReleaseLoader} from "@cosmos/release"
         // @ts-expect-error service-only contract is not public in env server
-        import type {ReleaseRuntime} from "@hamiltonian/release"
+        import type {ReleaseRuntime} from "@cosmos/release"
       `,
       ["bun"],
     )
@@ -283,7 +283,7 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
 })
 
 test("build executor derives development arguments from the production command", async () => {
-  const serviceWorker = (await packageOwners("@hamiltonian/release"))
+  const serviceWorker = (await packageOwners("@cosmos/release"))
     .find(({env}) => env === "service")
   if (!serviceWorker) throw new Error("Release Service Worker owner is missing")
   expect(packageBuildCommand(serviceWorker.build, "production").join(" ")).toBe(serviceWorker.build)
@@ -292,7 +292,7 @@ test("build executor derives development arguments from the production command",
     "bun",
     "build",
     "./service/index.ts",
-    "--conditions=hamiltonian:service",
+    "--conditions=cosmos:service",
     "--target=browser",
     "--format=cjs",
     "--minify",
@@ -331,14 +331,14 @@ test.serial("failed package typecheck prevents every env build", async () => {
 })
 
 test("development keeps debug and source maps while production drops both", async () => {
-  const state = await releaseWorkspaceState(hamiltonian)
+  const state = await releaseWorkspaceState(cosmos)
   try {
     const development = await build("development")
     expect(development.releaseService).toContain("console.debug")
     expect(development.releaseService).toContain("соединение с сервером обновлений установлено")
     expect(development.releaseService).toContain("transaction начата")
     expect(development.startupMain).toContain("страница готова к работе")
-    expect(development.releaseMain).toContain("[@hamiltonian/release:main]")
+    expect(development.releaseMain).toContain("[@cosmos/release:main]")
     expect(development.internalVisual).toContain("[@internal/visual:main]")
     for (const artifact of Object.values(development))
       expect(artifact).toContain("sourceMappingURL=data:application/json")
@@ -352,7 +352,7 @@ test("development keeps debug and source maps while production drops both", asyn
       expect(artifact).not.toContain("RELEASE_FIXTURE_")
     }
   } finally {
-    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
 }, 30_000)
 
@@ -369,12 +369,12 @@ async function build(mode: "development" | "production") {
   }
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
-    "--conditions=hamiltonian:server",
+    "--conditions=cosmos:server",
     "--conditions=internal:server",
     "-e",
-    `import {buildPackage} from "@hamiltonian/release"; const artifacts = ${JSON.stringify(artifacts)}; console.log(JSON.stringify(await Promise.all([buildPackage("@hamiltonian/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@hamiltonian/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@hamiltonian/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@hamiltonian/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@hamiltonian/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",artifact:artifacts.internalVisual}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
+    `import {buildPackage} from "@cosmos/release"; const artifacts = ${JSON.stringify(artifacts)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",artifact:artifacts.internalVisual}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
   ], {
-    cwd: hamiltonian,
+    cwd: cosmos,
     env: {...process.env, NODE_ENV: mode},
     stdout: "pipe",
     stderr: "pipe",
@@ -420,7 +420,7 @@ async function runReleaseFixture(scenario: "parallel-typecheck" | "failed-typech
     "test",
     "./tests/fixture/release-workspace-process.ts",
   ], {
-    cwd: hamiltonian,
+    cwd: cosmos,
     env: {...process.env, NODE_ENV: "development", RELEASE_FIXTURE_SCENARIO: scenario},
     stdout: "pipe",
     stderr: "pipe",
@@ -491,7 +491,7 @@ async function typecheckPackageEnvironment(
 }
 
 async function crossPackageTypeReexports(
-  roots = ["startup", "release", "internal"].map((path) => join(hamiltonian, path)),
+  roots = ["startup", "release", "internal"].map((path) => join(cosmos, path)),
 ) {
   const files = (await Promise.all(roots.map(sourceFiles))).flat()
   const violations = (await Promise.all(files.map(readTypeReexports))).flat()
@@ -559,11 +559,11 @@ async function readTypeReexports(path: string) {
 
     for (const specifier of specifiers) {
       const target = resolveModule(specifier, path)
-      if (!target) throw new Error(`Cannot resolve ${specifier} from ${relative(hamiltonian, path)}`)
+      if (!target) throw new Error(`Cannot resolve ${specifier} from ${relative(cosmos, path)}`)
       const targetOwner = await nearestPackage(target)
       if (owner.path === targetOwner.path) continue
       violations.push({
-        file: relative(hamiltonian, path),
+        file: relative(cosmos, path),
         line: tree.getLineAndCharacterOfPosition(statement.getStart(tree)).line + 1,
         sourceOwner: owner.name,
         targetOwner: targetOwner.name,
@@ -576,7 +576,7 @@ async function readTypeReexports(path: string) {
 function resolveModule(specifier: string, containingFile: string) {
   return ts.resolveModuleName(specifier, containingFile, {
     allowImportingTsExtensions: true,
-    customConditions: ["hamiltonian:server", "internal:server"],
+    customConditions: ["cosmos:server", "internal:server"],
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
     target: ts.ScriptTarget.ESNext,
