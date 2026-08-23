@@ -8,7 +8,7 @@
  * @packageDocumentation
  */
 
-const registration = await navigator.serviceWorker.register("/@hamiltonian/startup?env=service", {
+const registration = await navigator.serviceWorker.register("/@cosmos/startup?env=service", {
   scope: "/",
   type: "module",
 })
@@ -25,8 +25,8 @@ const serviceWorker = navigator.serviceWorker.controller
 
 if (!serviceWorker) throw new Error("Service Worker does not control the page")
 
-await import("@hamiltonian/release")
-console.debug("[@hamiltonian/startup:main]", "страница готова к работе", {
+await import("@cosmos/release")
+console.debug("[@cosmos/startup:main]", "страница готова к работе", {
   controller: serviceWorker.scriptURL,
   registration: registration.scope,
 })
