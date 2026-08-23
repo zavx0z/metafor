@@ -1,4 +1,4 @@
-/** Public API env `server` package `@hamiltonian/release`. */
+/** Public API env `server` package `@cosmos/release`. */
 export {buildablePackage, buildPackage, packageResponse} from "./package/build"
 export {packageBuildCommand} from "./package/command"
 export {
