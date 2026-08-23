@@ -1,11 +1,11 @@
-import {buildPackage, packageOwners} from "@hamiltonian/release"
+import {buildPackage, packageOwners} from "@cosmos/release"
 
 const manifest = await Bun.file(new URL("./package.json", import.meta.url)).json() as {
   dependencies?: Record<string, unknown>
 }
 const packages = Object.keys(manifest.dependencies ?? {}).filter((name) =>
-  name === "@hamiltonian/startup"
-  || name === "@hamiltonian/release"
+  name === "@cosmos/startup"
+  || name === "@cosmos/release"
   || name.startsWith("@internal/"))
 
 const results = (await Promise.all(packages.map(async (name) => {
