@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import type {MatrixConditionValue} from "@metafor/types/matrix/condition"
-import type {MatrixBraneValue, MatrixFieldRecord} from "@metafor/types/matrix/data"
+import type {MatrixConditionValue} from "@matrix/types/condition"
+import type {MatrixBraneValue, MatrixFieldRecord} from "@matrix/types/data"
 import {CPUWeakRuntime} from "../cpu"
 import {GPUWeakRuntime} from "../gpu"
 import {
