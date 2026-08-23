@@ -12,7 +12,7 @@ import {
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 setDefaultTimeout(30_000)
-const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
+const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
 test("root intent write precedes build and child writes in the host transaction", async () => {
   const source = await Bun.file(new URL("../release/server/release/publication.ts", import.meta.url)).text()
@@ -33,18 +33,18 @@ test("root intent is one reversible atomic manifest write", async () => {
   const source = `${JSON.stringify({
     name: "fixture",
     dependencies: {
-      "@hamiltonian/release": "workspace:^1.0.0",
+      "@cosmos/release": "workspace:^1.0.0",
       unrelated: "workspace:*",
     },
   }, null, 2)}\n`
 
   try {
     await Bun.write(manifest, source)
-    await writeRootVersions(manifest, new Map([["@hamiltonian/release", "1.1.0"]]))
+    await writeRootVersions(manifest, new Map([["@cosmos/release", "1.1.0"]]))
     expect(await Bun.file(manifest).json()).toEqual({
       name: "fixture",
       dependencies: {
-        "@hamiltonian/release": "workspace:^1.1.0",
+        "@cosmos/release": "workspace:^1.1.0",
         unrelated: "workspace:*",
       },
     })
@@ -77,7 +77,7 @@ test("immutable publication reuses equal bytes and rejects a conflict", async ()
 })
 
 test("cold recovery reproduces and reuses every converged exact artifact", async () => {
-  const state = await releaseWorkspaceState(hamiltonian)
+  const state = await releaseWorkspaceState(cosmos)
   try {
     const fixture = await runReleaseFixture("cold-recovery")
     const {stdout} = fixture
@@ -105,12 +105,12 @@ test("cold recovery reproduces and reuses every converged exact artifact", async
     expect(completed).toBeGreaterThan(started)
     expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
   } finally {
-    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
 })
 
 test("converged publication state does not emit recovery diagnostics", async () => {
-  const state = await releaseWorkspaceState(hamiltonian)
+  const state = await releaseWorkspaceState(cosmos)
   try {
     const {stdout, result} = await runReleaseFixture("converged-recovery")
     const recoveryOutput = afterRecoveryMarker(stdout)
@@ -119,12 +119,12 @@ test("converged publication state does not emit recovery diagnostics", async () 
     expect(recoveryOutput).not.toContain("восстановление публикации начато")
     expect(recoveryOutput).not.toContain("восстановление публикации завершено")
   } finally {
-    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
 })
 
 test("cold recovery rejects changed source behind a complete exact composition", async () => {
-  const state = await releaseWorkspaceState(hamiltonian)
+  const state = await releaseWorkspaceState(cosmos)
   try {
     const {stdout, output, result} = await runReleaseFixture("conflicting-recovery")
     expect(result).toEqual(expect.objectContaining({
@@ -136,12 +136,12 @@ test("cold recovery rejects changed source behind a complete exact composition",
     expect(occurrences(afterRecoveryMarker(stdout), "сборка artifact начата")).toBe(5)
     expect(output).toContain("восстановление публикации завершилось с ошибкой")
   } finally {
-    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
 })
 
 test("production publication diagnostics preserve success and rollback order", async () => {
-  const state = await releaseWorkspaceState(hamiltonian)
+  const state = await releaseWorkspaceState(cosmos)
   try {
     const success = await runReleaseFixture("publication")
     expect((success.result as {status: number}).status).toBe(200)
@@ -172,18 +172,18 @@ test("production publication diagnostics preserve success and rollback order", a
     ])
     expect(failure.output).not.toContain("сигнал об обновлении отправлен")
   } finally {
-    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
 })
 
 test("production delivery diagnostics distinguish delivered and missing artifacts", async () => {
-  const state = await releaseWorkspaceState(hamiltonian)
+  const state = await releaseWorkspaceState(cosmos)
   try {
     const {stdout, result} = await runReleaseFixture("delivery")
     expect(result).toEqual(expect.objectContaining({delivered: 200, missing: 404}))
     expectOrdered(stdout, ["browser artifact доставлен", "browser artifact не найден"])
   } finally {
-    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
 })
 
@@ -193,7 +193,7 @@ async function runReleaseFixture(scenario: string) {
     "test",
     "./tests/fixture/release-workspace-process.ts",
   ], {
-    cwd: hamiltonian,
+    cwd: cosmos,
     env: {...process.env, NODE_ENV: "development", RELEASE_FIXTURE_SCENARIO: scenario},
     stdout: "pipe",
     stderr: "pipe",
