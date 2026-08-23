@@ -1,0 +1,10 @@
+{
+  "name": "@dark/types",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./checkpoint": "./checkpoint.ts",
+    "./history-resolution": "./history-resolution.ts"
+  }
+}
