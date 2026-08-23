@@ -1,6 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
-import {STATE_UNDEFINED} from "@metafor/types/matrix/runtime"
+import {STATE_UNDEFINED} from "@matrix/types/runtime"
 import {gravity$} from "gravity/store.ts"
 import {strong$} from "strong"
 import {weak$} from "weak"
