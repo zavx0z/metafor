@@ -6,7 +6,7 @@ import {
 /** Browser package namespaces, доступные через одноимённые origin paths. */
 export type BrowserPackageNamespace = "startup" | "release" | "internal" | "metafor"
 
-const packageNamePattern = /^@(hamiltonian|internal|metafor)\/[^/]+$/
+const packageNamePattern = /^@(cosmos|internal|metafor)\/[^/]+$/
 const versionPattern = /^\d+\.\d+\.\d+$/
 
 export interface BrowserPackageUrl {
@@ -63,8 +63,8 @@ export function browserPackageSlot(name: string, env: BrowserPackageEnvironment)
 
 /** Возвращает постоянный Cache Storage владельца package namespace. */
 export function browserPackageCache(name: string | null) {
-  if (name === "@hamiltonian/startup") return "startup"
-  if (name === "@hamiltonian/release") return "release"
+  if (name === "@cosmos/startup") return "startup"
+  if (name === "@cosmos/release") return "release"
   if (name?.startsWith("@internal/")) return "internal"
   if (name?.startsWith("@metafor/")) return "metafor"
   return null
