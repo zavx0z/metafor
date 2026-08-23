@@ -4,9 +4,9 @@
 import { test, expect, describe } from "bun:test"
 import {flattenMatrixData} from "../gravity"
 import {prepareMatrixData} from "../prepare.ts"
-import type { MatrixData, MatrixTransitionRecord } from "@metafor/types/matrix/store"
+import type { MatrixData, MatrixTransitionRecord } from "@matrix/types/store"
 import { FieldType } from "../gravity"
-import type { MatrixInputData } from "@metafor/types/matrix/data"
+import type { MatrixInputData } from "@matrix/types/data"
 import { OP } from "../weak/constants"
 
 function getBraneLocalValues(store: MatrixData, braneIndex: number) {
