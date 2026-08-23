@@ -1,7 +1,7 @@
 import {isBrowserPackageEnvironment} from "../../../shared/package/environment"
 import type {PackageManifest, PackageOwner, ReleasablePackage} from "../shared/contracts"
 import {packageManifest, packageOwners} from "../package/manifest"
-import {hamiltonianManifest} from "../shared/paths"
+import {cosmosManifest} from "../shared/paths"
 import {caretVersion, isVersion} from "../package/version"
 
 export interface ReleaseDependencyMember {
@@ -30,7 +30,7 @@ export async function readReleaseComposition(): Promise<ReleaseCompositionMember
 
 /** Читает target root intent, разрешая ещё не сошедшиеся child versions. */
 export async function readReleaseIntentComposition(): Promise<ReleaseCompositionMember[]> {
-  const root = await packageManifest(hamiltonianManifest)
+  const root = await packageManifest(cosmosManifest)
   const members = await Promise.all(Object.entries(root.dependencies ?? {}).flatMap(
     ([name, dependency]) => {
       if (!isReleasableName(name) || typeof dependency !== "string") return []
@@ -137,5 +137,5 @@ function compareVersion(left: [number, number, number], right: [number, number, 
 }
 
 function isReleasableName(value: string): value is ReleasablePackage {
-  return value === "@hamiltonian/release" || value.startsWith("@internal/")
+  return value === "@cosmos/release" || value.startsWith("@internal/")
 }
