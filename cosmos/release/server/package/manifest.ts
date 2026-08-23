@@ -14,14 +14,14 @@ import {
   type PackageManifest,
   type PackageOwner,
 } from "../shared/contracts"
-import {hamiltonianRoot} from "../shared/paths"
+import {cosmosRoot} from "../shared/paths"
 
 interface PackageLocation {
   root: string
   manifest: string
 }
 
-const repositoryRoot = dirname(hamiltonianRoot)
+const repositoryRoot = dirname(cosmosRoot)
 const packageLocations = new Map<BuildablePackage, Promise<PackageLocation>>()
 const browserEnvironments = new Set<PackageEnvironment>(browserPackageEnvironments)
 
@@ -117,12 +117,12 @@ async function packageLocation(name: BuildablePackage) {
 
 async function findPackage(name: BuildablePackage): Promise<PackageLocation> {
   if (!/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name))
-    throw new Error(`Invalid Hamiltonian package name ${name}`)
+    throw new Error(`Invalid Cosmos package name ${name}`)
 
   const linkedRoot = join(repositoryRoot, "node_modules", ...name.split("/"))
   const root = await realpath(linkedRoot)
-  if (root !== hamiltonianRoot && !root.startsWith(`${hamiltonianRoot}/`))
-    throw new Error(`Package ${name} is outside Hamiltonian`)
+  if (root !== cosmosRoot && !root.startsWith(`${cosmosRoot}/`))
+    throw new Error(`Package ${name} is outside Cosmos`)
 
   const manifest = join(root, "package.json")
   if (!await Bun.file(manifest).exists()) throw new Error(`Package manifest is missing for ${name}`)
@@ -205,7 +205,7 @@ function relativeSource(value: unknown, label: string) {
 
 function packageConditionScope(name: string) {
   const match = /^@([a-z0-9][a-z0-9._-]*)\/[a-z0-9][a-z0-9._-]*$/i.exec(name)
-  if (!match) throw new Error(`Invalid Hamiltonian package name ${name}`)
+  if (!match) throw new Error(`Invalid Cosmos package name ${name}`)
   return match[1]!
 }
 
