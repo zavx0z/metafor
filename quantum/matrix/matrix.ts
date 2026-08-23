@@ -16,9 +16,9 @@
 
 import {gravity$} from "gravity/store.ts"
 import {matrix$} from "./store"
-import type {MatrixFieldValueRecord, MatrixStore, MatrixValue} from "@metafor/types/matrix/store"
-import type {MatrixFieldRecord} from "@metafor/types/matrix/data"
-import type {AsyncGate, MatrixPendingProcessExecution, MatrixUpdateOptions} from "@metafor/types/matrix/runtime"
+import type {MatrixFieldValueRecord, MatrixStore, MatrixValue} from "@matrix/types/store"
+import type {MatrixFieldRecord} from "@matrix/types/data"
+import type {AsyncGate, MatrixPendingProcessExecution, MatrixUpdateOptions} from "@matrix/types/runtime"
 import type {
   ProcessExecutionClaim,
   ProcessExecutionGrant,
