@@ -2,7 +2,7 @@ import type {Graph, MetaAddress} from "@metafor/types/metafor/graph"
 import type {
   MetaProcessExecutionOutcome,
   MetaProcessExecutionStatus,
-} from "@metafor/types/metafor/observation"
+} from "../metafor/observation.ts"
 
 export const BOUNDARY_GRAPH_PROJECTION_METHOD = "boundary.graph.current.read" as const
 export const BOUNDARY_FIELD_VALUE_PLAN_METHOD = "boundary.runtime.field.value.plan" as const
