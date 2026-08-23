@@ -12,7 +12,7 @@ import {
 import {captureDiagnostics} from "./fixture/diagnostics"
 
 const releaseRequest = new Request(
-  "http://127.0.0.1:4444/@hamiltonian/release?env=service",
+  "http://127.0.0.1:4444/@cosmos/release?env=service",
 )
 
 test.serial("startup cold boot is immediate, shared, and retriable", async () => {
@@ -132,7 +132,7 @@ test.serial("runtime swap sends new events to candidate and destroys old after i
     await host.boot()
     const pendingOld = host.fetch({request: new Request("http://127.0.0.1:4444/old")} as FetchEvent)
     const candidate = await host.prepare(new Request(
-      "http://127.0.0.1:4444/@hamiltonian/release?env=service&version=0.1.4",
+      "http://127.0.0.1:4444/@cosmos/release?env=service&version=0.1.4",
     ))
     const activation = host.activate(candidate)
     await Promise.resolve()
