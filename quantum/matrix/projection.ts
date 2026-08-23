@@ -15,7 +15,7 @@ import type {
   BoundaryInitialState,
   BoundaryInitialVariantRef,
 } from "@metafor/types/boundary/initial"
-import type {MatrixRuntimeAtomEntity} from "@metafor/types/matrix/runtime"
+import type {MatrixRuntimeAtomEntity} from "@matrix/types/runtime"
 import {
   resolveCanonicalForceFieldsPayload,
   resolveForceFieldsPayload,
@@ -511,13 +511,6 @@ export function recordMatrixProjectionState(atomId: number, metaState: number | 
   if (atom) atom.state = metaState
 }
 
-/**
- * Применяет одну каноническую Particle и вычисляет границу структурного
- * изменения.
- *
- * @param part Одна Particle, уже выпущенная Boundary.
- * @returns Затронутые Atom и область аннулирования Process.
- */
 export function applyMatrixProjectionParticle(part: Particle): MatrixProjectionChange {
   requireProjection()
   if (part.part === "gluon" || part.part === "higgs") {
