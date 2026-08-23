@@ -1,5 +1,5 @@
-import type { EnergyProcessDescriptor } from "./process.ts"
-import type {MatterBindingValue} from "../metafor/matter.ts"
+import type {EnergyProcessDescriptor} from "./process.ts"
+import type {MatterBindingValue} from "@metafor/types/metafor/matter"
 
 export interface EnergyAtomEntity {
   id: number
