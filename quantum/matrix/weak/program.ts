@@ -5,15 +5,15 @@
  */
 
 import { parseCondition } from "../gravity/condition"
-import type { CompiledRules, FieldBytecode, MatrixEncodingContext } from "@metafor/types/matrix/gpu"
-import type { FlattenedTransition, MatrixCollapse, MatrixFieldRecord } from "@metafor/types/matrix/data"
+import type { CompiledRules, FieldBytecode, MatrixEncodingContext } from "@matrix/types/gpu"
+import type { FlattenedTransition, MatrixCollapse, MatrixFieldRecord } from "@matrix/types/data"
 import type {
   MatrixCompiledConditionsResult,
   MatrixConditionInstruction,
   MatrixParsedCheck,
   MatrixQuantifierValue,
-} from "@metafor/types/matrix/condition"
-import type { StringInterner } from "@metafor/types/matrix/strong"
+} from "@matrix/types/condition"
+import type { StringInterner } from "@matrix/types/strong"
 import { createStoredStringInterner } from "../strong/string-table"
 import { OP, VALUE_TYPE } from "./constants"
 import { encodeValue, fieldTypeToBytecodeType } from "./encode"
