@@ -1,5 +1,4 @@
-import type { MatrixGravityStore } from "@metafor/types/matrix/gravity"
-
+import type { MatrixGravityStore } from "@matrix/types/gravity"
 
 export const gravity$: MatrixGravityStore = {
   activeAtomIds: [],
