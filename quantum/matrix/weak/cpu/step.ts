@@ -1,5 +1,5 @@
-import type { CpuRuntimeContext } from "@metafor/types/matrix/cpu"
-import type { WeakChanges, WeakStepMode } from "@metafor/types/matrix/weak"
+import type { CpuRuntimeContext } from "@matrix/types/cpu"
+import type { WeakChanges, WeakStepMode } from "@matrix/types/weak"
 import { evaluateBraneNextState } from "./transition"
 import { STATE_NONE, STATE_UNDEFINED, StepMode } from "../constants"
 
@@ -10,31 +10,18 @@ export function executeCpuStep(context: CpuRuntimeContext, mode: WeakStepMode = 
 
   for (let braneIndex = 0; braneIndex < store$.branes.length; braneIndex++) {
     const brane = store$.branes[braneIndex]
-    if (!brane || brane.lock) {
-      continue
-    }
-
+    if (!brane || brane.lock) continue
     const currentState = store$.states[braneIndex] ?? STATE_NONE
-    if (currentState === STATE_NONE) {
-      continue
-    }
-
-    if (mode === StepMode.UndefinedOnly && currentState !== STATE_UNDEFINED) {
-      continue
-    }
-
+    if (currentState === STATE_NONE) continue
+    if (mode === StepMode.UndefinedOnly && currentState !== STATE_UNDEFINED) continue
     if (currentState === STATE_UNDEFINED) {
       nextStates[braneIndex] = 0
       brane.lock = true
       changes.push([braneIndex, 0])
       continue
     }
-
     const nextState = evaluateBraneNextState(store$, braneIndex)
-    if (nextState === currentState) {
-      continue
-    }
-
+    if (nextState === currentState) continue
     nextStates[braneIndex] = nextState
     brane.lock = true
     changes.push([braneIndex, nextState])
