@@ -1,4 +1,4 @@
-import type {FieldBytecode} from "@metafor/types/matrix/gpu"
+import type {FieldBytecode} from "@matrix/types/gpu"
 
 type TransitionWithTarget = {
   targetState: number | null
