@@ -1,4 +1,4 @@
-import type { GpuBufferMap } from "@metafor/types/matrix/gpu"
+import type { GpuBufferMap } from "@matrix/types/gpu"
 
 export function createComputePipeline(device: GPUDevice, shaderSource: string): GPUComputePipeline {
   const module = device.createShaderModule({ code: shaderSource })
