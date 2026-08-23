@@ -1,4 +1,4 @@
-import type {EnergyProtocol, EnergyProtocolOptions} from "@metafor/types/energy/protocol"
+import type {EnergyProtocol, EnergyProtocolOptions} from "@energy/types/protocol"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import {startEnergyProtocol} from "./energy.ts"
 import {EnergyOracle} from "./oracle.ts"
