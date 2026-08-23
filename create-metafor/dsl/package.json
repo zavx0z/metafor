@@ -1,0 +1,18 @@
+{
+  "name": "@metafor/dsl",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "typecheck:expect-errors": "bun ./tests/types/verify-expect-errors.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@metafor/template": "workspace:*",
+    "@metafor/types": "workspace:*"
+  }
+}
