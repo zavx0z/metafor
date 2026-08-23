@@ -1,5 +1,5 @@
-import type { ArrayHeapSlot, GpuHeapWordUpdate } from "@metafor/types/matrix/gpu"
-import type { MatrixFieldRecord } from "@metafor/types/matrix/data"
+import type { ArrayHeapSlot, GpuHeapWordUpdate } from "@matrix/types/gpu"
+import type { MatrixFieldRecord } from "@matrix/types/data"
 import { FIELD_TYPE } from "../constants"
 import { unpackMeta } from "./layout-heap"
 
