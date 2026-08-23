@@ -26,7 +26,7 @@ export async function publishRelease(
   debug("публикация release запрошена", {packages})
   const response = await publishPackages(packages)
   if (!response.success) {
-    console.error("[@hamiltonian/release:server:update]", "публикация release завершилась с ошибкой", {
+    console.error("[@cosmos/release:server:update]", "публикация release завершилась с ошибкой", {
       packages,
       results: releaseResults(response.results),
     })
@@ -63,5 +63,5 @@ function releaseResults(results: {module: string, success: boolean, exitCode: nu
 
 function debug(event: string, details: unknown) {
   if (Bun.env.NODE_ENV === "development")
-    console.debug("[@hamiltonian/release:server:update]", event, details)
+    console.debug("[@cosmos/release:server:update]", event, details)
 }
