@@ -78,13 +78,13 @@ test.serial("UPD-003 installs every candidate before cleanup and deletes service
     mutation.kind === "delete" && mutation.cache !== "transaction")
   expect(canonicalDeletes.at(-1)?.url).toBe(exactUrl(
     state.previous.find(({name, env}) =>
-      name === "@hamiltonian/release" && env === "service")!,
+      name === "@cosmos/release" && env === "service")!,
   ))
   expect(result.mutations.at(-1)).toEqual({cache: "transaction", kind: "delete-cache"})
 })
 
 test.serial("UPD-003 treats a stale update for an installed exact entry as a no-op", async () => {
-  const installed = await artifact("@hamiltonian/release", "main", "1.0.0", "installed main")
+  const installed = await artifact("@cosmos/release", "main", "1.0.0", "installed main")
   const storage = new MemoryCacheStorage()
   const release = await storage.open("release")
   await release.put(exactUrl(installed.identity), installed.response)
@@ -131,7 +131,7 @@ test.serial("UPD-003 prepares release runtime before cleanup and activates it on
   })
 
   const service = state.next.find(({name, env}) =>
-    name === "@hamiltonian/release" && env === "service")!
+    name === "@cosmos/release" && env === "service")!
   expect(lifecycle).toEqual([`prepare:${exactUrl(service)}`, "activate"])
   expect(diagnostics.map(({event}) => event)).toEqual([
     "transaction начата",
@@ -166,7 +166,7 @@ test.serial("UPD-003 remove-only recovery prepares the installed target release 
   const delta = releaseDelta(state.next, current)
   expect(delta.update).toEqual([])
   const previousService = state.previous.find(({name, env}) =>
-    name === "@hamiltonian/release" && env === "service")!
+    name === "@cosmos/release" && env === "service")!
   expect(delta.remove).toContainEqual({
     name: previousService.name,
     env: previousService.env,
@@ -188,7 +188,7 @@ test.serial("UPD-003 remove-only recovery prepares the installed target release 
   })
 
   const target = state.next.find(({name, env}) =>
-    name === "@hamiltonian/release" && env === "service")!
+    name === "@cosmos/release" && env === "service")!
   expect(prepared.url).toBe(exactUrl(target))
   await expectNewComposition(state.storage, state.next)
   expect(diagnostics.map(({event}) => event)).toEqual([
@@ -203,19 +203,19 @@ test.serial("UPD-003 remove-only recovery prepares the installed target release 
 
 test.serial("UPD-003 startup uses Cache order and fails closed on a damaged first release", async () => {
   const storage = new MemoryCacheStorage()
-  const previous = await artifact("@hamiltonian/release", "service", "1.0.0", "old release")
-  const next = await artifact("@hamiltonian/release", "service", "1.1.0", "new release")
+  const previous = await artifact("@cosmos/release", "service", "1.0.0", "old release")
+  const next = await artifact("@cosmos/release", "service", "1.1.0", "new release")
   const release = await storage.open("release")
   await release.put(exactUrl(previous.identity), previous.response)
   await release.put(exactUrl(next.identity), next.response)
   storage.resetMutations()
 
   await withServiceWorkerGlobals(storage, new Map(), async () => {
-    const stable = new Request(`${origin}${browserPackageUrl("@hamiltonian/release", "service")}`)
+    const stable = new Request(`${origin}${browserPackageUrl("@cosmos/release", "service")}`)
     expect(await (await read("release", stable))?.text()).toBe("old release")
 
     const mismatched = new Request(`${origin}${browserPackageUrl(
-      "@hamiltonian/release",
+      "@cosmos/release",
       "service",
       "9.9.9",
     )}`)
@@ -245,14 +245,14 @@ const loader = {
 
 async function fixture() {
   const previousArtifacts = await Promise.all([
-    artifact("@hamiltonian/release", "main", "1.0.0", "old main"),
+    artifact("@cosmos/release", "main", "1.0.0", "old main"),
     artifact("@internal/visual", "main", "1.0.0", "old visual"),
-    artifact("@hamiltonian/release", "service", "1.0.0", "old service"),
+    artifact("@cosmos/release", "service", "1.0.0", "old service"),
   ])
   const nextArtifacts = await Promise.all([
-    artifact("@hamiltonian/release", "main", "1.1.0", "new main"),
+    artifact("@cosmos/release", "main", "1.1.0", "new main"),
     artifact("@internal/visual", "main", "1.1.0", "new visual"),
-    artifact("@hamiltonian/release", "service", "1.1.0", "new service"),
+    artifact("@cosmos/release", "service", "1.1.0", "new service"),
   ])
   const stale = await artifact("@internal/stale", "main", "0.1.0", "stale")
   const storage = new MemoryCacheStorage()
