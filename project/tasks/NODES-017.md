@@ -202,7 +202,7 @@ per-area matrix: Canvas/Frame/Node/Parameter/Socket/Controls совпадают 
 принятыми Blender constraints; project font, two-sided Parameter и rounded
 orthogonal Links записаны как явные divergences/extensions. Mobile emulation
 проходит без overflow и с pan/pinch, но physical Android отсутствует. Full
-relevant suite: 154 tests / 1239 assertions, четыре typechecks, TypeDoc, skill
+relevant suite: 154 tests / 1239 assertions, четыре typechecks, TSDoc, skill
 validation и diff check зелёные. Root gate неизменен: 240 cascades в прежних
 8 Hamiltonian Card-consumer files. Exact target `1E982…` сфокусирован,
 `visibility=visible`, `focused=true`. Owner acceptance ещё не выдан.

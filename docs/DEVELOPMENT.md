@@ -83,17 +83,16 @@ METAFOR_LOG_PARTS=inflaton,graviton,gluon,higgs,photon,z,w+,w-
 
 ## Локальная проверка
 
+Рабочий toolchain закреплён в root manifest: Bun `1.4.0` и TypeScript
+`7.0.2`. В проекте нет старого TypeScript compatibility package; проверки,
+TSDoc и IDE используют один TS 7 contract.
+
 Единый воспроизводимый contour:
 
 ```bash
 bun run typecheck
 bun run test
 bun run check
-bun run docs:matrix
-bun run docs:engine
-bun run docs:dark
-bun run docs:boundary
-bun run docs:bulk
 ```
 
 `bun run test` задаёт недоступный `FORCE_ADDRESS`, отключает reconnect и
@@ -110,11 +109,10 @@ bun test energy
 bun test bulk
 ```
 
-Каждая команда `docs:*` должна завершаться без предупреждений TypeDoc. Проверки
-Matrix с WebGPU требуют устройства, способного выполнить настоящий
+Проверки Matrix с WebGPU требуют устройства, способного выполнить настоящий
 вычислительный проход. Его недоступность является невыполненной проверкой, а не
-успешным результатом. TypeDoc Matrix содержит ссылки на конкретные сценарии,
-подтверждающие технические этапы жизненного цикла.
+успешным результатом. TSDoc рядом с public contracts содержит ссылки на
+конкретные сценарии, подтверждающие технические этапы жизненного цикла.
 
 ## Временная Meta
 

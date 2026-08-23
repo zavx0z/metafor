@@ -59,7 +59,6 @@ bun run --cwd pkg/nodes typecheck
 bun run --cwd pkg/nodes/ui typecheck
 bun run --cwd pkg/nodes/ui typecheck:playground
 bun test pkg/nodes
-bun run docs:layout
 ```
 
 Playgrounds запускаются независимо:

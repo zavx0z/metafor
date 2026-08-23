@@ -218,15 +218,9 @@ compound corridor и каждого фактического межслойно�
 [`nodes`](../REQUIREMENTS.md), а renderer/view —
 [`@nodes/ui`](../ui/REQUIREMENTS.md).
 
-## TypeDoc и проверки
+## TSDoc и проверки
 
-Полная русская API-документация строится из TSDoc public contracts:
-
-```bash
-bun run docs:layout
-```
-
-Результат появляется в `tmp/typedoc/layout`. Основные проверки:
+Русская API-документация живёт в TSDoc рядом с public contracts. Основные проверки:
 
 ```bash
 bun test pkg/nodes/layout/src

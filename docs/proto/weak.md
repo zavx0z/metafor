@@ -4,7 +4,7 @@ Weak связывает State, выбор Energy, выполнение Process �
 результата. Доменные законы находятся в документации
 [Matrix](../../quantum/matrix/README.md), [Energy](../domains/ENERGY.md) и
 [Boundary](../../quantum/boundary/DOMAIN.md); точная форма сообщений опубликована в
-TypeDoc Matrix.
+public types Matrix.
 
 ## Один проход
 
