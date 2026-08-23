@@ -199,6 +199,18 @@ export type NodeEditorRenderPlan<
   links: readonly PositionedLink<TLink>[]
 }>
 
+/** Positioned tree plus the exact local Node plans produced by one projection. */
+export type NodeEditorProjection<
+  TNode extends Node,
+  TSocket extends Socket,
+  TLink extends Link,
+  TFrame extends Frame = Frame,
+  TNodePlan = unknown,
+> = Readonly<{
+  tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
+  nodePlans: ReadonlyMap<string, TNodePlan>
+}>
+
 export type NodeEditorPaintStep =
   | Readonly<{kind: "frame-background"; frameId: string}>
   | Readonly<{kind: "links"}>
@@ -282,6 +294,7 @@ export class NodeCanvas<
   readonly #nodes = new Map<string, RetainedComponent<PositionedNode<TNode, TSocket>>>()
   readonly #interactionDirtyParents = new Set<Object3D>()
   #tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
+  #projectedNodePlans: ReadonlyMap<string, TNodePlan> | null = null
   #transform = DEFAULT_TRANSFORM
   #overlayState: NodeCanvasOverlayState
   #selection: NodeEditorSelection = null
@@ -348,6 +361,22 @@ export class NodeCanvas<
   }
 
   setTree(tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>): void {
+    this.#projectedNodePlans = null
+    this.#acceptTree(tree)
+  }
+
+  setProjection(
+    projection: NodeEditorProjection<TNode, TSocket, TLink, TFrame, TNodePlan>,
+  ): void {
+    validatePositionedNodeTree(projection.tree)
+    for (const {node} of projection.tree.nodes) {
+      if (!projection.nodePlans.has(node.id)) throw new Error(`Projection omitted Node plan: ${node.id}`)
+    }
+    this.#projectedNodePlans = projection.nodePlans
+    this.#acceptTree(projection.tree)
+  }
+
+  #acceptTree(tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>): void {
     validatePositionedNodeTree(tree)
     this.#tree = tree
     const frameIds = new Set(tree.frames.map(({frame}) => frame.id))
@@ -397,6 +426,9 @@ export class NodeCanvas<
     const next = normalizeOverlayState(state)
     if (sameOverlayState(next, this.#overlayState)) return false
     this.#overlayState = next
+    // External plans belong to the overlay state of their projection. Until a
+    // new projection is installed, fall back to the renderer's local planner.
+    this.#projectedNodePlans = null
     this.#contentClean = false
     this.requestRender()
     return true
@@ -561,8 +593,12 @@ export class NodeCanvas<
           selected,
           overlayState: this.#overlayState,
         }
-        this.#diagnostics.localLayoutPlans += 1
-        const plan = this.#renderers.node.plan(context)
+        const projectedPlan = this.#projectedNodePlans?.get(entry.node.id)
+        if (this.#projectedNodePlans !== null && projectedPlan === undefined) {
+          throw new Error(`Projection omitted Node plan: ${entry.node.id}`)
+        }
+        if (projectedPlan === undefined) this.#diagnostics.localLayoutPlans += 1
+        const plan = projectedPlan ?? this.#renderers.node.plan(context)
         nodePlans.set(entry.node.id, plan)
         nodePresentations.set(
           entry.node.id,

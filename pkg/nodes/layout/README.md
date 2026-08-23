@@ -15,7 +15,7 @@ placement, размеры compound-контейнеров, gateways и орто�
 Worker, UI, управление видом и traffic presentation не принадлежат этим
 документам.
 
-Layout ничего не знает о тексте карточки, Flex, `NodeSystemDocument`, DOM,
+Layout ничего не знает о живом `NodeTree`, Parameter, тексте, Flex, DOM,
 WebGPU, конкретном consumer или способе отображения результата.
 
 ## Policies и общий solver
@@ -137,7 +137,7 @@ const {result, diagnostics} = layoutAdaptiveWithDiagnostics({
 ```
 
 Diagnostics не входят в `LayoutResult`: production consumer может вызвать
-`layoutAdaptive`, а playground и benchmark получают candidate counts через
+`layoutAdaptive`, а focused tests и benchmark получают candidate counts через
 явный диагностический вызов. Невозможный выбор возвращает
 `AdaptiveLayoutError` с machine-readable witness.
 
@@ -225,19 +225,17 @@ compound corridor и каждого фактического межслойно�
 ```bash
 bun test pkg/nodes/layout/src
 bun run --cwd pkg/nodes/layout typecheck
-bun run --cwd pkg/nodes/layout typecheck:playground
 ```
 
-Лёгкий dev-only SVG playground запускается из корня репозитория:
+Полный runtime-consumer проверяется parent WebGPU playground из корня
+репозитория:
 
 ```bash
 bun run nodes:playground
 ```
 
-Он вызывает public fixed/adaptive entrypoints через private registry,
-сравнивает `RIGHT`/`DOWN` fixtures и показывает готовую geometry без Card,
-WebGPU, HUD и product renderer. Playground не экспортируется из package и не
-заменяет runtime-проверку consumer.
+Он получает numeric graph только через `NodeTree` projection и не входит в
+exports layout package. Сам solver не имеет отдельного browser lifecycle.
 
 ## Обязательный benchmark перед REVIEW
 

@@ -1,10 +1,5 @@
-/**
- * Универсальная model/geometry граница node-system без renderer и HUD.
- * @packageDocumentation
- */
-
-export * from "./types/index.ts"
-export * from "./validation.ts"
-export * from "./containment.ts"
+/** Live NodeTree runtime and projection coordination without renderer ownership. @packageDocumentation */
+export * from "./parameter.ts"
+export * from "./node-tree.ts"
+export * from "./projection-types.ts"
 export * from "./layout-worker.ts"
-export * from "./incremental-layout.ts"

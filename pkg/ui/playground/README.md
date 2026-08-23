@@ -33,8 +33,8 @@ import specifiers и копируемый TypeScript остаются точны
 reference работает на `http://127.0.0.1:4192/overview`: две панели слева,
 production preview по центру, variants снизу и постоянный code/copy справа.
 
-Node, Components и восстановленный historical Elements playground являются
-public-shell consumers. Каждый сохраняет package-owned routes/data/preview;
-Components владеет устойчивыми retained Field parents, Elements — одним
-retained preview parent. Solver-only Node layout playground остаётся отдельным
-не-WebGPU contour и в этот shell не входит.
+Root Nodes, Node UI, Components и восстановленный historical Elements
+playground являются public-shell consumers. Каждый сохраняет package-owned
+routes/data/preview; Components владеет устойчивыми retained Field parents,
+Elements — одним retained preview parent. Чистый `@nodes/layout` не имеет
+отдельного browser contour; его runtime-путь показывает parent Nodes playground.

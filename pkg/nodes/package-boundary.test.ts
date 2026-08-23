@@ -15,8 +15,10 @@ describe("universal node-system package boundaries", () => {
     expect(Object.keys(packageJson.dependencies ?? {}).sort()).toEqual(["@nodes/layout"])
 
     const files = (await sourceFiles(packageRoot))
+      .filter((path) => !path.includes("/.agents/"))
       .filter((path) => !path.includes("/fixtures/"))
       .filter((path) => !path.includes("/layout/"))
+      .filter((path) => !path.includes("/playground/"))
       .filter((path) => !path.includes("/ui/"))
       .filter((path) => !path.includes("/hud/"))
       .filter((path) => !path.endsWith(".test.ts"))
@@ -27,15 +29,22 @@ describe("universal node-system package boundaries", () => {
     expect(source).not.toContain("Hamiltonian")
   })
 
-  test("keeps the Node Editor free of legacy Card, HUD and product vocabulary", async () => {
+  test("keeps exact Node Editor rendering solver-free and isolates the explicit projection adapter", async () => {
     const uiRoot = join(packageRoot, "ui")
     const packageJson = await Bun.file(join(uiRoot, "package.json")).json() as {
       dependencies?: Record<string, string>
     }
     expect(packageJson.dependencies?.["@ui/hud"]).toBeUndefined()
-    const source = await readAll((await sourceFiles(uiRoot)).filter((path) => !path.endsWith(".test.ts")))
+    const production = (await sourceFiles(uiRoot))
+      .filter((path) => !path.endsWith(".test.ts"))
+      .filter((path) => !path.includes("/playground/"))
+    const source = await readAll(production)
+    const exactEditor = await Bun.file(join(uiRoot, "node-editor.ts")).text()
+    const projection = await Bun.file(join(uiRoot, "blender-projection.ts")).text()
     expect(source).not.toMatch(/from ["']@ui\/hud/)
-    expect(source).not.toMatch(/from ["'](?:nodes|@nodes\/layout)/)
+    expect(exactEditor).not.toMatch(/from ["'](?:nodes|@nodes\/layout)/)
+    expect(projection).toContain('from "nodes/node-tree"')
+    expect(projection).toContain('from "@nodes/layout/fixed"')
     expect(source).not.toMatch(/\b(?:NodeSystemSurface|NodeSystemCard|NodeSystemFact)\b/)
     for (const productTerm of [
       "service-worker-api",
@@ -58,18 +67,44 @@ describe("universal node-system package boundaries", () => {
         }
       }
     }
+    const rootManifest = await Bun.file(join(packageRoot, "package.json")).json() as {
+      exports: Record<string, unknown>
+    }
+    expect(Object.keys(rootManifest.exports).sort()).toEqual([
+      ".",
+      "./layout-worker",
+      "./layout-worker/adaptive/client",
+      "./layout-worker/adaptive/executor",
+      "./layout-worker/fixed/client",
+      "./layout-worker/fixed/executor",
+      "./layout-worker/transport",
+      "./layout-worker/types",
+      "./node-tree",
+      "./parameter",
+      "./projection-types",
+    ])
+    for (const legacy of [
+      "validation.ts",
+      "containment.ts",
+      "measured-layout.ts",
+      "adaptive-layout.ts",
+      "incremental-layout.ts",
+      "types/model.ts",
+      "types/measured.ts",
+    ]) expect(await Bun.file(join(packageRoot, legacy)).exists(), legacy).toBeFalse()
   })
 
   test("builds independent core, layout policies and Blender Node Editor consumer", async () => {
     const core = await buildFixture("core-consumer.ts")
     const fixedLayout = await buildFixture("fixed-layout-consumer.ts")
     const adaptiveLayout = await buildFixture("adaptive-layout-consumer.ts")
-    const adaptiveMeasured = await buildFixture("adaptive-measured-consumer.ts")
     const nodeEditor = await buildFixture("blender-node-editor-consumer.ts")
+    const blenderProjection = await buildFixture("blender-projection-consumer.ts")
 
+    expect(core.source).toContain("Stale NodeTree projection")
+    expect(core.source).toContain("must contain only finite numbers")
     expect(core.source).not.toContain("struct GlobalUniforms")
     expect(core.source).not.toContain("NO_LEGAL_LAYOUT")
-    expect(core.source).not.toContain("NodeSystemSurface")
     expect(fixedLayout.source).toContain("Port has conflicting edge roles")
     expect(fixedLayout.source).toContain("NO_LEGAL_LAYOUT")
     expect(fixedLayout.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
@@ -80,16 +115,14 @@ describe("universal node-system package boundaries", () => {
     expect(adaptiveLayout.source).not.toContain("NodeSystemSurface")
     expect(adaptiveLayout.source).not.toContain("NodeInspectorSurface")
     expect(adaptiveLayout.source).not.toContain("struct GlobalUniforms")
-    expect(adaptiveMeasured.source).toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
-    expect(adaptiveMeasured.source).not.toContain("Card title must be non-empty")
-    expect(adaptiveMeasured.source).not.toContain("defaultWidth:260")
-    expect(adaptiveMeasured.source).not.toContain("NodeSystemSurface")
-    expect(adaptiveMeasured.source).not.toContain("struct GlobalUniforms")
     expect(nodeEditor.source).toContain("NodeEditor")
     expect(nodeEditor.source).toContain("NodeCanvas")
     expect(nodeEditor.source).toContain("Socket is detached")
     expect(nodeEditor.source).not.toContain("NO_LEGAL_LAYOUT")
     expect(nodeEditor.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(blenderProjection.source).toContain("Stale NodeTree projection")
+    expect(blenderProjection.source).toContain("Port has conflicting edge roles")
+    expect(blenderProjection.source).toContain("Missing Blender Node")
     for (const legacy of [
       "NodeSystemSurface",
       "NodeSystemCard",
@@ -97,15 +130,15 @@ describe("universal node-system package boundaries", () => {
       "NodeInspectorSurface",
     ]) expect(nodeEditor.source).not.toContain(legacy)
 
-    expect(core.bytes).toBeLessThan(8_000)
+    expect(core.bytes).toBeLessThan(20_000)
     expect(fixedLayout.bytes).toBeLessThan(100_000)
     expect(fixedLayout.gzipBytes).toBeLessThan(32_000)
     expect(adaptiveLayout.bytes).toBeLessThan(120_000)
     expect(adaptiveLayout.gzipBytes).toBeLessThan(36_000)
-    expect(adaptiveMeasured.bytes).toBeLessThan(120_000)
-    expect(adaptiveMeasured.gzipBytes).toBeLessThan(38_000)
     expect(nodeEditor.bytes).toBeLessThan(350_000)
     expect(nodeEditor.gzipBytes).toBeLessThan(100_000)
+    expect(blenderProjection.bytes).toBeLessThan(520_000)
+    expect(blenderProjection.gzipBytes).toBeLessThan(145_000)
   })
 })
 

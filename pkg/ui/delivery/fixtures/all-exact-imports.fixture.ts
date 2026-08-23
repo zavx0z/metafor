@@ -44,6 +44,7 @@ import type * as componentsList from "@ui/components/list"
 import type * as componentsTable from "@ui/components/table"
 import type * as nodeEditor from "@nodes/ui/node-editor"
 import type * as blenderNode from "@nodes/ui/blender-node"
+import type * as blenderProjection from "@nodes/ui/blender-projection"
 import type * as linkCurve from "@nodes/ui/link-curve"
 
 export type ExactProductionImports = {
@@ -95,5 +96,5 @@ export type ExactProductionImports = {
     typeof componentsList,
     typeof componentsTable,
   ]
-  nodeUi: [typeof nodeEditor, typeof blenderNode, typeof linkCurve]
+  nodeUi: [typeof nodeEditor, typeof blenderNode, typeof blenderProjection, typeof linkCurve]
 }

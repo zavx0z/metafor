@@ -247,10 +247,12 @@ export function blenderSocketPreset(kind: BlenderSocketKind): BlenderSocketPrese
   return BLENDER_SOCKET_PRESETS[kind]
 }
 
+export type BlenderNodeMeasurement = Readonly<{width: number; height: number}>
+
 export function measureBlenderNode(
   node: BlenderNode,
   connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
-): Readonly<{width: number; height: number}> {
+): BlenderNodeMeasurement {
   const width = measureBlenderNodeWidth(node)
   if (node.collapsed) {
     const sockets = node.sockets ?? []
@@ -333,10 +335,10 @@ export function planBlenderNode(
   frame: NodeRect,
   connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
   overlayState: NodeCanvasOverlayState = DEFAULT_NODE_CANVAS_OVERLAY_STATE,
+  measured: BlenderNodeMeasurement = measureBlenderNode(node, connectedSocketIds),
 ): BlenderNodePlan {
   if (node.collapsed) return planCollapsedBlenderNode(node, frame, overlayState)
-  const measurement = measureBlenderNode(node, connectedSocketIds)
-  const rect = {...frame, h: measurement.height}
+  const rect = {...frame, h: measured.height}
   const regions = blenderNodeRegions(rect)
   const fields: Array<{
     field: FieldDefinition

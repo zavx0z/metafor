@@ -122,13 +122,25 @@
       "name": "@nodes/layout",
       "version": "0.0.1",
     },
+    "pkg/nodes/playground": {
+      "name": "@nodes/playground",
+      "version": "0.0.1",
+      "dependencies": {
+        "@nodes/ui": "workspace:*",
+        "@ui/elements": "workspace:*",
+        "@ui/playground": "workspace:*",
+        "nodes": "workspace:*",
+      },
+    },
     "pkg/nodes/ui": {
       "name": "@nodes/ui",
       "version": "0.0.1",
       "dependencies": {
         "@metafor/engine": "workspace:*",
+        "@nodes/layout": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
+        "nodes": "workspace:*",
       },
       "devDependencies": {
         "@ui/playground": "workspace:*",
@@ -422,6 +434,8 @@
     "@metafor/web-push": ["@metafor/web-push@workspace:pkg/web-push"],
 
     "@nodes/layout": ["@nodes/layout@workspace:pkg/nodes/layout"],
+
+    "@nodes/playground": ["@nodes/playground@workspace:pkg/nodes/playground"],
 
     "@nodes/ui": ["@nodes/ui@workspace:pkg/nodes/ui"],
 

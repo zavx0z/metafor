@@ -1,96 +1,107 @@
 # Требования пакета nodes
 
-Этот документ владеет требованиями к текущей общей
-semantic/measured/positioned layout-границе. Новая Blender-подобная component
-library принадлежит [`@nodes/ui`](ui/REQUIREMENTS.md) и намеренно не
-адаптируется к этому формату до следующего этапа layout integration.
-Алгоритмические законы находятся отдельно в `@nodes/layout`: [общие](layout/requirements/COMMON.md),
-[adaptive side-selection](layout/requirements/ADAPTIVE.md),
-[`RIGHT`](layout/requirements/RIGHT.md) и [`DOWN`](layout/requirements/DOWN.md).
+Этот документ владеет живым runtime-контрактом универсального нодового графа и
+получением его производных представлений. Алгоритмические законы расположения
+принадлежат [`@nodes/layout`](layout/README.md), а WebGPU view и renderer
+contracts — [`@nodes/ui`](ui/REQUIREMENTS.md).
 
-## Projection и измерение
+## Сущности и identity
 
-1. `nodes` владеет validation единой semantic topology и containment index.
-   Semantic port принадлежит node; UI row, label, action или другой
-   presentation element не является его владельцем.
-2. `NodeSystemDocument` не требует `title`, `summary`, `tone`, rows, actions,
-   размеров либо UI-anchor. Этот временно сохранённый layout contract не
-   является моделью нового Node Editor.
-3. Общий `MeasuredNodeSystem` содержит ту же topology, числовые intrinsic
-   размеры, content boundary и offsets anchors. В нём нет UI, текста, DOM,
-   Flex, WebGPU или product vocabulary.
-4. Layout result возвращает resolved side каждого port отдельно от optional
-   semantic side constraint. Renderer не выводит side из координаты и adapter
-   не мутирует semantic port после layout.
-5. Layout result связывается с исходным document по semantic IDs без
-   post-routing и без изменения рассчитанной geometry.
-6. Domain `NodeSystemNode.id` остаётся exact identity node и endpoint.
-   Если runtime incarnation меняется, но visual slot остаётся тем же, producer
-   передаёт отдельный уникальный `layoutId`. Adapter использует его только как
-   стабильную identity минимального `LayoutGraph`, а результат связывает
-   обратно с domain IDs. Runtime UUID, время появления и порядок lifecycle
-   событий сами по себе не являются сигналом для другой geometry.
-7. Порядок входных semantic arrays не меняет детерминированную geometry
-   одинаковой topology в `RIGHT` и `DOWN`.
+1. Единственный runtime-словарь:
+   `NodeTree → Frame / Node → Parameter → Socket → Link`.
+2. `Frame` является отдельным владельцем визуальной вложенности. Node ссылается
+   на него и не исполняет роль Frame.
+3. `Parameter` является устойчивой identity строки Node и Store одного значения.
+   `Socket` может ссылаться на Parameter, но не хранит и не дублирует его value.
+4. Link соединяет два exact Socket по `nodeId + socketId`. Capability
+   `input | output | bidirectional` не выводится из visual side.
+5. ID Frame и Node уникальны во всём дереве; Parameter и Socket уникальны внутри
+   owning Node; Link уникален в дереве. Неизвестные ссылки, циклические Frame и
+   несовместимые endpoints отклоняются до проекции.
+6. Первая runtime-версия получает topology в конструкторе. Значения Parameter
+   живые; structural mutation получает отдельный публичный договор, а не
+   неявное изменение внутренних массивов.
 
-## Layout Worker
+## Parameter как Store
 
-1. Worker transport adapter принадлежит пакету `nodes`, а не алгоритмическому
-   `@nodes/layout`. Layout package предоставляет только синхронное pure ядро и
-   его serializable protocol.
-2. Один долгоживущий browser-local Worker получает минимальный `LayoutGraph`,
-   возвращает geometry той же generation и отклоняет устаревшие ответы. Worker
-   не является domain, topology или lifecycle node приложения.
-3. Worker вызывает то же pure ядро, а не второй алгоритм. Молчаливого
-   синхронного fallback на main thread при ошибке нет; failure передаётся
-   потребителю явно.
-4. Worker request/response/client types принадлежат `nodes/types`, не
-   `@nodes/layout/types`. В layout protocol остаются только вход и результат
-   синхронного алгоритма.
-5. Новая topology generation, добавление/удаление нод или settled изменение
-   точного viewport запускают один полный пересчёт актуального graph. Серия
-   resize-событий ограничивается debounce, а устаревший Worker result не может
-   примениться после более нового размера. Telemetry-only update без изменения
-   topology, intrinsic geometry или viewport не запускает layout повторно.
-6. Предыдущая geometry может быть только начальным кадром presentation-анимации
-   и не передаётся как input новой раскладки.
-7. Ни Worker transport, ни корневой barrel `nodes` не импортируют и не
-   реэкспортируют `@nodes/ui`.
-8. Fixed и adaptive используют один policy-neutral transport lifecycle, но
-   имеют отдельные clients и executors. Fixed executor импортирует только
-   `@nodes/layout/fixed`, adaptive executor — только `@nodes/layout/adaptive`;
-   client не импортирует ни один solver.
+1. `Parameter.value` является единственным текущим значением Parameter.
+2. `Parameter.set(value)` изменяет значение атомарно, увеличивает revision и
+   уведомляет подписчиков только при фактическом изменении.
+3. `NodeTree` подписывается на принадлежащие ему Parameter и публикует одно
+   типизированное change-событие с новой revision дерева.
+4. Field renderer читает `Parameter.value`, а пользовательское изменение
+   вызывает тот же `Parameter.set`. Отдельные `Record`, callback-owned copies и
+   скрытый Store внутри NodeEditor запрещены.
+5. Значение и presentation metadata должны иметь чистую snapshot-проекцию.
+   Методы, subscriptions, closures и callbacks в snapshot не попадают.
 
-## Package и playground boundary
+## NodeTree и snapshot
 
-1. Core, fixed/adaptive layout policies, новый Node Editor consumer и оба
-   Worker executors/clients имеют физически независимые browser entrypoints.
-   Узкий layout consumer не загружает противоположную policy, UI или WebGPU без
-   своего явного import; Node Editor consumer не загружает layout solver.
-2. Dev-only SVG playground вызывает public `@nodes/layout/fixed` и
-   `@nodes/layout/adaptive` через один private registry. Он не экспортируется
-   production package, не владеет собственным placement/routing/validator и не
-   импортирует Node Editor, Engine или product code.
-3. Playground показывает normalized numeric input, public result, resolved
-   sides, nodes/compounds, edges/bends/gateways, bounds и policy diagnostics для
-   `RIGHT`/`DOWN`. Его SVG и browser screenshot доказывают только этот
-   изолированный путь и не являются WebGPU или product acceptance.
-4. Debug label каждого port располагается детерминированно вне route bounds и
-   соединяется одним прямым leader с exact port center. Label boxes не
-   пересекаются между собой или semantic routes; leader не является layout
-   route и не меняет policy input/result geometry.
-5. SVG playground соблюдает тот же containment painting law, что Surface:
-   background каждого compound находится под semantic routes, а его foreground
-   chrome и descendant leaf cards — над routes. Debug leaders также находятся
-   под chrome/leaf cards; gateways, exact ports и внешние label boxes остаются
-   верхними слоями. Edge marker имеет цвет semantic edge. Этот presentation
-   order не меняет layout input/result geometry.
-6. Adaptive playground matrix отдельно доказывает shared exact port на root
-   leaf topology и на topology с source/target compounds в `RIGHT`/`DOWN`.
-   Оба вида вызывают один public adaptive entrypoint и не создают playground
-   solver или fixture-specific routing.
-7. Каждый playground scenario является полным preset и владеет одной typed
-   fixed/adaptive policy вместе с topology, viewport и expected direction.
-   Независимый policy switch запрещён: run/reset/RIGHT-DOWN comparison получают
-   policy только из scenario, а UI показывает её read-only. Cross-policy
-   comparison требует отдельного явного действия и собственной matrix.
+1. Живой `NodeTree` владеет topology, Parameter subscriptions, общей revision и
+   topologyRevision.
+2. `snapshot()` возвращает новый JSON-compatible снимок сущностей и значений.
+   Изменение снимка не меняет runtime, а runtime methods в снимке отсутствуют.
+3. `NodeTree` существует без canvas, Engine и browser. Закрытие NodeEditor не
+   уничтожает граф или значения Parameter.
+4. Один `NodeTree` может одновременно обслуживать несколько независимых view.
+   Selection, pan, zoom, hover, viewport и overlay state не являются состоянием
+   графа.
+
+## Projection
+
+1. `tree.project(projector, request)` является единым входом получения
+   производного представления. Конкретные измерения приходят от projector;
+   `NodeTree` не содержит методов `measureBlenderNode` и не зависит от renderer.
+2. Request явно задаёт всё, что может изменить результат: точный viewport,
+   renderer identity, font/theme/density и layout policy либо их устойчивый key.
+3. Intrinsic measurement содержит размеры Node, нижнюю границу собственного
+   content и local offsets exact Socket. Он не содержит глобальных координат.
+4. Positioned result содержит rect Frame/Node, resolved side и center Socket,
+   points Link и bounds точного view.
+5. Local render plan строится один раз после получения окончательного rect и
+   затем передаётся Node renderer для materialization. NodeEditor не повторяет
+   measurement или plan той же projection revision.
+6. Projector не записывает размеры, стороны или coordinates обратно в
+   канонические entities.
+
+## Кэш и invalidation
+
+1. Кэш проекции различает как минимум measurement key, layout key и plan key.
+2. Тот же projector/request на той же применимой revision возвращает тот же
+   результат без нового measurement, layout и plan.
+3. Value-only изменение, не влияющее на intrinsic geometry, не меняет layout
+   key и не запускает solver повторно.
+4. Изменение label, состава Field/Parameter/Socket, font/theme/density либо
+   intrinsic presentation перемеряет только затронутую Node; изменение topology
+   или viewport пересчитывает layout.
+5. Pan/zoom меняет только transform конкретного view. Оно не увеличивает
+   measurement, layout или plan counters.
+6. Асинхронный результат применяется только к generation дерева и request, для
+   которых был запущен; устаревший результат отклоняется.
+
+## Package boundary
+
+1. Runtime entities, snapshot и generic projection contracts не импортируют
+   `@nodes/ui`, `@ui/*`, Engine, DOM или product vocabulary.
+2. `@nodes/layout` получает только минимальный numeric structured-clone graph.
+3. `@nodes/ui` может адаптировать public runtime contracts `nodes`, но exact
+   NodeEditor entrypoint не загружает solver без явного projection import.
+4. Blender Field binding принадлежит UI adapter: root Parameter хранит value и
+   renderer-neutral metadata, но не `FieldDefinition` callbacks.
+5. Parent playground является dev-only workspace consumer. Он не входит в
+   production exports `nodes`, `@nodes/layout` или `@nodes/ui`.
+6. Legacy `NodeSystem*`, Port/Edge contracts и compatibility aliases не
+   сохраняются.
+
+## Parent playground
+
+1. Parent playground использует один `UiRuntime` и общий пятизонный
+   `@ui/playground`, но semantic runtime и диагностика принадлежат `nodes`.
+2. Route `/node-tree/runtime/live` показывает один живой NodeTree, его чистый
+   snapshot, текущие revisions и counters measurement/layout/plan/materialize.
+3. Изменение Field проходит `Field → Parameter.set → NodeTree change → project
+   → NodeEditor` без отдельной карты значений и без ручных coordinates Node.
+4. Ready marker публикуется только после первой projection, передачи результата
+   NodeEditor и фактически отрисованного WebGPU frame.
+5. Playground no-HMR и запускается через `$nodes-dev`; exact DOM, console `0` и
+   non-black canvas доказывают только parent contour.

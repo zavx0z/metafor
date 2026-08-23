@@ -1,8 +1,9 @@
 # Требования @nodes/ui
 
 `@nodes/ui` владеет Blender-подобной компонентной библиотекой Node Editor.
-Она получает готовую positioned geometry, отображает её и управляет view; layout
-format и автоматическое размещение принадлежат следующему отдельному этапу.
+Она отображает готовую projection и управляет view. Exact `node-editor`
+solver-free; explicit `blender-projection` адаптирует живой root `NodeTree` к
+`@nodes/layout` и Blender renderer.
 
 ## Публичный словарь
 
@@ -29,17 +30,17 @@ format и автоматическое размещение принадлежа
 ## Component contracts
 
 1. `NodeEditor` и read-only `NodeCanvas` принимают независимые typed
-   `FrameRenderer`, `NodeRenderer`, `SocketRenderer`, `LinkRenderer` и
-   `PositionedNodeTree`.
+   `FrameRenderer`, `NodeRenderer`, `SocketRenderer`, `LinkRenderer` и готовую
+   projection. Отдельный `PositionedNodeTree` остаётся component-level входом.
 2. Renderer contracts сохраняют consumer fields и не импортируют старые
    `NodeSystemDocument`, Card model/layout/metrics, HUD, Hamiltonian или product
    code.
-3. Node renderer владеет intrinsic measurement и Parameter slots. За один
-   dirty cycle он выполняет один typed local plan и одну materialization всей
-   Node вместе с background/foreground; независимые paint phases не могут
-   повторно планировать тот же subtree. Socket type preset задаёт только имя
-   типа, shape/color и endpoint presentation; default Field принадлежит
-   Parameter.
+3. Projection adapter владеет intrinsic measurement и Parameter slots. Он
+   выполняет один typed local plan после точного measurement и передаёт его
+   NodeEditor; materialization не планирует тот же subtree повторно. В
+   component-level `setTree` renderer может планировать локально. Socket type
+   preset задаёт только имя типа, shape/color и endpoint presentation; default
+   Field принадлежит Parameter.
 4. Consumer может зарегистрировать собственный Node/Socket/Link renderer без
    изменения NodeEditor или central switch.
 5. Поля внутри Node и standalone controls вызывают один renderer из
@@ -144,10 +145,11 @@ format и автоматическое размещение принадлежа
 
 1. Старые Card model, Card layout/adapters, `NodeSystemSurface` и Card HUD
    удаляются без aliases, deprecated exports или compatibility bundles.
-2. Hamiltonian и другие верхнеуровневые consumers в этой задаче не мигрируются:
-   их новая интеграция выполняется после отдельного переписывания layout format.
-3. Package-level tests и component playground являются acceptance этой задачи;
-   exact root consumer compile gap фиксируется как вход следующего этапа.
+2. Прежний root `NodeSystem*` format удалён. Живой `nodes` Parameter-store и
+   `blender-projection` являются единственным новым parent integration path;
+   product consumers подключаются отдельно.
+3. Package-level tests, component playground и parent runtime playground
+   доказывают разные границы и не подменяют друг друга.
 4. Dev-only component playground является desktop consumer общего Workbench
    `@ui/playground`. Catalog выбирает NodeEditor, Socket и comparison. Для
    выбранного Socket вторая панель перечисляет все concrete Socket type presets,

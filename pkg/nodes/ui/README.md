@@ -20,11 +20,12 @@ const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFr
 })
 ```
 
-`NodeEditor` получает готовый `PositionedNodeTree`, управляет fit,
-pan/zoom и selection и вызывает независимые `NodeRenderer`, `SocketRenderer` и
-`LinkRenderer`. Библиотека не владеет автоматической раскладкой и не импортирует
-старый `NodeSystemDocument`, Card/HUD или продуктовый код. `NodeCanvas`
-предоставляет ту же renderer boundary без пользовательского редактирования.
+`NodeEditor` получает готовую projection либо отдельный `PositionedNodeTree`,
+управляет fit, pan/zoom и selection и вызывает независимые `NodeRenderer`,
+`SocketRenderer` и `LinkRenderer`. Exact `node-editor` не загружает solver.
+Отдельный `blender-projection` связывает живой root `NodeTree`, числовой
+`@nodes/layout` и Blender renderer. `NodeCanvas` предоставляет ту же renderer
+boundary без пользовательского редактирования.
 
 `Frame` является отдельным positioned component и visual owner вложенности.
 Обычная Node ссылается на него через `frameId`; Frame может быть вложен в другой
@@ -35,6 +36,10 @@ children за пределами direct Frame.
 plan и одной materialization, 19 Socket presets,
 8 Socket shapes и Link renderer. Это сменяемый preset: consumer может передать
 собственные typed Node/Socket/Link renderer-ы без изменения editor.
+
+`blender-projection` измеряет каждую изменившуюся Node один раз, переиспользует
+layout при value-only изменениях Parameter и передаёт готовые plans через
+`NodeEditor.setProjection()`. В этом пути NodeEditor не повторяет local plan.
 
 Поля Node properties и default values Socket используют тот же универсальный
 `Field` из `@ui/components`, что и обычные панели вне Node Editor.
@@ -71,3 +76,6 @@ Blender reference и одну representative live Node. Standalone universal fie
 На mobile breakpoint остаётся только активный preview. NodeEditor поддерживает
 single-touch pan и two-touch pinch; overview LOD скрывает только детали controls,
 не меняя NodeTree или renderer identity.
+
+Полный runtime-путь `NodeTree → projection → NodeEditor` принадлежит parent
+playground `bun run nodes:playground`; component catalog не подменяет его.

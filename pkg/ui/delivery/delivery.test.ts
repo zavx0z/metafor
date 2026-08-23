@@ -68,6 +68,7 @@ const productionExports = Object.freeze({
     ".": "./index.ts",
     "./node-editor": "./node-editor.ts",
     "./blender-node": "./blender-node.ts",
+    "./blender-projection": "./blender-projection.ts",
     "./link-curve": "./link-curve.ts",
   }),
 })
@@ -121,6 +122,13 @@ describe("production UI delivery baseline", () => {
     }
 
     const nodeUi = await readManifest(packageRoots.nodeUi)
+    expect(nodeUi.dependencies).toEqual({
+      "@metafor/engine": "workspace:*",
+      "@nodes/layout": "workspace:*",
+      "@ui/components": "workspace:*",
+      "@ui/elements": "workspace:*",
+      nodes: "workspace:*",
+    })
     expect(nodeUi.dependencies).not.toHaveProperty("@ui/playground")
     expect(nodeUi.devDependencies).toHaveProperty("@ui/playground", "workspace:*")
   })
@@ -152,6 +160,7 @@ describe("production UI delivery baseline", () => {
       "exact-components-collection-input.fixture.ts",
       "exact-components-path-input.fixture.ts",
       "exact-node-editor.fixture.ts",
+      "exact-node-projection.fixture.ts",
       "root-api.fixture.ts",
     ]) {
       const build = await Bun.build({

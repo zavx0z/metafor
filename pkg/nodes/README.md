@@ -1,72 +1,66 @@
 # nodes
 
-Node-направление разделено на две независимые границы:
+`nodes` — корневой runtime-пакет универсального нодового графа. Он владеет
+живыми сущностями `NodeTree → Frame / Node → Parameter → Socket → Link`,
+значениями Parameter, ревизиями, подписками и получением производных проекций.
 
-* [`@nodes/ui`](ui/README.md) — Blender-подобная компонентная библиотека
-  `NodeTree → Frame / Node → Parameter → Socket → Link` с WebGPU Node Editor и собственным
-  component playground;
-* [`@nodes/layout`](layout/README.md) и корневой `nodes` — временно сохранённое
-  чистое semantic/measured/positioned ядро текущей автоматической раскладки.
+`Parameter` является локальным Store своего значения. `NodeTree` наблюдает его
+изменения и сообщает одну новую ревизию дерева; отдельная карта значений рядом
+с графом не создаётся. Чистый `snapshot()` возвращает JSON-данные без методов,
+подписок и callbacks.
 
-Новая component library намеренно не адаптируется к прежнему layout format.
-Следующий этап перепишет layout integration непосредственно под `NodeTree` и
-`Socket`; до него обе границы собираются и проверяются независимо.
+## Проекции
 
-## Component library
+`NodeTree` не хранит единственную экранную геометрию. Один живой граф может
+одновременно иметь desktop, mobile, read-only и другие представления. Метод
+`tree.project(projector, request)` получает подключаемый projector и возвращает
+результат для точного renderer, viewport, шрифта, темы и layout policy.
 
-```ts
-import {NodeEditor} from "@nodes/ui/node-editor"
-import {
-  createBlenderNodeRenderers,
-  type BlenderFrame,
-  type BlenderLink,
-  type BlenderNode,
-  type BlenderNodePlan,
-  type BlenderSocket,
-} from "@nodes/ui/blender-node"
+Projector разделяет три производных результата:
 
-const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
-  renderers: createBlenderNodeRenderers(),
-})
+1. intrinsic measurement изменившихся Node и точные local Socket anchors;
+2. расположение Node/Frame и маршруты Link для конкретного viewport;
+3. готовые local render plans, которые renderer материализует без повторного
+   измерения той же Node.
+
+Повторный запрос с тем же ключом и ревизией использует кэш. Изменение значения,
+не меняющее intrinsic geometry, обновляет Field и local plan, но не запускает
+повторный глобальный layout. Pan/zoom принадлежат view и вообще не вызывают
+`NodeTree.project()`.
+
+## Границы пакетов
+
+* [`@nodes/layout`](layout/README.md) — чистый числовой solver. Он получает
+  производный serializable graph и не читает живой `NodeTree`, Parameter,
+  renderer или WebGPU.
+* [`@nodes/ui`](ui/README.md) — NodeCanvas/NodeEditor и сменяемые
+  Frame/Node/Socket/Link renderers. Он отображает готовую проекцию и владеет
+  только view-state: pan, zoom, selection, hover и overlays.
+* `nodes` координирует живые сущности и проекции, но не зашивает Blender,
+  WebGPU, font или viewport в каноническое состояние графа.
+
+Прежние `NodeSystemDocument`, `MeasuredNodeSystem`, `PositionedNodeSystem`,
+Port/Edge adapters и ручные compatibility helpers не входят в новый public
+contract и удаляются без aliases.
+
+## Parent playground
+
+```bash
+bun run nodes:playground
 ```
 
-`@nodes/ui` не содержит Card, Fact, HUD или `NodeSystemSurface`. Universal
-fields принадлежат `@ui/components` и одинаково используются внутри Node и вне
-Node Editor. Внутренняя UI-композиция строится только общим Flex из
-`@ui/elements`.
+Parent WebGPU playground показывает полный путь `NodeTree → projection →
+NodeEditor`, изменение значения через тот же живой Parameter, чистый snapshot и
+диагностику кэша. Отдельный `@nodes/ui` playground остаётся каталогом
+компонентов, а `@nodes/layout` проверяется как solver обычными tests.
 
-## Текущая layout-граница
-
-```ts
-import {
-  validateNodeSystemDocument,
-  type NodeSystemDocument,
-} from "nodes"
-import {layoutMeasuredNodeSystemAdaptive} from "nodes/adaptive-layout"
-import {layoutFixed} from "@nodes/layout/fixed"
-import {layoutAdaptive} from "@nodes/layout/adaptive"
-```
-
-Эта граница остаётся renderer-free: она не импортирует Node Editor, UI или
-Engine. Fixed/adaptive policies и Worker entrypoints физически разделены. Это
-не обещание совместимости с новым component API, а изолированная основа для
-следующего пересмотра формата раскладки.
+Lifecycle и background browser evidence parent contour принадлежат skill
+[`$nodes-dev`](.agents/skills/nodes-dev/SKILL.md).
 
 ## Проверка
 
 ```bash
 bun run --cwd pkg/nodes typecheck
-bun run --cwd pkg/nodes/ui typecheck
-bun run --cwd pkg/nodes/ui typecheck:playground
+bun run --cwd pkg/nodes/playground typecheck
 bun test pkg/nodes
 ```
-
-Playgrounds запускаются независимо:
-
-```bash
-bun run nodes:playground
-bun run nodes:components
-```
-
-Первый показывает public layout policies в SVG, второй — Flexbox-композицию
-fields, Node, Socket и Link через WebGPU.

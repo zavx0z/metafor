@@ -1,0 +1,18 @@
+{
+  "name": "@nodes/playground",
+  "version": "0.0.1",
+  "description": "Dev-only WebGPU playground for the parent nodes package.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "playground": "bun server.ts",
+    "test": "bun test .",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@nodes/ui": "workspace:*",
+    "@ui/elements": "workspace:*",
+    "nodes": "workspace:*",
+    "@ui/playground": "workspace:*"
+  }
+}

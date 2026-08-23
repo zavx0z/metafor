@@ -61,13 +61,14 @@
   [инфраструктурные возможности](../cosmos/internal/README.md) — пространству
   `@internal/*`, а текущая [визуальная возможность](../cosmos/internal/visual/README.md)
   — пакету `@internal/visual`.
-* [Node system](../pkg/nodes/README.md) — Blender-подобная компонентная
-  библиотека `NodeTree → Frame / Node → Parameter → Socket → Link`, universal
-  fields и отдельно сохранённое layout-ядро `@nodes/layout` (далее — layout).
+* [Node system](../pkg/nodes/README.md) — живой runtime-граф
+  `NodeTree → Frame / Node → Parameter → Socket → Link`, Parameter-store,
+  производные view-проекции и отдельно сохранённое layout-ядро
+  `@nodes/layout` (далее — layout).
   Node Editor и его
   FlexBox/view законы
   принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md) (далее — node UI),
-  временная semantic/measured/Worker граница —
+  runtime/snapshot/projection граница —
   [`nodes`](../pkg/nodes/REQUIREMENTS.md),
   а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
