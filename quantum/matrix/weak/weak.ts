@@ -1,5 +1,5 @@
-import type {MatrixStore} from "@metafor/types/matrix/store"
-import type {WeakChanges, WeakHeapUpdate, WeakStepMode, WeakStructuralUpdate} from "@metafor/types/matrix/weak"
+import type {MatrixStore} from "@matrix/types/store"
+import type {WeakChanges, WeakHeapUpdate, WeakStepMode, WeakStructuralUpdate} from "@matrix/types/weak"
 import {createWeakRuntime} from "./factory"
 import {weak$} from "./store"
 import {StepMode} from "./constants"
