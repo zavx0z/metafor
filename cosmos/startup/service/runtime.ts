@@ -3,7 +3,7 @@ import type {
   ReleaseFactory,
   ReleaseLoader,
   ReleaseRuntime,
-} from "@hamiltonian/release"
+} from "@cosmos/release"
 
 /** Синхронная browser-event поверхность неизменяемого startup. */
 export interface StartupEventScope {
@@ -49,7 +49,7 @@ export function createReleaseHost(
   const prepare = async (request = source) => {
     let response = await loaderApi.read("release", request)
     if (response) {
-      console.debug("[@hamiltonian/startup:service]", "release artifact выбран", {
+      console.debug("[@cosmos/startup:service]", "release artifact выбран", {
         env: response.headers.get("X-Package-Env"),
         name: response.headers.get("X-Package-Name"),
         request: request.url,
@@ -61,7 +61,7 @@ export function createReleaseHost(
       await loaderApi.cache("release", request, response)
       response = await loaderApi.read("release", request)
       if (response) {
-        console.debug("[@hamiltonian/startup:service]", "release artifact выбран", {
+        console.debug("[@cosmos/startup:service]", "release artifact выбран", {
           env: response.headers.get("X-Package-Env"),
           name: response.headers.get("X-Package-Name"),
           request: request.url,
@@ -79,7 +79,7 @@ export function createReleaseHost(
     if (typeof factory !== "function") throw new Error("Release service factory is missing")
     const candidate = await factory(dependencies)
     assertRuntime(candidate)
-    console.debug("[@hamiltonian/startup:service]", "release runtime подготовлен", {
+    console.debug("[@cosmos/startup:service]", "release runtime подготовлен", {
       env: response.headers.get("X-Package-Env"),
       name: response.headers.get("X-Package-Name"),
       request: request.url,
@@ -105,7 +105,7 @@ export function createReleaseHost(
       await previous.destroy()
       inFlight.delete(previous)
     }
-    console.debug("[@hamiltonian/startup:service]", "release runtime активирован", {
+    console.debug("[@cosmos/startup:service]", "release runtime активирован", {
       replaced: previous !== null && previous !== candidate,
     })
   }
@@ -113,13 +113,13 @@ export function createReleaseHost(
   const boot = async () => {
     if (active) return
     booting ??= (async () => {
-      console.debug("[@hamiltonian/startup:service]", "bootstrap release начат", {
+      console.debug("[@cosmos/startup:service]", "bootstrap release начат", {
         request: source.url,
       })
       try {
         await activate(await prepare())
       } catch (error) {
-        console.error("[@hamiltonian/startup:service]", "bootstrap release завершился с ошибкой", {
+        console.error("[@cosmos/startup:service]", "bootstrap release завершился с ошибкой", {
           error: errorMessage(error),
           request: source.url,
         })
