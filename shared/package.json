@@ -25,6 +25,8 @@
     "./protocol/force/particle": "./protocol/force/particle.ts",
     "./protocol/force/reaction": "./protocol/force/reaction.ts",
     "./protocol/oracle/health": "./protocol/oracle/health.ts",
-    "./protocol/oracle/rpc": "./protocol/oracle/rpc.ts"
+    "./protocol/oracle/rpc": "./protocol/oracle/rpc.ts",
+    "./protocol/bulk/browser": "./protocol/bulk/browser.ts",
+    "./protocol/bulk/capture": "./protocol/bulk/capture.ts"
   }
 }
