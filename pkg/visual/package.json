@@ -38,7 +38,8 @@
     "playground": "bun playground/server.ts"
   },
   "dependencies": {
-    "@metafor/types": "workspace:*"
+    "@metafor/types": "workspace:*",
+    "@bulk/types": "workspace:*"
   },
   "devDependencies": {
     "@metafor/engine": "workspace:*"
