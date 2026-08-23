@@ -5,6 +5,7 @@
   "private": true,
   "dependencies": {
     "@metafor/types": "workspace:*",
+    "@matrix/types": "workspace:*",
     "@matrix/gravity": "workspace:*"
   }
 }
