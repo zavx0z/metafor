@@ -24,7 +24,7 @@ export function upgradeRpc(request: Request, server: Bun.Server<RpcSocketData>) 
 export function openRpc(socket: Bun.ServerWebSocket<RpcSocketData>) {
   socket.subscribe(rpcServiceTopic)
   if (Bun.env.NODE_ENV === "development") {
-    console.debug("[@hamiltonian/release:server:rpc]", "подписка release service создана", {
+    console.debug("[@cosmos/release:server:rpc]", "подписка release service создана", {
       source: socket.data.source,
       topic: rpcServiceTopic,
     })
@@ -47,14 +47,14 @@ export async function messageRpc(
     const response = releaseDeltaMessage(releaseDelta(await desired(), current.current))
     socket.send(JSON.stringify(response))
     if (Bun.env.NODE_ENV === "development") {
-      console.debug("[@hamiltonian/release:server:rpc:update]", "состояние browser cache сверено", {
+      console.debug("[@cosmos/release:server:rpc:update]", "состояние browser cache сверено", {
         current: current.current,
         remove: response.remove,
         update: response.update,
       })
     }
   } catch (error) {
-    console.error("[@hamiltonian/release:server:rpc:update]", "сверка browser cache завершилась с ошибкой", {
+    console.error("[@cosmos/release:server:rpc:update]", "сверка browser cache завершилась с ошибкой", {
       error: errorMessage(error),
       source: socket.data.source,
     })
@@ -70,7 +70,7 @@ export function closeRpc(
 ) {
   socket.unsubscribe(rpcServiceTopic)
   if (Bun.env.NODE_ENV === "development") {
-    console.debug("[@hamiltonian/release:server:rpc]", "подписка release service удалена", {
+    console.debug("[@cosmos/release:server:rpc]", "подписка release service удалена", {
       code,
       reason,
       source: socket.data.source,
