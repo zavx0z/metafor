@@ -35,8 +35,8 @@ setDefaultTimeout(30_000)
 test("package state comes from root caret dependencies", async () => {
   const packages = await releasedPackages()
   expect(packages.map(({name}) => name)).toEqual([
-    "@hamiltonian/release",
-    "@hamiltonian/release",
+    "@cosmos/release",
+    "@cosmos/release",
     "@internal/visual",
   ])
   expect(packages.map(({env}) => env)).toEqual(["main", "service", "main"])
@@ -56,33 +56,33 @@ test("package state comes from root caret dependencies", async () => {
 test("POST accepts package names and SemVer change but never a ready version", async () => {
   const valid = await packageChanges(request({
     packages: [
-      {name: "@hamiltonian/release", change: "patch"},
+      {name: "@cosmos/release", change: "patch"},
       {name: "@internal/visual", change: "patch"},
-      {name: "@hamiltonian/release", change: "patch"},
+      {name: "@cosmos/release", change: "patch"},
     ],
   }))
   expect(valid).toEqual([
-    {name: "@hamiltonian/release", change: "patch"},
+    {name: "@cosmos/release", change: "patch"},
     {name: "@internal/visual", change: "patch"},
   ])
 
   const explicitVersion = await packageChanges(request({
-    packages: [{name: "@hamiltonian/release", change: "patch", version: "9.9.9"}],
+    packages: [{name: "@cosmos/release", change: "patch", version: "9.9.9"}],
   }))
   expect(explicitVersion).toBeInstanceOf(Response)
   expect((explicitVersion as Response).status).toBe(400)
 
   const conflicting = await packageChanges(request({
     packages: [
-      {name: "@hamiltonian/release", change: "patch"},
-      {name: "@hamiltonian/release", change: "major"},
+      {name: "@cosmos/release", change: "patch"},
+      {name: "@cosmos/release", change: "major"},
     ],
   }))
   expect(conflicting).toBeInstanceOf(Response)
   expect((conflicting as Response).status).toBe(400)
 
   const startup = await packageChanges(request({
-    packages: [{name: "@hamiltonian/startup", change: "patch"}],
+    packages: [{name: "@cosmos/startup", change: "patch"}],
   }))
   expect(startup).toBeInstanceOf(Response)
   expect((startup as Response).status).toBe(404)
@@ -91,7 +91,7 @@ test("POST accepts package names and SemVer change but never a ready version", a
 test("release membership is closed over compatible runtime dependencies", async () => {
   const current = await readReleaseComposition()
   expect(current.map(({name}) => name)).toEqual([
-    "@hamiltonian/release",
+    "@cosmos/release",
     "@internal/visual",
   ])
   expect(() => validateReleaseDependencyGraph(current)).not.toThrow()
@@ -119,9 +119,9 @@ test("release membership is closed over compatible runtime dependencies", async 
   expect(satisfiesWorkspaceRange("0.1.9", "workspace:^0.1.3")).toBeTrue()
   expect(satisfiesWorkspaceRange("0.2.0", "workspace:^0.1.3")).toBeFalse()
   expect(satisfiesWorkspaceRange("0.0.4", "workspace:^0.0.3")).toBeFalse()
-  const serverOwners = await packageOwners("@hamiltonian/release")
+  const serverOwners = await packageOwners("@cosmos/release")
   expect(() => validateBrowserReleaseEnvironments(
-    "@hamiltonian/release",
+    "@cosmos/release",
     serverOwners.filter(({env}) => env === "server"),
   )).toThrow("has no browser environment")
 })
@@ -251,7 +251,7 @@ test("server delta omits unchanged entries and separates update from removal", (
     size: 42,
   }
   const service = {
-    name: "@hamiltonian/release",
+    name: "@cosmos/release",
     env: "service" as const,
     version: "2.0.0",
     sha256: "b".repeat(64),
@@ -319,26 +319,26 @@ test("successful publication notification contains no release state", () => {
 
 test("canonical package URLs separate artifact delivery from release control", async () => {
   const release = (await releasedPackages()).find(
-    ({name, env}) => name === "@hamiltonian/release" && env === "main",
+    ({name, env}) => name === "@cosmos/release" && env === "main",
   )
   if (!release) throw new Error("Release main package is missing")
   const [stable, exact, legacy, invalid, missingEnv, reordered] = await Promise.all([
-    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/release?env=main")),
+    getPackage(new Request("http://127.0.0.1:4444/@cosmos/release?env=main")),
     getPackage(new Request(
-      `http://127.0.0.1:4444/@hamiltonian/release?env=main&version=${release.version}`,
+      `http://127.0.0.1:4444/@cosmos/release?env=main&version=${release.version}`,
     )),
-    getRelease(new Request("http://127.0.0.1:4444/code?module=@hamiltonian/release")),
-    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/release?module=@hamiltonian/release")),
-    getPackage(new Request("http://127.0.0.1:4444/@hamiltonian/release")),
+    getRelease(new Request("http://127.0.0.1:4444/code?module=@cosmos/release")),
+    getPackage(new Request("http://127.0.0.1:4444/@cosmos/release?module=@cosmos/release")),
+    getPackage(new Request("http://127.0.0.1:4444/@cosmos/release")),
     getPackage(new Request(
-      `http://127.0.0.1:4444/@hamiltonian/release?version=${release.version}&env=main`,
+      `http://127.0.0.1:4444/@cosmos/release?version=${release.version}&env=main`,
     )),
   ])
   const [stableSource, exactSource] = await Promise.all([stable.text(), exact.text()])
 
   expect(stable.status).toBe(200)
   expect(exact.status).toBe(200)
-  expect(stable.headers.get("X-Package-Name")).toBe("@hamiltonian/release")
+  expect(stable.headers.get("X-Package-Name")).toBe("@cosmos/release")
   expect(stable.headers.get("X-Package-Env")).toBe("main")
   expect(stable.headers.get("X-Package-Version")).toBe(release.version)
   expect(exact.headers.get("X-Package-Version")).toBe(release.version)
@@ -354,14 +354,14 @@ test("canonical package URLs separate artifact delivery from release control", a
 test("current release main serves its exact standalone versioned artifact", async () => {
   const packages = await releasedPackages()
   const releaseMain = packages.find(
-    ({name, env}) => name === "@hamiltonian/release" && env === "main",
+    ({name, env}) => name === "@cosmos/release" && env === "main",
   )
   const visual = packages.find(({name}) => name === "@internal/visual")
   if (!releaseMain || !visual) throw new Error("Window release packages are missing")
 
   const [stableResponse, exactResponse, visualResponse, versionedBuild] = await Promise.all([
-    releasedPackageResponse("@hamiltonian/release", "main", null),
-    releasedPackageResponse("@hamiltonian/release", "main", releaseMain.version),
+    releasedPackageResponse("@cosmos/release", "main", null),
+    releasedPackageResponse("@cosmos/release", "main", releaseMain.version),
     releasedPackageResponse("@internal/visual", "main", visual.version),
     Bun.file(new URL(
       `../release/dist/versions/${releaseMain.version}/main.js`,
