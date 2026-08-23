@@ -6,43 +6,43 @@ import {join} from "node:path"
 import {buildPackage} from "../release/server"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
-const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
+const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
 setDefaultTimeout(30_000)
 
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
   const [html, main, visual, displayDock, mainPackage, visualPackage, visualBunfig, packageBuild, server, startupMain] = await Promise.all([
-    Bun.file(join(hamiltonian, "static/index.html")).text(),
-    Bun.file(join(hamiltonian, "release/main/index.ts")).text(),
-    Bun.file(join(hamiltonian, "internal/visual/main/index.ts")).text(),
-    Bun.file(join(hamiltonian, "internal/visual/main/display-dock.ts")).text(),
-    Bun.file(join(hamiltonian, "release/package.json")).json() as Promise<{
+    Bun.file(join(cosmos, "static/index.html")).text(),
+    Bun.file(join(cosmos, "release/main/index.ts")).text(),
+    Bun.file(join(cosmos, "internal/visual/main/index.ts")).text(),
+    Bun.file(join(cosmos, "internal/visual/main/display-dock.ts")).text(),
+    Bun.file(join(cosmos, "release/package.json")).json() as Promise<{
       dependencies?: Record<string, string>
       scripts?: Record<string, string>
     }>,
-    Bun.file(join(hamiltonian, "internal/visual/package.json")).json() as Promise<{
+    Bun.file(join(cosmos, "internal/visual/package.json")).json() as Promise<{
       name?: string
       exports?: {"."?: Record<string, string>}
       dependencies?: Record<string, string>
       artifact?: unknown
       scripts?: Record<string, string>
     }>,
-    Bun.file(join(hamiltonian, "internal/visual/bunfig.toml")).text(),
-    Bun.file(join(hamiltonian, "release/server/package/manifest.ts")).text(),
-    Bun.file(join(hamiltonian, "server.ts")).text(),
-    Bun.file(join(hamiltonian, "startup/main/index.ts")).text(),
+    Bun.file(join(cosmos, "internal/visual/bunfig.toml")).text(),
+    Bun.file(join(cosmos, "release/server/package/manifest.ts")).text(),
+    Bun.file(join(cosmos, "server.ts")).text(),
+    Bun.file(join(cosmos, "startup/main/index.ts")).text(),
   ])
 
   expect(html.match(/<canvas\b/g)).toHaveLength(1)
   expect(html).toContain('<canvas id="visual-canvas"></canvas>')
   expect(html).toContain("#visual-canvas")
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
-  expect(html).toContain('src="/@hamiltonian/startup?env=main"')
-  expect(html).toContain('"@hamiltonian/release": "/@hamiltonian/release?env=main"')
+  expect(html).toContain('src="/@cosmos/startup?env=main"')
+  expect(html).toContain('"@cosmos/release": "/@cosmos/release?env=main"')
   expect(html).toContain('"@internal/visual": "/@internal/visual?env=main"')
 
   expect(main).toContain('const {runtime} = await import("@internal/visual")')
-  expect(main).toContain('console.debug("[@hamiltonian/release:main]", "Visual runtime подключён", {')
+  expect(main).toContain('console.debug("[@cosmos/release:main]", "Visual runtime подключён", {')
   expect(main).toContain("runtime: Object.keys(runtime)")
   expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.10"})
   expect(visualPackage.name).toBe("@internal/visual")
@@ -90,27 +90,27 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(displayDock).toContain("export class DisplayDockSurface extends UiSurface")
   expect(displayDock).toContain("containsPointer(localX: number, localY: number)")
   expect(displayDock).toContain("HudReturnDock(this")
-  expect(visual).not.toContain("@hamiltonian/visual")
+  expect(visual).not.toContain("@cosmos/visual")
   expect(visual).not.toContain("browser/orchestration")
   expect(visualBunfig).toContain('".wgsl" = "text"')
   expect(mainPackage.scripts?.prebuild).toBeUndefined()
   expect(mainPackage.scripts?.["build:main"]).toBe(
-    "bun build ./main/index.ts --conditions=hamiltonian:main --conditions=internal:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/main.js",
+    "bun build ./main/index.ts --conditions=cosmos:main --conditions=internal:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/main.js",
   )
   expect(packageBuild).toContain("packageArtifactPath(location.root, build)")
 
   expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
   expect(server).toContain('new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf"')
-  expect(startupMain).toContain('import("@hamiltonian/release")')
+  expect(startupMain).toContain('import("@cosmos/release")')
   expect(startupMain).not.toContain("UiRuntime")
 })
 
 test("UPD-002 builds Window release and internal visual as separate artifacts", async () => {
-  const state = await releaseWorkspaceState(hamiltonian)
-  const directory = await mkdtemp(join(tmpdir(), "metafor-ham-005-build-"))
+  const state = await releaseWorkspaceState(cosmos)
+  const directory = await mkdtemp(join(tmpdir(), "metafor-cosmos-ham-005-build-"))
   try {
     const [main, visual] = await Promise.all([
-      buildPackage("@hamiltonian/release", {
+      buildPackage("@cosmos/release", {
         env: "main",
         artifact: join(directory, "release-main.js"),
       }),
@@ -133,6 +133,6 @@ test("UPD-002 builds Window release and internal visual as separate artifacts", 
     expect(await Bun.file(visualOutput!.path).text()).toContain("visual-canvas")
   } finally {
     await rm(directory, {recursive: true, force: true})
-    expect(await releaseWorkspaceState(hamiltonian)).toEqual(state)
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
 })
