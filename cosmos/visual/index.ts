@@ -1,7 +1,0 @@
-/**
- * Hamiltonian-owned visual composition for the generic node-system packages.
- *
- * Visual layers are exposed through explicit subpaths as they move into this
- * package. Lifecycle, control and startup remain owned by Hamiltonian.
- */
-export {}
