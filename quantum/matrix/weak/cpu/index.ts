@@ -1,6 +1,6 @@
-import type { CpuRuntimeContext, CpuRuntimeState } from "@metafor/types/matrix/cpu"
-import type { MatrixStore } from "@metafor/types/matrix/store"
-import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode, WeakStructuralUpdate } from "@metafor/types/matrix/weak"
+import type { CpuRuntimeContext, CpuRuntimeState } from "@matrix/types/cpu"
+import type { MatrixStore } from "@matrix/types/store"
+import type { WeakChanges, WeakHeapUpdate, WeakRuntime, WeakStepMode, WeakStructuralUpdate } from "@matrix/types/weak"
 import { executeCpuStep } from "./step"
 import { StepMode } from "../constants"
 
@@ -10,9 +10,6 @@ import { StepMode } from "../constants"
  * Он читает Matrix Store напрямую и задаёт наблюдаемую семантику, с которой
  * сравнивается WebGPU: особые начальные States, lock, первый подходящий
  * Transition и список изменившихся Branes.
- *
- * @see [Основные сценарии равенства CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts)
- * @see [Все виды Conditions на CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
  */
 export class CPUWeakRuntime implements WeakRuntime {
   private readonly context: CpuRuntimeContext
@@ -37,18 +34,9 @@ export class CPUWeakRuntime implements WeakRuntime {
     return [...this.context.store$.states]
   }
 
-  fault(): string | null {
-    return null
-  }
-
-  heapUpdate(_updates: WeakHeapUpdate[]): void {
-    // CPU runtime читает canonical Matrix store напрямую.
-  }
-
-  structuralUpdate(_update: WeakStructuralUpdate): void {
-    // Stable canonical Store уже содержит локально изменённые строки.
-  }
-
+  fault(): string | null { return null }
+  heapUpdate(_updates: WeakHeapUpdate[]): void {}
+  structuralUpdate(_update: WeakStructuralUpdate): void {}
   clear(): void {
     this.context.store$.states = []
     this.state.bufferedChanges = []
