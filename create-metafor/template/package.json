@@ -7,6 +7,9 @@
   "types": "../../types/template/index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false"
+  },
   "dependencies": {
     "@metafor/types": "workspace:*"
   }
