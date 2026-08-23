@@ -22,8 +22,7 @@
     "./boundary/matter": "./boundary/matter.ts",
     "./boundary/runtime": "./boundary/runtime.ts",
     "./boundary/initial": "./boundary/initial.ts",
-    "./bulk/manifest": "./bulk/manifest.ts",
-    "./bulk/store": "./bulk/store.ts"
+    "./bulk/manifest": "./bulk/manifest.ts"
   },
   "dependencies": {
     "shared": "workspace:*"
