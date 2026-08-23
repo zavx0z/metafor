@@ -32,7 +32,6 @@ export type MassHandle = {
 
 export type MassHandles<Schema extends MassDeclarations> = {[Key in keyof Schema]: MassHandle}
 
-
 export type MassDeclarationDSL = {
   key: string
   format: MassFormat
@@ -46,22 +45,3 @@ export type MassFactory = {
   json(options?: MassOptions): MassDeclaration
   binary(options?: MassOptions): MassDeclaration
 }
-
-const declaration = (
-  format: MassFormat,
-  options: MassOptions = {},
-): MassDeclaration => ({format, ...options})
-
-/** Builds the only authored Mass metadata; key IDs and paths are Boundary/runtime-owned. */
-export const massFactory: MassFactory = {
-  json: (options = {}) => declaration("json", options),
-  binary: (options = {}) => declaration("binary", options),
-}
-
-export const normalizeMassDeclarations = (schema: MassDeclarations): MassDeclarationDSL[] =>
-  Object.entries(schema).map(([key, value]) => ({
-    key,
-    format: value.format,
-    ...(value.label === undefined ? {} : {label: value.label}),
-    ...(value.description === undefined ? {} : {description: value.description}),
-  }))
