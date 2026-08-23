@@ -11,7 +11,7 @@
 
 import { parseCondition } from "./condition"
 import { validateData } from "./validate"
-import type { FlattenedMatrixInput, MatrixBraneValue, MatrixInputData } from "@metafor/types/matrix/data"
+import type { FlattenedMatrixInput, MatrixBraneValue, MatrixInputData } from "@matrix/types/data"
 
 export function flattenMatrixData(data: MatrixInputData): FlattenedMatrixInput {
   return {
