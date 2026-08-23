@@ -1,5 +1,5 @@
 /**
- * Неизменяемая Service Worker оболочка `@hamiltonian/startup`.
+ * Неизменяемая Service Worker оболочка `@cosmos/startup`.
  *
  * Она синхронно регистрирует browser listeners, сразу запускает release и
  * оставляет всё прикладное поведение самому release.
@@ -9,10 +9,10 @@
 
 import * as loader from "./loader"
 import {createReleaseHost, registerReleaseListeners, type StartupEventScope} from "./runtime"
-import type {ReleaseLoader} from "@hamiltonian/release"
+import type {ReleaseLoader} from "@cosmos/release"
 
 const serviceReleaseRequest = new Request(
-  new URL("/@hamiltonian/release?env=service", location.origin),
+  new URL("/@cosmos/release?env=service", location.origin),
 )
 const releaseLoader = loader satisfies ReleaseLoader
 const host = createReleaseHost(serviceReleaseRequest, releaseLoader)
