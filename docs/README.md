@@ -54,16 +54,13 @@
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
-* [Пиринговая сеть и оркестрация Hamiltonian](../hamiltonian/README.md) задаёт
-  общий закон доставки, размещения, знакомства, обновления и повторного
-  воплощения. [Устойчивый запуск выпуска](../hamiltonian/startup/README.md#как-начинается-работа)
-  принадлежит `@hamiltonian/startup` (далее — `startup`),
-  [точный состав выпуска](../hamiltonian/release/README.md#что-называется-выпуском)
-  — `@hamiltonian/release` (далее — `release`),
-  [закон внутренних пакетов](../hamiltonian/internal/README.md#внутренний-пакет-и-его-возможность)
-  — пространству `@internal/*` (далее — internal-пакеты), а
-  [визуальная проекция Hamiltonian](../hamiltonian/internal/visual/README.md#как-появляется-сцена)
-  — пакету `@internal/visual` (далее — Visual).
+* [Cosmos](../cosmos/README.md) — внешний контур исполнения: сервер, сборка,
+  публикация выпуска и предоставление возможностей Quantum. Его минимальный
+  [устойчивый вход](../cosmos/startup/README.md) принадлежит `@cosmos/startup`,
+  [сменяемый выпуск](../cosmos/release/README.md) — `@cosmos/release`,
+  [инфраструктурные возможности](../cosmos/internal/README.md) — пространству
+  `@internal/*`, а текущая [визуальная возможность](../cosmos/internal/visual/README.md)
+  — пакету `@internal/visual`.
 * [Node system](../pkg/nodes/README.md) — Blender-подобная компонентная
   библиотека `NodeTree → Frame / Node → Parameter → Socket → Link`, universal
   fields и отдельно сохранённое layout-ядро `@nodes/layout` (далее — layout).
