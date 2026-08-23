@@ -1,4 +1,4 @@
-import type { GpuReadResult } from "@metafor/types/matrix/gpu"
+import type { GpuReadResult } from "@matrix/types/gpu"
 import { GPU_STATE_NONE, GPU_STATE_UNDEFINED, STATE_NONE, STATE_UNDEFINED } from "../constants"
 
 function decodeGpuState(state: number): number {
