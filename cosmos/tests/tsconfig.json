@@ -4,7 +4,7 @@
     "allowJs": false,
     "checkJs": false,
     "customConditions": [
-      "hamiltonian:service"
+      "cosmos:service"
     ],
     "noUnusedLocals": true,
     "noUnusedParameters": true,
