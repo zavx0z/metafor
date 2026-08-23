@@ -1,5 +1,5 @@
 import { unpackMeta } from "./layout-heap"
-import type { BytecodeDump, ConditionDump, FieldDump, HeapBlockDump, HeapStats, WeakDump, StateDump, StringAtlasDump, StringDump, TransitionDump } from "@metafor/types/matrix/gpu"
+import type { BytecodeDump, ConditionDump, FieldDump, HeapBlockDump, HeapStats, WeakDump, StateDump, StringAtlasDump, StringDump, TransitionDump } from "@matrix/types/gpu"
 
 export function debugLog(enabled: boolean, ...args: unknown[]): void {
   if (!enabled) {
