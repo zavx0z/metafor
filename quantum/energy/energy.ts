@@ -1,16 +1,16 @@
 import {existsSync} from "node:fs"
 import {dirname, isAbsolute, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import type {EnergyAtomEntity} from "@metafor/types/energy/catalog"
+import type {EnergyAtomEntity} from "@energy/types/catalog"
 import type {
   EnergyFinallyProcessDescriptor,
   EnergyHandlerDescriptor,
   EnergyProcessDescriptor,
-} from "@metafor/types/energy/process"
-import type {EnergyRuntimeContext, EnergyRuntimeStore} from "@metafor/types/energy/energy"
-import type {EnergyMassContext, EnergyMassStore} from "@metafor/types/energy/mass"
-import type {EnergyProtocol, EnergyProtocolOptions} from "@metafor/types/energy/protocol"
-import type {EnergyActionParams, PendingEnergyProcess} from "@metafor/types/energy/runtime"
+} from "@energy/types/process"
+import type {EnergyRuntimeContext, EnergyRuntimeStore} from "@energy/types/energy"
+import type {EnergyMassContext, EnergyMassStore} from "@energy/types/mass"
+import type {EnergyProtocol, EnergyProtocolOptions} from "@energy/types/protocol"
+import type {EnergyActionParams, PendingEnergyProcess} from "@energy/types/runtime"
 import type {MatterBindingValue} from "@metafor/types/metafor/matter"
 import type {ProcessExecutionClaim, ProcessExecutionGrant, ProcessResultProposal} from "shared/protocol/force/execution"
 import type {ForceMessage} from "shared/protocol/force/message"
@@ -262,8 +262,6 @@ const hydrateRuntimeBindings = (
       energy: energyStore.get(parentContext),
     }
     activeEnergy.add(parent.id)
-    // Mass is a Boundary-authorized declared-key handle projection.  It is
-    // never reconstructed by evaluating Matter expressions in Energy.
     const mass = continuation?.massBinding === undefined
       ? undefined
       : massStore.authorize !== undefined
