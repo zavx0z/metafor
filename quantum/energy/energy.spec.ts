@@ -4,11 +4,11 @@ import {mkdtemp, rm, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
-import type {EnergyAtomContinuation, EnergyAtomEntity, EnergyProcessEntity} from "@metafor/types/energy/catalog"
-import type {EnergyRuntimeStore} from "@metafor/types/energy/energy"
-import type {EnergyMassStore} from "@metafor/types/energy/mass"
-import type {EnergyActionProcessDescriptor} from "@metafor/types/energy/process"
-import type {EnergyForce} from "@metafor/types/energy/protocol"
+import type {EnergyAtomContinuation, EnergyAtomEntity, EnergyProcessEntity} from "@energy/types/catalog"
+import type {EnergyRuntimeStore} from "@energy/types/energy"
+import type {EnergyMassStore} from "@energy/types/mass"
+import type {EnergyActionProcessDescriptor} from "@energy/types/process"
+import type {EnergyForce} from "@energy/types/protocol"
 import type {
   ProcessExecutionClaim,
   ProcessExecutionGrant,
