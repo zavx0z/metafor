@@ -45,7 +45,7 @@ export function startRpc(bindings: RpcBindings) {
     updates = updates.then(update, update).catch((error) => {
       const state = states.get(connection)
       if (state) state.awaitingDelta = false
-      console.error("[@hamiltonian/release:service:rpc:update]", "синхронизация завершилась с ошибкой", {
+      console.error("[@cosmos/release:service:rpc:update]", "синхронизация завершилась с ошибкой", {
         error: errorMessage(error),
         to: connection.url,
       })
@@ -67,7 +67,7 @@ export function startRpc(bindings: RpcBindings) {
       const current = await bindings.currentPackages()
       if (destroyed || connection !== socket || connection.readyState !== WebSocket.OPEN) return
       connection.send(JSON.stringify(releaseCurrentMessage(current)))
-      console.debug("[@hamiltonian/release:service:rpc:update]", "фактическое состояние cache отправлено", {
+      console.debug("[@cosmos/release:service:rpc:update]", "фактическое состояние cache отправлено", {
         current,
         to: connection.url,
       })
@@ -75,13 +75,13 @@ export function startRpc(bindings: RpcBindings) {
   }
 
   const applyDelta = async (delta: ReleaseDelta) => {
-    console.debug("[@hamiltonian/release:service:rpc:update]", "server delta получена", {
+    console.debug("[@cosmos/release:service:rpc:update]", "server delta получена", {
       remove: delta.remove,
       update: delta.update,
     })
     const updated = await bindings.applyDelta(delta)
     if (updated.length === 0) {
-      console.debug("[@hamiltonian/release:service:rpc:update]", "browser cache уже актуален", {
+      console.debug("[@cosmos/release:service:rpc:update]", "browser cache уже актуален", {
         remove: delta.remove.length,
         update: delta.update.length,
       })
@@ -102,7 +102,7 @@ export function startRpc(bindings: RpcBindings) {
     states.set(connection, state)
     connection.addEventListener("open", () => {
       if (destroyed) return
-      console.debug("[@hamiltonian/release:service:rpc]", "соединение с сервером обновлений установлено", {
+      console.debug("[@cosmos/release:service:rpc]", "соединение с сервером обновлений установлено", {
         recovered: reconnecting,
         to: connection.url,
       })
@@ -114,7 +114,7 @@ export function startRpc(bindings: RpcBindings) {
       if (destroyed) return
       const message = parseMessage(event.data)
       if (parseReleaseChangedMessage(message) !== null) {
-        console.debug("[@hamiltonian/release:service:rpc:update]", "получен сигнал об обновлении", {
+        console.debug("[@cosmos/release:service:rpc:update]", "получен сигнал об обновлении", {
           from: connection.url,
         })
         requestSynchronization(connection)
@@ -136,7 +136,7 @@ export function startRpc(bindings: RpcBindings) {
     connection.addEventListener("close", (event) => {
       if (socket === connection) socket = null
       if (destroyed || !reconnecting) {
-        console.debug("[@hamiltonian/release:service:rpc]", "соединение с сервером обновлений закрыто", {
+        console.debug("[@cosmos/release:service:rpc]", "соединение с сервером обновлений закрыто", {
           code: event.code,
           intentional: destroyed,
           reason: event.reason,
@@ -151,7 +151,7 @@ export function startRpc(bindings: RpcBindings) {
     connection.addEventListener("error", (error) => {
       if (reconnecting) return
       reconnecting = true
-      console.error("[@hamiltonian/release:service:rpc]", "соединение с сервером обновлений завершилось с ошибкой", {
+      console.error("[@cosmos/release:service:rpc]", "соединение с сервером обновлений завершилось с ошибкой", {
         error: errorMessage(error),
         retryInMs: 1_000,
         to: connection.url,
