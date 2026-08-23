@@ -1,6 +1,6 @@
 ---
 name: nodes-dev
-description: "Develop and verify the root MetaFor nodes runtime, its NodeTree projections, and the parent WebGPU playground through an exact package-owned lifecycle and background browser target. Use ui-dev for the separate @nodes/ui component catalog and use focused tests for solver-only @nodes/layout work."
+description: "Develop and verify the root MetaFor nodes runtime, its NodeTree projections, and the parent WebGPU playground through an exact package-owned lifecycle and background browser target. Use ui-dev for the separate @nodes/ui component catalog; @nodes/layout retains its own package-local SVG playground and focused tests."
 ---
 
 # Nodes development
@@ -8,7 +8,8 @@ description: "Develop and verify the root MetaFor nodes runtime, its NodeTree pr
 Work in the checkout supplied for the task. Preserve its branch or detached
 `HEAD`, unrelated changes, listeners and browser targets. This skill owns only
 the root `nodes` package and its parent playground; it does not own Hamiltonian,
-the separate `@nodes/ui` catalog, or solver-only `@nodes/layout` source work.
+the separate `@nodes/ui` catalog, or the package-local `@nodes/layout` SVG
+playground. Parent lifecycle never replaces either package playground.
 
 Before changing the runtime contract, read `docs/README.md`,
 `pkg/nodes/README.md`, `pkg/nodes/REQUIREMENTS.md`, public types and focused

@@ -9,15 +9,17 @@ The executable registry is `scripts/playgrounds.json`.
 
 | Selector | Package contour | Origin | Ready and canvas capability |
 | --- | --- | --- | --- |
-| `nodes` | parent runtime consumer `@nodes/playground`, `pkg/nodes/playground` | `http://127.0.0.1:4015` | `nodesPlayground=ready`, WebGPU canvas, touch, pathname routes; lifecycle belongs `$nodes-dev` |
+| `nodes` | parent runtime consumer `@nodes/playground`, `pkg/nodes/playground` | `http://127.0.0.1:4018` | `nodesPlayground=ready`, WebGPU canvas, touch, pathname routes; lifecycle belongs `$nodes-dev` |
 | `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, pathname routes |
 | `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, pathname routes |
 | `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, pathname routes |
 | `elements` | `@ui/elements`, `pkg/ui/elements` | `http://127.0.0.1:7901` | `elementsPlayground=ready`, WebGPU canvas, pathname routes |
 
-`@nodes/layout` is intentionally not a selector. Root `nodes` owns the WebGPU
-runtime playground through `$nodes-dev`; the pure solver is verified by focused
-tests and has no independent browser lifecycle.
+`@nodes/layout` is intentionally not a `ui-dev` selector because its independent
+package-local playground is a plain SVG solver tool, not a shared WebGPU shell.
+Run it through `bun run nodes:layout:playground` on port `4015` and verify it
+with its focused package tests. Root `nodes` separately owns the parent WebGPU
+runtime playground through `$nodes-dev`; neither playground replaces the other.
 
 ## Lifecycle and ownership
 

@@ -92,6 +92,9 @@ contracts — [`@nodes/ui`](ui/REQUIREMENTS.md).
    production exports `nodes`, `@nodes/layout` или `@nodes/ui`.
 6. Legacy `NodeSystem*`, Port/Edge contracts и compatibility aliases не
    сохраняются.
+7. `nodes`, `@nodes/layout` и `@nodes/ui` сохраняют независимые package-owned
+   playground. Parent integration playground дополняет package-local стенды,
+   но не заменяет и не удаляет их.
 
 ## Parent playground
 

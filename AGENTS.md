@@ -134,6 +134,11 @@
 
 ## Локальная разработка и WebGPU Inspector
 
+- Каждый package сохраняет собственный playground. Parent или integration
+  playground дополняет package-local playground, но не заменяет и не удаляет
+  его. Для чистого `@nodes/layout` использовать отдельный SVG-стенд
+  `bun run nodes:layout:playground`; он не принадлежит `$nodes-dev` или
+  `$ui-dev`.
 - Для разработки корневого package `nodes`, его живого `NodeTree`, projection
   boundary и parent WebGPU playground использовать skill `$nodes-dev` из
   `pkg/nodes/.agents/skills/nodes-dev`. Он владеет только selector `nodes` и

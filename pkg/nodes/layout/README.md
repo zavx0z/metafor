@@ -225,17 +225,22 @@ compound corridor и каждого фактического межслойно�
 ```bash
 bun test pkg/nodes/layout/src
 bun run --cwd pkg/nodes/layout typecheck
+bun run --cwd pkg/nodes/layout typecheck:playground
 ```
 
-Полный runtime-consumer проверяется parent WebGPU playground из корня
-репозитория:
+Package-local SVG playground запускается из корня репозитория:
 
 ```bash
-bun run nodes:playground
+bun run nodes:layout:playground
 ```
 
-Он получает numeric graph только через `NodeTree` projection и не входит в
-exports layout package. Сам solver не имеет отдельного browser lifecycle.
+Он работает на `http://127.0.0.1:4015`, вызывает только public fixed/adaptive
+entrypoints через private registry, сравнивает `RIGHT`/`DOWN` fixtures и
+показывает готовую geometry без NodeTree, Card, WebGPU, HUD и product renderer.
+Playground не экспортируется из package и не заменяется parent runtime-стендом.
+
+Полный consumer-путь `NodeTree → projection → NodeEditor` отдельно показывает
+parent WebGPU playground `bun run nodes:playground`.
 
 ## Обязательный benchmark перед REVIEW
 

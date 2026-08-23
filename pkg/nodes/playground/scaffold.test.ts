@@ -39,7 +39,7 @@ describe("parent nodes playground scaffold", () => {
     expect(server).toContain('packageName: "nodes"')
     expect(server).toContain('canvasId: "nodes-playground-canvas"')
     expect(server).toContain("Bun.env.NODES_PLAYGROUND_HOST")
-    expect(server).toContain("Bun.env.NODES_PLAYGROUND_PORT ?? 4015")
+    expect(server).toContain("Bun.env.NODES_PLAYGROUND_PORT ?? 4018")
     expect(server).toContain('entrypoint: join(import.meta.dir, "entry.ts")')
     expect(server).not.toContain("Bun.serve")
     expect(server).not.toContain("hmr: true")

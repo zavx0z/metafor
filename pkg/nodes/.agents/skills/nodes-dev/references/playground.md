@@ -6,7 +6,7 @@ The only maintained selector of this skill is `nodes`:
 | --- | --- |
 | Package cwd | `pkg/nodes/playground` |
 | Command | `bun server.ts` |
-| Origin | `http://127.0.0.1:4015` |
+| Origin | `http://127.0.0.1:4018` |
 | Default route | `/node-tree/runtime/live` |
 | Ready marker | `document.documentElement.dataset.nodesPlayground === "ready"` |
 | Canvas | `#nodes-playground-canvas` |

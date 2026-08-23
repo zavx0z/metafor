@@ -60,7 +60,7 @@ describe("ui-dev registry", () => {
     expect(registry.selectors.nodes).toMatchObject({
       supported: true,
       package: "@nodes/playground",
-      port: 4015,
+      port: 4018,
       command: ["bun", "server.ts"],
       canvas: {capability: "webgpu"},
       routes: {default: "/node-tree/runtime/live"},
@@ -115,8 +115,8 @@ describe("ui-dev registry", () => {
     const componentRoutes = registry.selectors.components!.routes!
     const elementRoutes = registry.selectors.elements!.routes!
 
-    expect(playgroundTargetUrl("http://127.0.0.1:4015", parentNodeRoutes.default))
-      .toBe("http://127.0.0.1:4015/node-tree/runtime/live")
+    expect(playgroundTargetUrl("http://127.0.0.1:4018", parentNodeRoutes.default))
+      .toBe("http://127.0.0.1:4018/node-tree/runtime/live")
     expect(playgroundTargetUrl("http://127.0.0.1:4016", nodeRoutes.default))
       .toBe("http://127.0.0.1:4016/editor/scene")
     expect(playgroundTargetUrl("http://127.0.0.1:4016", "/socket/types"))

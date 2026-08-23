@@ -32,7 +32,8 @@ Projector разделяет три производных результата:
 
 * [`@nodes/layout`](layout/README.md) — чистый числовой solver. Он получает
   производный serializable graph и не читает живой `NodeTree`, Parameter,
-  renderer или WebGPU.
+  renderer или WebGPU. Его собственный SVG playground позволяет разрабатывать
+  fixed/adaptive placement и routing напрямую на numeric fixtures.
 * [`@nodes/ui`](ui/README.md) — NodeCanvas/NodeEditor и сменяемые
   Frame/Node/Socket/Link renderers. Он отображает готовую проекцию и владеет
   только view-state: pan, zoom, selection, hover и overlays.
@@ -43,16 +44,20 @@ Projector разделяет три производных результата:
 Port/Edge adapters и ручные compatibility helpers не входят в новый public
 contract и удаляются без aliases.
 
-## Parent playground
+## Playgrounds
 
 ```bash
-bun run nodes:playground
+bun run nodes:playground         # root nodes: полный runtime-путь
+bun run nodes:layout:playground  # @nodes/layout: чистая SVG-геометрия
+bun run nodes:components         # @nodes/ui: каталог компонентов
 ```
 
 Parent WebGPU playground показывает полный путь `NodeTree → projection →
 NodeEditor`, изменение значения через тот же живой Parameter, чистый snapshot и
-диагностику кэша. Отдельный `@nodes/ui` playground остаётся каталогом
-компонентов, а `@nodes/layout` проверяется как solver обычными tests.
+диагностику кэша. `@nodes/layout` независимо показывает fixed/adaptive
+`RIGHT`/`DOWN` geometry без UI-зависимостей. `@nodes/ui` независимо показывает
+визуальные компоненты. Playground каждого package дополняет соседние и не
+заменяется parent playground.
 
 Lifecycle и background browser evidence parent contour принадлежат skill
 [`$nodes-dev`](.agents/skills/nodes-dev/SKILL.md).

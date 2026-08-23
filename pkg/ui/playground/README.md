@@ -36,5 +36,5 @@ production preview по центру, variants снизу и постоянны�
 Root Nodes, Node UI, Components и восстановленный historical Elements
 playground являются public-shell consumers. Каждый сохраняет package-owned
 routes/data/preview; Components владеет устойчивыми retained Field parents,
-Elements — одним retained preview parent. Чистый `@nodes/layout` не имеет
-отдельного browser contour; его runtime-путь показывает parent Nodes playground.
+Elements — одним retained preview parent. Чистый `@nodes/layout` сохраняет свой
+отдельный package-local SVG playground без WebGPU и не входит в общий shell.
