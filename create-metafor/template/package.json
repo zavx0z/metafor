@@ -4,9 +4,34 @@
   "description": "HTML шаблонизатор для MetaFor",
   "author": "zavx0z",
   "main": "index.ts",
-  "types": "../../types/template/index.ts",
+  "types": "./types/index.ts",
   "type": "module",
   "private": true,
+  "exports": {
+    ".": {
+      "types": "./types/index.ts",
+      "default": "./index.ts"
+    },
+    "./parser": {
+      "types": "./types/parser.ts",
+      "default": "./parser.ts"
+    },
+    "./types": "./types/index.ts",
+    "./types/parser": "./types/parser.ts",
+    "./types/attribute/array": "./types/attribute/array.ts",
+    "./types/attribute/boolean": "./types/attribute/boolean.ts",
+    "./types/attribute/event": "./types/attribute/event.ts",
+    "./types/attribute/index": "./types/attribute/index.ts",
+    "./types/attribute/string": "./types/attribute/string.ts",
+    "./types/attribute/style": "./types/attribute/style.ts",
+    "./types/node/condition": "./types/node/condition.ts",
+    "./types/node/element": "./types/node/element.ts",
+    "./types/node/index": "./types/node/index.ts",
+    "./types/node/logical": "./types/node/logical.ts",
+    "./types/node/map": "./types/node/map.ts",
+    "./types/node/meta": "./types/node/meta.ts",
+    "./types/node/text": "./types/node/text.ts"
+  },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false"
   },
