@@ -4,9 +4,9 @@
 import {createStoredStringInterner, normalizeFieldValue} from "../../../strong"
 import {FieldType} from "../../../gravity"
 import {prepareMatrixData} from "../../../prepare.ts"
-import type {MatrixConditionValue} from "@metafor/types/matrix/condition"
-import type {MatrixBraneValue, MatrixCollapse, MatrixFieldRecord, MatrixInputData} from "@metafor/types/matrix/data"
-import type { MatrixData, MatrixStore } from "@metafor/types/matrix/store"
+import type {MatrixConditionValue} from "@matrix/types/condition"
+import type {MatrixBraneValue, MatrixCollapse, MatrixFieldRecord, MatrixInputData} from "@matrix/types/data"
+import type { MatrixData, MatrixStore } from "@matrix/types/store"
 import { STATE_NONE, STATE_UNDEFINED } from "../../constants"
 
 function clonePreparedStore(data: MatrixData): MatrixStore {
