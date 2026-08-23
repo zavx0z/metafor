@@ -1,7 +1,7 @@
-import type { MatterBindingValue, MatterParticleKind } from "../metafor/matter.ts"
-import type { AtomRecord } from "../boundary/atom.ts"
-import type { AtomValueRecord, FieldEnumVariantRecord, ValueItemRecord } from "../boundary/value.ts"
-import type { TopologyRecord } from "../boundary/topology.ts"
+import type {MatterBindingValue, MatterParticleKind} from "@metafor/types/metafor/matter"
+import type {AtomRecord} from "@metafor/types/boundary/atom"
+import type {AtomValueRecord, FieldEnumVariantRecord, ValueItemRecord} from "@metafor/types/boundary/value"
+import type {TopologyRecord} from "@metafor/types/boundary/topology"
 
 export interface BulkRuntimeMatterParticle {
   id: number
