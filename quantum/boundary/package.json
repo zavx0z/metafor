@@ -10,6 +10,7 @@
     "start": "bun server.ts"
   },
   "dependencies": {
+    "@boundary/types": "workspace:*",
     "@metafor/types": "workspace:*",
     "shared": "workspace:*",
     "@boundary/atom": "workspace:*",
