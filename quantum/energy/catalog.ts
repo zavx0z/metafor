@@ -5,7 +5,7 @@ import type {
   EnergyMassArtifact,
   EnergyProcessEntity,
   EnergyVariantEntity,
-} from "@metafor/types/energy/catalog"
+} from "@energy/types/catalog"
 import type {Particle} from "shared/protocol/force/particle"
 import {
   parseMetaRuntimeAtomPointer,
