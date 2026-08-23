@@ -24,17 +24,17 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "startup-release-runtime",
     checkpoints: [
-      checkpoint("debug", "[@hamiltonian/startup:service]", "bootstrap release начат", ["request"]),
-      checkpoint("debug", "[@hamiltonian/startup:service]", "release artifact выбран", [
+      checkpoint("debug", "[@cosmos/startup:service]", "bootstrap release начат", ["request"]),
+      checkpoint("debug", "[@cosmos/startup:service]", "release artifact выбран", [
         "env", "name", "request", "source", "version",
       ]),
-      checkpoint("debug", "[@hamiltonian/startup:service]", "release runtime подготовлен", [
+      checkpoint("debug", "[@cosmos/startup:service]", "release runtime подготовлен", [
         "env", "name", "request", "version",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service]", "release service запущен", ["rpc"]),
-      checkpoint("debug", "[@hamiltonian/startup:service]", "release runtime активирован", ["replaced"]),
-      checkpoint("debug", "[@hamiltonian/release:service]", "release service очищен", ["resources"]),
-      checkpoint("error", "[@hamiltonian/startup:service]", "bootstrap release завершился с ошибкой", [
+      checkpoint("debug", "[@cosmos/release:service]", "release service запущен", ["rpc"]),
+      checkpoint("debug", "[@cosmos/startup:service]", "release runtime активирован", ["replaced"]),
+      checkpoint("debug", "[@cosmos/release:service]", "release service очищен", ["resources"]),
+      checkpoint("error", "[@cosmos/startup:service]", "bootstrap release завершился с ошибкой", [
         "error", "request",
       ]),
     ],
@@ -47,37 +47,37 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "server-build-publication",
     checkpoints: [
-      checkpoint("debug", "[@hamiltonian/release:server:update]", "запрос публикации отклонён", [
+      checkpoint("debug", "[@cosmos/release:server:update]", "запрос публикации отклонён", [
         "endpoint", "status",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:update]", "публикация release запрошена", ["packages"]),
-      checkpoint("debug", "[@hamiltonian/release:server:update]", "root intent публикации сохранён", ["packages"]),
-      checkpoint("debug", "[@hamiltonian/release:server:build]", "package typecheck начат", ["package", "root"]),
-      checkpoint("debug", "[@hamiltonian/release:server:build]", "package typecheck завершён", [
+      checkpoint("debug", "[@cosmos/release:server:update]", "публикация release запрошена", ["packages"]),
+      checkpoint("debug", "[@cosmos/release:server:update]", "root intent публикации сохранён", ["packages"]),
+      checkpoint("debug", "[@cosmos/release:server:build]", "package typecheck начат", ["package", "root"]),
+      checkpoint("debug", "[@cosmos/release:server:build]", "package typecheck завершён", [
         "exitCode", "package", "stderr",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:build]", "сборка artifact начата", [
+      checkpoint("debug", "[@cosmos/release:server:build]", "сборка artifact начата", [
         "artifact", "command", "env", "package", "profile", "root",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:build]", "сборка artifact завершена", [
+      checkpoint("debug", "[@cosmos/release:server:build]", "сборка artifact завершена", [
         "artifact", "env", "exitCode", "package",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:build]", "сборка artifact завершилась с ошибкой", [
+      checkpoint("debug", "[@cosmos/release:server:build]", "сборка artifact завершилась с ошибкой", [
         "env", "error", "exitCode", "package",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:update]", "публикация отменена с восстановлением root", [
+      checkpoint("debug", "[@cosmos/release:server:update]", "публикация отменена с восстановлением root", [
         "packages", "reason",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:update]", "публикация release завершена", [
+      checkpoint("debug", "[@cosmos/release:server:update]", "публикация release завершена", [
         "packages", "results",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:update]", "сигнал об обновлении отправлен", [
+      checkpoint("debug", "[@cosmos/release:server:update]", "сигнал об обновлении отправлен", [
         "sendStatus", "subscribers", "topic",
       ]),
-      checkpoint("error", "[@hamiltonian/release:server:update]", "публикация release завершилась с ошибкой", [
+      checkpoint("error", "[@cosmos/release:server:update]", "публикация release завершилась с ошибкой", [
         "packages", "results",
       ]),
-      checkpoint("error", "[@hamiltonian/release:server:update]", "публикация завершилась с ошибкой", [
+      checkpoint("error", "[@cosmos/release:server:update]", "публикация завершилась с ошибкой", [
         "error", "packages",
       ]),
     ],
@@ -90,11 +90,11 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "server-publication-recovery",
     checkpoints: [
-      checkpoint("debug", "[@hamiltonian/release:server:update]", "восстановление публикации начато", ["packages"]),
-      checkpoint("debug", "[@hamiltonian/release:server:update]", "восстановление публикации завершено", [
+      checkpoint("debug", "[@cosmos/release:server:update]", "восстановление публикации начато", ["packages"]),
+      checkpoint("debug", "[@cosmos/release:server:update]", "восстановление публикации завершено", [
         "artifacts", "recovered",
       ]),
-      checkpoint("error", "[@hamiltonian/release:server:update]", "восстановление публикации завершилось с ошибкой", [
+      checkpoint("error", "[@cosmos/release:server:update]", "восстановление публикации завершилось с ошибкой", [
         "error", "packages",
       ]),
     ],
@@ -105,10 +105,10 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "browser-artifact-delivery",
     checkpoints: [
-      checkpoint("debug", "[@hamiltonian/release:server:delivery]", "browser artifact доставлен", [
+      checkpoint("debug", "[@cosmos/release:server:delivery]", "browser artifact доставлен", [
         "env", "package", "status", "version",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:delivery]", "browser artifact не найден", [
+      checkpoint("debug", "[@cosmos/release:server:delivery]", "browser artifact не найден", [
         "env", "package", "status", "version",
       ]),
     ],
@@ -119,19 +119,19 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "release-rpc-lifecycle",
     checkpoints: [
-      checkpoint("debug", "[@hamiltonian/release:server:rpc]", "подписка release service создана", [
+      checkpoint("debug", "[@cosmos/release:server:rpc]", "подписка release service создана", [
         "source", "topic",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service:rpc]", "соединение с сервером обновлений установлено", [
+      checkpoint("debug", "[@cosmos/release:service:rpc]", "соединение с сервером обновлений установлено", [
         "recovered", "to",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service:rpc]", "соединение с сервером обновлений закрыто", [
+      checkpoint("debug", "[@cosmos/release:service:rpc]", "соединение с сервером обновлений закрыто", [
         "code", "intentional", "reason", "retryInMs", "wasClean",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:rpc]", "подписка release service удалена", [
+      checkpoint("debug", "[@cosmos/release:server:rpc]", "подписка release service удалена", [
         "code", "reason", "source", "topic",
       ]),
-      checkpoint("error", "[@hamiltonian/release:service:rpc]", "соединение с сервером обновлений завершилось с ошибкой", [
+      checkpoint("error", "[@cosmos/release:service:rpc]", "соединение с сервером обновлений завершилось с ошибкой", [
         "error", "retryInMs", "to",
       ]),
     ],
@@ -144,23 +144,23 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "browser-state-synchronization",
     checkpoints: [
-      checkpoint("debug", "[@hamiltonian/release:service:rpc:update]", "получен сигнал об обновлении", ["from"]),
-      checkpoint("debug", "[@hamiltonian/release:service:rpc:update]", "фактическое состояние cache отправлено", [
+      checkpoint("debug", "[@cosmos/release:service:rpc:update]", "получен сигнал об обновлении", ["from"]),
+      checkpoint("debug", "[@cosmos/release:service:rpc:update]", "фактическое состояние cache отправлено", [
         "current", "to",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:server:rpc:update]", "состояние browser cache сверено", [
+      checkpoint("debug", "[@cosmos/release:server:rpc:update]", "состояние browser cache сверено", [
         "current", "remove", "update",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service:rpc:update]", "server delta получена", [
+      checkpoint("debug", "[@cosmos/release:service:rpc:update]", "server delta получена", [
         "remove", "update",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service:rpc:update]", "browser cache уже актуален", [
+      checkpoint("debug", "[@cosmos/release:service:rpc:update]", "browser cache уже актуален", [
         "remove", "update",
       ]),
-      checkpoint("error", "[@hamiltonian/release:service:rpc:update]", "синхронизация завершилась с ошибкой", [
+      checkpoint("error", "[@cosmos/release:service:rpc:update]", "синхронизация завершилась с ошибкой", [
         "error", "to",
       ]),
-      checkpoint("error", "[@hamiltonian/release:server:rpc:update]", "сверка browser cache завершилась с ошибкой", [
+      checkpoint("error", "[@cosmos/release:server:rpc:update]", "сверка browser cache завершилась с ошибкой", [
         "error", "source",
       ]),
     ],
@@ -174,19 +174,19 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "browser-cache-transaction",
     checkpoints: [
-      checkpoint("debug", "[@hamiltonian/release:service:prepare]", "transaction начата", [
+      checkpoint("debug", "[@cosmos/release:service:prepare]", "transaction начата", [
         "mode", "remove", "update",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service:prepare]", "восстановление transaction начато", ["packages"]),
-      checkpoint("debug", "[@hamiltonian/release:service:prepare]", "exact artifact подготовлен", [
+      checkpoint("debug", "[@cosmos/release:service:prepare]", "восстановление transaction начато", ["packages"]),
+      checkpoint("debug", "[@cosmos/release:service:prepare]", "exact artifact подготовлен", [
         "env", "name", "source", "version",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service:activate]", "полный candidate composition проверен", ["packages"]),
-      checkpoint("debug", "[@hamiltonian/release:service:activate]", "release runtime candidate подготовлен", [
+      checkpoint("debug", "[@cosmos/release:service:activate]", "полный candidate composition проверен", ["packages"]),
+      checkpoint("debug", "[@cosmos/release:service:activate]", "release runtime candidate подготовлен", [
         "env", "name", "version",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service:activate]", "canonical cleanup завершён", ["removed"]),
-      checkpoint("debug", "[@hamiltonian/release:service:activate]", "transaction завершена", [
+      checkpoint("debug", "[@cosmos/release:service:activate]", "canonical cleanup завершён", ["removed"]),
+      checkpoint("debug", "[@cosmos/release:service:activate]", "transaction завершена", [
         "changed", "mode",
       ]),
     ],
@@ -199,17 +199,17 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "window-runtime-lifecycle",
     checkpoints: [
-      checkpoint("debug", "[@hamiltonian/release:service:restart]", "перезагрузка Window начата", [
+      checkpoint("debug", "[@cosmos/release:service:restart]", "перезагрузка Window начата", [
         "registration", "windows",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:service:restart]", "перезагрузка Window завершена", [
+      checkpoint("debug", "[@cosmos/release:service:restart]", "перезагрузка Window завершена", [
         "navigated", "requested",
       ]),
       checkpoint("debug", "[@internal/visual:main]", "основное visual-окружение создано", [
         "display", "hud", "space", "surfaceDisplay",
       ]),
-      checkpoint("debug", "[@hamiltonian/release:main]", "Visual runtime подключён", ["runtime"]),
-      checkpoint("debug", "[@hamiltonian/startup:main]", "страница готова к работе", [
+      checkpoint("debug", "[@cosmos/release:main]", "Visual runtime подключён", ["runtime"]),
+      checkpoint("debug", "[@cosmos/startup:main]", "страница готова к работе", [
         "controller", "registration",
       ]),
     ],
