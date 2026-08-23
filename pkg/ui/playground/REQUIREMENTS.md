@@ -77,3 +77,9 @@ playground. Он не владеет production semantics UI Components либо
     header/body получают отдельные raw ThemeSpace roles даже при совпадающих
     default bytes. Keyboard focus не заменяет route selection или disclosure;
     accordion header/body не схлопываются в один локальный fill alias.
+19. Source box использует общий scrollable `Pane`, а не обрезает массив строк.
+    При переполнении по соответствующей оси появляются независимые vertical и
+    horizontal scrollbar; wheel axis-lock, track click и thumb drag принадлежат
+    общему `div` scroll primitive. Source update сохраняет допустимую позицию и
+    клампит её к новым bounds, а title, copy, tabs и detail owners не
+    материализуются из-за прокрутки кода.
