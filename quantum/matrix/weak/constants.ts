@@ -4,9 +4,6 @@
  * Они нужны только для derived packing и runtime и не входят в канонический Matrix store.
  */
 
-/**
- * Идентификаторы типов полей, которые записаны в канонической схеме Matrix store.
- */
 export const FIELD_TYPE = {
   F32: 0,
   U32: 1,
@@ -15,9 +12,6 @@ export const FIELD_TYPE = {
   ARRAY_PTR: 4,
 } as const
 
-/**
- * Идентификаторы execution-типов, которые ожидают bytecode и derived heap Weak.
- */
 export const VALUE_TYPE = {
   FLOAT: 0,
   UINT: 1,
@@ -26,11 +20,6 @@ export const VALUE_TYPE = {
   ARRAY: 4,
 } as const
 
-/**
- * Идентификаторы операций условий, которые использует Weak execution.
- *
- * Значения должны совпадать с каноническими условиями, которые записывает Fields.
- */
 export const OP = {
   EQ: 0,
   NEQ: 1,
@@ -64,7 +53,7 @@ export const OP = {
   RESOLVED: 29,
 } as const
 
-export { STATE_UNDEFINED, STATE_NONE } from "@metafor/types/matrix/runtime"
+export { STATE_UNDEFINED, STATE_NONE } from "@matrix/types/runtime"
 
 export const GPU_STATE_UNDEFINED = 0xffffffff
 export const GPU_STATE_NONE = 0xfffffffe
