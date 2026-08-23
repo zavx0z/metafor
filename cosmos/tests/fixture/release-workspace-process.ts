@@ -115,12 +115,20 @@ test("release workspace fixture", async () => {
       const delivered = await getPackage(new Request(
         "https://fixture.test/@cosmos/release?env=main",
       ))
+      const sourceMapUrl = delivered.headers.get("SourceMap")
+      const sourceMap = sourceMapUrl
+        ? await getPackage(new Request(new URL(sourceMapUrl, "https://fixture.test"), {
+            headers: {"Accept-Encoding": "br"},
+          }))
+        : new Response(null, {status: 404})
       const missing = await getPackage(new Request(
         "https://fixture.test/@internal/missing?env=main&version=1.0.1",
       ))
       console.log(JSON.stringify({
         root,
         delivered: delivered.status,
+        sourceMap: sourceMap.status,
+        sourceMapEncoding: sourceMap.headers.get("Content-Encoding"),
         missing: missing.status,
       }))
     } else {
@@ -234,10 +242,11 @@ async function linkPackage(name: string, target: string) {
 }
 
 async function writeArtifact(path: string, version: string, env: string) {
-  await writeSource(
-    join(cosmos, path, "dist", "versions", version, `${env}.js`),
-    `export const fixture = ${JSON.stringify(`${path}:${env}@${version}`)}\n`,
-  )
+  const artifact = join(cosmos, path, "dist", "versions", version, `${env}.js`)
+  await Promise.all([
+    writeSource(artifact, `export const fixture = ${JSON.stringify(`${path}:${env}@${version}`)}\n`),
+    writeSource(`${artifact}.map`, JSON.stringify({version: 3, sources: [`${env}/index.ts`], mappings: ""})),
+  ])
 }
 
 async function prepareRecoveryArtifacts() {
@@ -260,10 +269,14 @@ async function prepareRecoveryArtifacts() {
   })))
   const failure = results.find(({success}) => !success)
   if (failure) throw new Error(`Fixture preparation failed: ${failure.stderr}`)
-  await Promise.all(artifacts.map(async ({artifact: [, path, env], index}) => writeSource(
-    join(cosmos, path, "dist", "versions", targetVersion, `${env}.js`),
-    await Bun.file(join(cosmos, ".fixture-publication", `${index}.js`)).arrayBuffer(),
-  )))
+  await Promise.all(artifacts.flatMap(({artifact: [, path, env], index}) => {
+    const staged = join(cosmos, ".fixture-publication", `${index}.js`)
+    const published = join(cosmos, path, "dist", "versions", targetVersion, `${env}.js`)
+    return [
+      writeSource(published, Bun.file(staged).arrayBuffer()),
+      writeSource(`${published}.map`, Bun.file(`${staged}.map`).arrayBuffer()),
+    ]
+  }))
 }
 
 function isRecoveryScenario() {
@@ -292,7 +305,7 @@ async function writeJson(path: string, value: unknown) {
   await writeSource(path, `${JSON.stringify(value, null, 2)}\n`)
 }
 
-async function writeSource(path: string, source: string | ArrayBuffer) {
+async function writeSource(path: string, source: string | ArrayBuffer | Promise<ArrayBuffer>) {
   await mkdir(dirname(path), {recursive: true})
-  await Bun.write(path, source)
+  await Bun.write(path, await source)
 }

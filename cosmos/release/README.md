@@ -73,6 +73,15 @@ Browser artifact имеет канонический URL:
 
 Stable URL без `version` указывает на текущую принятую версию.
 
+В development-профиле каждый JavaScript artifact получает отдельную immutable
+source map. JavaScript связывается с ней HTTP-заголовком `SourceMap`; map не
+входит в release identity, `/code` или Cache Storage и загружается DevTools
+только по отдельному URL с последним параметром `source-map`.
+
+При `Accept-Encoding: br` server передаёт JavaScript и source map через Brotli.
+`Vary: Accept-Encoding` разделяет транспортные представления, а package
+SHA-256 и size по-прежнему относятся к распакованным canonical bytes.
+
 ## Публикация
 
 Серверная publication выполняется как одна сериализованная операция:
@@ -80,7 +89,7 @@ Stable URL без `version` указывает на текущую принят�
 1. определяется новый target version для изменяемых пакетов;
 2. target versions записываются в root manifest как durable intent;
 3. пакеты проходят typecheck и build;
-4. artifacts публикуются по immutable versioned paths;
+4. artifacts и development source maps публикуются по immutable versioned paths;
 5. child manifests получают согласованные версии;
 6. новое состояние становится доступно через `/code`;
 7. Service Worker получает сигнал `release-changed` и самостоятельно сверяет

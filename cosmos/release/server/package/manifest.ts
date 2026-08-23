@@ -62,7 +62,10 @@ export async function packageOwners(name: BuildablePackage): Promise<PackageOwne
 
 /** Читает непустой JavaScript artifact. */
 export async function packageArtifact(path: string): Promise<PackageBuildArtifact | null> {
-  const artifact = Bun.file(path, {type: "text/javascript; charset=utf-8"})
+  const type = path.endsWith(".map")
+    ? "application/json; charset=utf-8"
+    : "text/javascript; charset=utf-8"
+  const artifact = Bun.file(path, {type})
   if (!await artifact.exists() || artifact.size === 0) return null
   const integrity = await artifactIntegrity(await artifact.arrayBuffer())
   return {path, ...integrity, type: artifact.type}

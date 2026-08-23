@@ -148,6 +148,10 @@ test("production publication diagnostics preserve success and rollback order", a
     expect((success.result as {notifications: string[]}).notifications).toEqual([
       JSON.stringify({type: "release-changed"}),
     ])
+    const body = (success.result as {
+      body: {results: Array<{outputs: unknown[]}>}
+    }).body
+    expect(body.results.map(({outputs}) => outputs.length)).toEqual([2, 2, 2])
     expectOrdered(success.stdout, [
       "публикация release запрошена",
       "root intent публикации сохранён",
@@ -180,7 +184,12 @@ test("production delivery diagnostics distinguish delivered and missing artifact
   const state = await releaseWorkspaceState(cosmos)
   try {
     const {stdout, result} = await runReleaseFixture("delivery")
-    expect(result).toEqual(expect.objectContaining({delivered: 200, missing: 404}))
+    expect(result).toEqual(expect.objectContaining({
+      delivered: 200,
+      sourceMap: 200,
+      sourceMapEncoding: "br",
+      missing: 404,
+    }))
     expectOrdered(stdout, ["browser artifact доставлен", "browser artifact не найден"])
   } finally {
     expect(await releaseWorkspaceState(cosmos)).toEqual(state)

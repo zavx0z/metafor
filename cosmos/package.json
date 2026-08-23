@@ -11,9 +11,9 @@
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"
   },
   "dependencies": {
-    "@cosmos/release": "workspace:^0.1.10",
+    "@cosmos/release": "workspace:^0.1.11",
     "@cosmos/startup": "workspace:*",
-    "@internal/visual": "workspace:^0.1.11"
+    "@internal/visual": "workspace:^0.1.12"
   },
   "devDependencies": {
     "puppeteer-core": "25.4.0"

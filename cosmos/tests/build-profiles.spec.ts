@@ -304,8 +304,8 @@ test("build executor derives development arguments from the production command",
 test.serial("parallel env builds run one package typecheck", async () => {
   const result = await runReleaseFixture("parallel-typecheck")
   expect(result.results).toEqual([
-    {success: true, exitCode: 0, outputs: 1},
-    {success: true, exitCode: 0, outputs: 1},
+    {success: true, exitCode: 0, outputs: 2},
+    {success: true, exitCode: 0, outputs: 2},
   ])
   expect(result.typechecks).toBe(1)
   expect(result.artifacts).toEqual([true, true])
@@ -334,23 +334,25 @@ test("development keeps debug and source maps while production drops both", asyn
   const state = await releaseWorkspaceState(cosmos)
   try {
     const development = await build("development")
-    expect(development.releaseService).toContain("console.debug")
-    expect(development.releaseService).toContain("соединение с сервером обновлений установлено")
-    expect(development.releaseService).toContain("transaction начата")
-    expect(development.startupMain).toContain("страница готова к работе")
-    expect(development.releaseMain).toContain("[@cosmos/release:main]")
-    expect(development.internalVisual).toContain("[@internal/visual:main]")
-    for (const artifact of Object.values(development))
-      expect(artifact).toContain("sourceMappingURL=data:application/json")
+    expect(development.sources.releaseService).toContain("console.debug")
+    expect(development.sources.releaseService).toContain("соединение с сервером обновлений установлено")
+    expect(development.sources.releaseService).toContain("transaction начата")
+    expect(development.sources.startupMain).toContain("страница готова к работе")
+    expect(development.sources.releaseMain).toContain("[@cosmos/release:main]")
+    expect(development.sources.internalVisual).toContain("[@internal/visual:main]")
+    for (const artifact of Object.values(development.sources))
+      expect(artifact).not.toContain("sourceMappingURL=data:application/json")
+    expect(development.sourceMaps.every(Boolean)).toBeTrue()
 
     const production = await build("production")
-    for (const artifact of Object.values(production)) {
+    for (const artifact of Object.values(production.sources)) {
       expect(artifact).not.toContain("console.debug")
       expect(artifact).not.toContain("sourceMappingURL=")
       expect(artifact).not.toContain("/__tests")
       expect(artifact).not.toContain("LOAD_TEST_")
       expect(artifact).not.toContain("RELEASE_FIXTURE_")
     }
+    expect(production.sourceMaps.some(Boolean)).toBeFalse()
   } finally {
     expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
@@ -404,10 +406,15 @@ async function build(mode: "development" | "production") {
         {env: "server", success: true, exitCode: 0},
       ])
     return {
-      internalVisual: await Bun.file(artifacts.internalVisual).text(),
-      releaseMain: await Bun.file(artifacts.releaseMain).text(),
-      startupMain: await Bun.file(artifacts.startupMain).text(),
-      releaseService: await Bun.file(artifacts.releaseService).text(),
+      sources: {
+        internalVisual: await Bun.file(artifacts.internalVisual).text(),
+        releaseMain: await Bun.file(artifacts.releaseMain).text(),
+        startupMain: await Bun.file(artifacts.startupMain).text(),
+        releaseService: await Bun.file(artifacts.releaseService).text(),
+      },
+      sourceMaps: await Promise.all(
+        Object.values(artifacts).map((artifact) => Bun.file(`${artifact}.map`).exists()),
+      ),
     }
   } finally {
     await rm(directory, {recursive: true, force: true})

@@ -20,6 +20,7 @@ import {cosmosManifest, cosmosRoot} from "../shared/paths"
 import {serializePublication} from "./queue"
 import {readReleasedPackages, versionedArtifact} from "./state"
 import {nextPackageVersion} from "../package/version"
+import {sourceMapArtifact} from "../package/source-map"
 
 interface ReleasePlan extends PackageChange {
   member: ReleaseCompositionMember
@@ -32,6 +33,8 @@ interface ReleaseArtifactPlan {
   env: PackageEnvironment
   stagedArtifact: string
   publishedArtifact: string
+  stagedSourceMap: string
+  publishedSourceMap: string
 }
 
 export interface RecoveryResult {
@@ -189,8 +192,8 @@ async function runRecovery(): Promise<RecoveryResult> {
 /** Возвращает только packages, у которых отсутствует хотя бы один exact env artifact. */
 async function incompletePlans(plans: ReleasePlan[]) {
   const complete = await Promise.all(plans.map(async (plan) => {
-    const artifacts = await Promise.all(plan.artifacts.map(({publishedArtifact}) =>
-      packageArtifact(publishedArtifact)))
+    const paths = plan.artifacts.flatMap(requiredPublishedArtifacts)
+    const artifacts = await Promise.all(paths.map((path) => packageArtifact(path)))
     return artifacts.every((artifact) => artifact !== null)
   }))
   return plans.filter((_, index) => !complete[index])
@@ -207,11 +210,17 @@ async function exactPlanArtifacts(plans: ReleasePlan[]) {
 function assignArtifacts(plans: ReleasePlan[], staging: string) {
   let index = 0
   for (const plan of plans) {
-    plan.artifacts = plan.member.owners.map((owner) => ({
-      env: owner.env,
-      stagedArtifact: join(staging, `${index++}.js`),
-      publishedArtifact: versionedArtifact(owner.artifact, plan.version),
-    }))
+    plan.artifacts = plan.member.owners.map((owner) => {
+      const stagedArtifact = join(staging, `${index++}.js`)
+      const publishedArtifact = versionedArtifact(owner.artifact, plan.version)
+      return {
+        env: owner.env,
+        stagedArtifact,
+        publishedArtifact,
+        stagedSourceMap: sourceMapArtifact(stagedArtifact),
+        publishedSourceMap: sourceMapArtifact(publishedArtifact),
+      }
+    })
   }
 }
 
@@ -235,11 +244,27 @@ async function materializePlans(
   const artifactPlans = plans.flatMap((plan) => plan.artifacts)
   const artifacts: PackageBuildArtifact[] = []
   for (const [index, plan] of artifactPlans.entries()) {
-    const artifact = await publishImmutableArtifact(plan.stagedArtifact, plan.publishedArtifact)
-    results[index]!.outputs = [artifact]
-    artifacts.push(artifact)
+    const published = await Promise.all(requiredArtifactPairs(plan).map(({staged, target}) =>
+      publishImmutableArtifact(staged, target)))
+    results[index]!.outputs = published
+    artifacts.push(published[0]!)
   }
   return artifacts
+}
+
+function requiredPublishedArtifacts(plan: ReleaseArtifactPlan) {
+  return Bun.env.NODE_ENV === "development"
+    ? [plan.publishedArtifact, plan.publishedSourceMap]
+    : [plan.publishedArtifact]
+}
+
+function requiredArtifactPairs(plan: ReleaseArtifactPlan) {
+  return Bun.env.NODE_ENV === "development"
+    ? [
+        {staged: plan.stagedArtifact, target: plan.publishedArtifact},
+        {staged: plan.stagedSourceMap, target: plan.publishedSourceMap},
+      ]
+    : [{staged: plan.stagedArtifact, target: plan.publishedArtifact}]
 }
 
 /** Публикует missing exact artifact, но никогда не заменяет существующую identity. */

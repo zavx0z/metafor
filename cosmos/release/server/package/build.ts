@@ -1,7 +1,10 @@
 import {mkdir} from "node:fs/promises"
 import {dirname} from "node:path"
 import {packageBuildCommand, withPackageBuildOutput} from "./command"
-import type {PackageEnvironment} from "../../../shared/package/environment"
+import type {
+  BrowserPackageEnvironment,
+  PackageEnvironment,
+} from "../../../shared/package/environment"
 import type {
   BuildablePackage,
   PackageBuildOptions,
@@ -9,6 +12,12 @@ import type {
   PackageOwner,
 } from "../shared/contracts"
 import {packageArtifact, packageOwner} from "./manifest"
+import {artifactResponse} from "./response"
+import {
+  browserPackageSourceMapUrl,
+  externalizeSourceMap,
+  sourceMapArtifact,
+} from "./source-map"
 
 const pendingBuilds = new Map<string, Promise<PackageBuildResult>>()
 const pendingTypechecks = new Map<string, Promise<PackageTypecheckResult>>()
@@ -20,7 +29,11 @@ interface PackageTypecheckResult {
 }
 
 /** Возвращает env artifact, лениво собирая его при отсутствии или пустом файле. */
-export async function packageResponse(name: BuildablePackage, env?: PackageEnvironment) {
+export async function packageResponse(
+  name: BuildablePackage,
+  env?: BrowserPackageEnvironment,
+  request?: Request,
+) {
   const owner = await packageOwner(name, env)
   let artifact = await packageArtifact(owner.artifact)
 
@@ -42,8 +55,28 @@ export async function packageResponse(name: BuildablePackage, env?: PackageEnvir
     "X-Package-SHA256": artifact.sha256,
     "X-Package-Size": String(artifact.size),
   })
+  const sourceMap = await packageArtifact(sourceMapArtifact(artifact.path))
+  if (sourceMap) headers.set(
+    "SourceMap",
+    browserPackageSourceMapUrl(name, owner.env as BrowserPackageEnvironment),
+  )
   for (const [header, value] of Object.entries(owner.headers)) headers.set(header, value)
-  return new Response(Bun.file(artifact.path), {headers})
+  return await artifactResponse(request, artifact, headers)
+}
+
+/** Возвращает внешнюю development source map initial package. */
+export async function packageSourceMapResponse(
+  name: BuildablePackage,
+  env: BrowserPackageEnvironment,
+  request?: Request,
+) {
+  const owner = await packageOwner(name, env)
+  const artifact = await packageArtifact(sourceMapArtifact(owner.artifact))
+  if (!artifact) return new Response(null, {status: 404})
+  return await artifactResponse(request, artifact, new Headers({
+    "Cache-Control": "no-cache",
+    "Content-Type": artifact.type,
+  }))
 }
 
 /** Разрешает внешнее имя как package с полным browser build contract. */
@@ -133,6 +166,8 @@ async function runPackageBuild(
       return {module: name, env: owner.env, success: false, exitCode, stdout, stderr, outputs: []}
     }
 
+    if (Bun.env.NODE_ENV === "development") await externalizeSourceMap(artifactPath)
+
     const artifact = await packageArtifact(artifactPath)
     if (!artifact) {
       const failure = buildContractFailure(
@@ -154,7 +189,26 @@ async function runPackageBuild(
       exitCode,
       package: name,
     })
-    return {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs: [artifact]}
+    const outputs = [artifact]
+    if (Bun.env.NODE_ENV === "development") {
+      const sourceMap = await packageArtifact(sourceMapArtifact(artifactPath))
+      if (!sourceMap) {
+        const failure = buildContractFailure(
+          {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs},
+          sourceMapArtifact(artifactPath),
+        )
+        debug("сборка artifact завершилась с ошибкой", {
+          env: owner.env,
+          error: failure.stderr,
+          exitCode: failure.exitCode,
+          package: name,
+        })
+        return failure
+      }
+      outputs.push(sourceMap)
+    }
+
+    return {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs}
   } catch (error) {
     debug("сборка artifact завершилась с ошибкой", {
       env: owner.env,

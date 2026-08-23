@@ -1,6 +1,11 @@
 import {buildablePackage} from "../package/build"
-import {releasedPackageResponse, releaseStateResponse} from "../release/state"
+import {
+  releasedPackageResponse,
+  releasedPackageSourceMapResponse,
+  releaseStateResponse,
+} from "../release/state"
 import {parseBrowserPackageUrl} from "../../../shared/package/url"
+import {parseBrowserPackageSourceMapUrl} from "../package/source-map"
 
 /** Возвращает текущее доказанное release state только без query parameters. */
 export async function getRelease(request: Request) {
@@ -12,7 +17,8 @@ export async function getRelease(request: Request) {
 /** Возвращает browser artifact, чьё package name совпадает с pathname. */
 export async function getPackage(request: Request) {
   const url = new URL(request.url)
-  const requested = parseBrowserPackageUrl(url)
+  const sourceMap = parseBrowserPackageSourceMapUrl(url)
+  const requested = sourceMap ?? parseBrowserPackageUrl(url)
   if (requested === null) return new Response(null, {status: 404})
 
   const name = await buildablePackage(requested.name, requested.env)
@@ -26,7 +32,9 @@ export async function getPackage(request: Request) {
     return new Response(null, {status: 404})
   }
 
-  const response = await releasedPackageResponse(name, requested.env, requested.version)
+  const response = sourceMap
+    ? await releasedPackageSourceMapResponse(name, requested.env, requested.version, request)
+    : await releasedPackageResponse(name, requested.env, requested.version, request)
   if (response.ok) {
     debug("browser artifact доставлен", {
       env: requested.env,

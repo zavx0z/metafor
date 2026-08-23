@@ -1,11 +1,15 @@
 import {expect, setDefaultTimeout, test} from "bun:test"
+import {brotliDecompressSync} from "node:zlib"
 import {
+  acceptsBrotli,
+  browserPackageSourceMapUrl,
   getPackage,
   getRelease,
   nextPackageVersion,
   notifyRelease,
   packageChanges,
   packageOwners,
+  parseBrowserPackageSourceMapUrl,
   readReleaseComposition,
   releaseDelta,
   parseReleaseChangedMessage,
@@ -160,6 +164,59 @@ test("browser package URL has one canonical env and version order", () => {
     "/@internal/visual?env=main&version=0.1.3&extra=1",
     "/@internal/visual?env=main&version=0.1",
   ]) expect(parseBrowserPackageUrl(new URL(path, "http://127.0.0.1:4444"))).toBeNull()
+})
+
+test("source map URL extends one canonical package URL without creating a package slot", () => {
+  const stable = browserPackageSourceMapUrl("@internal/visual", "main")
+  const exact = browserPackageSourceMapUrl("@internal/visual", "main", "0.1.3")
+  expect(stable).toBe("/@internal/visual?env=main&source-map")
+  expect(exact).toBe("/@internal/visual?env=main&version=0.1.3&source-map")
+  expect(parseBrowserPackageSourceMapUrl(new URL(stable, "http://127.0.0.1:4444"))).toEqual({
+    name: "@internal/visual",
+    env: "main",
+    version: null,
+  })
+  expect(parseBrowserPackageSourceMapUrl(new URL(exact, "http://127.0.0.1:4444"))).toEqual({
+    name: "@internal/visual",
+    env: "main",
+    version: "0.1.3",
+  })
+  expect(parseBrowserPackageUrl(new URL(exact, "http://127.0.0.1:4444"))).toBeNull()
+  expect(parseBrowserPackageSourceMapUrl(new URL(
+    "/@internal/visual?env=main&source-map&version=0.1.3",
+    "http://127.0.0.1:4444",
+  ))).toBeNull()
+})
+
+test("Brotli negotiation preserves decoded package identity", async () => {
+  const release = (await releasedPackages()).find(
+    ({name, env}) => name === "@cosmos/release" && env === "service",
+  )
+  if (!release) throw new Error("Release service package is missing")
+  const url = `http://127.0.0.1:4444${browserPackageUrl(
+    release.name,
+    release.env,
+    release.version,
+  )}`
+  const [plain, encoded, forbidden] = await Promise.all([
+    getPackage(new Request(url)),
+    getPackage(new Request(url, {headers: {"Accept-Encoding": "gzip, br"}})),
+    getPackage(new Request(url, {headers: {"Accept-Encoding": "br;q=0, gzip"}})),
+  ])
+  const source = new Uint8Array(await plain.arrayBuffer())
+  const compressed = new Uint8Array(await encoded.arrayBuffer())
+  const decoded = brotliDecompressSync(compressed)
+
+  expect(encoded.headers.get("Content-Encoding")).toBe("br")
+  expect(encoded.headers.get("Vary")).toContain("Accept-Encoding")
+  expect(Number(encoded.headers.get("Content-Length"))).toBe(compressed.byteLength)
+  expect(new Uint8Array(decoded)).toEqual(source)
+  expect(decoded.byteLength).toBe(release.size)
+  expect(compressed.byteLength).toBeLessThan(decoded.byteLength)
+  expect(forbidden.headers.get("Content-Encoding")).toBeNull()
+  expect(acceptsBrotli("br")).toBeTrue()
+  expect(acceptsBrotli("gzip, *;q=0.5")).toBeTrue()
+  expect(acceptsBrotli("br;q=0, *;q=1")).toBeFalse()
 })
 
 test("Worker accepts only complete artifact identity without endpoint or cache", async () => {

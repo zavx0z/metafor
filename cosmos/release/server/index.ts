@@ -1,6 +1,18 @@
 /** Public API env `server` package `@cosmos/release`. */
-export {buildablePackage, buildPackage, packageResponse} from "./package/build"
+export {
+  buildablePackage,
+  buildPackage,
+  packageResponse,
+  packageSourceMapResponse,
+} from "./package/build"
 export {packageBuildCommand} from "./package/command"
+export {acceptsBrotli} from "./package/response"
+export {
+  browserPackageSourceMapUrl,
+  externalizeSourceMap,
+  parseBrowserPackageSourceMapUrl,
+  sourceMapArtifact,
+} from "./package/source-map"
 export {
   readReleaseComposition,
   readReleaseIntentComposition,
@@ -67,7 +79,12 @@ export {
   upgradeRpc,
 } from "./rpc"
 export type {RpcSocketData} from "./rpc"
-export {releasedPackageResponse, releasedPackages, releaseStateResponse} from "./release/state"
+export {
+  releasedPackageResponse,
+  releasedPackageSourceMapResponse,
+  releasedPackages,
+  releaseStateResponse,
+} from "./release/state"
 export {notifyRelease, publishRelease} from "./release/update"
 export type {ReleaseNotification} from "./release/update"
 export {nextPackageVersion} from "./package/version"

@@ -4,8 +4,12 @@ Cosmos работает постоянно на `http://127.0.0.1:4444/`. Для
 клиентской сборки server не останавливать и не перезапускать.
 
 Skill запускает development contour через `bun run dev`. Этот режим
-минифицирует browser artifacts, сохраняет `console.debug` и добавляет inline
-source map. Временные diagnostics писать через `console.debug`; не помещать в
+минифицирует browser artifacts, сохраняет `console.debug`, временно создаёт
+inline source map внутри package-owned build и затем выносит её в отдельный immutable
+companion. Server связывает JavaScript и map заголовком `SourceMap`; Worker не
+сохраняет map в Cache Storage. При поддержке browser server передаёт JavaScript
+и map через Brotli, но SHA-256 и size продолжают описывать распакованные
+canonical bytes. Временные diagnostics писать через `console.debug`; не помещать в
 его аргументы обязательную рабочую логику. Первым аргументом передавать
 постоянный scope владельца в квадратных скобках, вторым — короткое событие,
 третьим — структурированные данные, например:
@@ -164,7 +168,7 @@ env требует новой package version и полного набора о�
 версии. Неизменившийся package не пересобирать и не заменять.
 
 Direct production-команда `build:<env>` повторяет `./<env>/index.ts`, выбирает
-condition `<scope>:<env>` и точный target. Bun `1.3.14` не разрешает bare package specifier как CLI build
+condition `<scope>:<env>` и точный target. Bun `1.4.0` не разрешает bare package specifier как CLI build
 entrypoint, поэтому команда повторяет source path branch `exports`; release
 server принимает её только при точном совпадении. Bare imports внутри source и
 готового ESM artifact при этом сохраняются.
