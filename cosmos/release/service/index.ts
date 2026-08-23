@@ -1,4 +1,4 @@
-/** Public API env `service` package `@hamiltonian/release`. */
+/** Public API env `service` package `@cosmos/release`. */
 export {default} from "./runtime"
 export type {
   ReleaseDependencies,
