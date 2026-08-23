@@ -1,4 +1,4 @@
-/** Точные среды выполнения одного Hamiltonian package. */
+/** Точные среды выполнения одного Cosmos package. */
 export const packageEnvironments = [
   "main",
   "worker",
