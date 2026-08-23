@@ -48,7 +48,7 @@ export default function releaseService(
       })
       cleanups.push(() => rpc?.destroy())
       await cache.cacheStartup()
-      console.debug("[@hamiltonian/release:service]", "release service запущен", {
+      console.debug("[@cosmos/release:service]", "release service запущен", {
         rpc: "/sw",
       })
     } catch (error) {
@@ -62,7 +62,7 @@ export default function releaseService(
       const resources = cleanups.length
       for (const cleanup of [...cleanups].reverse()) await cleanup()
       cleanups.length = 0
-      console.debug("[@hamiltonian/release:service]", "release service очищен", {
+      console.debug("[@cosmos/release:service]", "release service очищен", {
         resources,
       })
     })()
@@ -91,13 +91,13 @@ export type {
 async function navigateWindows() {
   const windows = await clients.matchAll({type: "window"})
   const targets = windows.map((client) => ({id: client.id, url: client.url}))
-  console.debug("[@hamiltonian/release:service:restart]", "перезагрузка Window начата", {
+  console.debug("[@cosmos/release:service:restart]", "перезагрузка Window начата", {
     registration: registration.scope,
     windows: targets,
   })
 
   const navigations = await Promise.all(windows.map((client) => client.navigate(client.url)))
-  console.debug("[@hamiltonian/release:service:restart]", "перезагрузка Window завершена", {
+  console.debug("[@cosmos/release:service:restart]", "перезагрузка Window завершена", {
     navigated: navigations.filter((client) => client !== null).length,
     requested: windows.length,
   })
