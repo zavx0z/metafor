@@ -134,6 +134,10 @@
 
 ## Локальная разработка и WebGPU Inspector
 
+- Для разработки корневого package `nodes`, его живого `NodeTree`, projection
+  boundary и parent WebGPU playground использовать skill `$nodes-dev` из
+  `pkg/nodes/.agents/skills/nodes-dev`. Он владеет только selector `nodes` и
+  переиспользует общий безопасный lifecycle/background-CDP механизм `ui-dev`.
 - Для standalone-разработки, lifecycle, browser-проверки и профилирования
   playground-пакетов `@ui/elements`, `@ui/components`, общего `@ui/playground`
   и Blender-based `@nodes/ui` использовать skill `$ui-dev` из

@@ -1,6 +1,23 @@
 {
   "version": 1,
   "selectors": {
+    "nodes": {
+      "supported": true,
+      "package": "@nodes/playground",
+      "cwd": "pkg/nodes/playground",
+      "command": ["bun", "server.ts"],
+      "host": "127.0.0.1",
+      "hostEnv": "NODES_PLAYGROUND_HOST",
+      "port": 4015,
+      "portEnv": "NODES_PLAYGROUND_PORT",
+      "origin": "http://127.0.0.1:4015",
+      "httpMarker": "<title>nodes</title>",
+      "ready": {"kind": "dataset", "name": "nodesPlayground", "value": "ready"},
+      "canvas": {"selector": "#nodes-playground-canvas", "capability": "webgpu", "touch": true},
+      "routes": {"default": "/node-tree/runtime/live"},
+      "stateKey": "nodes",
+      "logName": "nodes.log"
+    },
     "node-ui": {
       "supported": true,
       "package": "@nodes/ui",

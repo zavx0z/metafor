@@ -9,15 +9,15 @@ The executable registry is `scripts/playgrounds.json`.
 
 | Selector | Package contour | Origin | Ready and canvas capability |
 | --- | --- | --- | --- |
+| `nodes` | parent runtime consumer `@nodes/playground`, `pkg/nodes/playground` | `http://127.0.0.1:4015` | `nodesPlayground=ready`, WebGPU canvas, touch, pathname routes; lifecycle belongs `$nodes-dev` |
 | `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, pathname routes |
 | `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, pathname routes |
 | `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, pathname routes |
 | `elements` | `@ui/elements`, `pkg/ui/elements` | `http://127.0.0.1:7901` | `elementsPlayground=ready`, WebGPU canvas, pathname routes |
 
-`@nodes/layout` is intentionally not a selector. Its current SVG server is a
-separate solver-only contour and still enables HMR. Add it only after an owner
-accepts a maintained non-WebGPU lifecycle; do not invent a replacement command
-or port in this skill.
+`@nodes/layout` is intentionally not a selector. Root `nodes` owns the WebGPU
+runtime playground through `$nodes-dev`; the pure solver is verified by focused
+tests and has no independent browser lifecycle.
 
 ## Lifecycle and ownership
 
@@ -63,9 +63,13 @@ Use this decision table after a stable scoped source checkpoint:
 
 | Changed scope | Required selector restart |
 | --- | --- |
-| `pkg/ui/elements` production, exports or manifest | `elements`, `components`, `node-ui`, and every running shared fixture importer |
-| `pkg/ui/components` production, exports or manifest | `components`, `node-ui`, and every running shared fixture importer |
-| `pkg/nodes/ui` production or package-owned stories | `node-ui` |
+| `pkg/ui/elements` production, exports or manifest | `elements`, `components`, `node-ui`, `nodes`, and every running shared fixture importer |
+| `pkg/ui/components` production, exports or manifest | `components`, `node-ui`, `nodes`, and every running shared fixture importer |
+| root `pkg/nodes` runtime, projection contract or exports | `nodes` |
+| `pkg/nodes/layout` production, exports or manifest | `nodes` |
+| `pkg/nodes/ui` production | `node-ui` and `nodes` |
+| package-owned Node UI stories | `node-ui` |
+| parent `pkg/nodes/playground` source | `nodes` |
 | package-owned Elements stories | `elements` |
 | package-owned Components stories | `components` |
 | shared `pkg/ui/playground` shell/router/theme | every running maintained selector |
