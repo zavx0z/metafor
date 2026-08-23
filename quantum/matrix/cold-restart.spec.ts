@@ -1,5 +1,5 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
+import type {BoundaryInitialState} from "shared/protocol/boundary/initial"
 import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
 import {
   createForceTestFixture,

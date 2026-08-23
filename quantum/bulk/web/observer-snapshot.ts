@@ -1,4 +1,4 @@
-import type {BulkStoreCaptureProof} from "@metafor/types/bulk/capture"
+import type {BulkStoreCaptureProof} from "shared/protocol/bulk/capture"
 
 export type BulkObserverFrameScheduler = (callback: FrameRequestCallback) => number
 

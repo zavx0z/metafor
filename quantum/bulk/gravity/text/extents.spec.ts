@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { resolveTextExtents } from "./extents"
-import type { FontMetrics } from "@metafor/types/bulk/text"
+import type { FontMetrics } from "@bulk/types/text"
 
 const FONT: FontMetrics = {
   unitsPerEm: 1000,

@@ -3,7 +3,7 @@ import {readdir} from "node:fs/promises"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
 
-const hamiltonian = fileURLToPath(new URL("../", import.meta.url))
+const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
 test("test controls stay in fixtures and never enter production runtime", async () => {
   const production = await productionSources()
@@ -13,7 +13,7 @@ test("test controls stay in fixtures and never enter production runtime", async 
     expect(source).not.toContain("RELEASE_FIXTURE_")
   }
 
-  const fixtureServer = await Bun.file(join(hamiltonian, "tests/fixture/server.ts")).text()
+  const fixtureServer = await Bun.file(join(cosmos, "tests/fixture/server.ts")).text()
   expect(fixtureServer).toContain('"/__tests/state"')
   expect(fixtureServer).toContain('"/__tests/rpc/close"')
   expect(fixtureServer).not.toContain("recoverPublication")
@@ -23,23 +23,23 @@ test("test controls stay in fixtures and never enter production runtime", async 
 
 test("release tests direct every mutation to test-owned temporary fixtures", async () => {
   const [browser, profiles, publication, release, ham005] = await Promise.all([
-    Bun.file(join(hamiltonian, "tests/load-001.browser.spec.ts")).text(),
-    Bun.file(join(hamiltonian, "tests/build-profiles.spec.ts")).text(),
-    Bun.file(join(hamiltonian, "tests/publication.spec.ts")).text(),
-    Bun.file(join(hamiltonian, "tests/release.spec.ts")).text(),
-    Bun.file(join(hamiltonian, "tests/ham-005.boundary.spec.ts")).text(),
+    Bun.file(join(cosmos, "tests/load-001.browser.spec.ts")).text(),
+    Bun.file(join(cosmos, "tests/build-profiles.spec.ts")).text(),
+    Bun.file(join(cosmos, "tests/publication.spec.ts")).text(),
+    Bun.file(join(cosmos, "tests/release.spec.ts")).text(),
+    Bun.file(join(cosmos, "tests/ham-005.boundary.spec.ts")).text(),
   ])
 
   expect(browser).toContain("LOAD_TEST_ARTIFACTS: JSON.stringify(fixtureArtifacts)")
   expect(browser).not.toContain('`--port=${port}`')
   expect(browser).not.toContain('"server.ts",')
-  expect(browser).toContain("releaseWorkspaceState(hamiltonian)")
+  expect(browser).toContain("releaseWorkspaceState(cosmos)")
 
-  expect(profiles).not.toContain('join(hamiltonian, "internal/visual/.typecheck')
+  expect(profiles).not.toContain('join(cosmos, "internal/visual/.typecheck')
   expect(profiles).not.toContain("Bun.write(manifestPath")
-  expect(profiles).not.toContain('join(hamiltonian, "release/dist')
+  expect(profiles).not.toContain('join(cosmos, "release/dist')
   expect(profiles).toContain("release-workspace-process.ts")
-  expect(profiles).toContain("releaseWorkspaceState(hamiltonian)")
+  expect(profiles).toContain("releaseWorkspaceState(cosmos)")
 
   expect(publication).not.toContain('new URL("../release/package.json"')
   expect(publication).toContain("release-workspace-process.ts")
@@ -50,12 +50,12 @@ test("release tests direct every mutation to test-owned temporary fixtures", asy
 
 async function productionSources() {
   const paths = [
-    join(hamiltonian, "server.ts"),
-    join(hamiltonian, "build.ts"),
-    ...await files(join(hamiltonian, "startup")),
-    ...await files(join(hamiltonian, "release")),
-    ...await files(join(hamiltonian, "shared")),
-    ...await files(join(hamiltonian, "internal/visual")),
+    join(cosmos, "server.ts"),
+    join(cosmos, "build.ts"),
+    ...await files(join(cosmos, "startup")),
+    ...await files(join(cosmos, "release")),
+    ...await files(join(cosmos, "shared")),
+    ...await files(join(cosmos, "internal/visual")),
   ]
   return await Promise.all(paths
     .filter((path) => !path.includes("/dist/"))

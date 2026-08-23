@@ -19,35 +19,35 @@ import {
   type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
-import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "@metafor/types/boundary/runtime"
+import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "shared/protocol/boundary/runtime"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {Particle} from "shared/protocol/force/particle"
 import {assembleGraphForRoot} from "../oracle/graph.ts"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "../graph.ts"
-import {readBoundaryGraphProjectionForRoot} from "boundary/graph.ts"
+import {readBoundaryGraphProjectionForRoot} from "../../boundary/graph.ts"
 import {
   DetachedBoundaryDissolveCandidateStaging,
-} from "boundary/dissolve-candidate-staging.ts"
+} from "../../boundary/dissolve-candidate-staging.ts"
 import {
   executeDetachedBoundaryDissolveCandidate,
-} from "boundary/dissolve-candidate-execution.ts"
+} from "../../boundary/dissolve-candidate-execution.ts"
 import {
   createIsolatedBoundaryDissolveMassEvidenceReader,
-} from "boundary/dissolve-mass-evidence.ts"
+} from "../../boundary/dissolve-mass-evidence.ts"
 import {
   BOUNDARY_DISSOLVE_PROPOSAL_V1,
   type BoundaryDissolveProposalV1,
-} from "boundary/dissolve-staging.ts"
+} from "../../boundary/dissolve-staging.ts"
 import {
   open as openBoundary,
   type BoundaryDatabase,
 } from "boundary/sqlite"
-import {MassCatalog, massFileName, type MassFileFormat} from "shared/mass.ts"
+import {MassCatalog, massFileName, type MassFileFormat} from "../../../shared/mass.ts"
 import {DarkForceHistory} from "../force/history.ts"
 import {initializeCheckpointControlBaseline} from "./control.ts"
 import {
   BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
-} from "boundary/dissolve-candidate-staging.ts"
+} from "../../boundary/dissolve-candidate-staging.ts"
 import {
   createDetachedDissolveCandidateBundle,
 } from "./dissolve-candidate.ts"
@@ -55,8 +55,8 @@ import {
   captureDetachedDissolveRootFrame,
   produceBulkRootPromotionReceipt,
 } from "./dissolve-promotion.ts"
-import {BulkProjectionStore} from "bulk/projection.ts"
-import {buildBulkManifestation} from "bulk/manifestation.ts"
+import {BulkProjectionStore} from "../../bulk/projection.ts"
+import {buildBulkManifestation} from "../../bulk/manifestation.ts"
 
 const SOURCE = parseMetaAddress("synthetic/inference")!
 const TARGET = parseMetaAddress("synthetic/lada")!

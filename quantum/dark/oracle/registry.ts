@@ -13,7 +13,7 @@ import {
   type MetaAuthoringCapability,
   type MetaCapabilitiesReadReceipt,
   type MetaSourceRevisionReadReceipt,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import {readSourceRevision} from "create-metafor/library"
 import {resolveMetaPath} from "../load.ts"

@@ -1,4 +1,15 @@
-import ts from "typescript"
+import {parseSync, Visitor, type OxcError} from "oxc-parser"
+import type {
+  ArrayExpression,
+  ArrowFunctionExpression,
+  CallExpression,
+  Expression,
+  Function as FunctionNode,
+  Node,
+  ObjectExpression,
+  ObjectProperty,
+  Program,
+} from "@oxc-project/types"
 import {dirname, resolve} from "node:path"
 import type {
   MetaBulkDeclaration,
@@ -9,7 +20,7 @@ import type {
   MetaReactionDeclaration,
   MetaSourcePrecondition,
   MetaStateDeclaration,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import type {MetaAddress} from "@metafor/types/metafor/graph"
 import type {
   BulkSchema,
@@ -20,7 +31,7 @@ import type {
   MetaSuperpositionDSL,
 } from "@metafor/types/metafor/schema"
 import type {ForceMessageInput} from "shared/protocol/force/message"
-import {normalizeFunctionString, parseFunction, updateAppendArg} from "../../action.ts"
+import {normalizeFunctionString, parseFunction, updateAppendArg} from "../dsl/action.ts"
 
 export type DeclarationPatchErrorCode =
   | "meta_missing"
@@ -78,44 +89,42 @@ type FieldsObjectRange = {
   callIndent: string
 }
 
-const unwrap = (value: ts.Expression): ts.Expression => {
+const unwrap = (value: Expression): Expression => {
   let current = value
   while (
-    ts.isParenthesizedExpression(current) ||
-    ts.isAsExpression(current) ||
-    ts.isSatisfiesExpression(current) ||
-    ts.isNonNullExpression(current)
+    current.type === "ParenthesizedExpression" ||
+    current.type === "TSAsExpression" ||
+    current.type === "TSSatisfiesExpression" ||
+    current.type === "TSNonNullExpression"
   ) current = current.expression
   return current
 }
 
-const returnedExpression = (value: ts.Expression): ts.Expression | null => {
+const returnedExpression = (value: Expression): Expression | null => {
   const callback = unwrap(value)
-  if (ts.isArrowFunction(callback) && !ts.isBlock(callback.body)) return unwrap(callback.body)
-  if (!ts.isArrowFunction(callback) && !ts.isFunctionExpression(callback)) return null
-  if (!ts.isBlock(callback.body)) return null
-  const returned = callback.body.statements.filter(ts.isReturnStatement)
-  return returned.length === 1 && returned[0]!.expression
-    ? unwrap(returned[0]!.expression!)
+  if (callback.type === "ArrowFunctionExpression" && callback.body.type !== "BlockStatement") {
+    return unwrap(callback.body)
+  }
+  if (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression") return null
+  if (!callback.body || callback.body.type !== "BlockStatement") return null
+  const returned = callback.body.body.filter((statement) => statement.type === "ReturnStatement")
+  return returned.length === 1 && returned[0]!.argument
+    ? unwrap(returned[0]!.argument!)
     : null
 }
 
 const fieldsObjectRange = (source: string): FieldsObjectRange => {
-  const file = ts.createSourceFile("meta.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  const objects: ts.ObjectLiteralExpression[] = []
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === "fields" &&
-      node.arguments.length === 1
-    ) {
-      const returned = returnedExpression(node.arguments[0]!)
-      if (returned && ts.isObjectLiteralExpression(returned)) objects.push(returned)
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(file)
+  const file = parsedSource(source)
+  const objects: ObjectExpression[] = []
+  new Visitor({
+    CallExpression(node) {
+      if (memberName(node.callee) !== "fields" || node.arguments.length !== 1) return
+      const argument = node.arguments[0]
+      if (!argument || argument.type === "SpreadElement") return
+      const returned = returnedExpression(argument)
+      if (returned?.type === "ObjectExpression") objects.push(returned)
+    },
+  }).visit(file.program)
   if (objects.length !== 1) {
     throw new DeclarationPatchError(
       "unsupported_fields_source",
@@ -123,14 +132,14 @@ const fieldsObjectRange = (source: string): FieldsObjectRange => {
     )
   }
   const object = objects[0]!
-  if (object.properties.some((property) => !ts.isPropertyAssignment(property))) {
+  if (object.properties.some((property) => property.type !== "Property")) {
     throw new DeclarationPatchError(
       "unsupported_fields_source",
       "Field source accepts only explicit property assignments",
     )
   }
-  const start = object.getStart(file)
-  const end = object.getEnd()
+  const start = object.start
+  const end = object.end
   const lineStart = source.lastIndexOf("\n", start) + 1
   const callIndent = /^\s*/.exec(source.slice(lineStart, start))?.[0] ?? ""
   return {start, end, callIndent}
@@ -178,29 +187,36 @@ const replaceFieldsObject = (snapshot: DeclarationMetaSnapshot, fields: readonly
 
 type ExpressionRange = {start: number; end: number; indent: string}
 
-const parsedSource = (source: string): ts.SourceFile =>
-  ts.createSourceFile("meta.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+type ParsedSource = {
+  program: Program
+  errors: readonly OxcError[]
+}
 
-const parseDiagnostics = (file: ts.SourceFile): readonly ts.Diagnostic[] =>
-  (file as ts.SourceFile & {parseDiagnostics: readonly ts.Diagnostic[]}).parseDiagnostics
+const parsedSource = (source: string, path = "meta.ts"): ParsedSource => {
+  const parsed = parseSync(path, source, {preserveParens: true})
+  return {program: parsed.program, errors: parsed.errors}
+}
+
+const memberName = (value: Expression): string | null =>
+  value.type === "MemberExpression" &&
+  !value.computed &&
+  value.property.type === "Identifier"
+    ? value.property.name
+    : null
 
 const nodeIndent = (source: string, start: number): string => {
   const lineStart = source.lastIndexOf("\n", start) + 1
   return /^\s*/.exec(source.slice(lineStart, start))?.[0] ?? ""
 }
 
-const chainCalls = (source: string, method: string): {file: ts.SourceFile; calls: ts.CallExpression[]} => {
+const chainCalls = (source: string, method: string): {file: ParsedSource; calls: CallExpression[]} => {
   const file = parsedSource(source)
-  const calls: ts.CallExpression[] = []
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === method
-    ) calls.push(node)
-    ts.forEachChild(node, visit)
-  }
-  visit(file)
+  const calls: CallExpression[] = []
+  new Visitor({
+    CallExpression(node) {
+      if (memberName(node.callee) === method) calls.push(node)
+    },
+  }).visit(file.program)
   return {file, calls}
 }
 
@@ -208,38 +224,42 @@ const callbackLiteralRange = (
   source: string,
   method: "mass" | "reactions",
   kind: "object" | "array",
-): {range: ExpressionRange; expression: ts.ObjectLiteralExpression | ts.ArrayLiteralExpression; file: ts.SourceFile} => {
+): {range: ExpressionRange; expression: ObjectExpression | ArrayExpression; file: ParsedSource} => {
   const {file, calls} = chainCalls(source, method)
   if (calls.length !== 1 || calls[0]!.arguments.length !== 1) {
     throw new DeclarationPatchError("unsupported_declaration_source", `meta.ts must contain one canonical .${method} callback`)
   }
-  const returned = returnedExpression(calls[0]!.arguments[0]!)
-  const matches = kind === "object" ? returned && ts.isObjectLiteralExpression(returned) : returned && ts.isArrayLiteralExpression(returned)
+  const argument = calls[0]!.arguments[0]!
+  const returned = argument.type === "SpreadElement" ? null : returnedExpression(argument)
+  const matches = kind === "object"
+    ? returned?.type === "ObjectExpression"
+    : returned?.type === "ArrayExpression"
   if (!returned || !matches) {
     throw new DeclarationPatchError("unsupported_declaration_source", `.${method} callback must return an explicit ${kind} literal`)
   }
-  const expression = returned as ts.ObjectLiteralExpression | ts.ArrayLiteralExpression
+  const expression = returned as ObjectExpression | ArrayExpression
   return {
     file,
     expression,
-    range: {start: expression.getStart(file), end: expression.getEnd(), indent: nodeIndent(source, expression.getStart(file))},
+    range: {start: expression.start, end: expression.end, indent: nodeIndent(source, expression.start)},
   }
 }
 
 const stateObjectLiteral = (snapshot: DeclarationMetaSnapshot): {
-  file: ts.SourceFile
-  expression: ts.ObjectLiteralExpression
+  file: ParsedSource
+  expression: ObjectExpression
   range: ExpressionRange
 } => {
   const {file, calls} = chainCalls(snapshot.source, "superposition")
   if (calls.length !== 1 || calls[0]!.arguments.length !== 1) {
     throw new DeclarationPatchError("unsupported_declaration_source", "meta.ts must contain one canonical .superposition object")
   }
-  const expression = unwrap(calls[0]!.arguments[0]!)
-  if (!ts.isObjectLiteralExpression(expression)) {
+  const argument = calls[0]!.arguments[0]!
+  const expression = argument.type === "SpreadElement" ? null : unwrap(argument)
+  if (!expression || expression.type !== "ObjectExpression") {
     throw new DeclarationPatchError("unsupported_declaration_source", ".superposition must receive an explicit object literal")
   }
-  if (expression.properties.some((property) => !ts.isPropertyAssignment(property))) {
+  if (expression.properties.some((property) => property.type !== "Property")) {
     throw new DeclarationPatchError("unsupported_declaration_source", "State source accepts explicit property assignments only")
   }
   const states = snapshot.states ?? []
@@ -247,9 +267,10 @@ const stateObjectLiteral = (snapshot: DeclarationMetaSnapshot): {
     throw new DeclarationPatchError("unsupported_declaration_source", "State source and normalized declaration differ")
   }
   expression.properties.forEach((property, index) => {
-    if (!ts.isPropertyAssignment(property)) return
-    const name = ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name)
-      ? property.name.text
+    if (property.type !== "Property") return
+    const name = property.key.type === "Identifier" ||
+      (property.key.type === "Literal" && typeof property.key.value === "string")
+      ? property.key.type === "Identifier" ? property.key.name : property.key.value
       : null
     if (name !== states[index]!.name) {
       throw new DeclarationPatchError("unsupported_declaration_source", "State source order differs from normalized declaration")
@@ -259,9 +280,9 @@ const stateObjectLiteral = (snapshot: DeclarationMetaSnapshot): {
     file,
     expression,
     range: {
-      start: expression.getStart(file),
-      end: expression.getEnd(),
-      indent: nodeIndent(snapshot.source, expression.getStart(file)),
+      start: expression.start,
+      end: expression.end,
+      indent: nodeIndent(snapshot.source, expression.start),
     },
   }
 }
@@ -274,21 +295,27 @@ const indentBlock = (value: string, indent: string): string =>
 
 const metadataSource = (snapshot: DeclarationMetaSnapshot, metadata: {name: string; description?: string}): string => {
   const file = parsedSource(snapshot.source)
-  const calls: ts.CallExpression[] = []
-  const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "MetaFor") calls.push(node)
-    ts.forEachChild(node, visit)
-  }
-  visit(file)
+  const calls: CallExpression[] = []
+  new Visitor({
+    CallExpression(node) {
+      if (node.callee.type === "Identifier" && node.callee.name === "MetaFor") calls.push(node)
+    },
+  }).visit(file.program)
   const call = calls[0]
-  if (calls.length !== 1 || !call || call.arguments.length < 1 || call.arguments.length > 2 ||
-      !ts.isStringLiteralLike(unwrap(call.arguments[0]!))) {
+  const firstArgument = call?.arguments[0]
+  const firstExpression = firstArgument && firstArgument.type !== "SpreadElement"
+    ? unwrap(firstArgument)
+    : null
+  if (
+    calls.length !== 1 || !call || call.arguments.length < 1 || call.arguments.length > 2 ||
+    !firstExpression || firstExpression.type !== "Literal" || typeof firstExpression.value !== "string"
+  ) {
     throw new DeclarationPatchError("unsupported_declaration_source", "meta.ts must contain one canonical MetaFor(name, config?) call")
   }
   const first = call.arguments[0]!
   const last = call.arguments.at(-1)!
   const args = `${json(metadata.name)}${metadata.description === undefined ? "" : `, { desc: ${json(metadata.description)} }`}`
-  return snapshot.source.slice(0, first.getStart(file)) + args + snapshot.source.slice(last.getEnd())
+  return snapshot.source.slice(0, first.start) + args + snapshot.source.slice(last.end)
 }
 
 const renderState = (state: MetaSuperpositionDSL, indent: string): string =>
@@ -306,11 +333,11 @@ const appendStateSource = (snapshot: DeclarationMetaSnapshot, state: MetaSuperpo
   }
   const close = range.end - 1
   const last = expression.properties.at(-1)!
-  const between = snapshot.source.slice(last.getEnd(), close)
+  const between = snapshot.source.slice(last.end, close)
   const comma = between.includes(",") ? "" : ","
   const childIndent = `${range.indent}  `
-  return snapshot.source.slice(0, last.getEnd()) + comma +
-    snapshot.source.slice(last.getEnd(), close) +
+  return snapshot.source.slice(0, last.end) + comma +
+    snapshot.source.slice(last.end, close) +
     `  ${renderState(state, childIndent)},\n${range.indent}` +
     snapshot.source.slice(close)
 }
@@ -320,18 +347,18 @@ const replaceStateSource = (
   index: number,
   state: MetaSuperpositionDSL,
 ): string => {
-  const {file, expression, range} = stateObjectLiteral(snapshot)
+  const {expression, range} = stateObjectLiteral(snapshot)
   const property = expression.properties[index]!
   const childIndent = `${range.indent}  `
-  return snapshot.source.slice(0, property.getStart(file)) + renderState(state, childIndent) +
-    snapshot.source.slice(property.getEnd())
+  return snapshot.source.slice(0, property.start) + renderState(state, childIndent) +
+    snapshot.source.slice(property.end)
 }
 
 const removeStateSource = (snapshot: DeclarationMetaSnapshot, index: number): string => {
-  const {file, expression, range} = stateObjectLiteral(snapshot)
+  const {expression, range} = stateObjectLiteral(snapshot)
   if (expression.properties.length === 1) return replaceRange(snapshot.source, range, "{}")
   const property = expression.properties[index]!
-  const start = property.getStart(file)
+  const start = property.start
   const lineStart = snapshot.source.lastIndexOf("\n", start) + 1
   const relativeStart = lineStart + range.indent.length
   return snapshot.source.slice(0, relativeStart) + snapshot.source.slice(range.end - 1)
@@ -346,7 +373,7 @@ const renderMass = (mass: MetaMassDSL): string => {
 
 const massSource = (snapshot: DeclarationMetaSnapshot, declarations: readonly MetaMassDSL[]): string => {
   const {range, expression} = callbackLiteralRange(snapshot.source, "mass", "object")
-  if ((expression as ts.ObjectLiteralExpression).properties.some((property) => !ts.isPropertyAssignment(property))) {
+  if ((expression as ObjectExpression).properties.some((property) => property.type !== "Property")) {
     throw new DeclarationPatchError("unsupported_declaration_source", "Mass source accepts explicit property assignments only")
   }
   const childIndent = `${range.indent}  `
@@ -358,12 +385,15 @@ const massSource = (snapshot: DeclarationMetaSnapshot, declarations: readonly Me
 
 const reactionSourceEntries = (snapshot: DeclarationMetaSnapshot): string[] => {
   const reactions = snapshot.reactions ?? []
-  const {file, expression} = callbackLiteralRange(snapshot.source, "reactions", "array")
-  const array = expression as ts.ArrayLiteralExpression
-  if (array.elements.some(ts.isSpreadElement) || array.elements.length !== reactions.length) {
+  const {expression} = callbackLiteralRange(snapshot.source, "reactions", "array")
+  const array = expression as ArrayExpression
+  if (array.elements.some((element) => element?.type === "SpreadElement") || array.elements.length !== reactions.length) {
     throw new DeclarationPatchError("unsupported_declaration_source", "Reaction source must contain one explicit tuple per normalized Reaction")
   }
-  return array.elements.map((element) => snapshot.source.slice(element.getStart(file), element.getEnd()))
+  return array.elements.map((element) => {
+    if (!element) throw new DeclarationPatchError("unsupported_declaration_source", "Reaction source cannot contain array holes")
+    return snapshot.source.slice(element.start, element.end)
+  })
 }
 
 const renderReaction = (reaction: MetaReactionDeclaration): string => {
@@ -386,13 +416,14 @@ const reactionsSource = (snapshot: DeclarationMetaSnapshot, entries: readonly st
 
 const processSourceEntries = (snapshot: DeclarationMetaSnapshot): string[] => {
   const processes = snapshot.processes ?? []
-  const {file, calls} = chainCalls(snapshot.source, "processes")
+  const {calls} = chainCalls(snapshot.source, "processes")
   const call = calls[0]
-  const callback = call?.arguments[0] ? unwrap(call.arguments[0]) : null
-  if (calls.length !== 1 || !call || call.arguments.length !== 1 || !callback || !ts.isArrowFunction(callback)) {
+  const argument = call?.arguments[0]
+  const callback = argument && argument.type !== "SpreadElement" ? unwrap(argument) : null
+  if (calls.length !== 1 || !call || call.arguments.length !== 1 || !callback || callback.type !== "ArrowFunctionExpression") {
     throw new DeclarationPatchError("unsupported_declaration_source", "meta.ts must contain one canonical .processes arrow callback")
   }
-  const names = callback.parameters.map((parameter) => ts.isIdentifier(parameter.name) ? parameter.name.text : null)
+  const names = callback.params.map((parameter) => parameter.type === "Identifier" ? parameter.name : null)
   if (
     names.some((name) => name === null) || names.length > 2 ||
     (names[0] !== undefined && names[0] !== "process") ||
@@ -401,35 +432,42 @@ const processSourceEntries = (snapshot: DeclarationMetaSnapshot): string[] => {
     throw new DeclarationPatchError("unsupported_declaration_source", ".processes callback parameters must be process and destroy")
   }
   const expression = returnedExpression(callback)
-  if (!expression || !ts.isArrayLiteralExpression(expression) || expression.elements.some(ts.isSpreadElement)) {
+  if (!expression || expression.type !== "ArrayExpression" || expression.elements.some((element) => element?.type === "SpreadElement")) {
     throw new DeclarationPatchError("unsupported_declaration_source", ".processes callback must return one explicit array")
   }
   if (expression.elements.length !== processes.length) {
     throw new DeclarationPatchError("unsupported_declaration_source", "Process source and normalized declaration differ")
   }
-  return expression.elements.map((element) => snapshot.source.slice(element.getStart(file), element.getEnd()))
+  return expression.elements.map((element) => {
+    if (!element) throw new DeclarationPatchError("unsupported_declaration_source", "Process source cannot contain array holes")
+    return snapshot.source.slice(element.start, element.end)
+  })
 }
 
 const processesSource = (snapshot: DeclarationMetaSnapshot, entries: readonly string[]): string => {
-  const {file, calls} = chainCalls(snapshot.source, "processes")
+  const {calls} = chainCalls(snapshot.source, "processes")
   const call = calls[0]
-  const callback = call?.arguments[0] ? unwrap(call.arguments[0]) : null
+  const argument = call?.arguments[0]
+  const callback = argument && argument.type !== "SpreadElement" ? unwrap(argument) : null
   const returned = callback ? returnedExpression(callback) : null
-  if (!call || !callback || !ts.isArrowFunction(callback) || !returned || !ts.isArrayLiteralExpression(returned)) {
+  if (!call || !callback || callback.type !== "ArrowFunctionExpression" || !returned || returned.type !== "ArrayExpression") {
     throw new DeclarationPatchError("unsupported_declaration_source", "meta.ts must contain one canonical .processes arrow callback")
   }
   const range = {
-    start: returned.getStart(file),
-    end: returned.getEnd(),
-    indent: nodeIndent(snapshot.source, returned.getStart(file)),
+    start: returned.start,
+    end: returned.end,
+    indent: nodeIndent(snapshot.source, returned.start),
   }
   const childIndent = `${range.indent}  `
   const array = entries.length === 0
     ? "[]"
     : `[\n${entries.map((entry) => `${childIndent}${indentBlock(entry, childIndent)},`).join("\n")}\n${range.indent}]`
   let source = replaceRange(snapshot.source, range, array)
-  const parametersStart = callback.getStart(file)
-  const parametersEnd = callback.equalsGreaterThanToken.getStart(file)
+  const parametersStart = callback.start
+  const parametersEnd = snapshot.source.indexOf("=>", callback.start)
+  if (parametersEnd < 0 || parametersEnd >= callback.body.start) {
+    throw new DeclarationPatchError("unsupported_declaration_source", ".processes callback arrow is missing")
+  }
   source = source.slice(0, parametersStart) + "(process, destroy) " + source.slice(parametersEnd)
   return source
 }
@@ -471,16 +509,16 @@ const renderProcess = (
 }
 
 const bulkSource = (snapshot: DeclarationMetaSnapshot, bulk?: BulkSchema): string => {
-  const {file, calls} = chainCalls(snapshot.source, "bulk")
+  const {calls} = chainCalls(snapshot.source, "bulk")
   const call = calls[0]
   if (calls.length !== 1 || !call || call.arguments.length > 1) {
     throw new DeclarationPatchError("unsupported_declaration_source", "meta.ts must contain one canonical .bulk() call")
   }
-  const open = call.expression.getEnd() + 1
-  const close = call.getEnd() - 1
+  const open = call.callee.end + 1
+  const close = call.end - 1
   const replacement = bulk === undefined
     ? ""
-    : `{\n${nodeIndent(snapshot.source, call.getStart(file))}  view: ({ css }) => css\`${bulk.view.replaceAll("\\", "\\\\").replaceAll("`", "\\`").replaceAll("${", "\\${")}\`,\n${nodeIndent(snapshot.source, call.getStart(file))}}`
+    : `{\n${nodeIndent(snapshot.source, call.start)}  view: ({ css }) => css\`${bulk.view.replaceAll("\\", "\\\\").replaceAll("`", "\\`").replaceAll("${", "\\${")}\`,\n${nodeIndent(snapshot.source, call.start)}}`
   return snapshot.source.slice(0, open) + replacement + snapshot.source.slice(close)
 }
 
@@ -638,14 +676,14 @@ const massValue = (address: MetaAddress, declarations: readonly MetaMassDSL[], i
 
 const functionExpression = (source: string, label: string): void => {
   const file = parsedSource(`const __value = (${source})`)
-  const statement = file.statements[0]
-  const declaration = statement && ts.isVariableStatement(statement)
-    ? statement.declarationList.declarations[0]
+  const statement = file.program.body[0]
+  const declaration = statement?.type === "VariableDeclaration"
+    ? statement.declarations[0]
     : undefined
-  const expression = declaration?.initializer ? unwrap(declaration.initializer) : undefined
+  const expression = declaration?.init ? unwrap(declaration.init) : undefined
   if (
-    parseDiagnostics(file).length > 0 || file.statements.length !== 1 || !expression ||
-    (!ts.isArrowFunction(expression) && !ts.isFunctionExpression(expression))
+    file.errors.length > 0 || file.program.body.length !== 1 || !expression ||
+    (expression.type !== "ArrowFunctionExpression" && expression.type !== "FunctionExpression")
   ) {
     throw new DeclarationPatchError("invalid_declaration", `${label} must be one function expression`)
   }
@@ -656,38 +694,20 @@ const functionUsage = (source: string, label: string, allowWrite: boolean): {rea
   return parseFunction({toString: () => source} as unknown as Function, allowWrite)
 }
 
-const hasModifier = (node: ts.Node, kind: ts.SyntaxKind): boolean =>
-  ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) ?? false)
-
 const validateProcessArtifactSource = (
   path: string,
   source: string,
   exportName: string,
 ): void => {
-  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  if (parseDiagnostics(file).length > 0) {
+  const file = parseSync(path, source)
+  if (file.errors.length > 0) {
     throw new DeclarationPatchError("invalid_declaration", `Process artifact ${path} contains invalid TypeScript syntax`)
   }
-  const exported = file.statements.some((statement) => {
-    if (exportName === "default") {
-      return (ts.isExportAssignment(statement) && !statement.isExportEquals) ||
-        hasModifier(statement, ts.SyntaxKind.DefaultKeyword)
-    }
-    if (!hasModifier(statement, ts.SyntaxKind.ExportKeyword)) return false
-    if (
-      (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
-      statement.name?.text === exportName
-    ) return true
-    if (ts.isVariableStatement(statement)) {
-      return statement.declarationList.declarations.some((declaration) =>
-        ts.isIdentifier(declaration.name) && declaration.name.text === exportName
-      )
-    }
-    if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
-      return statement.exportClause.elements.some((element) => element.name.text === exportName)
-    }
-    return false
-  })
+  const exported = file.module.staticExports.some(({entries}) => entries.some(({exportName: exportedName}) =>
+    exportName === "default"
+      ? exportedName.kind === "Default"
+      : exportedName.kind === "Name" && exportedName.name === exportName
+  ))
   if (!exported) {
     throw new DeclarationPatchError("invalid_declaration", `Process artifact ${path} does not export ${exportName}`)
   }

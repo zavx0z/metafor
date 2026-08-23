@@ -1,5 +1,5 @@
 import type { Process } from "./process.ts"
-import type { ProcessActionReadPhase, ProcessActionWritePhase } from "@metafor/types/boundary/wimp"
+import type { ProcessActionReadPhase, ProcessActionWritePhase } from "@boundary/types/wimp"
 
 /**
  * Sub-ORM для таблицы `process_action_read` (PK (process, phase, field)).

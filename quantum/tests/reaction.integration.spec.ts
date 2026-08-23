@@ -6,11 +6,11 @@ import {
   isReactionExecutionSignal,
   type ReactionResultProposal,
 } from "shared/protocol/force/reaction"
-import {open} from "./quantum/boundary/sqlite.ts"
-import {readBoundaryValue} from "./quantum/boundary/world.ts"
-import {matterParticles} from "./quantum/dark/dark.ts"
-import {executeReaction} from "./quantum/energy/reaction.ts"
-import {MetaFor} from "./metafor.ts"
+import {open} from "../boundary/sqlite.ts"
+import {readBoundaryValue} from "../boundary/world.ts"
+import {matterParticles} from "../dark/dark.ts"
+import {executeReaction} from "../energy/reaction.ts"
+import {MetaFor} from "../../create-metafor/dsl/metafor.ts"
 
 const SOURCE = "audit/reaction-source"
 const TARGET = "audit/reaction-target"

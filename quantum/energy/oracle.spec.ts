@@ -1,11 +1,11 @@
 import {describe, expect, test} from "bun:test"
-import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "@metafor/types/boundary/initial"
+import {BOUNDARY_INITIAL_PROJECTION_METHOD} from "shared/protocol/boundary/initial"
 import {EnergyOracle} from "./oracle.ts"
 import type {EnergyMassHandle} from "./mass.ts"
 import {
   DARK_FORCE_HISTORY_READ_METHOD,
   ENERGY_MASS_RESULT_READ_METHOD,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 
 describe("Energy Oracle", () => {
   test("hydrates only the Energy-local catalog through Boundary RPC", async () => {

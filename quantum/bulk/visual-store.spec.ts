@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import {
   CenteredNested,
   OutsideIn,
@@ -12,7 +12,7 @@ import {
   visualLayoutBuiltScenes,
   type VisualUpstreamChange,
 } from "@metafor/visual/payload"
-import {ladaLayoutInput} from "@metafor/visual/testing/lada-fixture.ts"
+import {ladaLayoutInput} from "../../pkg/visual/testing/lada-fixture.ts"
 import {
   BulkVisualStore,
   hydrateBulkVisualStore,

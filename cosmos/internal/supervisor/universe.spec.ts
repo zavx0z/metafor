@@ -15,8 +15,8 @@ describe("Universe launcher", () => {
     temporaryDirectories.push(directory)
     const basePort = 44_000 + (process.pid % 1_000) * 10
     const child = Bun.spawn({
-      cmd: ["bun", "runtime/universe.ts", "--once"],
-      cwd: new URL("..", import.meta.url).pathname,
+      cmd: ["bun", "universe.ts", "--once"],
+      cwd: import.meta.dir,
       env: {
         ...process.env,
         BOUNDARY_PATH: join(directory, "boundary.sqlite"),

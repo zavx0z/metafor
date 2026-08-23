@@ -2,13 +2,13 @@ import type {
   BulkObserverSnapshot,
   BulkProjectionSnapshot,
   BulkReadySceneSnapshot,
-} from "@metafor/types/bulk/initial"
+} from "@bulk/types/initial"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {
   BulkProjectionChange,
   BulkRuntimeProjection,
-} from "@metafor/types/bulk/runtime"
-import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+} from "@bulk/types/projection"
+import type {BulkVisualRenderManifest} from "@bulk/types/visual"
 import type {
   VisualLayout,
   VisualLayoutInput,
@@ -39,7 +39,7 @@ import {
 export type {
   BulkProjectionChange,
   BulkProjectionFacet,
-} from "@metafor/types/bulk/runtime"
+} from "@bulk/types/projection"
 export type {ForceImpulseVisual}
 export {resolveForceImpulseVisual}
 

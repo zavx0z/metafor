@@ -9,12 +9,12 @@ import {
   META_DECLARATION_WRITE_CAPABILITY,
   type MetaAuthoringCapability,
   type MetaDeclarationRequest,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import type {MetaFieldDSL} from "@metafor/types/metafor/schema"
 import {sourceForceMessage} from "shared/protocol/force/message"
 import {open, type BoundaryDatabase} from "boundary/sqlite"
-import {sourceRevision} from "create-metafor/src/source.ts"
+import {sourceRevision} from "../../../create-metafor/src/source.ts"
 import {evaluateMetaSource} from "../load.ts"
 import {DarkForceHistory} from "../force/history.ts"
 import {

@@ -1,8 +1,8 @@
-import type { PartAttrMeta } from "@metafor/types/template/node/meta"
+import type { PartAttrMeta } from "@metafor/template/types/node/meta"
 import { processBasicAttributes, processSemanticAttributes, processTemplateLiteralAttribute } from "../parser.ts"
 import { createNode } from "./index.ts"
-import type { ParseContext } from "@metafor/types/template/parser"
-import type { NodeMeta } from "@metafor/types/template/node/meta"
+import type { ParseContext } from "@metafor/template/types/parser"
+import type { NodeMeta } from "@metafor/template/types/node/meta"
 
 const processRuntimeBinding = (
   source: string,

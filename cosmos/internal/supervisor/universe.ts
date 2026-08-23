@@ -6,7 +6,7 @@ type ManagedProcess = {
   process: ReturnType<typeof Bun.spawn>
 }
 
-const repositoryRoot = resolve(import.meta.dir, "..")
+const repositoryRoot = resolve(import.meta.dir, "../../..")
 const once = process.argv.includes("--once")
 const configuredPort = Number(
   Bun.env.METAFOR_UNIVERSE_PORT ??
@@ -124,26 +124,26 @@ const stop = async (): Promise<void> => {
 }
 
 const birth = async (): Promise<{port: number; backend: unknown}> => {
-  const dark = spawnDomain("dark", "dark/server.ts", {
+  const dark = spawnDomain("dark", "quantum/dark/server.ts", {
     PORT: String(configuredPort),
   })
   await waitForHealth(dark, `${forceHttp}/health`, (health) =>
     (health.state === "starting" || health.state === "running") &&
     (health.dark as Health | undefined)?.rpc === "ready")
 
-  const boundary = spawnDomain("boundary", "boundary/server.ts")
+  const boundary = spawnDomain("boundary", "quantum/boundary/server.ts")
   await waitForHealth(boundary, `${forceHttp}/health`, (health) =>
     domainHealth(health, "boundary")?.rpc === "ready")
 
-  const energy = spawnDomain("energy", "energy/server.ts")
+  const energy = spawnDomain("energy", "quantum/energy/server.ts")
   await waitForHealth(energy, `${forceHttp}/health`, (health) =>
     domainHealth(health, "energy")?.initialized === true)
 
-  const bulk = spawnDomain("bulk", "bulk/server.ts")
+  const bulk = spawnDomain("bulk", "quantum/bulk/server.ts")
   await waitForHealth(bulk, `${forceHttp}/health`, (health) =>
     domainHealth(health, "bulk")?.initialized === true)
 
-  const matrix = spawnDomain("matrix", "matrix/server.ts")
+  const matrix = spawnDomain("matrix", "quantum/matrix/server.ts")
   const matrixHealth = await waitForHealth(
     matrix,
     `${forceHttp}/health`,

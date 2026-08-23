@@ -4,7 +4,7 @@ import type {
   BulkRuntimeProjection,
   BulkRuntimeState,
   BulkRuntimeTransition,
-} from "@metafor/types/bulk/runtime"
+} from "@bulk/types/projection"
 
 export type StateGraphCondition = Readonly<{
   fieldId: number

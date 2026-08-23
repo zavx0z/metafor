@@ -5,7 +5,7 @@ import {
   type DarkForceHistoryReadReceipt,
   type EnergyMassResultContent,
   type EnergyMassResultReadReceipt,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 import type {JsonValue} from "@metafor/types/metafor/graph"
 import type {EnergyCatalogStore} from "../catalog.ts"
 import type {EnergyMassCatalog, EnergyMassGate} from "../mass.ts"

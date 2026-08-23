@@ -1,5 +1,5 @@
-import type {BulkStore} from "@metafor/types/bulk/store"
-import {BULK_STORE_FLAG_REMOVED} from "@metafor/types/bulk/store"
+import type {BulkStore} from "shared/protocol/bulk/store"
+import {BULK_STORE_FLAG_REMOVED} from "shared/protocol/bulk/store"
 import {
   layoutFieldsInPseudoCircle,
   resolveContentTorusForm,

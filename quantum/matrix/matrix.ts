@@ -7,14 +7,14 @@
  * Ошибка обработки входящей Particle возвращается в Force, после чего Matrix
  * завершает процесс с ненулевым кодом.
  *
- * @see [Порядок изменений Fields и структуры](https://github.com/zavx0z/metafor/blob/main/matrix/matrix.spec.ts)
- * @see [Process завершается только после Boundary commit](https://github.com/zavx0z/metafor/blob/main/matrix/matrix.spec.ts#L72-L233)
- * @see [Критическая ошибка завершает процесс Matrix](https://github.com/zavx0z/metafor/blob/main/matrix/runtime-failure.spec.ts)
+ * @see [Порядок изменений Fields и структуры](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/matrix.spec.ts)
+ * @see [Process завершается только после Boundary commit](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/matrix.spec.ts#L72-L233)
+ * @see [Критическая ошибка завершает процесс Matrix](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/runtime-failure.spec.ts)
  *
  * @packageDocumentation
  */
 
-import {gravity$} from "gravity/store.ts"
+import {gravity$} from "@matrix/gravity/store.ts"
 import {matrix$} from "./store"
 import type {MatrixFieldValueRecord, MatrixStore, MatrixValue} from "@matrix/types/store"
 import type {MatrixFieldRecord} from "@matrix/types/data"
@@ -25,9 +25,9 @@ import type {
   ProcessResultCommit,
 } from "shared/protocol/force/execution"
 import {isProcessExecutionId} from "shared/protocol/force/execution"
-import {FieldType} from "gravity"
-import {createStoredStringInterner, normalizeFieldValue, strong$} from "strong"
-import {StepMode, weakHeapUpdate, weakRunStep, weakStructuralUpdate, weak$} from "weak"
+import {FieldType} from "@matrix/gravity"
+import {createStoredStringInterner, normalizeFieldValue, strong$} from "@matrix/strong"
+import {StepMode, weakHeapUpdate, weakRunStep, weakStructuralUpdate, weak$} from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
 import {Force} from "shared/transport/force"
@@ -405,8 +405,8 @@ function findMutableFieldRecord(
  * @returns Пары адреса Brane и нового State для фактических переходов.
  * @throws Если Store не рождён либо указан неизвестный Brane или Field.
  *
- * @see [Заблокированная Brane сохраняет Field и не меняет State](https://github.com/zavx0z/metafor/blob/main/matrix/update.spec.ts)
- * @see [Параллельные update сохраняют порядок](https://github.com/zavx0z/metafor/blob/main/matrix/update.spec.ts)
+ * @see [Заблокированная Brane сохраняет Field и не меняет State](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/update.spec.ts)
+ * @see [Параллельные update сохраняют порядок](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/update.spec.ts)
  */
 export async function update(
   updates: Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>, lock?: boolean]>,

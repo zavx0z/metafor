@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import {buildStateGraph} from "../src/StateGraph.ts"
 
 const projection = (): BulkRuntimeProjection => ({

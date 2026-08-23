@@ -118,8 +118,10 @@ describe("generatePackageJsonFile", () => {
     const parsed = JSON.parse(result)
 
     expect(parsed.scripts.build).toBe("bun build meta.ts --outdir dist --target browser --format=esm")
-    expect(parsed.devDependencies["@types/bun"]).toBe("^1.3.14")
+    expect(parsed.packageManager).toBe("bun@1.4.0")
+    expect(parsed.devDependencies["@types/bun"]).toBe("^1.4.0")
     expect(parsed.devDependencies["@types/node"]).toBe("^25.5.0")
+    expect(parsed.devDependencies.typescript).toBe("^7.0.2")
   })
 
   test("должен безопасно генерировать JSON-строки", () => {

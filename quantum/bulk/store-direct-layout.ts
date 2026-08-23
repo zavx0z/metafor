@@ -5,7 +5,7 @@ import {
   BULK_STORE_FLAG_TORUS,
   BULK_STORE_LAYOUT_OUTSIDE_IN,
   type BulkStore,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import {
   buildStateGraph,
   buildStateGraphBranchLayoutFromIndex,

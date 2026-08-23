@@ -1,6 +1,6 @@
-import type { Fields } from "../metafor/fields.ts"
-import type { MatterDefinitionParams } from "../metafor/matter.ts"
-import type { Energy, Mass } from "../metafor/schema.ts"
+import type {Fields} from "@metafor/types/metafor/fields"
+import type {MatterDefinitionParams} from "@metafor/types/metafor/matter"
+import type {Energy, Mass} from "@metafor/types/metafor/schema"
 import type { NodeType } from "./node/index.ts"
 
 /**

@@ -2,7 +2,7 @@ import type {
 	BulkHudController,
 	BulkHudOptions,
 	BulkTimeFrame,
-} from "@metafor/types/bulk/hud"
+} from "@bulk/types/hud"
 import {palette, radii, UiSurface, uiIcons, type Tone, type UiSurfaceRect} from "@ui/elements"
 import {Button, StatusChip, type ButtonVariant} from "@ui/components"
 import {

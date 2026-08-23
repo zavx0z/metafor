@@ -1,4 +1,4 @@
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import {buildStateGraph} from "../src/StateGraph.ts"
 import {layoutFieldsInPseudoCircle} from "../src/FieldsLayout.ts"
 import {

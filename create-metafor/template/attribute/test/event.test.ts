@@ -1,6 +1,6 @@
 import { it, describe, expect } from "bun:test"
 import { enrichWithData } from "../../parser.ts"
-import type { PartsAttr } from "@metafor/types/template/node/index"
+import type { PartsAttr } from "@metafor/template/types/node/index"
 
 describe("event", () => {
   it("update в функции", () => {

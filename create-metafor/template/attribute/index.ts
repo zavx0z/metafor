@@ -1,8 +1,8 @@
-import type {SplitterFn, SplitterResolved, ValueType} from "@metafor/types/template/attribute/index"
-import type { RawAttrArray } from "@metafor/types/template/attribute/array"
-import type { RawAttrBoolean } from "@metafor/types/template/attribute/boolean"
-import type { RawAttrEvent } from "@metafor/types/template/attribute/event"
-import type { RawAttrString } from "@metafor/types/template/attribute/string"
+import type {SplitterFn, SplitterResolved, ValueType} from "@metafor/template/types/attribute/index"
+import type { RawAttrArray } from "@metafor/template/types/attribute/array"
+import type { RawAttrBoolean } from "@metafor/template/types/attribute/boolean"
+import type { RawAttrEvent } from "@metafor/template/types/attribute/event"
+import type { RawAttrString } from "@metafor/template/types/attribute/string"
 
 // ============================
 // ВСПОМОГАТЕЛЬНЫЕ УТИЛИТЫ

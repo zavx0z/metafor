@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@dark/types": "workspace:*",
+    "@metafor/dsl": "workspace:*",
     "@metafor/types": "workspace:*",
     "create-metafor": "workspace:*",
     "shared": "workspace:*"

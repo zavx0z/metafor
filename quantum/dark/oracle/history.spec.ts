@@ -2,7 +2,7 @@ import {afterEach, describe, expect, test} from "bun:test"
 import {mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import {META_OBSERVATION_CONTRACT_VERSION} from "@metafor/types/metafor/observation"
+import {META_OBSERVATION_CONTRACT_VERSION} from "shared/protocol/metafor/observation"
 import {DarkForceHistory} from "../force/history.ts"
 import {DarkForceHistoryReadService} from "./history.ts"
 

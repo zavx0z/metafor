@@ -1,4 +1,3 @@
-import "../../../index"
 import {
   META_AUTHORING_CONTRACT_VERSION,
   META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
@@ -10,7 +9,7 @@ import {
   type MetaMatterAuthoringCauseV1,
   type MetaMatterSourceProjectionV1,
   type MetaSourceRevision,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import type {ForceMessageInput} from "shared/protocol/force/message"
 import type {MatterFields, MatterParticle} from "@metafor/types/metafor/matter"

@@ -3,7 +3,7 @@ import {
   validateDarkForceHistoryReadRequest,
   type DarkForceHistoryPublicEntry,
   type DarkForceHistoryReadReceipt,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 import type {DarkForceHistory} from "../force/history.ts"
 
 type HistorySource = Pick<DarkForceHistory, "read" | "status">

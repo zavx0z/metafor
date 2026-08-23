@@ -14,8 +14,8 @@ import {readBoundaryInitialState} from "./initial.ts"
 import type {
   BoundaryInitialProjection,
   BoundaryInitialState,
-} from "@metafor/types/boundary/initial"
-import {MassCatalog} from "shared/mass.ts"
+} from "shared/protocol/boundary/initial"
+import {MassCatalog} from "../../shared/mass.ts"
 
 export type BoundaryGraphSnapshot = {
   initialState: BoundaryInitialState

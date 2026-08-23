@@ -2,7 +2,8 @@ import {expect, test} from "bun:test"
 import {readdir} from "node:fs/promises"
 import {join, relative} from "node:path"
 import {fileURLToPath} from "node:url"
-import * as ts from "typescript"
+import {parseSync, Visitor} from "oxc-parser"
+import type {Argument, CallExpression, Expression, Node, ObjectPropertyKind} from "@oxc-project/types"
 import {
   checkpointKey,
   diagnosticStories,
@@ -78,93 +79,100 @@ async function sourceFiles(root: string): Promise<string[]> {
 async function readDiagnostics(path: string) {
   const file = relative(cosmos, path)
   const source = await Bun.file(path).text()
-  const tree = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  const tree = parseSync(path, source).program
   const found: FoundCheckpoint[] = []
   const helperScope = helperScopes.get(file)
 
-  const visit = (node: ts.Node) => {
-    if (ts.isCallExpression(node)) {
-      const direct = consoleLevel(node.expression)
+  new Visitor({
+    CallExpression(node) {
+      const direct = consoleLevel(node.callee)
       if (direct) {
         const [scope, event, details] = node.arguments
         if (
           helperScope
           && isText(scope, helperScope)
-          && event?.getText(tree) === "event"
-          && details?.getText(tree) === "details"
+          && nodeText(event, source) === "event"
+          && nodeText(details, source) === "details"
         ) {
           expect(node.arguments).toHaveLength(3)
         } else {
-          found.push(checkpointFromCall(direct, scope, event, details, file, tree, node))
+          found.push(checkpointFromCall(direct, scope, event, details, file, node, source))
         }
-      } else if (helperScope && node.expression.getText(tree) === "debug") {
+      } else if (helperScope && nodeText(node.callee, source) === "debug") {
         const [event, details] = node.arguments
-        found.push(checkpointFromCall("debug", undefined, event, details, file, tree, node, helperScope))
+        found.push(checkpointFromCall("debug", undefined, event, details, file, node, source, helperScope))
       }
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(tree)
+    },
+  }).visit(tree)
   return found
 }
 
 function checkpointFromCall(
   level: DiagnosticLevel,
-  scopeNode: ts.Expression | undefined,
-  eventNode: ts.Expression | undefined,
-  detailsNode: ts.Expression | undefined,
+  scopeNode: Argument | undefined,
+  eventNode: Argument | undefined,
+  detailsNode: Argument | undefined,
   file: string,
-  tree: ts.SourceFile,
-  call: ts.CallExpression,
+  call: CallExpression,
+  source: string,
   fixedScope?: string,
 ): FoundCheckpoint {
   const scope = fixedScope ?? text(scopeNode)
   const event = text(eventNode)
-  if (!detailsNode || !ts.isObjectLiteralExpression(detailsNode))
-    throw new Error(`${file}:${line(tree, call)} diagnostic details must be an object literal`)
+  if (!detailsNode || detailsNode.type !== "ObjectExpression")
+    throw new Error(`${file}:${line(call, source)} diagnostic details must be an object literal`)
   return {
     level,
     scope,
     event,
-    details: detailsNode.properties.map(propertyName).sort(),
+    details: detailsNode.properties.map((property) => propertyName(property, source)).sort(),
     file,
-    line: line(tree, call),
+    line: line(call, source),
   }
 }
 
-function consoleLevel(expression: ts.LeftHandSideExpression): DiagnosticLevel | null {
-  if (!ts.isPropertyAccessExpression(expression)) return null
-  if (expression.expression.getText() !== "console") return null
-  return expression.name.text === "debug" || expression.name.text === "error"
-    ? expression.name.text
+function consoleLevel(expression: Expression): DiagnosticLevel | null {
+  if (
+    expression.type !== "MemberExpression" ||
+    expression.computed ||
+    expression.object.type !== "Identifier" ||
+    expression.object.name !== "console" ||
+    expression.property.type !== "Identifier"
+  ) return null
+  return expression.property.name === "debug" || expression.property.name === "error"
+    ? expression.property.name
     : null
 }
 
-function propertyName(property: ts.ObjectLiteralElementLike) {
-  if (ts.isShorthandPropertyAssignment(property)) return property.name.text
-  if (
-    (ts.isPropertyAssignment(property) || ts.isMethodDeclaration(property))
-    && property.name
-  ) {
-    if (ts.isIdentifier(property.name) || ts.isPrivateIdentifier(property.name))
-      return property.name.text
-    return text(property.name)
+function propertyName(property: ObjectPropertyKind, source: string) {
+  if (property.type !== "Property") {
+    throw new Error(`Diagnostic details contain unsupported property ${nodeText(property, source)}`)
   }
-  throw new Error(`Diagnostic details contain unsupported property ${property.getText()}`)
+  if (property.key.type === "Identifier" || property.key.type === "PrivateIdentifier") {
+    return property.key.name
+  }
+  return text(property.key)
 }
 
-function text(node: ts.Node | undefined) {
-  if (node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)))
-    return node.text
-  throw new Error(`Diagnostic scope/event must be a string literal: ${node?.getText() ?? "missing"}`)
+function text(node: Node | undefined) {
+  if (node?.type === "Literal" && typeof node.value === "string") return node.value
+  if (node?.type === "TemplateLiteral" && node.expressions.length === 0) {
+    return node.quasis[0]?.value.cooked ?? node.quasis[0]?.value.raw ?? ""
+  }
+  throw new Error("Diagnostic scope/event must be a string literal")
 }
 
-function isText(node: ts.Node | undefined, expected: string) {
-  return node !== undefined
-    && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
-    && node.text === expected
+function isText(node: Node | undefined, expected: string) {
+  try {
+    return text(node) === expected
+  } catch {
+    return false
+  }
 }
 
-function line(tree: ts.SourceFile, node: ts.Node) {
-  return tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1
+function line(node: Node, source: string) {
+  return source.slice(0, node.start).split(/\r?\n/).length
 }
+
+const nodeText = (node: Node | undefined, source: string): string =>
+  node ? source.slice(node.start, node.end) : ""

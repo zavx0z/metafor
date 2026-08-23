@@ -5,7 +5,7 @@ import {
   type MetaMatterOccurrenceLocator,
   type MetaMatterPlacement,
   type MetaMatterRequest,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress, type MetaMatterParticle} from "@metafor/types/metafor/graph"
 import type {MatterFields, MatterParticle} from "@metafor/types/metafor/matter"
 import {

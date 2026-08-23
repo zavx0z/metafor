@@ -17,7 +17,7 @@
   },
   "include": [
     "**/*.ts",
-    "../../types/hot.d.ts"
+    "../../scripts/types/hot.d.ts"
   ],
   "exclude": []
 }

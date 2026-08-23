@@ -1,5 +1,5 @@
 import type {SQL, ReservedSQL} from "bun"
-import type { WimpCreateInput, WimpCreateProcessInput } from "@metafor/types/boundary/wimp"
+import type { WimpCreateInput, WimpCreateProcessInput } from "@boundary/types/wimp"
 import type {MetaFieldDSL, MetaReactionDSL, MetaSuperpositionDSL} from "@metafor/types/metafor/schema"
 import type { MatterBindingValue, MatterEdgeSlot, MatterParticle } from "@metafor/types/metafor/matter"
 

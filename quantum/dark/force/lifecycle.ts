@@ -10,8 +10,8 @@ import type {CheckpointDeliveryReceipt} from "../checkpoint/barrier.ts"
 import type {
   MetaForceAcceptanceIdentity,
   MetaAuthoringCauseV1,
-} from "@metafor/types/metafor/authoring"
-import type {MetaCausalFrontier} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/authoring"
+import type {MetaCausalFrontier} from "shared/protocol/metafor/observation"
 
 export type ForceLifecycleState = "created" | "starting" | "recovering" | "running" | "error" | "stopped"
 

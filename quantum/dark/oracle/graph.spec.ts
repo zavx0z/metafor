@@ -6,7 +6,7 @@ import {
   validateGraph,
   type Graph,
 } from "@metafor/types/metafor/graph"
-import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "@metafor/types/boundary/runtime"
+import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "shared/protocol/boundary/runtime"
 import type {
   OracleRpcContext,
   OracleRpcHandler,

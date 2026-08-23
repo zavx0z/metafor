@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import {buildBulkManifestation} from "./manifestation.ts"
 
 const SRC = "owner/project"

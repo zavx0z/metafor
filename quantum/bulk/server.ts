@@ -4,7 +4,7 @@ import {
   DARK_BULK_BROWSER_BROADCAST_METHOD,
   readBulkBrowserInitialRequest,
   readBulkBrowserMessageRequest,
-} from "@metafor/types/bulk/browser"
+} from "shared/protocol/bulk/browser"
 import {DOMAIN_HEALTH_READ_METHOD} from "shared/protocol/oracle/health"
 import {unsourceForceMessage} from "shared/protocol/force/message"
 import {Force} from "shared/transport/force"

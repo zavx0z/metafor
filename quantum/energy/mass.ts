@@ -2,7 +2,7 @@ import {mkdir, open, readFile, lstat, rename, unlink} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
 import type {EnergyMassArtifact} from "@energy/types/catalog"
 import type {EnergyMassContext, EnergyMassStore} from "@energy/types/mass"
-import {massFileName, type MassFileFormat} from "shared/mass.ts"
+import {massFileName, type MassFileFormat} from "../../shared/mass.ts"
 
 const keyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 

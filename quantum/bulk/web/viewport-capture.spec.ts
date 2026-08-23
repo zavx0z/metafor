@@ -3,7 +3,7 @@ import {
   BULK_VIEWPORT_CAPTURE_VERSION,
   type BulkStoreCaptureProof,
   type BulkViewportCaptureControlRequest,
-} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/capture"
 import {captureBulkViewportCanvas} from "./viewport-capture.ts"
 
 const PNG_BASE64 =

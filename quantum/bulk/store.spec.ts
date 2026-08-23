@@ -1,9 +1,9 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import {
   BULK_STORE_RELATION_CONTROL_STRIDE,
   BULK_STORE_TRANSITION_CONTROL_STRIDE,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import snapshotJson from "./fixture/oracle-snapshot.json"
 import {BulkVisualSceneLifecycle} from "./visual.ts"
 import {prepareBulkInitialVisual} from "./visual-initial.ts"

@@ -5,8 +5,8 @@ import {
   BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
   BOUNDARY_DISSOLVE_CANDIDATE_STAGE_V1,
   type BoundaryDissolveCandidateStageReceiptV1,
-} from "boundary/dissolve-candidate-staging.ts"
-import type {BoundaryDissolveProof} from "boundary/dissolve.ts"
+} from "../../boundary/dissolve-candidate-staging.ts"
+import type {BoundaryDissolveProof} from "../../boundary/dissolve.ts"
 import {
   DISSOLVE_CANDIDATE_BUNDLE_RECEIPT_V1,
   type DissolveCandidateBundleReceiptV1,

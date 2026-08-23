@@ -1,4 +1,3 @@
-import "../../../index"
 import {dirname, resolve} from "node:path"
 import {
   META_AUTHORING_CONTRACT_VERSION,
@@ -11,7 +10,7 @@ import {
   type MetaDeclarationSourceProjectionV1,
   type MetaForceAcceptanceIdentity,
   type MetaSourceRevision,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import type {MetaFieldDSL} from "@metafor/types/metafor/schema"
 import type {ForceMessageInput} from "shared/protocol/force/message"

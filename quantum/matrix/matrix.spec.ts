@@ -2,7 +2,7 @@ import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {join} from "node:path"
 import type {ProcessResultCommit, ProcessResultProposal} from "shared/protocol/force/execution"
 import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
-import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
+import type {BoundaryInitialState} from "shared/protocol/boundary/initial"
 import {
   createForceTestFixture,
   type ForceTestClient,

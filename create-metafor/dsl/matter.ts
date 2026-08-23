@@ -1,13 +1,13 @@
 import { parse } from "@metafor/template"
 import type { Fields } from "@metafor/types/metafor/fields"
-import type { MatterDeclaration, MatterFields, MatterSchema, MatterTemplateSchema, TopologyBasis } from "@metafor/types/metafor/matter"
+import type { MatterDeclaration, MatterFields, MatterSchema, TopologyBasis } from "@metafor/types/metafor/matter"
 import type { Energy, Mass } from "@metafor/types/metafor/schema"
 import type { MatterBindingValue, MatterChild, MatterParticle } from "@metafor/types/metafor/matter"
-import type { NodeType } from "@metafor/types/template/node/index"
-import type { NodeCondition } from "@metafor/types/template/node/condition"
-import type { NodeLogical } from "@metafor/types/template/node/logical"
-import type { NodeMap } from "@metafor/types/template/node/map"
-import type { NodeMeta } from "@metafor/types/template/node/meta"
+import type { NodeType } from "@metafor/template/types/node/index"
+import type { NodeCondition } from "@metafor/template/types/node/condition"
+import type { NodeLogical } from "@metafor/template/types/node/logical"
+import type { NodeMap } from "@metafor/template/types/node/map"
+import type { NodeMeta } from "@metafor/template/types/node/meta"
 
 const HUB_ADDRESS_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/
 const EXECUTABLE_BINDING_RE = /=>|\bfunction\b|\bnew\s+|(?:\b[$A-Z_a-z][$\w]*|\]|\))\s*(?:\?\.)?\s*\(/
@@ -410,7 +410,7 @@ export const parseMatter = <
   return nodes.flatMap((node) => projectMatterNode(fields, node))
 }
 
-export function validateMatter(matter: MatterTemplateSchema | undefined, fields: MatterFields, metaName?: string): void {
+export function validateMatter(matter: NodeType[] | undefined, fields: MatterFields, metaName?: string): void {
   if (!matter) return
 
   matter.forEach((node, index) => {

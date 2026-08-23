@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {MetaFor} from "../../index.ts"
-import type {MassHandle} from "../../types/metafor/mass.ts"
+import type {MassHandle} from "@metafor/types/metafor/mass"
 
 const declareStrictProcessContract = () =>
   MetaFor("strict-process-contract")

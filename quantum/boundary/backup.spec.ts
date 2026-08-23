@@ -3,7 +3,7 @@ import {Database} from "bun:sqlite"
 import {existsSync, mkdtempSync, rmSync} from "node:fs"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import {backupBoundaryDatabase} from "./boundary-backup.ts"
+import {backupBoundaryDatabase} from "./backup.ts"
 
 const temporaryDirectories: string[] = []
 

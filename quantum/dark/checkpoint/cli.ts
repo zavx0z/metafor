@@ -1,6 +1,6 @@
 import {resolve} from "node:path"
-import "../metafor.ts"
-import {captureOfflineCheckpoint} from "../quantum/dark/checkpoint/capture.ts"
+import "../../../create-metafor/dsl/metafor.ts"
+import {captureOfflineCheckpoint} from "./capture.ts"
 
 const required = [
   "root",

@@ -6,7 +6,7 @@ import type {
   BulkReadyRenderRelationChannel,
   BulkReadyRenderScene,
   BulkReadyRenderTransitionChannel,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 
 export type BulkScenePatch = {
   darkParticleIds: number[]

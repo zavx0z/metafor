@@ -1,4 +1,4 @@
-import type {BulkRuntimeProjection, BulkRuntimeWimp} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection, BulkRuntimeWimp} from "@bulk/types/projection"
 import type {AtomRecord} from "@metafor/types/boundary/atom"
 
 export const LADA_ROOT_SRC = "zavx0z/lada" as const

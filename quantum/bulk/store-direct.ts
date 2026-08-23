@@ -1,7 +1,7 @@
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import type {AtomRecord} from "@metafor/types/boundary/atom"
 import type {TopologyRecord} from "@metafor/types/boundary/topology"
-import type {BoundaryInitialProjectionEntry} from "@metafor/types/boundary/initial"
+import type {BoundaryInitialProjectionEntry} from "shared/protocol/boundary/initial"
 import {
   BULK_STORE_FLAG_ACTIVE,
   BULK_STORE_FLAG_CURRENT,
@@ -9,7 +9,7 @@ import {
   BULK_STORE_LAYOUT_CENTERED_NESTED,
   type BulkStore,
   type BulkStoreLayout,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import {
   BULK_STORE_DARK_KIND,
   BULK_STORE_ENDPOINT_KIND,

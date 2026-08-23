@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import {
   BULK_STORE_FLAG_ACTIVE,
@@ -8,7 +8,7 @@ import {
   BULK_STORE_LAYOUT_OUTSIDE_IN,
   BULK_STORE_LINE_MATERIAL_STRIDE,
   type BulkStore,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import {
   CenteredNested,
   buildStateGraph,
@@ -18,7 +18,7 @@ import {
   STATE_GRAPH_PRODUCTION_SIZING,
 } from "@metafor/visual/layout/centered-nested"
 import {OutsideIn} from "@metafor/visual/layout"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import type {Particle} from "shared/protocol/force/particle"
 import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildDirectBulkStore} from "./store-direct.ts"

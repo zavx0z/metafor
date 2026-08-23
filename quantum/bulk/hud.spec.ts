@@ -2,7 +2,7 @@ import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import type {
 	BulkViewportHudController,
 	BulkViewportWithHud,
-} from "@metafor/types/bulk/hud"
+} from "@bulk/types/hud"
 import type {
 	UiSurface,
 	UiSurfaceLayerOpts,

@@ -8,8 +8,8 @@ import {
   VARIABLE_WITH_DOTS_PATTERN,
   WHITESPACE_PATTERN,
 } from "../parser.ts"
-import type { ParseContext } from "@metafor/types/template/parser"
-import type { ValueEvent } from "@metafor/types/template/attribute/event"
+import type { ParseContext } from "@metafor/template/types/parser"
+import type { ValueEvent } from "@metafor/template/types/attribute/event"
 
 /**
  * Обрабатывает событийные атрибуты и создает соответствующие объекты.

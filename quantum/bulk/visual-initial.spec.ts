@@ -1,9 +1,9 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import type {
   BulkReadyVisualRenderManifest,
   BulkVisualRenderManifest,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 import {
   GRAPH_SCHEMA,
   parseMetaAddress,

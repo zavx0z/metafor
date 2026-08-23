@@ -1,5 +1,5 @@
 import type { Processes } from "./index.ts"
-import type { ProcessTypeValue } from "@metafor/types/boundary/wimp"
+import type { ProcessTypeValue } from "@boundary/types/wimp"
 import { ProcessAction } from "./action.ts"
 import { ProcessFinally } from "./finally.ts"
 import { ProcessEnvs } from "./env.ts"

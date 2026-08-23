@@ -1,7 +1,7 @@
 import { createNode } from "./index.ts"
 import { processBasicAttributes } from "../parser.ts"
-import type { ParseContext } from "@metafor/types/template/parser"
-import type { NodeElement, PartAttrElement } from "@metafor/types/template/node/element"
+import type { ParseContext } from "@metafor/template/types/parser"
+import type { NodeElement, PartAttrElement } from "@metafor/template/types/node/element"
 
 export const createNodeDataElement = (
   node: PartAttrElement,

@@ -1,11 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {
-  ScriptKind,
-  ScriptTarget,
-  createSourceFile,
-  isImportDeclaration,
-  isStringLiteral,
-} from "typescript"
+import {parseSync} from "oxc-parser"
 
 const modules = Object.freeze([
   "ForceStories.ts",
@@ -17,19 +11,8 @@ const modules = Object.freeze([
 
 const importsOf = async (path: string): Promise<readonly string[]> => {
   const source = await Bun.file(new URL(`./${path}`, import.meta.url)).text()
-  const file = createSourceFile(
-    path,
-    source,
-    ScriptTarget.Latest,
-    true,
-    ScriptKind.TS,
-  )
-  return file.statements.flatMap((statement) => {
-    if (!isImportDeclaration(statement)) return []
-    return isStringLiteral(statement.moduleSpecifier)
-      ? [statement.moduleSpecifier.text]
-      : []
-  })
+  return parseSync(path, source).module.staticImports
+    .map(({moduleRequest}) => moduleRequest.value)
 }
 
 const isDeepBulkImport = (specifier: string): boolean =>

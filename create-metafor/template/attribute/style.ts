@@ -1,7 +1,7 @@
 import { resolveDataPath } from "../parser.ts"
-import type { ParseContext } from "@metafor/types/template/parser"
-import type { ValueVariable } from "@metafor/types/template/parser"
-import type { ValueStyle } from "@metafor/types/template/attribute/style"
+import type { ParseContext } from "@metafor/template/types/parser"
+import type { ValueVariable } from "@metafor/template/types/parser"
+import type { ValueStyle } from "@metafor/template/types/attribute/style"
 
 /**
  * Обрабатывает строку стилей с плоским по-ключевому парсингом.

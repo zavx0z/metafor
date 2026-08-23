@@ -4,7 +4,7 @@ import {
   validateMetaCreateRequest,
   type MetaAuthoringCapability,
   type MetaCreateReceipt,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {
   buildMetaPackageTemplate,
   materializeMetaCreatePatch,

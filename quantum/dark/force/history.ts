@@ -17,7 +17,7 @@ import {
   META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1,
   META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
   type MetaAuthoringCauseV1,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {
   type Part,

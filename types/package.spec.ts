@@ -1,6 +1,16 @@
 import {describe, expect, test} from "bun:test"
 import {existsSync, readFileSync, readdirSync} from "node:fs"
 import {join} from "node:path"
+import type {MetaForFn} from "@metafor/types/metafor/schema"
+
+type GlobalMetaForContract =
+  typeof MetaFor extends MetaForFn
+    ? MetaForFn extends typeof MetaFor
+      ? true
+      : false
+    : false
+
+const globalMetaForContract: GlobalMetaForContract = true
 
 type TypesPackage = {
   exports: Record<string, string>
@@ -29,6 +39,10 @@ const expectedExports = [
 ].toSorted()
 
 describe("@metafor/types ownership", () => {
+  test("keeps the workspace MetaFor global visible without an import", () => {
+    expect(globalMetaForContract).toBe(true)
+  })
+
   test("exports exactly the fundamental semantic contracts", () => {
     expect(Object.keys(definition.exports).toSorted()).toEqual(expectedExports)
   })

@@ -17,7 +17,7 @@ import matterSchemaSql from "./matter.sql" with {type: "text"}
 import {SQL} from "bun"
 import {writeWimpCreate} from "./create.ts"
 import {Wimp} from "./wimp.ts"
-import type { WimpCreateInput } from "@metafor/types/boundary/wimp"
+import type { WimpCreateInput } from "@boundary/types/wimp"
 
 /**
  * Rebuilds the two predicate tables created by versions that predated JSON

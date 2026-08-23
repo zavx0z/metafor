@@ -1,5 +1,5 @@
 import type {SQL} from "bun"
-import type { AxionParticleRow, FuzzyParticleRow, MachoParticleRow, MatterBindingRow, MatterParticleRow, WimpParticleRow } from "@metafor/types/boundary/matter"
+import type { AxionParticleRow, FuzzyParticleRow, MachoParticleRow, MatterBindingRow, MatterParticleRow, WimpParticleRow } from "@boundary/types/matter"
 import type { MatterBindingValue, MatterDirectMassBinding, MatterEdgeSlot, MatterParticle, MatterParticleKind } from "@metafor/types/metafor/matter"
 import type {Wimp} from "./wimp.ts"
 import {validateRuntimeMatterBinding} from "./create.ts"

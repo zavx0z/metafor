@@ -20,7 +20,7 @@ import {
   type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
-import {readBoundaryGraphProjectionForRoot} from "boundary/graph.ts"
+import {readBoundaryGraphProjectionForRoot} from "../../boundary/graph.ts"
 import {open as openBoundary} from "boundary/sqlite"
 import {readDarkDeclarationProjection} from "../graph.ts"
 import {DarkForceHistory} from "../force/history.ts"

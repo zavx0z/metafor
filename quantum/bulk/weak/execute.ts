@@ -6,7 +6,7 @@
  *
  * @packageDocumentation
  */
-import type { ExecuteParams } from "@metafor/types/bulk/weak"
+import type { ExecuteParams } from "@bulk/types/weak"
 
 /**
  * Выполняет действие процесса с обработкой синхронных и асинхронных результатов.

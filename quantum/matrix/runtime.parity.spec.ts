@@ -6,7 +6,7 @@ import type {
   ProcessResultProposal,
 } from "shared/protocol/force/execution"
 import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
-import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
+import type {BoundaryInitialState} from "shared/protocol/boundary/initial"
 import {
   createForceTestFixture,
   type ForceTestClient,

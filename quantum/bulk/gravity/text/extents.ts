@@ -1,4 +1,4 @@
-import type { FontMetrics, TextExtents } from "@metafor/types/bulk/text"
+import type { FontMetrics, TextExtents } from "@bulk/types/text"
 
 /**
  * Типографские размеры одного отрендеренного текста в миллиметрах.

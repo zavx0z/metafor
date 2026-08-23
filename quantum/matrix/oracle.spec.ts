@@ -1,6 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {BOUNDARY_INITIAL_STATE_METHOD} from "@metafor/types/boundary/initial"
-import {weak$} from "weak"
+import {BOUNDARY_INITIAL_STATE_METHOD} from "shared/protocol/boundary/initial"
+import {weak$} from "@matrix/weak"
 import {consumePreparedMatrixBirth} from "./birth.ts"
 import {MatrixOracle} from "./oracle.ts"
 

@@ -16,7 +16,7 @@ import {
   type BulkStore,
   type BulkStoreInitial,
   type BulkStoreNumericArray,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import type {VisualScenePayload} from "@metafor/visual/payload"
 import {layoutCenteredNestedFields} from "@metafor/visual/layout/centered-nested"
 

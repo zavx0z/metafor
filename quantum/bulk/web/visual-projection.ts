@@ -6,7 +6,7 @@ import type {
   BulkVisualLineMaterial,
   BulkVisualQuantumMaterial,
   BulkVisualRenderManifest,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 
 type BulkAnyVisualRenderManifest =
   | BulkVisualRenderManifest

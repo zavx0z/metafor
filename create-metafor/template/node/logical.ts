@@ -1,8 +1,8 @@
-import type { PartAttrLogical } from "@metafor/types/template/node/logical"
+import type { PartAttrLogical } from "@metafor/template/types/node/logical"
 import { parseCondition } from "../parser.ts"
-import type { ParseContext } from "@metafor/types/template/parser"
+import type { ParseContext } from "@metafor/template/types/parser"
 import { createNode } from "./index.ts"
-import type { NodeLogical, TokenLogicalOpen } from "@metafor/types/template/node/logical"
+import type { NodeLogical, TokenLogicalOpen } from "@metafor/template/types/node/logical"
 
 /**
  * Создает NodeLogical из обычного PartLogical.

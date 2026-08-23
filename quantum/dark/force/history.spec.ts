@@ -22,7 +22,7 @@ import {
   META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
   type MetaDeclarationAuthoringCauseV1,
   type MetaMatterAuthoringCauseV1,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 
 const directories: string[] = []

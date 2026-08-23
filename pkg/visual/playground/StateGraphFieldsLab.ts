@@ -1,5 +1,5 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import type {BulkVisualRenderManifest} from "@bulk/types/visual"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import type {StateGraph} from "../src/StateGraph.ts"
 

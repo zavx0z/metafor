@@ -2,7 +2,7 @@ import {constants} from "node:fs"
 import {lstat, open} from "node:fs/promises"
 import {createHash} from "node:crypto"
 import {dirname, join, resolve} from "node:path"
-import {massFileName, type MassFileFormat} from "shared/mass.ts"
+import {massFileName, type MassFileFormat} from "../../shared/mass.ts"
 import {
   BOUNDARY_DISSOLVE_ABSENT_MARKER,
   type BoundaryDissolveMassEvidenceReader,

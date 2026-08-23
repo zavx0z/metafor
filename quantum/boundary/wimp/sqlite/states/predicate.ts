@@ -1,5 +1,5 @@
 import type { Condition } from "./condition.ts"
-import type { PredicateRow } from "@metafor/types/boundary/wimp"
+import type { PredicateRow } from "@boundary/types/wimp"
 
 const decodeOperatorKey = (operator: string): string => {
   switch (operator) {

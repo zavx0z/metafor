@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {buildStateGraph} from "../../src/StateGraph.ts"
 import {buildStateGraphBranchLayout} from "../../src/StateGraphLayout.ts"

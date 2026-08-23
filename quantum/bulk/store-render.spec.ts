@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import type {Particle} from "shared/protocol/force/particle"
 import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildBulkStore} from "./store.ts"

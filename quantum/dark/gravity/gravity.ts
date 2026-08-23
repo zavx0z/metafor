@@ -1,5 +1,5 @@
 import type {Fields} from "@metafor/types/metafor/fields"
-import type {NodeMeta} from "@metafor/types/template/node/meta"
+import type {NodeMeta} from "@metafor/template/types/node/meta"
 
 const getFieldValues = (path: string, fields?: Fields): Array<string | number> => {
   if (!fields) return []

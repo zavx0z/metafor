@@ -10,7 +10,7 @@ import {
 import {
   BOUNDARY_GRAPH_PROJECTION_METHOD,
   type BoundaryGraphProjection,
-} from "@metafor/types/boundary/runtime"
+} from "shared/protocol/boundary/runtime"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,

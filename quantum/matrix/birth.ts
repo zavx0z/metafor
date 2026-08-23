@@ -2,7 +2,7 @@ import type {
   BoundaryInitialDeclaration,
   BoundaryInitialState,
   BoundaryInitialVariantRef,
-} from "@metafor/types/boundary/initial"
+} from "shared/protocol/boundary/initial"
 import type {MatrixConditionValue} from "@matrix/types/condition"
 import type {MatrixBraneValue, MatrixFieldRecord, MatrixInputBrane} from "@matrix/types/data"
 import type {MatrixData} from "@matrix/types/store"
@@ -11,9 +11,9 @@ import {
   STATE_UNDEFINED,
   type MatrixRuntimeSnapshot,
 } from "@matrix/types/runtime"
-import {gravity$} from "gravity/store.ts"
-import {strong$} from "strong"
-import {weak$, weakInit} from "weak"
+import {gravity$} from "@matrix/gravity/store.ts"
+import {strong$} from "@matrix/strong"
+import {weak$, weakInit} from "@matrix/weak"
 import {matrix$} from "./store.ts"
 import {hydrateMatrixProjection} from "./projection.ts"
 import {prepareMatrixData} from "./prepare.ts"
@@ -146,8 +146,8 @@ const predicateValue = (condition: JsonRecord, variants: Map<number, unknown>): 
  * @param initial Один согласованный начальный снимок Boundary.
  * @returns Полностью подготовленная производная проекция Matrix.
  *
- * @see [Преобразование Boundary в Matrix](https://github.com/zavx0z/metafor/blob/main/matrix/birth.spec.ts#L36-L104)
- * @see [Различие undefined и отсутствующего графа States](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L155-L237)
+ * @see [Преобразование Boundary в Matrix](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/birth.spec.ts#L36-L104)
+ * @see [Различие undefined и отсутствующего графа States](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/tests/weak.parity.test.ts#L155-L237)
  */
 export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntimeSnapshot {
   const declarationsByWimpSection = group(initial.declarations, (item) => `${item.src}\0${item.section}`)

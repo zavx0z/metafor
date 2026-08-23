@@ -1,4 +1,4 @@
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import type {
   HudNodeViewAtom,
   HudNodeViewDocument,

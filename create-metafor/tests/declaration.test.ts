@@ -1,11 +1,11 @@
 import {describe, expect, test} from "bun:test"
-import "../.."
+import "../index.ts"
 import {
   META_AUTHORING_CONTRACT_VERSION,
   META_DECLARATION_WRITE_CAPABILITY,
   type MetaDeclarationRequest,
   type MetaSourceRevision,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import {evaluateMetaSource} from "../../quantum/dark/load.ts"
 import {

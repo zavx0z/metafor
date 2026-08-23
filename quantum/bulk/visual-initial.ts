@@ -1,6 +1,6 @@
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkVisualLayoutSlug} from "@metafor/types/bulk/visual"
+import type {BulkVisualLayoutSlug} from "@bulk/types/visual"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {isBulkBrowserForceMessage} from "./browser-protocol.ts"
 import {

@@ -1,5 +1,5 @@
 import type { BufferGeometry } from "@metafor/engine"
-import type { BendTextAroundEquatorOptions } from "@metafor/types/bulk/text"
+import type { BendTextAroundEquatorOptions } from "@bulk/types/text"
 
 /**
  * Деформация текста по экватору поверхности (horizontal bend only).

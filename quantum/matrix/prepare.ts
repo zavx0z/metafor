@@ -5,16 +5,16 @@
  * Рождение использует её до открытия причинного канала, а проверки отдельных
  * вычислений — для создания изолированных Stores.
  *
- * @see [Подготовка обычных и общих Fields](https://github.com/zavx0z/metafor/blob/main/matrix/tests/prepare.spec.ts)
- * @see [Условия одинаково вычисляются CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
+ * @see [Подготовка обычных и общих Fields](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/tests/prepare.spec.ts)
+ * @see [Условия одинаково вычисляются CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/tests/weak.conditions.test.ts)
  *
  * @packageDocumentation
  */
 
 import type {MatrixInputData} from "@matrix/types/data"
 import type {MatrixData} from "@matrix/types/store"
-import {flattenMatrixData, validateData} from "gravity"
-import {assembleStoredMatrixData} from "strong"
+import {flattenMatrixData, validateData} from "@matrix/gravity"
+import {assembleStoredMatrixData} from "@matrix/strong"
 
 export function prepareMatrixData(data: MatrixInputData): MatrixData {
   validateData(data)

@@ -9,13 +9,13 @@ import {
   type MetaProcessExecutionOutcome,
   type MetaProcessExecutionReadReceipt,
   type MetaProcessExecutionStatus,
-} from "@metafor/types/metafor/observation"
-import type {MetaForceAcceptanceIdentity} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/observation"
+import type {MetaForceAcceptanceIdentity} from "shared/protocol/metafor/authoring"
 import {
   BOUNDARY_FIELD_VALUE_PLAN_METHOD,
   BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
   type BoundaryProcessExecutionProjection,
-} from "@metafor/types/boundary/runtime"
+} from "shared/protocol/boundary/runtime"
 import type {ForceMessageInput} from "shared/protocol/force/message"
 import type {DarkForceHistory, DarkForceHistoryParticle} from "../force/history.ts"
 import type {ForceLifecycle} from "../force/lifecycle.ts"

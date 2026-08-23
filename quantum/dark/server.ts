@@ -8,29 +8,29 @@ import {
   readDarkBulkViewportCaptureRequest,
   type BulkBrowserInitialRequest,
   type BulkBrowserMessageRequest,
-} from "@metafor/types/bulk/browser"
-import type {BulkStoreInitial} from "@metafor/types/bulk/store"
-import {isBulkStoreApplyControl} from "bulk/store-initial.ts"
-import index from "bulk/index.html"
+} from "shared/protocol/bulk/browser"
+import type {BulkStoreInitial} from "shared/protocol/bulk/store"
+import {isBulkStoreApplyControl} from "../bulk/store-initial.ts"
+import index from "../bulk/index.html"
 import {
   BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
-} from "bulk/capture.ts"
+} from "../bulk/capture.ts"
 import {
   BulkBrowserGateway,
   type BulkBrowserGatewayClient,
-} from "bulk/browser-gateway.ts"
+} from "../bulk/browser-gateway.ts"
 import {
   BULK_PAGE_SHELL_ROUTE,
   serveBulkInitialStore,
   serveBulkPageShell,
-} from "bulk/page-bootstrap.ts"
+} from "../bulk/page-bootstrap.ts"
 import {isBulkStoreInitial} from "bulk/store"
 import {
   BULK_TIME_PAUSE_METHOD,
   BULK_TIME_RESUME_METHOD,
   BULK_TIME_STACK_METHOD,
   bulkTimeControlResponse,
-} from "bulk/time-control.ts"
+} from "../bulk/time-control.ts"
 import {sourceForceMessage, type ForceMessageInput} from "shared/protocol/force/message"
 import {
   DARK_FORCE_STATUS_READ_METHOD,

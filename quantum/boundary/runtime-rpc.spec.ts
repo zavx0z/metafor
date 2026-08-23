@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, test} from "bun:test"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
-import type {MetaFieldValueApplyRequest, MetaProcessExecutionReadRequest} from "@metafor/types/metafor/observation"
+import type {MetaFieldValueApplyRequest, MetaProcessExecutionReadRequest} from "shared/protocol/metafor/observation"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import type {ProcessExecutionGrant, ProcessResultProposal} from "shared/protocol/force/execution"

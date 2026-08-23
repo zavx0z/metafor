@@ -1,4 +1,4 @@
-import type {BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkProjectionSnapshot} from "@bulk/types/initial"
 import type {Particle} from "shared/protocol/force/particle"
 
 /**

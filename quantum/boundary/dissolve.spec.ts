@@ -17,12 +17,12 @@ import {
   type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
-import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "@metafor/types/boundary/runtime"
+import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "shared/protocol/boundary/runtime"
 import type {Particle} from "shared/protocol/force/particle"
 import {assembleGraphForRoot} from "../dark/oracle/graph.ts"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "../dark/graph.ts"
 import {readBoundaryGraphProjectionForRoot} from "./graph.ts"
-import {MassCatalog, massFileName, type MassFileFormat} from "shared/mass.ts"
+import {MassCatalog, massFileName, type MassFileFormat} from "../../shared/mass.ts"
 import {
   BOUNDARY_DISSOLVE_ABSENT_MARKER,
   BoundaryDissolveError,

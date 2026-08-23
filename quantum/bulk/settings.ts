@@ -2,7 +2,7 @@ import type {
   BulkRenderSettings,
   BulkSettingsConfig,
   BulkViewportConfig,
-} from "@metafor/types/bulk/settings"
+} from "@bulk/types/settings"
 import {TORUS_LAYOUT_BASELINE} from "@metafor/visual/layout/centered-nested"
 
 export const DEFAULT_BULK_SCENE_SRC = ""

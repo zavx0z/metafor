@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import ts from "typescript"
+import {API, type Diagnostic} from "typescript/unstable/async"
 
 import {
   generateMetaFile,
@@ -14,7 +14,7 @@ const fixtureRoot = join(import.meta.dir, "fixtures", "generated-project")
 const typeRoots = resolve(import.meta.dir, "../../node_modules/@types")
 
 type CompileResult = {
-  diagnostics: readonly ts.Diagnostic[]
+  diagnostics: readonly Diagnostic[]
   sourceFiles: readonly string[]
 }
 
@@ -32,52 +32,52 @@ async function compileGeneratedProject(
   try {
     await mkdir(actions)
     const contractFiles = contracts ?? {"contract.ts": await fixture("contract.ts.txt")}
+    const generatedConfig = JSON.parse(generateTsconfigFile()) as {
+      compilerOptions: Record<string, unknown>
+    }
+    generatedConfig.compilerOptions.typeRoots = [typeRoots]
+    generatedConfig.compilerOptions.skipLibCheck = false
     await Promise.all([
       writeFile(join(project, "metafor.d.ts"), declaration),
       writeFile(join(project, "meta.ts"), generateMetaFile("generated", "Generated", "Error")),
       ...Object.entries(contractFiles).map(([name, source]) => writeFile(join(project, name), source)),
-      writeFile(join(project, "tsconfig.json"), generateTsconfigFile()),
+      writeFile(join(project, "tsconfig.json"), JSON.stringify(generatedConfig)),
       writeFile(join(actions, "start.ts"), await fixture("actions/start.ts.txt")),
       writeFile(join(actions, "release.ts"), await fixture("actions/release.ts.txt")),
       writeFile(join(actions, "probe.ts"), await fixture("actions/probe.ts.txt")),
     ])
 
     const configPath = join(project, "tsconfig.json")
-    const loaded = ts.readConfigFile(configPath, ts.sys.readFile)
-    if (loaded.error) return { diagnostics: [loaded.error], sourceFiles: [] }
-
-    const parsed = ts.parseJsonConfigFileContent(
-      loaded.config,
-      ts.sys,
-      project,
-      {
-        exactOptionalPropertyTypes: true,
-        noEmit: true,
-        skipLibCheck: false,
-        typeRoots: [typeRoots],
-      },
-      configPath,
-    )
-    const program = ts.createProgram({
-      rootNames: parsed.fileNames,
-      options: parsed.options,
-    })
-
-    return {
-      diagnostics: [...parsed.errors, ...ts.getPreEmitDiagnostics(program)],
-      sourceFiles: program.getSourceFiles().map((source) => source.fileName),
+    const api = new API({cwd: project})
+    const snapshot = await api.updateSnapshot({openProjects: [configPath]})
+    try {
+      const configured = snapshot.getProject(configPath) ?? snapshot.getProjects()[0]
+      if (!configured) throw new Error("Generated TypeScript project was not opened")
+      const program = configured.program
+      return {
+        diagnostics: [
+          ...await program.getConfigFileParsingDiagnostics(),
+          ...await program.getProgramDiagnostics(),
+          ...await program.getGlobalDiagnostics(),
+          ...await program.getSyntacticDiagnostics(),
+          ...await program.getBindDiagnostics(),
+          ...await program.getSemanticDiagnostics(),
+        ],
+        sourceFiles: await program.getSourceFileNames(),
+      }
+    } finally {
+      await snapshot.dispose()
+      await api.close()
     }
   } finally {
     await rm(project, { recursive: true, force: true })
   }
 }
 
-function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
-  return ts.formatDiagnostics(diagnostics, {
-    getCanonicalFileName: (fileName) => fileName,
-    getCurrentDirectory: () => process.cwd(),
-    getNewLine: () => "\n",
-  })
+function formatDiagnostics(diagnostics: readonly Diagnostic[]): string {
+  return diagnostics.map((diagnostic) =>
+    `${diagnostic.fileName ?? "<global>"}: TS${diagnostic.code}: ${diagnostic.text}`
+  ).join("\n")
 }
 
 test("generated project preserves the strict local MetaFor contract", async () => {
@@ -119,7 +119,7 @@ test("every generated @ts-expect-error suppresses a real compiler error", async 
   directives.forEach((directive, index) => {
     const name = `contract-mutant-${index}.ts`
     const diagnostics = result.diagnostics.filter((diagnostic) =>
-      diagnostic.file?.fileName.endsWith(`/${name}`) && diagnostic.code !== 2578,
+      diagnostic.fileName?.endsWith(`/${name}`) && diagnostic.code !== 2578,
     )
     expect(diagnostics.length).toBeGreaterThan(0)
     proof.push({

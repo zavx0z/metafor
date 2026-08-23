@@ -10,7 +10,7 @@ import {
   type BulkViewportCaptureLimits,
   type BulkViewportCaptureRequest,
   type BulkViewportCaptureResult,
-} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/capture"
 
 export const DEFAULT_BULK_VIEWPORT_CAPTURE_LIMITS: BulkViewportCaptureLimits = {
   maxCssWidth: 4_096,

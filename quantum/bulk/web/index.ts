@@ -19,14 +19,14 @@ import type {
 	StoredBulkViewPose,
 	SurfaceLabelVisual,
 	ViewNavigationState,
-} from "@metafor/types/bulk/viewport"
+} from "@bulk/types/viewport"
 import type {
 	BulkHudSurfaceSlot,
 	BulkViewportHudController,
 	BulkViewportWithHud,
-} from "@metafor/types/bulk/hud"
-import type { BulkRenderSettings } from "@metafor/types/bulk/settings"
-import type { SurfaceArcLimits, TextExtents } from "@metafor/types/bulk/text"
+} from "@bulk/types/hud"
+import type { BulkRenderSettings } from "@bulk/types/settings"
+import type { SurfaceArcLimits, TextExtents } from "@bulk/types/text"
 import type {
 	BulkReadyRenderDarkParticle as BulkDarkParticle,
 	BulkReadyRenderFieldParticle as BulkFieldParticle,
@@ -41,7 +41,7 @@ import type {
 	BulkVisualRenderManifest,
 	BulkVisualRenderPatch,
 	BulkVisualTransitionPath,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 import {
 	writeVisualPayloadHermiteSegments,
 } from "@metafor/visual/payload/reconcile"
@@ -51,7 +51,7 @@ import {
 	bulkViewportConfig,
 	normalizeBulkRenderSettings,
 	resolveBulkTorusLabelMetrics,
-} from "settings"
+} from "../settings.ts"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
 import {
 	assertBulkVisualCurveLaw,
@@ -132,7 +132,7 @@ import type {
 	BulkEmbeddedPickShape,
 	BulkHoverPriorityCandidate,
 	BulkPickTarget,
-} from "@metafor/types/bulk/viewport"
+} from "@bulk/types/viewport"
 import {BulkSceneStore} from "../scene"
 import {mergeVisualBatchPaths} from "./visual-patch-application"
 import {

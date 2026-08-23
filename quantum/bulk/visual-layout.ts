@@ -6,7 +6,7 @@ import type {
   BulkRenderFieldProxy,
   BulkRenderOrbitalParticle,
 } from "@metafor/types/bulk/manifest"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import type {
   BulkVisualDarkMaterial,
   BulkVisualFieldMaterial,
@@ -26,7 +26,7 @@ import type {
   BulkVisualRenderManifest,
   BulkVisualRenderPatch,
   BulkVisualTransitionPath,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 import {
   CenteredNested,
   buildStateGraph,
@@ -50,7 +50,7 @@ export type {
   BulkVisualOrbitalTorus,
   BulkVisualRenderManifest,
   BulkVisualRenderPatch,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 
 /**
  * Bulk's visual boundary.

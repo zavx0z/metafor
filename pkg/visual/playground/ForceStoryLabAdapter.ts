@@ -1,6 +1,6 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkProjectionSnapshot} from "@metafor/types/bulk/initial"
-import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import type {BulkProjectionSnapshot} from "@bulk/types/initial"
+import type {BulkVisualRenderManifest} from "@bulk/types/visual"
 import {
   CenteredNested,
   OutsideIn,

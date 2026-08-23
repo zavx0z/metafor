@@ -1,10 +1,11 @@
-import ts from "typescript"
+import {parseSync, Visitor} from "oxc-parser"
+import type {CallExpression} from "@oxc-project/types"
 import {isDeepStrictEqual} from "node:util"
 import type {
   MetaMatterOccurrenceLocator,
   MetaMatterPlacement,
   MetaMatterRequest,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import type {MetaAddress, MetaMatterBinding, MetaMatterParticle} from "@metafor/types/metafor/graph"
 import type {MatterFields, MatterParticle} from "@metafor/types/metafor/matter"
 import type {ForceMessageInput} from "shared/protocol/force/message"
@@ -389,16 +390,18 @@ const callbackSource = (tree: MutableTree): string => {
 }
 
 const rewriteMatter = (source: string, tree: MutableTree): string => {
-  const file = ts.createSourceFile("meta.ts", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  const calls: ts.CallExpression[] = []
-  const visit = (node: ts.Node): void => {
-    if (
-      ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) &&
-      node.expression.name.text === "matter"
-    ) calls.push(node)
-    ts.forEachChild(node, visit)
-  }
-  visit(file)
+  const parsed = parseSync("meta.ts", source, {preserveParens: true})
+  const calls: CallExpression[] = []
+  new Visitor({
+    CallExpression(node) {
+      if (
+        node.callee.type === "MemberExpression" &&
+        !node.callee.computed &&
+        node.callee.property.type === "Identifier" &&
+        node.callee.property.name === "matter"
+      ) calls.push(node)
+    },
+  }).visit(parsed.program)
   if (calls.length !== 1) {
     throw new MatterPatchError("unsupported_matter_source", "meta.ts must contain exactly one .matter call")
   }
@@ -406,14 +409,13 @@ const rewriteMatter = (source: string, tree: MutableTree): string => {
   if (call.arguments.length > 1) {
     throw new MatterPatchError("unsupported_matter_source", ".matter must contain zero or one callback")
   }
-  const open = source.indexOf("(", call.expression.getEnd())
-  const close = call.getEnd() - 1
+  const open = source.indexOf("(", call.callee.end)
+  const close = call.end - 1
   if (open < 0 || source[close] !== ")") {
     throw new MatterPatchError("unsupported_matter_source", ".matter call range is invalid")
   }
   const after = source.slice(0, open + 1) + callbackSource(tree) + source.slice(close)
-  const parsed = ts.createSourceFile("meta.ts", after, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  if ((parsed as ts.SourceFile & {parseDiagnostics: readonly ts.Diagnostic[]}).parseDiagnostics.length > 0) {
+  if (parseSync("meta.ts", after).errors.length > 0) {
     throw new MatterPatchError("unsupported_matter_source", "Generated Matter source is not valid TypeScript")
   }
   return after

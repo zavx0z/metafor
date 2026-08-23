@@ -1,6 +1,6 @@
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import type {VisualLayoutInput} from "../src/internal/layout.ts"
 import snapshotJson from "../playground/fixture/oracle-snapshot.json"

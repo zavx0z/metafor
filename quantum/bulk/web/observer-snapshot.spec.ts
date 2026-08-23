@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkStoreCaptureProof} from "@metafor/types/bulk/capture"
+import type {BulkStoreCaptureProof} from "shared/protocol/bulk/capture"
 import {BulkPresentedStoreProof} from "./observer-snapshot.ts"
 
 const proof = (root: number): BulkStoreCaptureProof => ({

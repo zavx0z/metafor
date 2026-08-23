@@ -1,6 +1,6 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
-import {weak$} from "weak"
+import type {BoundaryInitialState} from "shared/protocol/boundary/initial"
+import {weak$} from "@matrix/weak"
 import {prepareMatrixBirthFixture} from "./tests/shared/fixtures.ts"
 
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND

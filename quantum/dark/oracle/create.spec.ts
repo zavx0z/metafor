@@ -8,7 +8,7 @@ import {
   META_CREATE_METHOD,
   type MetaAuthoringCapability,
   type MetaCreateRequest,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {MetaCreateService} from "./create.ts"
 

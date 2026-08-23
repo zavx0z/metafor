@@ -2,7 +2,7 @@ import {afterEach, describe, expect, test} from "bun:test"
 import {unlink} from "node:fs/promises"
 import {join} from "node:path"
 import {EnergyMassCatalog, EnergyMassGate} from "./mass.ts"
-import {massFileName} from "shared/mass.ts"
+import {massFileName} from "../../shared/mass.ts"
 
 describe("Energy Mass file catalog", () => {
   const key = "11111111-1111-4111-8111-111111111111"

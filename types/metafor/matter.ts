@@ -1,6 +1,5 @@
 import type { Fields, Update, Values } from "./fields.ts"
 import type { Energy, Mass } from "./schema.ts"
-import type { NodeType } from "../template/node/index.ts"
 
 export type MatterDirectMassBinding =
   | {kind: "whole"}
@@ -85,8 +84,6 @@ export interface PendingChildWimp {
   parent: ParticleRef
   continuation: Continuation
 }
-
-export interface MatterTemplateSchema extends Array<NodeType> {}
 
 export interface MatterSchema extends Array<MatterParticle> {}
 

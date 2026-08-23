@@ -18,7 +18,7 @@ import {
 } from "./wimp/sqlite/create.ts"
 import {writeBoundaryAtomValue} from "./world.ts"
 import {BoundaryMassStore, type BoundaryMassDetachPlan} from "./mass.ts"
-import {MassCatalog} from "shared/mass.ts"
+import {MassCatalog} from "../../shared/mass.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>

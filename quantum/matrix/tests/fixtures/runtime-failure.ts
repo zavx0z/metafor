@@ -1,4 +1,4 @@
-import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
+import type {BoundaryInitialState} from "shared/protocol/boundary/initial"
 import {prepareMatrixBirth} from "../../birth.ts"
 
 const sockets: FakeWebSocket[] = []

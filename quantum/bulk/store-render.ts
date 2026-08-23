@@ -8,8 +8,8 @@ import {
   BULK_STORE_QUANTUM_MATERIAL_STRIDE,
   BULK_STORE_TRANSITION_CONTROL_STRIDE,
   type BulkStore,
-} from "@metafor/types/bulk/store"
-import type {BulkStoreCaptureProof} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/store"
+import type {BulkStoreCaptureProof} from "shared/protocol/bulk/capture"
 import type {
   BulkReadyRenderDarkParticle,
   BulkReadyRenderFieldParticle,
@@ -25,7 +25,7 @@ import type {
   BulkVisualQuantumMaterial,
   BulkVisualRelationPath,
   BulkVisualTransitionPath,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 import {
   DARK_TORUS_MESH_DETAIL,
   EMBEDDED_TORUS_MESH_DETAIL,

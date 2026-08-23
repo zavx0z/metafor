@@ -33,7 +33,7 @@ function createFieldMetaMap(fields: MatrixFieldRecord[]): Map<number, { fieldTyp
  * в bytecode как `RESOLVED`. При изменении такого Field GPU runtime заменяет
  * bytecode соответствующей Brane до следующего шага.
  *
- * @see [Повторное вычисление pattern после изменения Field](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
+ * @see [Повторное вычисление pattern после изменения Field](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/tests/weak.conditions.test.ts)
  */
 function groupTransitionConditions(
   store: MatrixStore,

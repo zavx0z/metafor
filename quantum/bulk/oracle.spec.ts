@@ -2,12 +2,12 @@ import {describe, expect, test} from "bun:test"
 import {readFileSync} from "node:fs"
 import {
   DARK_BULK_VIEWPORT_CAPTURE_METHOD,
-} from "@metafor/types/bulk/browser"
-import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/browser"
+import {BULK_VIEWPORT_CAPTURE_METHOD} from "shared/protocol/bulk/capture"
 import {
   BOUNDARY_INITIAL_PROJECTION_METHOD,
   type BoundaryInitialProjection,
-} from "@metafor/types/boundary/initial"
+} from "shared/protocol/boundary/initial"
 import {
   GRAPH_SCHEMA,
   READ_GRAPH_METHOD,

@@ -7,9 +7,9 @@ import {
   type MetaProcessExecutionOutcome,
   type MetaProcessExecutionReadRequest,
   type MetaProcessExecutionStatus,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 import type {JsonValue} from "@metafor/types/metafor/graph"
-import type {BoundaryProcessExecutionProjection} from "@metafor/types/boundary/runtime"
+import type {BoundaryProcessExecutionProjection} from "shared/protocol/boundary/runtime"
 import type {BoundaryDatabase} from "./sqlite.ts"
 import {resolveBoundaryRuntimeAtom} from "./graph.ts"
 

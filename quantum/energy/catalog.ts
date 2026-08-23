@@ -10,7 +10,7 @@ import type {Particle} from "shared/protocol/force/particle"
 import {
   parseMetaRuntimeAtomPointer,
   type MetaRuntimeAtomLocator,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 
 type Address =
   | {kind: "atom"; id: number}

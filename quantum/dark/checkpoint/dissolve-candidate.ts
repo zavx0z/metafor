@@ -29,14 +29,14 @@ import {
   BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
   type BoundaryDissolveCandidateStageReceiptV1,
   type BoundaryDissolveCheckpointBindingV1,
-} from "boundary/dissolve-candidate-staging.ts"
+} from "../../boundary/dissolve-candidate-staging.ts"
 import {
   createIsolatedBoundaryDissolveMassEvidenceReader,
   type BoundaryDissolveValidAbsence,
-} from "boundary/dissolve-mass-evidence.ts"
+} from "../../boundary/dissolve-mass-evidence.ts"
 import type {
   BoundaryDissolveProposalV1,
-} from "boundary/dissolve-staging.ts"
+} from "../../boundary/dissolve-staging.ts"
 import {
   open as openBoundary,
   type BoundaryDatabase,
@@ -47,7 +47,7 @@ import {
   MassCatalog,
   massFileName,
   type MassFileFormat,
-} from "shared/mass.ts"
+} from "../../../shared/mass.ts"
 import type {MetaAddress, Graph} from "@metafor/types/metafor/graph"
 import type {
   CheckpointMassCapture,

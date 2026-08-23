@@ -1,4 +1,4 @@
-import type {BulkVisualLayer} from "@metafor/types/bulk/viewport"
+import type {BulkVisualLayer} from "@bulk/types/viewport"
 
 export type VisualEntity =
   | "Atom"

@@ -2,7 +2,7 @@ import {
   BOUNDARY_INITIAL_PROJECTION_METHOD,
   type BoundaryInitialProjection,
   type BoundaryInitialProjectionEntry,
-} from "@metafor/types/boundary/initial"
+} from "shared/protocol/boundary/initial"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import type {DomainHealth} from "shared/protocol/oracle/health"
 import {EnergyCatalogStore} from "./catalog.ts"
@@ -16,7 +16,7 @@ import {
   ENERGY_MASS_RESULT_READ_METHOD,
   META_OBSERVATION_CONTRACT_VERSION,
   type DarkForceHistoryReadReceipt,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 import {EnergyMassResultReadService} from "./oracle/mass-result.ts"
 
 export type EnergyOracleState = "created" | "loading" | "prepared" | "ready" | "error" | "stopped"

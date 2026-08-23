@@ -1,9 +1,9 @@
 import type {
   BulkStoreApplyControl,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import type {
   BulkViewportCaptureResult,
-} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/capture"
 import {
   BulkViewportCaptureRegistry,
 } from "./capture.ts"

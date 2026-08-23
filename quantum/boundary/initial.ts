@@ -3,7 +3,7 @@ import type {
   BoundaryInitialDeclaration,
   BoundaryInitialState,
   BoundaryInitialVariantRef,
-} from "@metafor/types/boundary/initial"
+} from "shared/protocol/boundary/initial"
 type JsonRecord = Record<string, unknown>
 
 type AtomRow = {

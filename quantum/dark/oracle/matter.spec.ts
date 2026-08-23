@@ -8,13 +8,13 @@ import {
   META_MATTER_WRITE_CAPABILITY,
   type MetaAuthoringCapability,
   type MetaMatterRequest,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import type {MetaMatterParticle} from "@metafor/types/metafor/graph"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
 import {sourceForceMessage} from "shared/protocol/force/message"
 import {open, type BoundaryDatabase} from "boundary/sqlite"
-import {sourceRevision} from "create-metafor/src/source.ts"
+import {sourceRevision} from "../../../create-metafor/src/source.ts"
 import {DarkForceHistory} from "../force/history.ts"
 import {
   MatterAuthoringService,

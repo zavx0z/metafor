@@ -11,7 +11,7 @@ import type {
   BulkRootPromotionReceipt,
   BulkTransitionChannel,
 } from "@metafor/types/bulk/manifest"
-import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeProjection, BulkRuntimeValue } from "@metafor/types/bulk/runtime"
+import type { BulkRuntimeField, BulkRuntimeMatterBindingPath, BulkRuntimeMatterChildBindingPath, BulkRuntimeMatterParticle, BulkRuntimeProjection, BulkRuntimeValue } from "@bulk/types/projection"
 import type { AtomRecord } from "@metafor/types/boundary/atom"
 import type { FieldEnumVariantRecord, ValueItemRecord } from "@metafor/types/boundary/value"
 import type { TopologyRecord } from "@metafor/types/boundary/topology"

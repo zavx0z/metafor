@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {buildFieldsV2Source} from "./FieldsV2Lab.ts"
 import {FIELDS_V3_SLUG} from "./FieldsV3Lab.ts"

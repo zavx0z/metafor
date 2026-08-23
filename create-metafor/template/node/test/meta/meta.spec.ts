@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll } from "bun:test"
 import { parse } from "../../../index.ts"
-import type { NodeType } from "@metafor/types/template/node/index"
+import type { NodeType } from "@metafor/template/types/node/index"
 
 describe("meta", () => {
   describe("теги", () => {

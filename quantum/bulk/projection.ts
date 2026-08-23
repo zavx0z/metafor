@@ -16,11 +16,11 @@ import type {
   BulkRuntimeValue,
   BulkRuntimeWimp,
   BulkProjectionChange,
-} from "@metafor/types/bulk/runtime"
+} from "@bulk/types/projection"
 import type {
   BulkProjectionDeclaration,
   BulkProjectionSnapshot,
-} from "@metafor/types/bulk/initial"
+} from "@bulk/types/initial"
 import type {Particle} from "shared/protocol/force/particle"
 import {
   resolveCanonicalForceFieldsPayload,
@@ -48,7 +48,7 @@ type Address =
 export type {
   BulkProjectionChange,
   BulkProjectionFacet,
-} from "@metafor/types/bulk/runtime"
+} from "@bulk/types/projection"
 
 /** A change that moved nothing. Fresh each call — callers own the array. */
 const unchanged = (): BulkProjectionChange =>

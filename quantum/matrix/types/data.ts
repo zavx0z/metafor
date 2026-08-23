@@ -20,7 +20,7 @@ export type MatrixBraneValue =
  * `STATE_UNDEFINED` и не переход в State `0`.
  * Составитель удаляет такие места до подсчёта адресов.
  *
- * @see [Пустая запись не скрывает следующий Transition](https://github.com/zavx0z/metafor/blob/main/matrix/tests/superposition.spec.ts#L135-L161)
+ * @see [Пустая запись не скрывает следующий Transition](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/tests/superposition.spec.ts#L135-L161)
  */
 export type MatrixCollapse = [number, Record<number, MatrixConditionValue>] | null
 

@@ -6,7 +6,7 @@ import {
   META_DECLARATION_APPLY_METHOD,
   META_MATTER_APPLY_METHOD,
   META_SOURCE_REVISION_READ_METHOD,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {
   OracleRpcPeer,
   type OracleChannel,
@@ -17,11 +17,11 @@ import {
   type OracleRpcMessage,
 } from "shared/protocol/oracle/rpc"
 import {DARK_DECLARATION_PROJECTION_METHOD} from "./graph.ts"
-import {DARK_FORCE_HISTORY_READ_METHOD} from "@metafor/types/metafor/observation"
+import {DARK_FORCE_HISTORY_READ_METHOD} from "shared/protocol/metafor/observation"
 import {
   META_FIELD_VALUE_APPLY_METHOD,
   META_PROCESS_EXECUTION_READ_METHOD,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 import {
   DARK_FORCE_PAUSE_METHOD,
   DARK_FORCE_RESUME_METHOD,

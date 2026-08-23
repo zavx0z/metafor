@@ -1,6 +1,6 @@
 import {
   type BulkStoreInitial,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import {isBulkStoreInitial} from "./store.ts"
 
 export const BULK_PAGE_SHELL_ROUTE = "/__metafor/bulk-page-shell"

@@ -1,31 +1,16 @@
 import {describe, expect, test} from "bun:test"
 import {dirname, isAbsolute, join, relative, resolve} from "node:path"
-import {
-  ScriptKind,
-  ScriptTarget,
-  SyntaxKind,
-  createSourceFile,
-  forEachChild,
-  isCallExpression,
-  isExportDeclaration,
-  isExternalModuleReference,
-  isImportDeclaration,
-  isImportEqualsDeclaration,
-  isImportTypeNode,
-  isLiteralTypeNode,
-  isStringLiteral,
-  type Node,
-} from "typescript"
+import {parseSync} from "oxc-parser"
 
 // Remove entries as offline checkpoint tooling leaves Dark. This allowlist must
 // become empty and must never grow.
 const LEGACY_CHECKPOINT_BOUNDARY_IMPORTS = Object.freeze([
   "checkpoint/capture.ts -> ../../boundary/graph.ts",
-  "checkpoint/capture.ts -> ../../boundary/sqlite.ts",
+  "checkpoint/capture.ts -> boundary/sqlite",
   "checkpoint/dissolve-candidate.ts -> ../../boundary/dissolve-candidate-staging.ts",
   "checkpoint/dissolve-candidate.ts -> ../../boundary/dissolve-mass-evidence.ts",
   "checkpoint/dissolve-candidate.ts -> ../../boundary/dissolve-staging.ts",
-  "checkpoint/dissolve-candidate.ts -> ../../boundary/sqlite.ts",
+  "checkpoint/dissolve-candidate.ts -> boundary/sqlite",
   "checkpoint/dissolve-promotion.ts -> ../../boundary/dissolve-candidate-staging.ts",
   "checkpoint/dissolve-promotion.ts -> ../../boundary/dissolve.ts",
 ])
@@ -43,31 +28,14 @@ const CREATE_METAFOR_LIBRARY_EXPORTS = Object.freeze([
 ])
 
 const importSpecifiers = (path: string, source: string): string[] => {
-  const file = createSourceFile(path, source, ScriptTarget.Latest, true, ScriptKind.TS)
-  const result: string[] = []
-  const visit = (node: Node): void => {
-    if ((isImportDeclaration(node) || isExportDeclaration(node)) &&
-        node.moduleSpecifier && isStringLiteral(node.moduleSpecifier)) {
-      result.push(node.moduleSpecifier.text)
-    } else if (isImportEqualsDeclaration(node) &&
-        isExternalModuleReference(node.moduleReference) &&
-        node.moduleReference.expression &&
-        isStringLiteral(node.moduleReference.expression)) {
-      result.push(node.moduleReference.expression.text)
-    } else if (isCallExpression(node) &&
-        node.expression.kind === SyntaxKind.ImportKeyword &&
-        node.arguments.length === 1 &&
-        isStringLiteral(node.arguments[0]!)) {
-      result.push(node.arguments[0].text)
-    } else if (isImportTypeNode(node) &&
-        isLiteralTypeNode(node.argument) &&
-        isStringLiteral(node.argument.literal)) {
-      result.push(node.argument.literal.text)
-    }
-    forEachChild(node, visit)
-  }
-  visit(file)
-  return result
+  const module = parseSync(path, source).module
+  return [
+    ...module.staticImports.map(({moduleRequest}) => moduleRequest.value),
+    ...module.staticExports.flatMap(({entries}) =>
+      entries.flatMap(({moduleRequest}) => moduleRequest === null ? [] : [moduleRequest.value])
+    ),
+    ...module.dynamicImports.map(({moduleRequest}) => source.slice(moduleRequest.start + 1, moduleRequest.end - 1)),
+  ]
 }
 
 const isBoundaryImport = (
@@ -101,7 +69,7 @@ describe("Dark package boundary", () => {
     const library = await import("create-metafor/library")
     expect(Object.keys(library).toSorted()).toEqual([...CREATE_METAFOR_LIBRARY_EXPORTS])
 
-    const createMetaforPackage = await Bun.file(resolve(import.meta.dir, "../create-metafor/package.json")).json() as {
+    const createMetaforPackage = await Bun.file(resolve(import.meta.dir, "../../create-metafor/package.json")).json() as {
       main?: unknown
       bin?: Record<string, unknown>
       exports?: Record<string, unknown>
@@ -135,7 +103,7 @@ describe("Dark package boundary", () => {
 
   test("does not import Create MetaFor implementation files from production Dark", async () => {
     const darkRoot = import.meta.dir
-    const createMetaforRoot = resolve(darkRoot, "../create-metafor")
+    const createMetaforRoot = resolve(darkRoot, "../../create-metafor")
     const imports: string[] = []
     for await (const path of new Bun.Glob("**/*.ts").scan({cwd: darkRoot})) {
       if (path.endsWith(".spec.ts") || path.endsWith(".test.ts")) continue

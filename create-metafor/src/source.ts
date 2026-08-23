@@ -8,7 +8,7 @@ import {
   unlink,
 } from "node:fs/promises"
 import {basename, dirname, resolve} from "node:path"
-import type {MetaSourcePrecondition, MetaSourceRevision} from "@metafor/types/metafor/authoring"
+import type {MetaSourcePrecondition, MetaSourceRevision} from "shared/protocol/metafor/authoring"
 
 export type SourceWriteErrorCode =
   | "invalid_target"

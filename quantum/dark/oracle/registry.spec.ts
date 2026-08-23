@@ -5,9 +5,9 @@ import {dirname, join} from "node:path"
 import {
   META_AUTHORING_CONTRACT_VERSION,
   META_SOURCE_READ_CAPABILITY,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
-import {sourceRevision} from "create-metafor/src/source.ts"
+import {sourceRevision} from "../../../create-metafor/src/source.ts"
 import {
   MetaAuthoringRegistry,
   metaAuthoringCapabilitiesForScopes,

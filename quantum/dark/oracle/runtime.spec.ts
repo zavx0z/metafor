@@ -1,10 +1,10 @@
 import {describe, expect, test} from "bun:test"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
-import type {MetaFieldValueApplyRequest, MetaProcessExecutionReadRequest} from "@metafor/types/metafor/observation"
+import type {MetaFieldValueApplyRequest, MetaProcessExecutionReadRequest} from "shared/protocol/metafor/observation"
 import {
   BOUNDARY_FIELD_VALUE_PLAN_METHOD,
   BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
-} from "@metafor/types/boundary/runtime"
+} from "shared/protocol/boundary/runtime"
 import {
   DARK_FORCE_PARTICLE_SCHEMA,
   type DarkForceHistoryParticle,

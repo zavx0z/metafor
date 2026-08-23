@@ -13,12 +13,12 @@ import {createHash} from "node:crypto"
 import {dirname, join, resolve} from "node:path"
 import {
   BOUNDARY_DISSOLVE_CANDIDATE_RETENTION,
-} from "boundary/dissolve-candidate-staging.ts"
+} from "../boundary/dissolve-candidate-staging.ts"
 import type {
   BoundaryDissolveCausalAdmissionRecordV1,
   BoundaryEnergyDissolveFenceBindingV1,
   BoundaryEnergyDissolveRetargetBindingV1,
-} from "boundary/dissolve-causal-admission.ts"
+} from "../boundary/dissolve-causal-admission.ts"
 
 export const ENERGY_DISSOLVE_RETARGET_V1 =
   "metafor/energy-dissolve-retarget/v1" as const

@@ -14,5 +14,8 @@
   "dependencies": {
     "@metafor/template": "workspace:*",
     "@metafor/types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

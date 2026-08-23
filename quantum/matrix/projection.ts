@@ -4,7 +4,7 @@
  * Индексы позволяют определить только затронутые Atom, связанные значения и
  * WIMP. Проекция не вычисляет State и не заменяет Boundary как владельца мира.
  *
- * @see [Локальное добавление и удаление Atom](https://github.com/zavx0z/metafor/blob/main/matrix/projection.spec.ts#L138-L188)
+ * @see [Локальное добавление и удаление Atom](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/projection.spec.ts#L138-L188)
  *
  * @packageDocumentation
  */
@@ -14,7 +14,7 @@ import type {
   BoundaryInitialDeclaration,
   BoundaryInitialState,
   BoundaryInitialVariantRef,
-} from "@metafor/types/boundary/initial"
+} from "shared/protocol/boundary/initial"
 import type {MatrixRuntimeAtomEntity} from "@matrix/types/runtime"
 import {
   resolveCanonicalForceFieldsPayload,

@@ -1,10 +1,10 @@
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import type {
   BulkReadyVisualRenderManifest,
   BulkVisualRenderManifest,
   BulkVisualRenderPatch,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 import {
   classifyVisualInvalidation,
   reconcileVisualScenePayload,

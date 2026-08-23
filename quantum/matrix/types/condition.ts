@@ -5,8 +5,8 @@
  * операторов разбираются до этого уровня и не попадают в исполнитель как
  * неизвестные строки.
  *
- * @see [Сквозной путь Graph → Boundary → Matrix](https://github.com/zavx0z/metafor/blob/main/matrix/conditions.integration.spec.ts)
- * @see [Равенство условий CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.conditions.test.ts)
+ * @see [Сквозной путь Graph → Boundary → Matrix](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/conditions.integration.spec.ts)
+ * @see [Равенство условий CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/tests/weak.conditions.test.ts)
  *
  * @packageDocumentation
  */

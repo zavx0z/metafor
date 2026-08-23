@@ -1,5 +1,5 @@
 import type { Wimp } from "../wimp.ts"
-import type { ProcessTypeValue } from "@metafor/types/boundary/wimp"
+import type { ProcessTypeValue } from "@boundary/types/wimp"
 import { Process } from "./process.ts"
 
 export class Processes {

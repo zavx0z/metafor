@@ -1,12 +1,12 @@
 import type {
   BoundaryInitialProjection,
-} from "@metafor/types/boundary/initial"
+} from "shared/protocol/boundary/initial"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {
   BulkStoreApplyControl,
   BulkStoreInitial,
-} from "@metafor/types/bulk/store"
-import {BULK_STORE_LAYOUT_OUTSIDE_IN} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
+import {BULK_STORE_LAYOUT_OUTSIDE_IN} from "shared/protocol/bulk/store"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {isBulkBrowserForceMessage} from "./browser-protocol.ts"
 import {isBulkStoreInitial} from "./store.ts"

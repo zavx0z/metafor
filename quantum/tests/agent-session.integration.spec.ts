@@ -6,7 +6,7 @@ import {pathToFileURL} from "node:url"
 import {
   DARK_BULK_VIEWPORT_CAPTURE_METHOD,
   type DarkBulkViewportCaptureRequest,
-} from "@metafor/types/bulk/browser"
+} from "shared/protocol/bulk/browser"
 import {
   META_AUTHORING_CONTRACT_VERSION,
   META_CAPABILITIES_READ_METHOD,
@@ -18,7 +18,7 @@ import {
   type MetaDeclarationApplyReceipt,
   type MetaDeclarationRequest,
   type MetaSourceRevisionReadReceipt,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import {
   READ_GRAPH_METHOD,
   parseMetaAddress,
@@ -36,14 +36,14 @@ import {
   type MetaFieldValueApplyReceipt,
   type MetaProcessExecutionReadReceipt,
   type MetaRuntimeAtomLocator,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 import {
   BULK_VIEWPORT_CAPTURE_METHOD,
   BULK_VIEWPORT_CAPTURE_VERSION,
   type BulkViewportCaptureControlRequest,
   type BulkViewportCaptureControlResponse,
   type BulkViewportCaptureResult,
-} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/capture"
 import {
   isOracleRpcCall,
   isOracleRpcResponse,
@@ -62,33 +62,33 @@ import {
   type OracleChannel,
   type OracleChannelListener,
 } from "shared/transport/oracle"
-import {BoundaryOracle} from "../quantum/boundary/oracle.ts"
-import {open, type BoundaryDatabase} from "../quantum/boundary/sqlite.ts"
-import {BulkViewportCaptureRegistry, type BulkViewportObserverClient} from "../quantum/bulk/capture.ts"
-import {BulkOracle} from "../quantum/bulk/oracle.ts"
-import {bulkStoreCaptureProof} from "../quantum/bulk/store-render.ts"
-import {EnergyCatalogStore} from "../quantum/energy/catalog.ts"
-import {startEnergyProtocol} from "../quantum/energy/energy.ts"
-import {createFilesystemEnergyMassStore, EnergyMassCatalog, EnergyMassGate} from "../quantum/energy/mass.ts"
-import {EnergyMassResultReadService} from "../quantum/energy/oracle/mass-result.ts"
-import type {EnergyForce, EnergyProtocol} from "../types/energy/protocol.ts"
-import {sourceRevision} from "../create-metafor/src/source.ts"
-import {evaluateMetaSource} from "../quantum/dark/load.ts"
-import {readDarkDeclarationProjection} from "../quantum/dark/graph.ts"
-import {DarkForceHistory} from "../quantum/dark/force/history.ts"
-import {ForceLifecycle} from "../quantum/dark/force/lifecycle.ts"
-import {forceDomains, type ForceDomain, type ForceStore} from "../quantum/dark/force/store.ts"
-import {DarkOracle} from "../quantum/dark/oracle.ts"
-import {MetaCreateService} from "../quantum/dark/oracle/create.ts"
-import {DeclarationAuthoringService, type DeclarationAuthoringMetaReader} from "../quantum/dark/oracle/declaration.ts"
-import {DarkForceHistoryReadService} from "../quantum/dark/oracle/history.ts"
-import {MatterAuthoringService} from "../quantum/dark/oracle/matter.ts"
-import {MetaRuntimeRpcService} from "../quantum/dark/oracle/runtime.ts"
-import {MetaAuthoringRegistry, metaAuthoringCapabilitiesForScopes} from "../quantum/dark/oracle/registry.ts"
-import {DarkForceTimeController} from "../quantum/dark/time-control.ts"
-import {createForceTestFixture, type ForceTestFixture} from "../quantum/dark/force/fixture.ts"
-import {prepareMatrixBirth} from "../quantum/matrix/birth.ts"
-import {weak$} from "../quantum/matrix/weak"
+import {BoundaryOracle} from "../boundary/oracle.ts"
+import {open, type BoundaryDatabase} from "../boundary/sqlite.ts"
+import {BulkViewportCaptureRegistry, type BulkViewportObserverClient} from "../bulk/capture.ts"
+import {BulkOracle} from "../bulk/oracle.ts"
+import {bulkStoreCaptureProof} from "../bulk/store-render.ts"
+import {EnergyCatalogStore} from "../energy/catalog.ts"
+import {startEnergyProtocol} from "../energy/energy.ts"
+import {createFilesystemEnergyMassStore, EnergyMassCatalog, EnergyMassGate} from "../energy/mass.ts"
+import {EnergyMassResultReadService} from "../energy/oracle/mass-result.ts"
+import type {EnergyForce, EnergyProtocol} from "../energy/types/protocol.ts"
+import {sourceRevision} from "../../create-metafor/src/source.ts"
+import {evaluateMetaSource} from "../dark/load.ts"
+import {readDarkDeclarationProjection} from "../dark/graph.ts"
+import {DarkForceHistory} from "../dark/force/history.ts"
+import {ForceLifecycle} from "../dark/force/lifecycle.ts"
+import {forceDomains, type ForceDomain, type ForceStore} from "../dark/force/store.ts"
+import {DarkOracle} from "../dark/oracle.ts"
+import {MetaCreateService} from "../dark/oracle/create.ts"
+import {DeclarationAuthoringService, type DeclarationAuthoringMetaReader} from "../dark/oracle/declaration.ts"
+import {DarkForceHistoryReadService} from "../dark/oracle/history.ts"
+import {MatterAuthoringService} from "../dark/oracle/matter.ts"
+import {MetaRuntimeRpcService} from "../dark/oracle/runtime.ts"
+import {MetaAuthoringRegistry, metaAuthoringCapabilitiesForScopes} from "../dark/oracle/registry.ts"
+import {DarkForceTimeController} from "../dark/time-control.ts"
+import {createForceTestFixture, type ForceTestFixture} from "../dark/force/fixture.ts"
+import {prepareMatrixBirth} from "../matrix/birth.ts"
+import {weak$} from "../matrix/weak"
 
 const ROOT = parseMetaAddress("test/agent-session")!
 const AGENT = "agent/local"
@@ -487,7 +487,7 @@ describe("one complete trusted agent RPC session", () => {
       }
     }
 
-    const repositoryRoot = join(import.meta.dir, "..")
+    const repositoryRoot = join(import.meta.dir, "../..")
     const git = Bun.spawn(["git", "rev-parse", "HEAD"], {cwd: repositoryRoot, stdout: "pipe", stderr: "pipe"})
     const gitRevision = (await new Response(git.stdout).text()).trim()
     expect(await git.exited).toBe(0)

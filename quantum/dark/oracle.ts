@@ -13,12 +13,12 @@ import {
   META_DECLARATION_APPLY_METHOD,
   META_MATTER_APPLY_METHOD,
   META_SOURCE_REVISION_READ_METHOD,
-} from "@metafor/types/metafor/authoring"
+} from "shared/protocol/metafor/authoring"
 import type {MatterAuthoringService} from "./oracle/matter.ts"
 import type {DeclarationAuthoringService} from "./oracle/declaration.ts"
 import type {MetaCreateService} from "./oracle/create.ts"
 import type {MetaAuthoringRegistry} from "./oracle/registry.ts"
-import {DARK_FORCE_HISTORY_READ_METHOD} from "@metafor/types/metafor/observation"
+import {DARK_FORCE_HISTORY_READ_METHOD} from "shared/protocol/metafor/observation"
 import type {DarkForceHistoryReadService} from "./oracle/history.ts"
 import {
   META_FIELD_VALUE_APPLY_METHOD,

@@ -1,3 +1,4 @@
+import "@metafor/dsl"
 import {readFile} from "node:fs/promises"
 import {resolve} from "node:path"
 import type {MetaDSL} from "@metafor/types/metafor/schema"

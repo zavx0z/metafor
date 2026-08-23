@@ -12,12 +12,12 @@ import type {
   BoundaryInitialAtom,
   BoundaryInitialDeclaration,
   BoundaryInitialProjectionEntry,
-} from "@metafor/types/boundary/initial"
-import type {BoundaryGraphProjection} from "@metafor/types/boundary/runtime"
+} from "shared/protocol/boundary/initial"
+import type {BoundaryGraphProjection} from "shared/protocol/boundary/runtime"
 import {
   parseMetaRuntimeAtomPointer,
   type MetaRuntimeAtomLocator,
-} from "@metafor/types/metafor/observation"
+} from "shared/protocol/metafor/observation"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
 type RecordValue = Record<string, unknown>

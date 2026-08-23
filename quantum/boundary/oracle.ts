@@ -1,12 +1,12 @@
 import {
   BOUNDARY_INITIAL_PROJECTION_METHOD,
   BOUNDARY_INITIAL_STATE_METHOD,
-} from "@metafor/types/boundary/initial"
+} from "shared/protocol/boundary/initial"
 import {
   BOUNDARY_FIELD_VALUE_PLAN_METHOD,
   BOUNDARY_GRAPH_PROJECTION_METHOD,
   BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
-} from "@metafor/types/boundary/runtime"
+} from "shared/protocol/boundary/runtime"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import type {DomainHealth} from "shared/protocol/oracle/health"
 import {readBoundaryGraphProjection} from "./graph.ts"

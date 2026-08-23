@@ -49,4 +49,20 @@ describe("Dark Meta source addressing", () => {
       delete global[key]
     }
   })
+
+  test("provides the global MetaFor DSL to a Cluster source without an import", async () => {
+    const declaration = await evaluateMetaSource(`
+      export default MetaFor("cluster-global")
+        .fields(() => ({}))
+        .superposition({})
+        .mass(() => ({}))
+        .energy()
+        .processes()
+        .reactions()
+        .matter()
+        .bulk()
+    `)
+
+    expect(declaration.name).toBe("cluster-global")
+  })
 })

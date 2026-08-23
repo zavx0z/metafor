@@ -18,8 +18,8 @@
     "main/index.ts",
     "main/display-dock.ts",
     "server/index.ts",
-    "../../../types/module.d.ts",
-    "../../../types/hot.d.ts"
+    "../../../scripts/types/module.d.ts",
+    "../../../scripts/types/hot.d.ts"
   ],
   "exclude": []
 }

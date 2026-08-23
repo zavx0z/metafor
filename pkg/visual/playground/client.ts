@@ -1,5 +1,5 @@
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
-import type {BulkVisualLayer} from "@metafor/types/bulk/viewport"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
+import type {BulkVisualLayer} from "@bulk/types/viewport"
 import {
   CenteredNested,
   OutsideIn,

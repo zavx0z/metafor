@@ -1,11 +1,11 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import type {
   BulkManifest,
   BulkRenderDarkParticle,
 } from "@metafor/types/bulk/manifest"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
-import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
+import type {BulkVisualRenderManifest} from "@bulk/types/visual"
 import {visualRelationHasSceneGeometry} from "@metafor/visual"
 import {OutsideIn} from "@metafor/visual/layout"
 import snapshotJson from "./fixture/oracle-snapshot.json"

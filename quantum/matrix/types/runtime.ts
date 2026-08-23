@@ -6,7 +6,7 @@ import type {ProcessExecutionId} from "shared/protocol/force/execution"
  *
  * Первый шаг в режиме рождения переводит такой Atom в State с индексом `0`.
  *
- * @see [Undefined входит в первый State](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L155-L175)
+ * @see [Undefined входит в первый State](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/tests/weak.parity.test.ts#L155-L175)
  */
 export const STATE_UNDEFINED = -1
 
@@ -15,7 +15,7 @@ export const STATE_UNDEFINED = -1
  *
  * Такой Atom остаётся адресуемым для Fields, но любой шаг Weak пропускает его.
  *
- * @see [Atom без States сохраняет Fields и не меняет State](https://github.com/zavx0z/metafor/blob/main/matrix/weak/tests/weak.parity.test.ts#L213-L237)
+ * @see [Atom без States сохраняет Fields и не меняет State](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/tests/weak.parity.test.ts#L213-L237)
  */
 export const STATE_NONE = -2
 

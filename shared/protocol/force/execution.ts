@@ -42,7 +42,7 @@ export interface ProcessResultProposal {
  * Только сообщение с совпавшими execution, Process и Energy разрешает Matrix
  * снять lock и выполнить следующий шаг.
  *
- * @see [Matrix ждёт Boundary commit](https://github.com/zavx0z/metafor/blob/main/matrix/matrix.spec.ts#L180-L233)
+ * @see [Matrix ждёт Boundary commit](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/matrix.spec.ts#L180-L233)
  */
 export interface ProcessResultCommit {
   processExecutionId: ProcessExecutionId

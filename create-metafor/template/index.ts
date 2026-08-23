@@ -30,7 +30,7 @@
  * @packageDocumentation
  */
 import { createNode } from "./node"
-import type { NodeType } from "@metafor/types/template/node/index"
+import type { NodeType } from "@metafor/template/types/node/index"
 import { extractHtmlElements } from "./parser.ts"
 import type { Fields } from "@metafor/types/metafor/fields"
 import type { MatterDefinitionParams } from "@metafor/types/metafor/matter"

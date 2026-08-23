@@ -1,7 +1,7 @@
 import type {
   BulkTimeFrame,
   BulkTimeFrameResolution,
-} from "@metafor/types/bulk/hud"
+} from "@bulk/types/hud"
 import type {UiSurfaceRect} from "@ui/elements"
 import type {HudTimelineDocument, HudTimelineMarker} from "@ui/hud"
 

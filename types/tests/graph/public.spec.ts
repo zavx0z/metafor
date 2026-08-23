@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {MetaFor} from "../../index.ts"
+import {MetaFor} from "@metafor/dsl"
 import {
   GRAPH_SCHEMA,
   READ_GRAPH_METHOD,

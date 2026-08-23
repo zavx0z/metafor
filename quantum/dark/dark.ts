@@ -1,4 +1,3 @@
-import "../../index"
 import type {DeclarationPath} from "shared/protocol/force/declaration"
 import type {ForceMessage, ForceMessageInput} from "shared/protocol/force/message"
 import type {Particle, SourcedParticle} from "shared/protocol/force/particle"

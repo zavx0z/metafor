@@ -5,7 +5,7 @@ import {
   type BulkViewportCaptureControlRequest,
   type BulkViewportCaptureControlResponse,
   type BulkViewportCaptureImage,
-} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/capture"
 import {
   BulkViewportCaptureRegistry,
   type BulkViewportObserverClient,

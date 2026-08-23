@@ -1,8 +1,0 @@
-{
-  "entryPoints": ["./src"],
-  "entryPointStrategy": "expand",
-  "out": "../../tmp/typedoc/engine",
-  "excludeExternals": true,
-  "excludePrivate": true,
-  "excludeProtected": true
-}

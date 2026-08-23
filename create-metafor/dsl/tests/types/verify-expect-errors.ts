@@ -1,22 +1,9 @@
 import {readdirSync, readFileSync} from "node:fs"
 import {resolve} from "node:path"
-import ts from "typescript"
+import {API, type Diagnostic, type Snapshot} from "typescript/unstable/async"
 
 const root = resolve(import.meta.dir, "../..")
 const configPath = resolve(root, "tsconfig.json")
-const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
-if (configFile.error) {
-  throw new Error(ts.flattenDiagnosticMessageText(configFile.error.messageText, "\n"))
-}
-
-const parsed = ts.parseJsonConfigFileContent(configFile.config, ts.sys, root)
-if (parsed.errors.length > 0) {
-  throw new Error(ts.formatDiagnostics(parsed.errors, {
-    getCanonicalFileName: (fileName) => fileName,
-    getCurrentDirectory: () => root,
-    getNewLine: () => "\n",
-  }))
-}
 
 const typingFiles = readdirSync(resolve(root, "tests"), {recursive: true})
   .filter((entry): entry is string => typeof entry === "string" && entry.endsWith("typing.spec.ts"))
@@ -25,43 +12,49 @@ const typingFiles = readdirSync(resolve(root, "tests"), {recursive: true})
 
 const sourceByFile = new Map(typingFiles.map((fileName) => [fileName, readFileSync(fileName, "utf8")]))
 const overrideByFile = new Map<string, string>()
-const versionByFile = new Map<string, number>()
-
-const service = ts.createLanguageService({
-  getCompilationSettings: () => parsed.options,
-  getScriptFileNames: () => parsed.fileNames,
-  getScriptVersion: (fileName) => String(versionByFile.get(resolve(fileName)) ?? 0),
-  getScriptSnapshot: (fileName) => {
-    const absolute = resolve(fileName)
-    const text = overrideByFile.get(absolute) ?? ts.sys.readFile(absolute)
-    return text === undefined ? undefined : ts.ScriptSnapshot.fromString(text)
+const api = new API({
+  cwd: root,
+  fs: {
+    readFile(fileName) {
+      return overrideByFile.get(resolve(fileName))
+    },
   },
-  getCurrentDirectory: () => root,
-  getDefaultLibFileName: (options) => ts.getDefaultLibFilePath(options),
-  fileExists: ts.sys.fileExists,
-  readFile: ts.sys.readFile,
-  readDirectory: ts.sys.readDirectory,
-  directoryExists: ts.sys.directoryExists,
-  getDirectories: ts.sys.getDirectories,
 })
 
-const diagnosticsFor = (fileName: string): ts.Diagnostic[] => [
-  ...service.getSyntacticDiagnostics(fileName),
-  ...service.getSemanticDiagnostics(fileName),
-]
+let snapshot: Snapshot = await api.updateSnapshot({openProjects: [configPath]})
 
-const formatDiagnostic = (diagnostic: ts.Diagnostic): string => {
-  const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")
-  if (!diagnostic.file || diagnostic.start === undefined) return `TS${diagnostic.code}: ${message}`
-  const location = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
-  return `${diagnostic.file.fileName}:${location.line + 1}:${location.character + 1} TS${diagnostic.code}: ${message}`
+const project = () => snapshot.getProject(configPath) ?? snapshot.getProjects()[0]
+
+const diagnosticsFor = async (fileName: string): Promise<readonly Diagnostic[]> => {
+  const configured = project()
+  if (!configured) throw new Error("Strict typing project was not opened")
+  return [
+    ...await configured.program.getSyntacticDiagnostics(fileName),
+    ...await configured.program.getSemanticDiagnostics(fileName),
+  ]
+}
+
+const updateFile = async (fileName: string): Promise<void> => {
+  const previous = snapshot
+  snapshot = await api.updateSnapshot({fileChanges: {changed: [fileName]}})
+  await previous.dispose()
+}
+
+const formatDiagnostic = (diagnostic: Diagnostic): string => {
+  if (!diagnostic.fileName) return `TS${diagnostic.code}: ${diagnostic.text}`
+  const source = overrideByFile.get(resolve(diagnostic.fileName)) ??
+    sourceByFile.get(resolve(diagnostic.fileName)) ??
+    readFileSync(diagnostic.fileName, "utf8")
+  const prefix = source.slice(0, diagnostic.pos)
+  const lines = prefix.split(/\r?\n/)
+  return `${diagnostic.fileName}:${lines.length}:${(lines.at(-1)?.length ?? 0) + 1} TS${diagnostic.code}: ${diagnostic.text}`
 }
 
 const proof: Array<{file: string; line: number; diagnostics: number[]}> = []
 
 for (const fileName of typingFiles) {
   const source = sourceByFile.get(fileName)!
-  const baseline = diagnosticsFor(fileName)
+  const baseline = await diagnosticsFor(fileName)
   if (baseline.length > 0) {
     throw new Error(`Type-test baseline is not clean:\n${baseline.map(formatDiagnostic).join("\n")}`)
   }
@@ -72,11 +65,11 @@ for (const fileName of typingFiles) {
     const text = directive[0]
     const mutated = `${source.slice(0, start)}${" ".repeat(text.length)}${source.slice(start + text.length)}`
     overrideByFile.set(fileName, mutated)
-    versionByFile.set(fileName, (versionByFile.get(fileName) ?? 0) + 1)
+    await updateFile(fileName)
 
-    const diagnostics = diagnosticsFor(fileName)
+    const diagnostics = await diagnosticsFor(fileName)
     overrideByFile.delete(fileName)
-    versionByFile.set(fileName, (versionByFile.get(fileName) ?? 0) + 1)
+    await updateFile(fileName)
 
     const line = source.slice(0, start).split(/\r?\n/).length
     if (diagnostics.length === 0) {
@@ -91,5 +84,8 @@ for (const fileName of typingFiles) {
 }
 
 if (proof.length === 0) throw new Error("No @ts-expect-error directives found in strict typing suites")
+
+await snapshot.dispose()
+await api.close()
 
 process.stdout.write(`${JSON.stringify({schema: "metafor/type-expect-error-proof@1", ok: true, count: proof.length, proof}, null, 2)}\n`)

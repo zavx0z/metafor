@@ -1,5 +1,5 @@
 import { Text } from "@metafor/engine"
-import type { CreateSurfaceLabelOptions, FontMetrics, SurfaceLabel, TextExtents } from "@metafor/types/bulk/text"
+import type { CreateSurfaceLabelOptions, FontMetrics, SurfaceLabel, TextExtents } from "@bulk/types/text"
 import { getFontMetrics } from "./font-metrics"
 import { resolveTextExtents } from "./extents"
 import { resolveSurfaceFitScale } from "./fit"

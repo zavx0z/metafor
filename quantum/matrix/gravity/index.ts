@@ -4,7 +4,7 @@
  * Этот слой разбирает Conditions, сохраняет объявленный порядок Transitions и
  * выпускает плоские записи без выполнения переходов.
  *
- * @see [Пустая запись не сдвигает следующий Transition](https://github.com/zavx0z/metafor/blob/main/matrix/tests/superposition.spec.ts#L135-L161)
+ * @see [Пустая запись не сдвигает следующий Transition](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/tests/superposition.spec.ts#L135-L161)
  *
  * @packageDocumentation
  */

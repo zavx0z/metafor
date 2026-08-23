@@ -1,10 +1,10 @@
 import {expect, setDefaultTimeout, test} from "bun:test"
-import {existsSync} from "node:fs"
+import {existsSync, realpathSync} from "node:fs"
 import {mkdtemp, readdir, rm, symlink} from "node:fs/promises"
 import {dirname, join, relative} from "node:path"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
-import * as ts from "typescript"
+import {parseSync} from "oxc-parser"
 import {
   buildablePackage,
   packageBuildCommand,
@@ -219,7 +219,7 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
   ])
 
   expect(rootPackage.scripts?.typecheck).toBe(
-    "bun run --filter @cosmos/startup typecheck && bun run --filter @cosmos/release typecheck && bun run --filter @internal/visual typecheck && tsc --project cosmos/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
+    "bun run --filter @metafor/dsl typecheck && bun run --filter @metafor/template typecheck && bun run --filter @internal/supervisor typecheck && bun run --filter @cosmos/startup typecheck && bun run --filter @cosmos/release typecheck && bun run --filter @internal/visual typecheck && tsc --project cosmos/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
   )
   expect(rootConfig).toContain('"cosmos/release/**/*"')
   expect(rootConfig).toContain('"cosmos/startup/**/*"')
@@ -470,8 +470,8 @@ async function typecheckPackageEnvironment(
       },
       files: [
         sourcePath,
-        join(repository, "types/module.d.ts"),
-        join(repository, "types/hot.d.ts"),
+        join(repository, "scripts/types/module.d.ts"),
+        join(repository, "scripts/types/hot.d.ts"),
       ],
       include: [],
       exclude: [],
@@ -513,25 +513,7 @@ async function sourceFiles(root: string): Promise<string[]> {
 
 async function readTypeReexports(path: string) {
   const source = await Bun.file(path).text()
-  const tree = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  const importedTypes = new Map<string, string>()
-
-  for (const statement of tree.statements) {
-    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue
-    const clause = statement.importClause
-    if (!clause) continue
-    if (clause.name && clause.isTypeOnly) importedTypes.set(clause.name.text, statement.moduleSpecifier.text)
-    const bindings = clause.namedBindings
-    if (bindings && ts.isNamespaceImport(bindings) && clause.isTypeOnly)
-      importedTypes.set(bindings.name.text, statement.moduleSpecifier.text)
-    if (bindings && ts.isNamedImports(bindings)) {
-      for (const element of bindings.elements) {
-        if (clause.isTypeOnly || element.isTypeOnly)
-          importedTypes.set(element.name.text, statement.moduleSpecifier.text)
-      }
-    }
-  }
-
+  const module = parseSync(path, source).module
   const owner = await nearestPackage(path)
   const violations: Array<{
     file: string
@@ -539,24 +521,13 @@ async function readTypeReexports(path: string) {
     sourceOwner: string
     targetOwner: string
   }> = []
-  for (const statement of tree.statements) {
-    if (!ts.isExportDeclaration(statement)) continue
-    const specifiers = new Set<string>()
-    if (statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) {
-      const clause = statement.exportClause
-      if (
-        !clause
-        || ts.isNamespaceExport(clause)
-        || statement.isTypeOnly
-        || clause.elements.some((element) => element.isTypeOnly)
-      ) specifiers.add(statement.moduleSpecifier.text)
-    } else if (statement.exportClause && ts.isNamedExports(statement.exportClause)) {
-      for (const element of statement.exportClause.elements) {
-        const imported = importedTypes.get(element.propertyName?.text ?? element.name.text)
-        if (imported) specifiers.add(imported)
-      }
-    }
-
+  for (const exported of module.staticExports) {
+    const specifiers = new Set(exported.entries.flatMap((entry) =>
+      entry.moduleRequest !== null &&
+      (entry.isType || entry.importName.kind === "AllButDefault")
+        ? [entry.moduleRequest.value]
+        : []
+    ))
     for (const specifier of specifiers) {
       const target = resolveModule(specifier, path)
       if (!target) throw new Error(`Cannot resolve ${specifier} from ${relative(cosmos, path)}`)
@@ -564,7 +535,7 @@ async function readTypeReexports(path: string) {
       if (owner.path === targetOwner.path) continue
       violations.push({
         file: relative(cosmos, path),
-        line: tree.getLineAndCharacterOfPosition(statement.getStart(tree)).line + 1,
+        line: source.slice(0, exported.start).split(/\r?\n/).length,
         sourceOwner: owner.name,
         targetOwner: targetOwner.name,
       })
@@ -574,13 +545,11 @@ async function readTypeReexports(path: string) {
 }
 
 function resolveModule(specifier: string, containingFile: string) {
-  return ts.resolveModuleName(specifier, containingFile, {
-    allowImportingTsExtensions: true,
-    customConditions: ["cosmos:server", "internal:server"],
-    module: ts.ModuleKind.ESNext,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    target: ts.ScriptTarget.ESNext,
-  }, ts.sys).resolvedModule?.resolvedFileName
+  try {
+    return Bun.resolveSync(specifier, dirname(containingFile))
+  } catch {
+    return undefined
+  }
 }
 
 async function nearestPackage(path: string) {
@@ -590,7 +559,7 @@ async function nearestPackage(path: string) {
     if (existsSync(manifest)) {
       const value = await Bun.file(manifest).json() as {name?: unknown}
       if (typeof value.name !== "string") throw new Error(`Package name is missing in ${manifest}`)
-      return {name: value.name, path: manifest}
+      return {name: value.name, path: realpathSync(manifest)}
     }
     const parent = dirname(directory)
     if (parent === directory) break

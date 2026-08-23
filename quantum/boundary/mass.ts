@@ -1,6 +1,6 @@
 import type {SQL, ReservedSQL} from "bun"
 import type {MetaMassDSL} from "@metafor/types/metafor/schema"
-import {MassCatalog, type MassFileFormat} from "shared/mass.ts"
+import {MassCatalog, type MassFileFormat} from "../../shared/mass.ts"
 
 export type Database = SQL | ReservedSQL
 

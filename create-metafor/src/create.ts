@@ -9,7 +9,7 @@ import {
   rename,
 } from "node:fs/promises"
 import {dirname, relative, resolve, sep} from "node:path"
-import type {MetaSourceRevision} from "@metafor/types/metafor/authoring"
+import type {MetaSourceRevision} from "shared/protocol/metafor/authoring"
 import {sourceRevision} from "./source.ts"
 import {
   validateMetaPackageTemplate,

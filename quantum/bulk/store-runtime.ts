@@ -9,7 +9,7 @@ import {
   BULK_STORE_QUANTUM_MATERIAL_STRIDE,
   type BulkStore,
   type BulkStoreNumericArray,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import {
   visualCausalMaterial,
   visualConditionFieldMaterial,
@@ -55,7 +55,7 @@ import type {
   BulkRuntimeField,
   BulkRuntimeState,
   BulkRuntimeTransition,
-} from "@metafor/types/bulk/runtime"
+} from "@bulk/types/projection"
 import {
   resolveCanonicalForceFieldsPayload,
   resolveForceFieldId,

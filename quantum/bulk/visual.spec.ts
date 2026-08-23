@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import {
   GRAPH_SCHEMA,
   parseMetaAddress,
@@ -9,7 +9,7 @@ import type {
   BulkReadyVisualRenderManifest,
   BulkVisualRenderManifest,
   BulkVisualRenderPatch,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 import {visualLayoutBuiltScenes} from "@metafor/visual/payload"
 import type {Particle} from "shared/protocol/force/particle"
 import snapshotJson from "./fixture/oracle-snapshot.json"

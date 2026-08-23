@@ -2,12 +2,12 @@ import {
 	BULK_VIEWPORT_CAPTURE_VERSION,
 	isBulkViewportCaptureControlRequest,
 	type BulkViewportCaptureControlResponse,
-} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/capture"
 import { Force } from "shared/transport/force"
 import {
 	createBulkViewport,
 	type BulkVisualViewportWithHud,
-} from "web"
+} from "./web/index.ts"
 import { installBulkHud } from "./hud.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
 import {BulkPresentedStoreProof} from "./web/observer-snapshot.ts"

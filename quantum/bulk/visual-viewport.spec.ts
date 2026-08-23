@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
-import type {BulkVisualRenderManifest} from "@metafor/types/bulk/visual"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
+import type {BulkVisualRenderManifest} from "@bulk/types/visual"
 import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"
 import {BulkProjectionStore} from "./projection.ts"

@@ -1,12 +1,12 @@
 import {describe, expect, test} from "bun:test"
 import {readFileSync} from "node:fs"
-import type {BoundaryInitialProjectionEntry} from "@metafor/types/boundary/initial"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
-import type {BulkRuntimeProjection} from "@metafor/types/bulk/runtime"
+import type {BoundaryInitialProjectionEntry} from "shared/protocol/boundary/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
+import type {BulkRuntimeProjection} from "@bulk/types/projection"
 import {
   BULK_STORE_LAYOUT_OUTSIDE_IN,
   type BulkStore,
-} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/store"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildDirectBulkStore} from "./store-direct.ts"

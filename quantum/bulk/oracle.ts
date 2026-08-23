@@ -1,13 +1,13 @@
 import {
   BOUNDARY_INITIAL_PROJECTION_METHOD,
   type BoundaryInitialProjection,
-} from "@metafor/types/boundary/initial"
+} from "shared/protocol/boundary/initial"
 import {
   DARK_BULK_VIEWPORT_CAPTURE_METHOD,
   type DarkBulkViewportCaptureRequest,
-} from "@metafor/types/bulk/browser"
-import {BULK_VIEWPORT_CAPTURE_METHOD} from "@metafor/types/bulk/capture"
-import type {BulkStore, BulkStoreInitial} from "@metafor/types/bulk/store"
+} from "shared/protocol/bulk/browser"
+import {BULK_VIEWPORT_CAPTURE_METHOD} from "shared/protocol/bulk/capture"
+import type {BulkStore, BulkStoreInitial} from "shared/protocol/bulk/store"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import type {DomainHealth} from "shared/protocol/oracle/health"

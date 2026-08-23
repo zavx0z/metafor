@@ -4,7 +4,7 @@ import {
   type BulkViewportCaptureControlRequest,
   type BulkViewportCaptureBrowserFailure,
   type BulkViewportCaptureBrowserResult,
-} from "@metafor/types/bulk/capture"
+} from "shared/protocol/bulk/capture"
 
 export type BulkViewportCaptureSource = {
   observerId: string

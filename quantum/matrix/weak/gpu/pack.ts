@@ -81,7 +81,7 @@ export function createPackContext(
  * `false`, пустая строка, первый Variant и пустой массив не совпадают с
  * `null`.
  *
- * @see [Отсутствующий и пустой массив](https://github.com/zavx0z/metafor/blob/main/matrix/weak/gpu/pack.spec.ts)
+ * @see [Отсутствующий и пустой массив](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/gpu/pack.spec.ts)
  */
 export function encodeValue(value: MatrixValue, ctx: GpuPackContext): MatrixEncodedValueResult {
   if (value === null) {

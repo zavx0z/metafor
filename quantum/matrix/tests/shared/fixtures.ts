@@ -1,5 +1,5 @@
-import type {BoundaryInitialState} from "@metafor/types/boundary/initial"
-import {weak$} from "weak"
+import type {BoundaryInitialState} from "shared/protocol/boundary/initial"
+import {weak$} from "@matrix/weak"
 import {prepareMatrixBirth} from "../../birth.ts"
 import {initializeIncrementalMatrixIndexes} from "../../incremental.ts"
 

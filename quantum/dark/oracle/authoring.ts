@@ -1,5 +1,5 @@
 import {createHash} from "node:crypto"
-import type {MetaAuthoringRequestDigest} from "@metafor/types/metafor/authoring"
+import type {MetaAuthoringRequestDigest} from "shared/protocol/metafor/authoring"
 
 const canonicalJson = (value: unknown): string => {
   if (value === null) return "null"

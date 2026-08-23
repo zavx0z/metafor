@@ -13,13 +13,13 @@ import {validateGraph} from "@metafor/types/metafor/graph"
 import type {
   BulkProjectionDeclaration,
   BulkProjectionSnapshot,
-} from "@metafor/types/bulk/initial"
+} from "@bulk/types/initial"
 import type {
   BulkRuntimeMatterParticle,
   BulkRuntimeProcess,
   BulkRuntimeProjection,
   BulkRuntimeValue,
-} from "@metafor/types/bulk/runtime"
+} from "@bulk/types/projection"
 
 const clone = <T>(value: T): T => structuredClone(value)
 

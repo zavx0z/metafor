@@ -10,7 +10,7 @@
  * - atoms: Map<uuid, AtomRecord> — основное хранилище записей
  */
 
-import type { BulkAtomRecord } from "@metafor/types/bulk/weak"
+import type { BulkAtomRecord } from "@bulk/types/weak"
 import { appendChild, removeChild, getChildren, resetGraphStore } from "./graph"
 
 // Состояние модуля

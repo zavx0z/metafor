@@ -5,7 +5,7 @@ import {
   type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
-import type {MassFileFormat} from "shared/mass.ts"
+import type {MassFileFormat} from "../../shared/mass.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 
 const digestPattern = /^[0-9a-f]{64}$/

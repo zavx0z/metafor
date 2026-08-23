@@ -1,10 +1,10 @@
 import {describe, expect, test} from "bun:test"
-import type {BulkObserverSnapshot} from "@metafor/types/bulk/initial"
+import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import type {BulkManifest} from "@metafor/types/bulk/manifest"
 import type {
   BulkVisualRenderManifest,
   BulkVisualRenderPatch,
-} from "@metafor/types/bulk/visual"
+} from "@bulk/types/visual"
 import {CenteredNested, OutsideIn} from "@metafor/visual/layout"
 import snapshotJson from "./fixture/oracle-snapshot.json"
 import {buildBulkManifestation} from "./manifestation.ts"

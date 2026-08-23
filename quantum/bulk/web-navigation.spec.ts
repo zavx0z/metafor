@@ -19,7 +19,7 @@ import {
   resolveBulkViewportFitPose,
   resolveBulkViewportFocusPose,
 } from "./web-navigation.ts"
-import type { BulkPickTarget } from "@metafor/types/bulk/viewport"
+import type { BulkPickTarget } from "@bulk/types/viewport"
 
 describe("bulk web navigation", () => {
   test("hover выбирает самый глубокий Dark particle среди всех попавших под луч", () => {
