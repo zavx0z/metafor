@@ -47,5 +47,5 @@ export async function getPackage(request: Request) {
 
 function debug(event: string, details: unknown) {
   if (Bun.env.NODE_ENV === "development")
-    console.debug("[@hamiltonian/release:server:delivery]", event, details)
+    console.debug("[@cosmos/release:server:delivery]", event, details)
 }
