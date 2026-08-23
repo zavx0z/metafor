@@ -1,6 +1,9 @@
 {
   "name": "fixture",
   "private": true,
+  "dependencies": {
+    "@matrix/types": "workspace:*"
+  },
   "peerDependencies": {
     "typescript": "^5"
   }
