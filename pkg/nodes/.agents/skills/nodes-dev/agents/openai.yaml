@@ -1,4 +1,4 @@
 interface:
   display_name: "Nodes Development"
-  short_description: "Develop and verify the parent nodes playground"
-  default_prompt: "Use $nodes-dev to develop and verify the parent nodes runtime playground without taking browser focus."
+  short_description: "Develop and verify all Nodes playgrounds"
+  default_prompt: "Use $nodes-dev to select and verify the root, layout, or UI Nodes playground without crossing package ownership."

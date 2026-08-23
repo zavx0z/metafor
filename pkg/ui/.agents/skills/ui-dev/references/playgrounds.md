@@ -10,16 +10,16 @@ The executable registry is `scripts/playgrounds.json`.
 | Selector | Package contour | Origin | Ready and canvas capability |
 | --- | --- | --- | --- |
 | `nodes` | parent runtime consumer `@nodes/playground`, `pkg/nodes/playground` | `http://127.0.0.1:4018` | `nodesPlayground=ready`, WebGPU canvas, touch, pathname routes; lifecycle belongs `$nodes-dev` |
-| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, pathname routes |
+| `node-layout` | `@nodes/layout`, `pkg/nodes/layout` | `http://127.0.0.1:4015` | `nodesLayoutPlayground=ready`, SVG/HMR, no canvas; lifecycle belongs `$nodes-dev` |
+| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, pathname routes; lifecycle belongs `$nodes-dev` |
 | `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, pathname routes |
 | `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, pathname routes |
 | `elements` | `@ui/elements`, `pkg/ui/elements` | `http://127.0.0.1:7901` | `elementsPlayground=ready`, WebGPU canvas, pathname routes |
 
-`@nodes/layout` is intentionally not a `ui-dev` selector because its independent
-package-local playground is a plain SVG solver tool, not a shared WebGPU shell.
-Run it through `bun run nodes:layout:playground` on port `4015` and verify it
-with its focused package tests. Root `nodes` separately owns the parent WebGPU
-runtime playground through `$nodes-dev`; neither playground replaces the other.
+The three Node selectors are registered here only so `$nodes-dev` can reuse the
+same exact process and background-target implementation. Enter their workflow
+through `$nodes-dev --playground root|layout|ui`; parent, SVG solver and UI
+catalog remain independent package contours.
 
 ## Lifecycle and ownership
 
@@ -52,14 +52,12 @@ ready marker, canvas capability, state key, PID and log from the registry. An
 unowned listener returns a typed `foreign` outcome and remains untouched.
 Elements uses the same exact package ownership and singleton target rules.
 
-### No-HMR source freshness gate
+### Source freshness gate
 
-All maintained selectors are no-HMR by design. HMR is not accepted evidence for
-this package architecture: it can replace only part of a split graph, preserve
-stale retained/runtime state, bypass a changed manifest/export, and leave the
-existing document on a different source boundary than its server. A successful
-fresh build proves current disk resolution only; a healthy/reused process and a
-browser reload do not prove that process compiled the same graph.
+WebGPU selectors are no-HMR by design. `node-layout` keeps HMR for package-local
+SVG iteration, but HMR is never final evidence: it can preserve stale state or
+load only part of a changed graph. A final proof after source changes therefore
+restarts and reloads the exact selected contour in both modes.
 
 Use this decision table after a stable scoped source checkpoint:
 
@@ -68,7 +66,8 @@ Use this decision table after a stable scoped source checkpoint:
 | `pkg/ui/elements` production, exports or manifest | `elements`, `components`, `node-ui`, `nodes`, and every running shared fixture importer |
 | `pkg/ui/components` production, exports or manifest | `components`, `node-ui`, `nodes`, and every running shared fixture importer |
 | root `pkg/nodes` runtime, projection contract or exports | `nodes` |
-| `pkg/nodes/layout` production, exports or manifest | `nodes` |
+| `pkg/nodes/layout` production, exports or manifest | `node-layout` and `nodes` |
+| package-owned layout playground source | `node-layout` |
 | `pkg/nodes/ui` production | `node-ui` and `nodes` |
 | package-owned Node UI stories | `node-ui` |
 | parent `pkg/nodes/playground` source | `nodes` |
@@ -86,8 +85,9 @@ consumer as affected instead of assuming freshness.
 After every restart, resolve the existing singleton target and run explicit
 `reload --target-id ... --route ...`. This is mandatory even if the target URL
 already matches: same-URL navigation may leave the previous document loaded.
-Then prove DOM ready plus exact route/source/args, console `0`, and non-black
-canvas. Report new PID/processStart, target ID, route and source checkpoint.
+Then prove DOM ready plus exact route/source/args and console `0`. A non-black
+canvas is additionally required only when the selector advertises a WebGPU
+canvas; `node-layout` instead proves its successful SVG readiness marker.
 
 Do not restart an owner-visible contour while source is an unfinished atomic
 patch merely to preview it. A deliberate RED diagnosis of dirty source must be

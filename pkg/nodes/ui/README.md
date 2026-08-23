@@ -65,6 +65,7 @@ panels выполняется только общими `flexRow`/`flexColumn`/`
 
 ```bash
 bun run nodes:components
+pkg/nodes/.agents/skills/nodes-dev/scripts/nodes-dev.sh ensure "$PWD" --playground ui
 ```
 
 Dev-only playground использует public `@ui/playground` и разделяет nested path
@@ -76,6 +77,10 @@ Blender reference и одну representative live Node. Standalone universal fie
 На mobile breakpoint остаётся только активный preview. NodeEditor поддерживает
 single-touch pan и two-touch pinch; overview LOD скрывает только детали controls,
 не меняя NodeTree или renderer identity.
+
+Lifecycle и background browser evidence component catalog маршрутизирует
+`$nodes-dev` через общий exact selector `node-ui`; второй UI process не
+создаётся.
 
 Полный runtime-путь `NodeTree → projection → NodeEditor` принадлежит parent
 playground `bun run nodes:playground`; component catalog не подменяет его.

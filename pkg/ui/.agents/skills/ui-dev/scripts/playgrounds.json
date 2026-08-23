@@ -18,6 +18,23 @@
       "stateKey": "nodes",
       "logName": "nodes.log"
     },
+    "node-layout": {
+      "supported": true,
+      "package": "@nodes/layout",
+      "cwd": "pkg/nodes/layout",
+      "command": ["bun", "playground/server.ts"],
+      "host": "127.0.0.1",
+      "hostEnv": "NODES_LAYOUT_PLAYGROUND_HOST",
+      "port": 4015,
+      "portEnv": "NODES_LAYOUT_PLAYGROUND_PORT",
+      "origin": "http://127.0.0.1:4015",
+      "httpMarker": "<title>@nodes/layout</title>",
+      "ready": {"kind": "dataset", "name": "nodesLayoutPlayground", "value": "ready"},
+      "canvas": {"selector": "#svg-view svg", "capability": "none", "touch": false},
+      "routes": {"default": "/"},
+      "stateKey": "node-layout",
+      "logName": "node-layout.log"
+    },
     "node-ui": {
       "supported": true,
       "package": "@nodes/ui",

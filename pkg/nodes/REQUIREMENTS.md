@@ -94,7 +94,9 @@ contracts — [`@nodes/ui`](ui/REQUIREMENTS.md).
    сохраняются.
 7. `nodes`, `@nodes/layout` и `@nodes/ui` сохраняют независимые package-owned
    playground. Parent integration playground дополняет package-local стенды,
-   но не заменяет и не удаляет их.
+   но не заменяет и не удаляет их. `$nodes-dev` маршрутизирует public names
+   `root | layout | ui` к их exact shared selectors и не создаёт параллельные
+   package processes.
 
 ## Parent playground
 

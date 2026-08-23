@@ -56,7 +56,7 @@ describe("ui-dev registry", () => {
         routes?: {default: string}
       }>
     }
-    expect(Object.keys(registry.selectors).sort()).toEqual(["components", "elements", "node-ui", "nodes", "ui-fixture"])
+    expect(Object.keys(registry.selectors).sort()).toEqual(["components", "elements", "node-layout", "node-ui", "nodes", "ui-fixture"])
     expect(registry.selectors.nodes).toMatchObject({
       supported: true,
       package: "@nodes/playground",
@@ -73,6 +73,23 @@ describe("ui-dev registry", () => {
       canvas: {capability: "webgpu"},
       routes: {default: "/editor/scene"},
       httpMarker: "<title>@nodes/ui</title>",
+    })
+    expect(registry.selectors["node-layout"]).toEqual({
+      supported: true,
+      package: "@nodes/layout",
+      cwd: "pkg/nodes/layout",
+      command: ["bun", "playground/server.ts"],
+      host: "127.0.0.1",
+      hostEnv: "NODES_LAYOUT_PLAYGROUND_HOST",
+      port: 4015,
+      portEnv: "NODES_LAYOUT_PLAYGROUND_PORT",
+      origin: "http://127.0.0.1:4015",
+      httpMarker: "<title>@nodes/layout</title>",
+      ready: {kind: "dataset", name: "nodesLayoutPlayground", value: "ready"},
+      canvas: {selector: "#svg-view svg", capability: "none", touch: false},
+      routes: {default: "/"},
+      stateKey: "node-layout",
+      logName: "node-layout.log",
     })
     expect(registry.selectors.components).toMatchObject({
       supported: true,
@@ -92,8 +109,6 @@ describe("ui-dev registry", () => {
       routes: {default: "/div"},
       httpMarker: "<title>@ui/elements</title>",
     })
-    expect(registry.selectors["node-layout"]).toBeUndefined()
-
     const port = await freePort()
     const result = await run("status", "elements", port, await stateRoot())
     expect(result.exitCode).toBe(0)
@@ -111,12 +126,15 @@ describe("ui-dev registry", () => {
       selectors: Record<string, {routes?: {default: string}}>
     }
     const nodeRoutes = registry.selectors["node-ui"]!.routes!
+    const layoutRoutes = registry.selectors["node-layout"]!.routes!
     const parentNodeRoutes = registry.selectors.nodes!.routes!
     const componentRoutes = registry.selectors.components!.routes!
     const elementRoutes = registry.selectors.elements!.routes!
 
     expect(playgroundTargetUrl("http://127.0.0.1:4018", parentNodeRoutes.default))
       .toBe("http://127.0.0.1:4018/node-tree/runtime/live")
+    expect(playgroundTargetUrl("http://127.0.0.1:4015", layoutRoutes.default))
+      .toBe("http://127.0.0.1:4015/")
     expect(playgroundTargetUrl("http://127.0.0.1:4016", nodeRoutes.default))
       .toBe("http://127.0.0.1:4016/editor/scene")
     expect(playgroundTargetUrl("http://127.0.0.1:4016", "/socket/types"))
@@ -161,6 +179,8 @@ describe("ui-dev registry", () => {
     expect(source).toMatch(/async function awaitCanvasRendererActivity[\s\S]*await setFocusEmulation\(cdp, true\)[\s\S]*finally \{[\s\S]*await setFocusEmulation\(cdp, false\)/)
     expect(source).toContain('("Performance.getMetrics")')
     expect(source).toContain('("Runtime.getHeapUsage")')
+    expect(source).toContain('config.canvas.capability === "none"')
+    expect(source).toContain("this playground has no canvas")
   })
 
   test("keeps interaction plans data-only, exact-target and evidence fail-closed", async () => {

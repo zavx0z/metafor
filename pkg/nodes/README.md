@@ -59,8 +59,9 @@ NodeEditor`, изменение значения через тот же живо
 визуальные компоненты. Playground каждого package дополняет соседние и не
 заменяется parent playground.
 
-Lifecycle и background browser evidence parent contour принадлежат skill
-[`$nodes-dev`](.agents/skills/nodes-dev/SKILL.md).
+Lifecycle и background browser evidence всех трёх contours принадлежат skill
+[`$nodes-dev`](.agents/skills/nodes-dev/SKILL.md), который выбирает их через
+`--playground root|layout|ui` без дублирования package processes.
 
 ## Проверка
 

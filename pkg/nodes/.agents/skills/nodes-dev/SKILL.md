@@ -1,69 +1,78 @@
 ---
 name: nodes-dev
-description: "Develop and verify the root MetaFor nodes runtime, its NodeTree projections, and the parent WebGPU playground through an exact package-owned lifecycle and background browser target. Use ui-dev for the separate @nodes/ui component catalog; @nodes/layout retains its own package-local SVG playground and focused tests."
+description: "Develop and verify all three MetaFor Nodes package playgrounds: root NodeTree runtime, @nodes/layout SVG solver, and @nodes/ui WebGPU components. Use for NodeTree, projection, layout, routing, and Node Editor package work; use metafor-dev for Hamiltonian or product integration."
 ---
 
 # Nodes development
 
 Work in the checkout supplied for the task. Preserve its branch or detached
-`HEAD`, unrelated changes, listeners and browser targets. This skill owns only
-the root `nodes` package and its parent playground; it does not own Hamiltonian,
-the separate `@nodes/ui` catalog, or the package-local `@nodes/layout` SVG
-playground. Parent lifecycle never replaces either package playground.
+`HEAD`, unrelated changes, listeners and browser targets. Every package keeps
+its own playground; the root integration contour never replaces layout or UI.
+Pass the exact checkout root as `$PWD` to every wrapper.
 
-Before changing the runtime contract, read `docs/README.md`,
-`pkg/nodes/README.md`, `pkg/nodes/REQUIREMENTS.md`, public types and focused
-tests. A new law is written in the owning requirements before its types and
-implementation.
+Before changing a contract, read `docs/README.md`, the affected package
+requirements, public types and focused tests. A new law is written in the
+owning requirements before its types and implementation.
+
+## Select owning contour evidence
+
+| Playground | Public name | Shared selector | Origin | Presentation |
+| --- | --- | --- | --- | --- |
+| root `nodes` | `root` | `nodes` | `127.0.0.1:4018` | no-HMR WebGPU runtime |
+| `@nodes/layout` | `layout` | `node-layout` | `127.0.0.1:4015` | HMR HTML/SVG solver |
+| `@nodes/ui` | `ui` | `node-ui` | `127.0.0.1:4016` | no-HMR WebGPU catalog |
+
+Omitting `--playground` remains backward-compatible and selects `root`.
+Story-only work usually needs one contour. Production layout or Node UI changes
+also require the integrated `root` contour after their package-local proof.
+
+- For root NodeTree/projection work, read
+  [references/root-runtime.md](references/root-runtime.md).
+- For fixed/adaptive solver, routing or SVG work, read
+  [references/layout-svg.md](references/layout-svg.md).
+- For NodeEditor, renderer or component-story work, read
+  [references/node-ui.md](references/node-ui.md).
 
 ## Lifecycle
 
-Use the fixed parent contour through the package-owned wrappers:
+Use one wrapper for all three contours:
 
 ```bash
 SKILL=pkg/nodes/.agents/skills/nodes-dev
-"$SKILL/scripts/nodes-dev.sh" status  "$PWD"
-"$SKILL/scripts/nodes-dev.sh" ensure  "$PWD"
-"$SKILL/scripts/nodes-dev.sh" restart "$PWD"
-"$SKILL/scripts/nodes-dev.sh" logs    "$PWD"
-"$SKILL/scripts/nodes-dev.sh" health  "$PWD"
-"$SKILL/scripts/nodes-dev.sh" stop    "$PWD"
+"$SKILL/scripts/nodes-dev.sh" status  "$PWD" --playground root
+"$SKILL/scripts/nodes-dev.sh" ensure  "$PWD" --playground layout
+"$SKILL/scripts/nodes-dev.sh" restart "$PWD" --playground ui
 ```
 
-Run `ensure` before the first lifecycle or browser operation. `ensure`, `start`
-and `restart` may remain foreground owners of the exact Bun child, so keep them
-in a long-lived PTY. The shared dispatcher verifies checkout, command, listener,
-PID, HTTP marker and process start; it never adopts or stops a foreign process.
+Read-only `status` may run first. Run `ensure` before the first start/restart or
+browser operation. `ensure`, `start` and `restart` may remain foreground owners
+of the exact Bun child, so retain their long-lived PTY. All names delegate to
+the same shared exact dispatcher; `ui` therefore reuses the existing `node-ui`
+PID/state instead of duplicating it. Foreign listeners are preserved.
 
-The playground is intentionally no-HMR. After changing runtime source,
-projection adapters, the parent playground entry, package exports or shared UI
-dependencies, finish a stable scoped patch, restart this contour, and explicitly
-reload its existing browser target before collecting evidence.
+Root and UI are no-HMR. Layout keeps HMR for iteration, but final evidence after
+source changes still requires an exact restart and reload. A production layout
+change requires local `layout` proof and fresh integrated `root` proof; a
+production Node UI change requires fresh `ui` and `root` proof.
 
 ## Browser evidence
 
-Use the package wrapper; it fixes selector `nodes` and delegates to the shared
-background-only CDP implementation:
+The browser wrapper accepts the same `--playground` flag immediately after the
+checkout and remains background-only:
 
 ```bash
-bun "$SKILL/scripts/nodes-browser.ts" targets "$PWD"
-bun "$SKILL/scripts/nodes-browser.ts" open "$PWD" --route /node-tree/runtime/live
-bun "$SKILL/scripts/nodes-browser.ts" reload "$PWD" \
-  --route /node-tree/runtime/live --target-id "$target_id"
-bun "$SKILL/scripts/nodes-browser.ts" dom "$PWD" \
-  --route /node-tree/runtime/live --target-id "$target_id"
-bun "$SKILL/scripts/nodes-browser.ts" console "$PWD" \
-  --route /node-tree/runtime/live --target-id "$target_id"
-bun "$SKILL/scripts/nodes-browser.ts" canvas "$PWD" \
-  --route /node-tree/runtime/live --target-id "$target_id" \
-  --output /tmp/nodes-runtime.png
+bun "$SKILL/scripts/nodes-browser.ts" open "$PWD" --playground root
+bun "$SKILL/scripts/nodes-browser.ts" dom "$PWD" --playground layout
+bun "$SKILL/scripts/nodes-browser.ts" canvas "$PWD" --playground ui \
+  --output /tmp/node-ui.png
 ```
 
-One origin owns at most one stable target. Never focus a window, create a new
-target when one already exists, or close an unknown duplicate. Exact DOM state,
-console `0`, and a non-black encoded canvas prove only this parent playground;
-they do not prove Hamiltonian integration, a physical device, GPU timings, or
-owner acceptance.
+Root and UI support canvas, viewport, touch, profile and interaction evidence.
+Layout supports target, reload, DOM and console evidence; canvas-only actions
+fail closed because its presentation is SVG. One origin owns at most one stable
+target. Never focus a window, create a second target when one exists, or close
+an unknown target.
 
-Read [references/playground.md](references/playground.md) before the first
-source refresh or browser operation.
+Tests and typechecks prove contracts; DOM/console and encoded canvas prove only
+the exact selected package contour. They do not prove Hamiltonian integration,
+a physical device, GPU timings or owner acceptance.

@@ -455,7 +455,7 @@ describe("Blender-like Node component playground", () => {
     expect(client).toContain("reference: {x: 0, y: 0, w: 1, h: 1}")
   })
 
-  test("keeps retained observation dev-only and routes exact browser evidence through UI dev", async () => {
+  test("keeps retained observation dev-only and routes exact browser evidence through the shared dispatcher", async () => {
     const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
     const observer = await Bun.file(join(playgroundRoot, "retained-observer.ts")).text()
     const production = await Bun.file(join(playgroundRoot, "../node-editor.ts")).text()

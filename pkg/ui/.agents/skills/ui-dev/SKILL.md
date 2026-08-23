@@ -1,14 +1,16 @@
 ---
 name: ui-dev
-description: "Develop and verify MetaFor WebGPU UI elements, components, the shared UI playground fixture, and Blender-based @nodes/ui through selector-driven lifecycle and background CDP evidence. Use for package playground work and visual/performance diagnosis; use metafor-dev for Hamiltonian and do not use this skill for production runtime or solver-only @nodes/layout work."
+description: "Develop and verify MetaFor WebGPU UI elements, components, and the shared UI playground fixture through selector-driven lifecycle and background CDP evidence. Use nodes-dev for root nodes, @nodes/layout, or @nodes/ui playgrounds; use metafor-dev for Hamiltonian and product runtime."
 ---
 
 # UI development
 
 Work in the exact requested checkout and preserve its branch, unrelated changes,
 listeners, terminal sessions, and browser targets. This skill owns standalone
-package playgrounds only. Use `$metafor-dev` for Hamiltonian lifecycle, product
-integration, or its managed visible contour.
+generic UI package playgrounds only. `$nodes-dev` routes all three Nodes
+playgrounds through this skill's shared dispatcher without duplicating their
+selectors. Use `$metafor-dev` for Hamiltonian lifecycle, product integration,
+or its managed visible contour.
 
 Before changing UI, read `docs/README.md`, the affected package requirements,
 public types, focused tests, and the active task card. Invoking this skill does

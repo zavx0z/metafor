@@ -103,6 +103,9 @@ validateCheckout(checkout)
 const options = parseOptions(optionArgs)
 const registry = await Bun.file(join(import.meta.dir, "playgrounds.json")).json() as Registry
 const config = resolveTargetConfig(registry, checkout, selectorOrUrl, options)
+if (config.selector !== null && config.canvas.capability === "none" && new Set(["canvas", "viewports", "touch", "profile", "interact"]).has(action)) {
+  fail(`${action} is unsupported for ${config.selector ?? config.targetUrl}: this playground has no canvas`)
+}
 const cdpPort = Number(Bun.env.UI_DEV_CDP_PORT ?? 9222)
 if (!Number.isInteger(cdpPort) || cdpPort < 1 || cdpPort > 65535) fail("UI_DEV_CDP_PORT must be 1..65535")
 let interactionPlan: InteractionPlan | null = null

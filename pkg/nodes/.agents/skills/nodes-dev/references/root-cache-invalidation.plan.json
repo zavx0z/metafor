@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "settleMs": 120,
+  "steps": [
+    {"kind": "key-down", "key": "F8", "code": "F8"},
+    {"kind": "key-up", "key": "F8", "code": "F8"},
+    {"kind": "settle", "ms": 160},
+    {"kind": "checkpoint", "name": "after-parameter-change", "dom": true}
+  ]
+}

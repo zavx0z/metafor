@@ -151,7 +151,9 @@ solver-free; explicit `blender-projection` адаптирует живой root 
 3. Package-level tests, component playground и parent runtime playground
    доказывают разные границы и не подменяют друг друга.
 4. Dev-only component playground является desktop consumer общего Workbench
-   `@ui/playground`. Catalog выбирает NodeEditor, Socket и comparison. Для
+   `@ui/playground`; его exact lifecycle маршрутизирует `$nodes-dev` public
+   name `ui` через общий selector `node-ui`. Catalog выбирает NodeEditor, Socket
+   и comparison. Для
    выбранного Socket вторая панель перечисляет все concrete Socket type presets,
    center показывает один production detail preview, dock — независимые
    `input | output | bidirectional` variants, а правая панель постоянно хранит

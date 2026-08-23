@@ -69,6 +69,7 @@ describe("dev-only nodes layout playground", () => {
     const rootManifest = await Bun.file(join(layoutRoot, "../../..", "package.json")).json() as {
       scripts?: Record<string, string>
     }
+    const client = await Bun.file(join(playgroundRoot, "client.ts")).text()
 
     expect(server).toContain("NODES_LAYOUT_PLAYGROUND_PORT ?? 4015")
     expect(server).not.toContain("NODES_LAYOUT_PLAYGROUND_PORT ?? 4018")
@@ -83,6 +84,9 @@ describe("dev-only nodes layout playground", () => {
       "nodes:playground": "bun run --cwd pkg/nodes/playground playground",
       "nodes:layout:playground": "bun run --cwd pkg/nodes/layout playground",
     })
+    expect(client).toContain('document.documentElement.dataset.nodesLayoutPlayground = "starting"')
+    expect(client).toContain('document.documentElement.dataset.nodesLayoutPlayground = "ready"')
+    expect(client).toContain('document.documentElement.dataset.nodesLayoutPlayground = "error"')
   })
 
   test("runs the public fixed policy against frozen RIGHT and DOWN inputs", () => {

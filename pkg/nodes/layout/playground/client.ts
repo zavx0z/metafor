@@ -7,6 +7,8 @@ import {getPlaygroundPolicy} from "./policy-registry.ts"
 import {runPlaygroundLayout} from "./runner.ts"
 import type {PlaygroundFixture, PlaygroundRun} from "./types.ts"
 
+document.documentElement.dataset.nodesLayoutPlayground = "starting"
+
 const fixtureSelect = query<HTMLSelectElement>("#fixture")
 const fixtureDescription = query<HTMLElement>("#fixture-description")
 const policyOutput = query<HTMLOutputElement>("#policy-value")
@@ -69,6 +71,7 @@ function runEditedInput(): void {
     exportSvg.disabled = false
     setStatus("ok", `Готово · ${formatDirection(run.result.direction)} · ${formatDuration(run.metrics.durationMs)}`)
     applyLayerVisibility()
+    document.documentElement.dataset.nodesLayoutPlayground = "ready"
   } catch (error) {
     currentRun = null
     svgView.replaceChildren()
@@ -78,6 +81,7 @@ function runEditedInput(): void {
     exportResult.disabled = true
     exportSvg.disabled = true
     setStatus("error", "Раскладка отклонила входные данные")
+    document.documentElement.dataset.nodesLayoutPlayground = "error"
   }
 }
 

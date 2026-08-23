@@ -232,12 +232,15 @@ Package-local SVG playground запускается из корня репози
 
 ```bash
 bun run nodes:layout:playground
+pkg/nodes/.agents/skills/nodes-dev/scripts/nodes-dev.sh ensure "$PWD" --playground layout
 ```
 
 Он работает на `http://127.0.0.1:4015`, вызывает только public fixed/adaptive
 entrypoints через private registry, сравнивает `RIGHT`/`DOWN` fixtures и
 показывает готовую geometry без NodeTree, Card, WebGPU, HUD и product renderer.
 Playground не экспортируется из package и не заменяется parent runtime-стендом.
+Его exact lifecycle, DOM и console evidence маршрутизирует `$nodes-dev`; SVG не
+подменяется canvas capture.
 
 Полный consumer-путь `NodeTree → projection → NodeEditor` отдельно показывает
 parent WebGPU playground `bun run nodes:playground`.

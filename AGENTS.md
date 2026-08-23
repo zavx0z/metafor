@@ -136,21 +136,19 @@
 
 - Каждый package сохраняет собственный playground. Parent или integration
   playground дополняет package-local playground, но не заменяет и не удаляет
-  его. Для чистого `@nodes/layout` использовать отдельный SVG-стенд
-  `bun run nodes:layout:playground`; он не принадлежит `$nodes-dev` или
-  `$ui-dev`.
-- Для разработки корневого package `nodes`, его живого `NodeTree`, projection
-  boundary и parent WebGPU playground использовать skill `$nodes-dev` из
-  `pkg/nodes/.agents/skills/nodes-dev`. Он владеет только selector `nodes` и
-  переиспользует общий безопасный lifecycle/background-CDP механизм `ui-dev`.
+  его. Для всех трёх Node playground — root `nodes`, чистого SVG
+  `@nodes/layout` и Blender-based `@nodes/ui` — использовать skill `$nodes-dev`
+  из `pkg/nodes/.agents/skills/nodes-dev` с `--playground root|layout|ui`. Он
+  сохраняет package ownership и переиспользует общий безопасный
+  lifecycle/background-CDP dispatcher.
 - Для standalone-разработки, lifecycle, browser-проверки и профилирования
-  playground-пакетов `@ui/elements`, `@ui/components`, общего `@ui/playground`
-  и Blender-based `@nodes/ui` использовать skill `$ui-dev` из
+  playground-пакетов `@ui/elements`, `@ui/components` и общего `@ui/playground`
+  использовать skill `$ui-dev` из
   `pkg/ui/.agents/skills/ui-dev`. Он владеет package-contour и exact target
   только в границах своих selectors; команды и договор dispatcher здесь не
   дублировать.
 - Browser evidence в этих standalone-contours получать только через встроенный
-  в `$ui-dev` background exact-target CDP path. Агент не воспроизводит его CDP
+  в owning skill background exact-target CDP path. Агент не воспроизводит его CDP
   вручную и не вызывает focus, activate, `Page.bringToFront`, window APIs или
   AI macOS. Этот узкий package-owned path не меняет глобальные macOS-правила
   управления Chrome за его пределами.
