@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
+    "@matrix/types": "workspace:*",
     "shared": "workspace:*",
     "@matrix/gravity": "workspace:*",
     "@matrix/strong": "workspace:*",
