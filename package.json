@@ -8,6 +8,7 @@
     "types",
     "shared",
     "quantum/dark",
+    "quantum/dark/types",
     "quantum/boundary",
     "quantum/boundary/atom",
     "quantum/boundary/topology",
