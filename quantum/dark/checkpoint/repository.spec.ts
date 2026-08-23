@@ -9,7 +9,7 @@ import {
   type CheckpointIdentityV1,
   type CheckpointJsonPatchOperationV1,
   type CheckpointManifestV1,
-} from "@metafor/types/dark/checkpoint"
+} from "@dark/types/checkpoint"
 import {
   GRAPH_SCHEMA,
   parseMetaAddress,
