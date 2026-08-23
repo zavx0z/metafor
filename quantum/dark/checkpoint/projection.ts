@@ -6,7 +6,7 @@ import {
 import type {
   CheckpointJsonPatchOperationV1,
   CheckpointJsonValue,
-} from "@metafor/types/dark/checkpoint"
+} from "@dark/types/checkpoint"
 
 export type CanonicalGraphProjection = {
   value: Graph
