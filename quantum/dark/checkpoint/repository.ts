@@ -16,7 +16,7 @@ import {
   type CheckpointTriggerKindV1,
   validateCheckpointForwardPatchDocumentV1,
   validateCheckpointManifestV1,
-} from "@metafor/types/dark/checkpoint"
+} from "@dark/types/checkpoint"
 import type {Graph} from "@metafor/types/metafor/graph"
 import {
   applyGraphPatch,
