@@ -18,7 +18,7 @@
     // Bundler mode
     "moduleResolution": "bundler",
     "customConditions": [
-      "hamiltonian:server",
+      "cosmos:server",
       "internal:server"
     ],
     "resolveJsonModule": true,
@@ -49,15 +49,10 @@
     "**/docs/**/*",
     "*/dist/**/*",
     "*/node_modules/**/*",
-    "hamiltonian/release/**/*",
-    "hamiltonian/startup/**/*",
-    "hamiltonian/internal/visual/**/*",
-    "hamiltonian/tests/**/*",
-    // Old separately runnable prototype. It still depends on the removed
-    // Card/HUD Node API and is intentionally outside the current root check.
-    "hamiltonian/browser/**/*",
-    "hamiltonian/visual/**/*",
-    "hamiltonian/host.spec.ts",
+    "cosmos/release/**/*",
+    "cosmos/startup/**/*",
+    "cosmos/internal/visual/**/*",
+    "cosmos/tests/**/*",
     "tests/tmp/**/*",
     "project/artifacts/**/*",
     "cluster/**/*",
