@@ -6,21 +6,21 @@ import {dirname, join} from "node:path"
 const scenario = process.env.RELEASE_FIXTURE_SCENARIO
 let root = ""
 let repository = ""
-let hamiltonian = ""
+let cosmos = ""
 let proof = ""
 const targetVersion = "1.0.1"
 
 test("release workspace fixture", async () => {
   root = await realpath(await mkdtemp(join(tmpdir(), "metafor-release-fixture-")))
   repository = join(root, "repository")
-  hamiltonian = join(repository, "hamiltonian")
+  cosmos = join(repository, "cosmos")
   proof = join(root, "typecheck.log")
 
   try {
     await createWorkspace()
     const mockedPaths = {
-      hamiltonianRoot: hamiltonian,
-      hamiltonianManifest: join(hamiltonian, "package.json"),
+      cosmosRoot: cosmos,
+      cosmosManifest: join(cosmos, "package.json"),
     }
     mock.module(
       import.meta.resolve("../../release/server/shared/paths"),
@@ -31,13 +31,13 @@ test("release workspace fixture", async () => {
       () => mockedPaths,
     )
     const resolvedPaths = await import("../../release/server/shared/paths")
-    if (resolvedPaths.hamiltonianRoot !== hamiltonian)
-      throw new Error(`Release paths fixture was not installed: ${resolvedPaths.hamiltonianRoot}`)
+    if (resolvedPaths.cosmosRoot !== cosmos)
+      throw new Error(`Release paths fixture was not installed: ${resolvedPaths.cosmosRoot}`)
 
     if (isRecoveryScenario()) await prepareRecoveryArtifacts()
     if (scenario === "conflicting-recovery") {
       await writeSource(
-        join(hamiltonian, "release", "main", "index.ts"),
+        join(cosmos, "release", "main", "index.ts"),
         'export const environment = "changed"\n',
       )
     }
@@ -82,7 +82,7 @@ test("release workspace fixture", async () => {
         recovered: result?.recovered ?? [],
         rewritten: Object.keys(before).filter((path) => after[path] !== before[path]),
         artifacts: (result?.artifacts ?? []).map(({path, sha256, size}) => ({
-          path: path.slice(hamiltonian.length),
+          path: path.slice(cosmos.length),
           sha256,
           size,
         })),
@@ -94,7 +94,7 @@ test("release workspace fixture", async () => {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({
-          packages: [{name: "@hamiltonian/release", change: "patch"}],
+          packages: [{name: "@cosmos/release", change: "patch"}],
         }),
       }), {
         topic: "release/service",
@@ -113,7 +113,7 @@ test("release workspace fixture", async () => {
     } else if (scenario === "delivery") {
       const {getPackage} = await import("../../release/server/http/delivery")
       const delivered = await getPackage(new Request(
-        "https://fixture.test/@hamiltonian/release?env=main",
+        "https://fixture.test/@cosmos/release?env=main",
       ))
       const missing = await getPackage(new Request(
         "https://fixture.test/@internal/missing?env=main&version=1.0.1",
@@ -143,16 +143,16 @@ async function createWorkspace() {
           : "bun -e 'process.exit(19)'"
 
   await Promise.all([
-    writeJson(join(hamiltonian, "package.json"), {
-      name: "@metafor/hamiltonian-fixture",
+    writeJson(join(cosmos, "package.json"), {
+      name: "@metafor/cosmos-fixture",
       private: true,
       dependencies: {
-        "@hamiltonian/release": `workspace:^${targetVersion}`,
+        "@cosmos/release": `workspace:^${targetVersion}`,
         "@internal/visual": `workspace:^${targetVersion}`,
       },
     }),
     createPackage("release", {
-      name: "@hamiltonian/release",
+      name: "@cosmos/release",
       version: targetVersion,
       typecheck,
       dependencies: {"@internal/visual": `workspace:^${targetVersion}`},
@@ -168,8 +168,8 @@ async function createWorkspace() {
   ])
 
   await Promise.all([
-    linkPackage("@hamiltonian/release", join(hamiltonian, "release")),
-    linkPackage("@internal/visual", join(hamiltonian, "internal/visual")),
+    linkPackage("@cosmos/release", join(cosmos, "release")),
+    linkPackage("@internal/visual", join(cosmos, "internal/visual")),
   ])
 
   if (
@@ -207,7 +207,7 @@ async function createPackage(
     `build:${env}`,
     buildCommand(scope, env),
   ]))
-  await writeJson(join(hamiltonian, path, "package.json"), {
+  await writeJson(join(cosmos, path, "package.json"), {
     name: fixture.name,
     version: fixture.version,
     type: "module",
@@ -216,7 +216,7 @@ async function createPackage(
     dependencies: fixture.dependencies,
   })
   await Promise.all(fixture.environments.map((env) => writeSource(
-    join(hamiltonian, path, env, "index.ts"),
+    join(cosmos, path, env, "index.ts"),
     `export const environment = ${JSON.stringify(env)}\n`,
   )))
 }
@@ -235,7 +235,7 @@ async function linkPackage(name: string, target: string) {
 
 async function writeArtifact(path: string, version: string, env: string) {
   await writeSource(
-    join(hamiltonian, path, "dist", "versions", version, `${env}.js`),
+    join(cosmos, path, "dist", "versions", version, `${env}.js`),
     `export const fixture = ${JSON.stringify(`${path}:${env}@${version}`)}\n`,
   )
 }
@@ -243,26 +243,26 @@ async function writeArtifact(path: string, version: string, env: string) {
 async function prepareRecoveryArtifacts() {
   const {buildPackage} = await import("../../release/server/package/build")
   const composition: Array<readonly [string, string, "main" | "service" | "server"]> = [
-    ["@hamiltonian/release", "release", "main"],
-    ["@hamiltonian/release", "release", "service"],
-    ["@hamiltonian/release", "release", "server"],
+    ["@cosmos/release", "release", "main"],
+    ["@cosmos/release", "release", "service"],
+    ["@cosmos/release", "release", "server"],
     ["@internal/visual", "internal/visual", "main"],
     ["@internal/visual", "internal/visual", "server"],
   ]
   const artifacts = composition.flatMap((artifact, index) =>
-    scenario === "cold-recovery" && artifact[0] === "@hamiltonian/release"
+    scenario === "cold-recovery" && artifact[0] === "@cosmos/release"
       ? []
       : [{artifact, index}])
 
   const results = await Promise.all(artifacts.map(({artifact: [name, , env], index}) => buildPackage(name, {
     env,
-    artifact: join(hamiltonian, ".fixture-publication", `${index}.js`),
+    artifact: join(cosmos, ".fixture-publication", `${index}.js`),
   })))
   const failure = results.find(({success}) => !success)
   if (failure) throw new Error(`Fixture preparation failed: ${failure.stderr}`)
   await Promise.all(artifacts.map(async ({artifact: [, path, env], index}) => writeSource(
-    join(hamiltonian, path, "dist", "versions", targetVersion, `${env}.js`),
-    await Bun.file(join(hamiltonian, ".fixture-publication", `${index}.js`)).arrayBuffer(),
+    join(cosmos, path, "dist", "versions", targetVersion, `${env}.js`),
+    await Bun.file(join(cosmos, ".fixture-publication", `${index}.js`)).arrayBuffer(),
   )))
 }
 
@@ -281,7 +281,7 @@ async function artifactStamps() {
     ["internal/visual", "server"],
   ]
   return Object.fromEntries((await Promise.all(artifacts.map(async ([path, env]) => {
-    const artifact = join(hamiltonian, path, "dist", "versions", targetVersion, `${env}.js`)
+    const artifact = join(cosmos, path, "dist", "versions", targetVersion, `${env}.js`)
     if (!await Bun.file(artifact).exists()) return null
     const state = await stat(artifact, {bigint: true})
     return [artifact, `${state.dev}:${state.ino}:${state.mtimeNs}:${state.size}`] as const
