@@ -11,5 +11,8 @@
     "./text/projection": "./text/projection.ts",
     "./text/surface": "./text/surface.ts"
   },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@bulk/types": "workspace:*"
+  }
 }
