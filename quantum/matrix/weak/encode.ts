@@ -1,6 +1,6 @@
 import { VALUE_TYPE } from "./constants"
-import type { MatrixEncodedValueResult, MatrixEncodingContext } from "@metafor/types/matrix/gpu"
-import type { MatrixFieldRecord, MatrixFieldType } from "@metafor/types/matrix/data"
+import type { MatrixEncodedValueResult, MatrixEncodingContext } from "@matrix/types/gpu"
+import type { MatrixFieldRecord, MatrixFieldType } from "@matrix/types/data"
 import { FieldType } from "../gravity/schema"
 
 export function createFieldEncodingContext(
