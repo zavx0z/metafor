@@ -1,0 +1,18 @@
+{
+  "name": "@energy/types",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./catalog": "./catalog.ts",
+    "./energy": "./energy.ts",
+    "./mass": "./mass.ts",
+    "./process": "./process.ts",
+    "./protocol": "./protocol.ts",
+    "./runtime": "./runtime.ts"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*",
+    "shared": "workspace:*"
+  }
+}
