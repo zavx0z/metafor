@@ -3,14 +3,14 @@ import type {
   BoundaryInitialState,
   BoundaryInitialVariantRef,
 } from "@metafor/types/boundary/initial"
-import type {MatrixConditionValue} from "@metafor/types/matrix/condition"
-import type {MatrixBraneValue, MatrixFieldRecord, MatrixInputBrane} from "@metafor/types/matrix/data"
-import type {MatrixData} from "@metafor/types/matrix/store"
+import type {MatrixConditionValue} from "@matrix/types/condition"
+import type {MatrixBraneValue, MatrixFieldRecord, MatrixInputBrane} from "@matrix/types/data"
+import type {MatrixData} from "@matrix/types/store"
 import {
   STATE_NONE,
   STATE_UNDEFINED,
   type MatrixRuntimeSnapshot,
-} from "@metafor/types/matrix/runtime"
+} from "@matrix/types/runtime"
 import {gravity$} from "gravity/store.ts"
 import {strong$} from "strong"
 import {weak$, weakInit} from "weak"
