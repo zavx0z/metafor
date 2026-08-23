@@ -1,5 +1,5 @@
-import type {BulkManifest} from "./manifest.ts"
-import type {BulkRuntimeProjection} from "./runtime.ts"
+import type {BulkManifest} from "@metafor/types/bulk/manifest"
+import type {BulkRuntimeProjection} from "./projection.ts"
 import type {
   BulkVisualLayoutSlug,
   BulkVisualSourceStats,
