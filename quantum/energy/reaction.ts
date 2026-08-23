@@ -1,4 +1,4 @@
-import type {EnergyMassStore} from "@metafor/types/energy/mass"
+import type {EnergyMassStore} from "@energy/types/mass"
 import type {ReactionExecutionSignal} from "shared/protocol/force/reaction"
 
 type JsonRecord = Record<string, unknown>
