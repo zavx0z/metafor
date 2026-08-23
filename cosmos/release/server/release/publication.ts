@@ -16,7 +16,7 @@ import type {
   PackageReleaseResultSet,
 } from "../shared/contracts"
 import {packageArtifact} from "../package/manifest"
-import {hamiltonianManifest, hamiltonianRoot} from "../shared/paths"
+import {cosmosManifest, cosmosRoot} from "../shared/paths"
 import {serializePublication} from "./queue"
 import {readReleasedPackages, versionedArtifact} from "./state"
 import {nextPackageVersion} from "../package/version"
@@ -69,8 +69,8 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
     new Map(plans.map(({name, version}) => [name, version])),
   )
 
-  const staging = await mkdtemp(join(hamiltonianRoot, ".package-update-"))
-  const rootSource = await Bun.file(hamiltonianManifest).text()
+  const staging = await mkdtemp(join(cosmosRoot, ".package-update-"))
+  const rootSource = await Bun.file(cosmosManifest).text()
   const childSources = new Map(await Promise.all(plans.map(async ({member}) => [
     member.manifest,
     await Bun.file(member.manifest).text(),
@@ -81,7 +81,7 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
   try {
     assignArtifacts(plans, staging)
     await writeRootVersions(
-      hamiltonianManifest,
+      cosmosManifest,
       new Map(plans.map(({name, version}) => [name, version])),
     )
     rootIntentWritten = true
@@ -95,7 +95,7 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
 
     const results = await buildPlans(plans)
     if (results.some((result) => !result.success)) {
-      await restoreManifest(hamiltonianManifest, rootSource)
+      await restoreManifest(cosmosManifest, rootSource)
       rootIntentWritten = false
       debug("публикация отменена с восстановлением root", {
         packages: plans.map(({name, previousVersion, version}) => ({
@@ -120,8 +120,8 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
   } catch (error) {
     if (childrenWritten)
       await Promise.all([...childSources].map(([path, source]) => restoreManifest(path, source)))
-    if (rootIntentWritten) await restoreManifest(hamiltonianManifest, rootSource)
-    console.error("[@hamiltonian/release:server:update]", "публикация завершилась с ошибкой", {
+    if (rootIntentWritten) await restoreManifest(cosmosManifest, rootSource)
+    console.error("[@cosmos/release:server:update]", "публикация завершилась с ошибкой", {
       error: errorMessage(error),
       packages: plans.map(({name, previousVersion, version}) => ({
         from: previousVersion,
@@ -137,7 +137,7 @@ async function runPublication(changes: PackageChange[]): Promise<PackageReleaseR
 
 async function runRecovery(): Promise<RecoveryResult> {
   const intent = await readReleaseIntentComposition()
-  const staging = await mkdtemp(join(hamiltonianRoot, ".package-recovery-"))
+  const staging = await mkdtemp(join(cosmosRoot, ".package-recovery-"))
   const packages = intent.map(({name, childVersion, version}) => ({
     from: childVersion,
     name,
@@ -176,7 +176,7 @@ async function runRecovery(): Promise<RecoveryResult> {
     }
     return {recovered, artifacts}
   } catch (error) {
-    console.error("[@hamiltonian/release:server:update]", "восстановление публикации завершилось с ошибкой", {
+    console.error("[@cosmos/release:server:update]", "восстановление публикации завершилось с ошибкой", {
       error: errorMessage(error),
       packages,
     })
@@ -295,7 +295,7 @@ async function writeJsonAtomic(path: string, value: unknown) {
 
 function debug(event: string, details: unknown) {
   if (Bun.env.NODE_ENV === "development")
-    console.debug("[@hamiltonian/release:server:update]", event, details)
+    console.debug("[@cosmos/release:server:update]", event, details)
 }
 
 function errorMessage(error: unknown) {
