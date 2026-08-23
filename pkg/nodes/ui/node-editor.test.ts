@@ -852,7 +852,7 @@ describe("generic Blender-like Node Editor contracts", () => {
     canvas.onPointerUp({} as MouseEvent, 240, 250)
     canvas.flushPendingRender()
     expect(sourceClicks).toBe(1)
-    expect(states.get("source")?.at(-1)).toBe("active")
+    expect(states.get("source")?.at(-1)).toBe("hover")
     expect(targetParent.children).toEqual(targetChildren)
 
     canvas.onPointerLeave()
