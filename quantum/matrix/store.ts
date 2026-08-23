@@ -21,7 +21,7 @@
  * @packageDocumentation
  */
 
-import type { MatrixStore, MatrixFieldValueRecord, MatrixFieldStorageLocation, MatrixValue, MatrixStateRecord } from "@metafor/types/matrix/store"
+import type { MatrixStore, MatrixFieldValueRecord, MatrixFieldStorageLocation, MatrixValue, MatrixStateRecord } from "@matrix/types/store"
 
 export const matrix$: MatrixStore = {
   fields: [],
