@@ -761,22 +761,33 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(missingScript.status).toBe(404)
     expect(missingScript.type ?? "").not.toContain("text/html")
 
-    const assetCandidates = [
+    const runtimeFont = "/assets/fonts/JetBrainsMono-Bold.ttf"
+    const onlineFont = await page.evaluate(async (path) => {
+      const response = await fetch(path)
+      return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}
+    }, runtimeFont)
+    expect(onlineFont.status).toBe(200)
+    expect(onlineFont.bytes).toBeGreaterThan(0)
+    expect((await cacheSnapshot(page)).startup).toContain(runtimeFont)
+
+    const presentationAssets = [
       "/assets/screenshots/screenshot-mobile.png",
       "/assets/screenshots/screenshot-wide.png",
       "/assets/icons/icon-512-maskable.png",
       "/assets/icons/icon-192-maskable.png",
     ]
-    const lazyAsset = assetCandidates.find((path) => !(initial.startup ?? []).includes(path))
-    expect(lazyAsset).toBeDefined()
+    const presentationAsset = presentationAssets.find(
+      (path) => !(initial.startup ?? []).includes(path),
+    )
+    expect(presentationAsset).toBeDefined()
 
     const onlineAsset = await page.evaluate(async (path) => {
       const response = await fetch(path)
       return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}
-    }, lazyAsset!)
+    }, presentationAsset!)
     expect(onlineAsset.status).toBe(200)
     expect(onlineAsset.bytes).toBeGreaterThan(0)
-    await waitUntil(async () => (await cacheSnapshot(page)).startup?.includes(lazyAsset!) ?? false)
+    expect((await cacheSnapshot(page)).startup).not.toContain(presentationAsset!)
 
     const mainReleaseRequestsBeforeOffline = countMatches(requests.join("\n"), releaseMainUrl)
     const mainResponsesBeforeOffline = countMatches(
@@ -787,12 +798,17 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     serverStopped = true
     await page.setOfflineMode(false)
 
+    const offlineFont = await page.evaluate(async (path) => {
+      const response = await fetch(path)
+      return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}
+    }, runtimeFont)
+    expect(offlineFont).toEqual(onlineFont)
+
     const offlineAsset = await page.evaluate(async (path) => {
       const response = await fetch(path)
       return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}
-    }, lazyAsset!)
-    expect(offlineAsset.status).toBe(200)
-    expect(offlineAsset.bytes).toBe(onlineAsset.bytes)
+    }, presentationAsset!)
+    expect(offlineAsset).toEqual({status: 503, bytes: 0})
 
     const missingOfflineAsset = await page.evaluate(async () => {
       const response = await fetch("/assets/not-cached.png")

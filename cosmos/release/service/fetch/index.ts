@@ -7,6 +7,10 @@ const startupResources = [
   "/manifest.webmanifest",
 ]
 
+const runtimeAssets = new Set([
+  "/assets/fonts/JetBrainsMono-Bold.ttf",
+])
+
 /** Создаёт принадлежащую release browser cache policy поверх startup primitives. */
 export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
   /** Возвращает cached response либо network fallback для browser request. */
@@ -24,7 +28,7 @@ export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
 
     try {
       const network = await fetch(request)
-      if (network.ok && (owner !== null || url.pathname.startsWith("/assets/")))
+      if (network.ok && (owner !== null || runtimeAssets.has(url.pathname)))
         await loader.cache(cacheName, request, network.clone())
       return network
     } catch (error) {

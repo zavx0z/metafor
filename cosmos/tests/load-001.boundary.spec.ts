@@ -60,6 +60,8 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(releaseCache).not.toContain("/code?module=")
   expect(releaseCache).toContain("cacheFirst")
   expect(releaseCache).toContain("cacheStartup")
+  expect(releaseCache).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
+  expect(releaseCache).toContain("runtimeAssets.has(url.pathname)")
 
   expect(startupLoader).toContain("exactSlotResponse")
   expect(startupLoader).not.toContain("transaction")

@@ -34,6 +34,11 @@ Service Worker runtime выпуска. Он владеет:
 - переключением release runtime через контракт `startup`;
 - перезагрузкой управляемых Window после принятого изменения.
 
+Cache Storage сохраняет package artifacts, startup core и только необходимые
+runtime assets. Текущий runtime asset — `/assets/fonts/JetBrainsMono-Bold.ttf`.
+Manifest screenshots, icons и favicon не сохраняются Worker: online-запрос
+получает их из сети, а offline-запрос без внешнего ответа получает `503`.
+
 ### `server`
 
 Серверная часть владеет техническим release lifecycle:
