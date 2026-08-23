@@ -1,5 +1,5 @@
-import type {MaybeGpuNavigator} from "@metafor/types/matrix/gpu"
-import type {WeakBackendPreference, WeakMode} from "@metafor/types/matrix/weak"
+import type {MaybeGpuNavigator} from "@matrix/types/gpu"
+import type {WeakBackendPreference, WeakMode} from "@matrix/types/weak"
 
 function getNavigatorGpu(): MaybeGpuNavigator["gpu"] | undefined {
   const maybeNavigator = (globalThis as {navigator?: MaybeGpuNavigator}).navigator
