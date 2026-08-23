@@ -1,0 +1,13 @@
+{
+  "name": "@boundary/types",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./matter": "./matter.ts",
+    "./wimp": "./wimp.ts"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*"
+  }
+}
