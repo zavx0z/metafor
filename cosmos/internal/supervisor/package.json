@@ -1,0 +1,11 @@
+{
+  "name": "@internal/supervisor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun universe.ts",
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "test": "bun test universe.spec.ts"
+  }
+}
