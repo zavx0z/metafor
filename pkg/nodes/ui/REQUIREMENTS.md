@@ -1,8 +1,9 @@
 # Требования @nodes/ui
 
 `@nodes/ui` владеет Blender-подобной компонентной библиотекой Node Editor.
-Она получает готовую positioned geometry, отображает её и управляет view; layout
-format и автоматическое размещение принадлежат следующему отдельному этапу.
+Она отображает готовую projection и управляет view. Exact `node-editor`
+solver-free; explicit `blender-projection` адаптирует живой root `NodeTree` к
+`@nodes/layout` и Blender renderer.
 
 ## Публичный словарь
 
@@ -14,11 +15,11 @@ format и автоматическое размещение принадлежа
    и не входят в новый component API.
 3. `Frame` является отдельным visual owner вложенности. Node ссылается на него
    через `frameId`; обычная Node не может исполнять роль Frame.
-4. `Parameter` является устойчивой строкой/identity внутри Node и владеет одним
+4. `Parameter` является устойчивой identity внутри Node и владеет одним
    universal `Field`. `Socket` может ссылаться на Parameter через
    `parameterId`, но не владеет и не дублирует его Field.
 5. У одного Parameter может быть один Socket слева, один справа либо оба
-   одновременно. Это разные exact endpoints с разными IDs и общей строкой
+   одновременно. Это разные exact endpoints с разными IDs, относящиеся к одному
    Parameter.
 6. Component API допускает только visual sides `left | right`. `direction`
    (`input | output | bidirectional`) является независимой capability и не
@@ -29,32 +30,43 @@ format и автоматическое размещение принадлежа
 ## Component contracts
 
 1. `NodeEditor` и read-only `NodeCanvas` принимают независимые typed
-   `FrameRenderer`, `NodeRenderer`, `SocketRenderer`, `LinkRenderer` и
-   `PositionedNodeTree`.
+   `FrameRenderer`, `NodeRenderer`, `ParameterRenderer`, `SocketRenderer`,
+   `LinkRenderer` и готовую projection. Отдельный `PositionedNodeTree` остаётся
+   component-level входом.
 2. Renderer contracts сохраняют consumer fields и не импортируют старые
    `NodeSystemDocument`, Card model/layout/metrics, HUD, Hamiltonian или product
    code.
-3. Node renderer владеет intrinsic measurement и Parameter slots. За один
-   dirty cycle он выполняет один typed local plan и одну materialization всей
-   Node вместе с background/foreground; независимые paint phases не могут
-   повторно планировать тот же subtree. Socket type preset задаёт только имя
-   типа, shape/color и endpoint presentation; default Field принадлежит
-   Parameter.
-4. Consumer может зарегистрировать собственный Node/Socket/Link renderer без
-   изменения NodeEditor или central switch.
-5. Поля внутри Node и standalone controls вызывают один renderer из
+3. Projection adapter владеет intrinsic measurement и внутренним размещением
+   Parameter. Он выполняет один typed local plan после точного measurement и
+   передаёт `ParameterPlan` в NodeEditor; materialization не планирует тот же
+   subtree повторно. В component-level `setTree` renderer может планировать
+   локально. Socket type preset задаёт только имя типа, shape/color и endpoint
+   presentation; default Field принадлежит Parameter.
+4. Публичный Parameter contract называется только `Parameter`,
+   `ParameterPlan`, `ParameterRenderer` и `ParameterRendererContext`. Имена
+   для его визуальной строки или slot не входят в public API: это только
+   приватная геометрия конкретного planner.
+5. Node renderer делегирует каждый видимый Parameter ровно одному
+   ParameterRenderer и не рисует его Field или label повторно. ParameterRenderer
+   сохраняет exact Parameter identity, получает его ParameterPlan и собирает
+   presentation из одного public `Field` и связанных Socket, не создавая value,
+   callback или Field copy.
+6. Consumer может зарегистрировать собственный Node/Parameter/Socket/Link
+   renderer без изменения NodeEditor или central switch.
+7. Поля внутри Node и standalone controls вызывают один renderer из
    `@ui/components`; node package не копирует field implementation.
-6. Вся внутренняя композиция Node, Socket labels/default fields, catalog panels
+8. Вся внутренняя композиция Node, Socket labels/default fields, catalog panels
    и playground regions выполняется существующими `flexRow`/`flexColumn` либо
    `flexRowCss`/`flexColumnCss`. Ручные UI-grid offsets запрещены.
-7. Blender preset использует intrinsic compact Field density. Parameter Field
-   и его left/right Socket получают одну local Flex row и вместе наследуют
-   transform retained Node parent; renderer context не передаёт canvas scale.
-8. Node UI собирает Parameter controls только из public `@ui/components`.
+9. Blender preset использует intrinsic compact Field density. Parameter Field
+   и его left/right Socket получают одну приватно спланированную local Flex
+   композицию и вместе наследуют transform retained Node parent; renderer
+   context не передаёт canvas scale.
+10. Node UI собирает Parameter controls только из public `@ui/components`.
    HTML-подобные `@ui/elements` используются для layout/chrome, а Node-specific
    direct drawing разрешён Socket, Link и внешней scene geometry; Node не
    реализует собственные IconButton, ControlGroup, picker или Field input.
-9. Link сохраняет утверждённую ортогональную route geometry вместо Blender
+11. Link сохраняет утверждённую ортогональную route geometry вместо Blender
    Bezier. Это исключение не меняет Blender-law для thickness, colors,
    hover/selected/invalid states, exact Socket attachment и interaction.
 
@@ -74,7 +86,7 @@ format и автоматическое размещение принадлежа
 5. Loose right-side Socket рисуются над Properties и Parameters, loose
    left-side Socket — под ними. Порядок является visual-side presentation и не
    выводит `direction` из стороны; Socket Parameter остаются на своей общей row.
-6. Пропорции header, body, Parameter rows, controls и Socket, их padding и
+6. Пропорции header, body, Parameter, controls и Socket, их padding и
    centers сверяются с точным Blender 4.5.5 reference при сопоставимом масштабе.
    Fixture-specific offsets и свободный подбор размеров запрещены.
 7. Node имеет мягкую симметричную тень со всех четырёх сторон. Обычная тень
@@ -107,9 +119,11 @@ format и автоматическое размещение принадлежа
    скрывается без дублирования connected state во входной модели.
 7. Collapsed Node сохраняет exact Socket endpoints вокруг compact header;
    Frame может быть вложен в другой Frame.
-8. Selection различает Frame, Node и Link. Link получает hit corridors по
-   готовым route segments; selected Link рисуется отдельным последним проходом
-   поверх ordinary Links, но под Node.
+8. Selection различает Frame, Node и Link. First-class Parameter renderer не
+   добавляет новый selection kind: Parameter и Socket controls остаются
+   интерактивным содержимым owning Node. Link получает hit corridors по готовым
+   route segments; selected Link рисуется отдельным последним проходом поверх
+   ordinary Links, но под Node.
 9. Mobile NodeEditor использует тот же positioned tree и renderers. Один touch
    панорамирует canvas, два touch выполняют anchor-preserving pinch; единый
    responsive FlexBox flow, заданный CSS-style declarative form, скрывает
@@ -144,12 +158,24 @@ format и автоматическое размещение принадлежа
 
 1. Старые Card model, Card layout/adapters, `NodeSystemSurface` и Card HUD
    удаляются без aliases, deprecated exports или compatibility bundles.
-2. Hamiltonian и другие верхнеуровневые consumers в этой задаче не мигрируются:
-   их новая интеграция выполняется после отдельного переписывания layout format.
-3. Package-level tests и component playground являются acceptance этой задачи;
-   exact root consumer compile gap фиксируется как вход следующего этапа.
-4. Dev-only component playground является desktop consumer общего Workbench
-   `@ui/playground`. Catalog выбирает NodeEditor, Socket и comparison. Для
+2. Прежний root `NodeSystem*` format удалён. Живой `@nodes/core` Parameter-store и
+   `blender-projection` являются единственным новым parent integration path;
+   product consumers подключаются отдельно.
+3. Package-level tests, central UI page и editor integration page доказывают
+   разные границы и не подменяют друг друга.
+4. Dev-only UI page является desktop consumer общего Workbench
+   `@ui/playground`; её exact lifecycle маршрутизирует один `$nodes-dev`
+   selector `nodes`, а package identity задаёт mount `/ui/`. Выбор Component
+   сначала открывает его overview: `/ui/socket/` показывает все Socket types,
+   `/ui/socket/boolean/` — все варианты Boolean, и только
+   `/ui/socket/boolean/input` задаёт exact detail story. Prefix overview не
+   скрывает прежний Workbench: для preview/source он использует первый detail
+   descendant, сохраняя catalog, sections, dock и code panel. Catalog группирует
+   NodeEditor, Frame и Link в `Редактор`, Parameter и Socket — в `Компоненты`,
+   где `Параметры` идут перед `Сокеты`, а comparison остаётся отдельным.
+   `/ui/parameter/` является каноническим overview публичного Parameter API;
+   его sections точно повторяют все public Field kinds, а каждый kind показывает
+   `field | input | output | both | connected` без нового Parameter vocabulary. Для
    выбранного Socket вторая панель перечисляет все concrete Socket type presets,
    center показывает один production detail preview, dock — независимые
    `input | output | bidirectional` variants, а правая панель постоянно хранит
@@ -158,7 +184,8 @@ format и автоматическое размещение принадлежа
    story и не заменяет detail route. Story metadata и lazy implementation
    принадлежат package consumer и импортируют production через exact public
    subpath; общий Workbench не получает Node vocabulary. Standalone Fields
-   принадлежат playground `@ui/components`; здесь они видны только внутри Node.
+   принадлежат playground `@ui/components`; Nodes catalog показывает те же
+   controls только как принадлежащий Parameter `Field`.
    Comparison сохраняет maintained Blender screenshot и representative live
    Node; asset и Surface не экспортируются production package. Client-side
    смена route повторно применяет layout без fake resize или page reload.

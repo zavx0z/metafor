@@ -60,6 +60,12 @@ describe("typed playground story registry", () => {
       routes: ["button/basic/contained"],
       fallback: "button/basic/contained",
     })
+    expect(registry.routeTree.overviews).toEqual(["", "button", "button/basic"])
+    expect(registry.routeTree.children("").map(({path}) => path)).toEqual(["button"])
+    expect(registry.routeTree.children("button").map(({path}) => path)).toEqual(["button/basic"])
+    expect(registry.routeTree.children("button/basic").map(({kind, path}) => [kind, path])).toEqual([
+      ["leaf", "button/basic/contained"],
+    ])
     expect(registry.index).toEqual([{
       route: "button/basic/contained",
       groupId: "basic",
@@ -79,6 +85,7 @@ describe("typed playground story registry", () => {
     expect(registry.variants("button/basic/contained")).toEqual(registry.index)
     expect(registry.variants("missing")).toEqual([])
     expect(Object.isFrozen(registry)).toBeTrue()
+    expect(Object.isFrozen(registry.routeTree)).toBeTrue()
     expect(Object.isFrozen(registry.index)).toBeTrue()
     expect(loads).toBe(0)
   })

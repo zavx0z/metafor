@@ -18,7 +18,6 @@ import {
   componentCatalogItems,
   componentSectionItems,
   componentVariantItems,
-  normalizeComponentsPlaygroundPath,
 } from "./stories.ts"
 import {ComponentsStoryPreviewSurface} from "./story-preview.ts"
 
@@ -63,7 +62,7 @@ beforeAll(async () => {
 })
 
 describe("@ui/components package-owned Workbench stories", () => {
-  test("preserves every historical detail route and normalizes former aggregate routes", () => {
+  test("preserves every exact detail route and derives prefix overviews", () => {
     expect(COMPONENT_STORIES.fallback).toBe("button/basic/contained")
     for (const route of [
       "button/basic/text",
@@ -84,14 +83,11 @@ describe("@ui/components package-owned Workbench stories", () => {
       "pane/variants/outlined",
       "pane/variants/filled",
     ]) expect(COMPONENT_STORY_ROUTES).toContain(route)
-    expect(normalizeComponentsPlaygroundPath("/button/basic")).toBe("button/basic/contained")
-    expect(normalizeComponentsPlaygroundPath("/field/values")).toBe("field/text/default")
-    expect(normalizeComponentsPlaygroundPath("/field/selection")).toBe("field/boolean/switch")
-    expect(normalizeComponentsPlaygroundPath("/field/composite")).toBe("field/vector/default")
-    expect(normalizeComponentsPlaygroundPath("/field/reference")).toBe("field/reference/default")
-    expect(normalizeComponentsPlaygroundPath("/disabled/badge")).toBe("badge/basic/default")
-    expect(normalizeComponentsPlaygroundPath("/disabled/noti-stack")).toBe("noti/status/unavailable")
-    expect(normalizeComponentsPlaygroundPath("/missing")).toBeNull()
+    expect(COMPONENT_STORIES.routeTree.find("")).toMatchObject({kind: "overview", path: ""})
+    expect(COMPONENT_STORIES.routeTree.find("button")).toMatchObject({kind: "overview", path: "button"})
+    expect(COMPONENT_STORIES.routeTree.find("button/basic")).toMatchObject({kind: "overview", path: "button/basic"})
+    expect(COMPONENT_STORIES.routeTree.find("button/basic/contained")).toMatchObject({kind: "leaf"})
+    expect(COMPONENT_STORIES.routeTree.find("missing")).toBeUndefined()
   })
 
   test("catalogs concrete Russian components and every universal Field kind", () => {
@@ -149,6 +145,14 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Таблица",
       "Полоса прокрутки",
       "Уведомления",
+    ])
+    expect(catalog.map(({route}) => route)).toEqual(catalog.map(({id}) => id))
+    expect(componentSectionItems("button/basic/contained").map(({route}) => route)).toEqual([
+      "button/basic",
+      "button/icon",
+      "button/icon-label",
+      "button/sizes",
+      "button/color",
     ])
     expect(componentSectionItems("field/number/input").map(({id}) => id)).toEqual([...FIELD_KINDS])
     expect(componentVariantItems("field/number/input").map(({id}) => id)).toEqual(["input", "slider"])
@@ -694,16 +698,17 @@ describe("@ui/components package-owned Workbench stories", () => {
     expect(pathInputChunk!.source).toContain('@ui/components/path-input')
   })
 
-  test("uses public full-viewport Workbench geometry and the package server", async () => {
+  test("uses public full-viewport Workbench geometry and the central UI hub", async () => {
     const desktop = planPlaygroundShell(1920, 1080)
     expect(desktop.preview).toEqual({x: 375, y: 3, w: 1101, h: 1049})
     expect(desktop.info).toEqual({x: 1477, y: 3, w: 440, h: 1074})
-    const server = await Bun.file(join(playgroundRoot, "server.ts")).text()
-    expect(server).toContain("startPlaygroundServer")
-    expect(server).toContain('packageName: "@ui/components"')
-    expect(server).toContain("4017")
-    expect(server).toContain('entrypoint: join(import.meta.dir, "entry.ts")')
-    expect(server).toContain('canvasId: "stage-canvas"')
+    const server = await Bun.file(join(playgroundRoot, "../../playground/hub/server.ts")).text()
+    const pages = await Bun.file(join(playgroundRoot, "../../playground/hub/server/page-registry.ts")).text()
+    expect(server).toContain("startPlaygroundHubServer")
+    expect(server).toContain("UI_PLAYGROUND_PORT ?? 4017")
+    expect(pages).toContain('mountPath: entry.routePrefix')
+    expect(pages).toContain('canvasId: "stage-canvas"')
+    expect(pages).toContain('homePath: "/"')
   })
 })
 

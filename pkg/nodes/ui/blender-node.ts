@@ -10,13 +10,17 @@ import {
 import {Z, flexColumn, flexRow, palette, uiIcons} from "@ui/elements"
 import {DEFAULT_NODE_CANVAS_OVERLAY_STATE} from "./node-editor.ts"
 import {sampleLinkBezierPath} from "./link-curve.ts"
+import {
+  blenderParameterRenderer,
+  type Parameter,
+  type ParameterPlan,
+} from "./parameter.ts"
 import type {
   Frame,
   FrameRenderer,
   Link,
   LinkRenderer,
   Node,
-  Parameter,
   NodeEditorRenderers,
   NodeCanvasOverlayState,
   NodeRenderer,
@@ -89,12 +93,6 @@ export type BlenderSocket = Socket & Readonly<{
   hideValue?: boolean
 }>
 
-export type BlenderParameter = Parameter & Readonly<{
-  label: string
-  field?: FieldDefinition
-  description?: string
-}>
-
 export type BlenderNodePreviewImage = Readonly<{
   src: string
   width: number
@@ -113,7 +111,7 @@ export type BlenderNode = Omit<Node, "parameters"> & Readonly<{
   category?: string
   headerColor?: FieldColor
   properties?: readonly FieldDefinition[]
-  parameters?: readonly BlenderParameter[]
+  parameters?: readonly Parameter[]
   sockets?: readonly BlenderSocket[]
   collapsed?: boolean
   preview?: BlenderNodePreview
@@ -139,16 +137,8 @@ export type BlenderNodePlan = Readonly<{
     field: FieldDefinition
     rect: NodeRect
     editorRect: NodeRect
-    parameterId?: string
-    editorVisible: boolean
-    separateLabel: boolean
   }>[]
-  parameters: readonly Readonly<{
-    parameter: BlenderParameter
-    rect: NodeRect
-    side?: SocketSide
-    separateLabel: boolean
-  }>[]
+  parameters: readonly ParameterPlan[]
   sockets: readonly PositionedSocket<BlenderSocket>[]
 }>
 
@@ -247,10 +237,12 @@ export function blenderSocketPreset(kind: BlenderSocketKind): BlenderSocketPrese
   return BLENDER_SOCKET_PRESETS[kind]
 }
 
+export type BlenderNodeMeasurement = Readonly<{width: number; height: number}>
+
 export function measureBlenderNode(
   node: BlenderNode,
   connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
-): Readonly<{width: number; height: number}> {
+): BlenderNodeMeasurement {
   const width = measureBlenderNodeWidth(node)
   if (node.collapsed) {
     const sockets = node.sockets ?? []
@@ -333,25 +325,17 @@ export function planBlenderNode(
   frame: NodeRect,
   connectedSocketIds: ReadonlySet<string> = EMPTY_CONNECTED_SOCKET_IDS,
   overlayState: NodeCanvasOverlayState = DEFAULT_NODE_CANVAS_OVERLAY_STATE,
+  measured: BlenderNodeMeasurement = measureBlenderNode(node, connectedSocketIds),
 ): BlenderNodePlan {
   if (node.collapsed) return planCollapsedBlenderNode(node, frame, overlayState)
-  const measurement = measureBlenderNode(node, connectedSocketIds)
-  const rect = {...frame, h: measurement.height}
+  const rect = {...frame, h: measured.height}
   const regions = blenderNodeRegions(rect)
   const fields: Array<{
     field: FieldDefinition
     rect: NodeRect
     editorRect: NodeRect
-    parameterId?: string
-    editorVisible: boolean
-    separateLabel: boolean
   }> = []
-  const parameters: Array<{
-    parameter: BlenderParameter
-    rect: NodeRect
-    side?: SocketSide
-    separateLabel: boolean
-  }> = []
+  const parameters: ParameterPlan[] = []
   const sockets: PositionedSocket<BlenderSocket>[] = []
   const rows = blenderNodeRows(node, connectedSocketIds)
   flexColumn({
@@ -382,17 +366,17 @@ export function planBlenderNode(
               h: editorVisible ? layout.controlHeight : 0,
             }
           : fieldRect
-        if (row.field !== undefined) fields.push({
+        if (row.field !== undefined && row.parameter === undefined) fields.push({
           field: row.field,
           rect: fieldRect,
           editorRect,
-          editorVisible,
-          separateLabel,
-          ...(row.parameter === undefined ? {} : {parameterId: row.parameter.id}),
         })
         if (row.parameter !== undefined) parameters.push({
           parameter: row.parameter,
-          rect: labelRect,
+          rect: fieldRect,
+          labelRect,
+          editorRect,
+          editorVisible,
           separateLabel,
           ...(row.sockets.length === 0 ? {} : {side: parameterLabelSide(row.sockets)}),
         })
@@ -528,7 +512,13 @@ export function positionBlenderNode(node: BlenderNode, rect: NodeRect): Position
 }
 
 export function createBlenderNodeRenderers(): NodeEditorRenderers<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan> {
-  return {frame: blenderFrameRenderer, node: blenderNodeRenderer, socket: blenderSocketRenderer, link: blenderLinkRenderer}
+  return {
+    frame: blenderFrameRenderer,
+    node: blenderNodeRenderer,
+    parameter: blenderParameterRenderer,
+    socket: blenderSocketRenderer,
+    link: blenderLinkRenderer,
+  }
 }
 
 export const blenderFrameRenderer: FrameRenderer<BlenderFrame> = Object.freeze({
@@ -588,7 +578,7 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
   bounds(_context, plan) {
     return plan.bounds
   },
-  render({host, entry, selected, plan}) {
+  render({host, entry, selected, plan, parameterRenderer}) {
     const {node} = entry
     const rect = plan.rect
     const header = nodeHeaderColor(node)
@@ -665,25 +655,15 @@ export const blenderNodeRenderer: NodeRenderer<BlenderNode, BlenderSocket, Blend
         },
       ],
     })
-    const hiddenParameterIds = new Set(plan.fields.flatMap(({parameterId, editorVisible}) =>
-      parameterId !== undefined && !editorVisible ? [parameterId] : []))
     if (!node.collapsed) {
-      for (const {field, rect, editorRect, editorVisible, separateLabel} of plan.fields) {
-        if (!editorVisible) continue
-        const slot = separateLabel ? editorRect : rect
-        Field(host, slot.x, slot.y, slot.w, {
+      for (const {field, rect} of plan.fields) {
+        Field(host, rect.x, rect.y, rect.w, {
           ...field,
           key: `${node.id}:${field.id}`,
-          ...(separateLabel ? {compactLabel: "hidden" as const} : {}),
         }, {density: "compact"})
       }
-      for (const {parameter, rect: slot, side, separateLabel} of plan.parameters) {
-        if (parameter.field !== undefined && !separateLabel && !hiddenParameterIds.has(parameter.id)) continue
-        Typography(host, slot.x, slot.y, slot.w, slot.h, {
-          children: side === undefined ? parameter.label : socketPropertyLabel(parameter.label, side),
-          fontPx: 11,
-          sx: {textAlign: side ?? "center"},
-        })
+      for (const parameter of plan.parameters) {
+        parameterRenderer.render({host, nodeId: node.id, entry: parameter, selected})
       }
     }
     for (const positioned of plan.sockets) {
@@ -728,7 +708,7 @@ export const blenderLinkRenderer: LinkRenderer<BlenderLink> = Object.freeze({
 
 type BlenderNodeRowBase = Readonly<{
   field?: FieldDefinition
-  parameter?: BlenderParameter
+  parameter?: Parameter
   sockets: readonly BlenderSocket[]
 }>
 
@@ -746,7 +726,7 @@ function blenderNodeRows(
   for (const field of node.properties ?? []) rows.push({field, sockets: []})
   for (const parameter of node.parameters ?? []) rows.push({
     parameter,
-    ...(parameter.field === undefined ? {} : {field: parameter.field}),
+    field: parameter.field,
     sockets: (node.sockets ?? []).filter((socket) => socket.parameterId === parameter.id),
   })
   for (const socket of looseSockets.filter((socket) => socketSide(socket) === "left")) {

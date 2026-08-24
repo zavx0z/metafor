@@ -4406,10 +4406,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		hudRuntime.flushPendingRender()
 		space.updateWorldMatrix()
 		syncViewportClipPlanes()
-		// Node View — самостоятельный HUD-режим. Не тратим GPU на 3D-мир,
-		// который полностью закрыт нодовым холстом; при возврате в Space он
-		// снова рендерится без пересборки данных.
-		space.visible = !document.documentElement.classList.contains("metafor-node-view-active")
 		renderer.renderFrame(space, hudRuntime.overlay, viewPoint)
 		if (shouldContinueBulkRenderLoop({
 			navigationActive: navigationState !== null,

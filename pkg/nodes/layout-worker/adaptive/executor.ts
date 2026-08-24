@@ -8,7 +8,7 @@ import type {
   AdaptiveLayoutWorkerRequest,
   AdaptiveLayoutWorkerResponse,
   SerializedAdaptiveLayoutError,
-} from "../../types/worker.ts"
+} from "../types/worker.ts"
 
 const execute = createLayoutWorkerExecutor(
   (graph: AdaptiveLayoutWorkerRequest["graph"]) => layoutAdaptiveWithDiagnostics(graph),

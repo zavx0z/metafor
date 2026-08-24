@@ -1,30 +1,17 @@
 {
   "name": "nodes",
   "version": "0.0.1",
-  "description": "Universal node-system model, validation and positioned-geometry helpers.",
+  "description": "Workspace container for the independent Nodes packages and their integration playground.",
   "type": "module",
   "private": true,
-  "main": "index.ts",
-  "types": "index.ts",
-  "exports": {
-    ".": "./index.ts",
-    "./types": "./types/index.ts",
-    "./validation": "./validation.ts",
-    "./containment": "./containment.ts",
-    "./measured-layout": "./measured-layout.ts",
-    "./adaptive-layout": "./adaptive-layout.ts",
-    "./layout-worker": "./layout-worker.ts",
-    "./layout-worker/transport": "./layout-worker/transport.ts",
-    "./layout-worker/fixed/client": "./layout-worker/fixed/client.ts",
-    "./layout-worker/fixed/executor": "./layout-worker/fixed/executor.ts",
-    "./layout-worker/adaptive/client": "./layout-worker/adaptive/client.ts",
-    "./layout-worker/adaptive/executor": "./layout-worker/adaptive/executor.ts",
-    "./incremental-layout": "./incremental-layout.ts"
-  },
   "scripts": {
     "typecheck": "tsc --noEmit --pretty false"
   },
-  "dependencies": {
-    "@nodes/layout": "workspace:*"
+  "devDependencies": {
+    "@nodes/core": "workspace:*",
+    "@nodes/editor": "workspace:*",
+    "@nodes/layout": "workspace:*",
+    "@nodes/layout-worker": "workspace:*",
+    "@nodes/ui": "workspace:*"
   }
 }

@@ -6,36 +6,41 @@ import {fileURLToPath} from "node:url"
 
 const packageRoot = fileURLToPath(new URL(".", import.meta.url))
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url))
+const coreRoot = join(packageRoot, "core")
+const layoutWorkerRoot = join(packageRoot, "layout-worker")
 
 describe("universal node-system package boundaries", () => {
-  test("keeps the core package free of renderer, HUD and product imports", async () => {
-    const packageJson = await Bun.file(join(packageRoot, "package.json")).json() as {
+  test("keeps @nodes/core free of renderer, layout, HUD and product imports", async () => {
+    const packageJson = await Bun.file(join(coreRoot, "package.json")).json() as {
       dependencies?: Record<string, string>
     }
-    expect(Object.keys(packageJson.dependencies ?? {}).sort()).toEqual(["@nodes/layout"])
+    expect(Object.keys(packageJson.dependencies ?? {})).toEqual([])
 
-    const files = (await sourceFiles(packageRoot))
-      .filter((path) => !path.includes("/fixtures/"))
-      .filter((path) => !path.includes("/layout/"))
-      .filter((path) => !path.includes("/ui/"))
-      .filter((path) => !path.includes("/hud/"))
+    const files = (await sourceFiles(coreRoot))
       .filter((path) => !path.endsWith(".test.ts"))
     const source = await readAll(files)
-    expect(source).not.toMatch(/from ["']@nodes\/(?:ui|hud)/)
+    expect(source).not.toMatch(/from ["']@nodes\//)
     expect(source).not.toMatch(/from ["']@ui\//)
     expect(source).not.toMatch(/from ["']@metafor\/engine/)
     expect(source).not.toContain("Hamiltonian")
   })
 
-  test("keeps the Node Editor free of legacy Card, HUD and product vocabulary", async () => {
+  test("keeps exact Node Editor rendering solver-free and isolates the explicit projection adapter", async () => {
     const uiRoot = join(packageRoot, "ui")
     const packageJson = await Bun.file(join(uiRoot, "package.json")).json() as {
       dependencies?: Record<string, string>
     }
     expect(packageJson.dependencies?.["@ui/hud"]).toBeUndefined()
-    const source = await readAll((await sourceFiles(uiRoot)).filter((path) => !path.endsWith(".test.ts")))
+    const production = (await sourceFiles(uiRoot))
+      .filter((path) => !path.endsWith(".test.ts"))
+      .filter((path) => !path.includes("/playground/"))
+    const source = await readAll(production)
+    const exactEditor = await Bun.file(join(uiRoot, "node-editor.ts")).text()
+    const projection = await Bun.file(join(uiRoot, "blender-projection.ts")).text()
     expect(source).not.toMatch(/from ["']@ui\/hud/)
-    expect(source).not.toMatch(/from ["'](?:nodes|@nodes\/layout)/)
+    expect(exactEditor).not.toMatch(/from ["']@nodes\//)
+    expect(projection).toContain('from "@nodes/core/node-tree"')
+    expect(projection).toContain('from "@nodes/layout/fixed"')
     expect(source).not.toMatch(/\b(?:NodeSystemSurface|NodeSystemCard|NodeSystemFact)\b/)
     for (const productTerm of [
       "service-worker-api",
@@ -46,7 +51,13 @@ describe("universal node-system package boundaries", () => {
   })
 
   test("publishes only existing independent entrypoints", async () => {
-    for (const packagePath of ["pkg/nodes", "pkg/nodes/ui", "pkg/nodes/layout"]) {
+    for (const packagePath of [
+      "pkg/nodes/core",
+      "pkg/nodes/editor",
+      "pkg/nodes/layout",
+      "pkg/nodes/layout-worker",
+      "pkg/nodes/ui",
+    ]) {
       const root = join(repositoryRoot, packagePath)
       const packageJson = await Bun.file(join(root, "package.json")).json() as {
         exports?: Record<string, string | Readonly<{default?: string; types?: string}>>
@@ -58,18 +69,65 @@ describe("universal node-system package boundaries", () => {
         }
       }
     }
+    const rootManifest = await Bun.file(join(packageRoot, "package.json")).json() as {
+      main?: string
+      types?: string
+      exports?: Record<string, unknown>
+    }
+    expect(rootManifest.main).toBeUndefined()
+    expect(rootManifest.types).toBeUndefined()
+    expect(rootManifest.exports).toBeUndefined()
+
+    const coreManifest = await Bun.file(join(coreRoot, "package.json")).json() as {
+      exports: Record<string, unknown>
+    }
+    expect(Object.keys(coreManifest.exports).sort()).toEqual([
+      ".",
+      "./json-patch",
+      "./node-tree",
+      "./parameter",
+      "./projection-types",
+    ])
+
+    const layoutWorkerManifest = await Bun.file(join(layoutWorkerRoot, "package.json")).json() as {
+      exports: Record<string, unknown>
+    }
+    expect(Object.keys(layoutWorkerManifest.exports).sort()).toEqual([
+      ".",
+      "./adaptive/client",
+      "./adaptive/executor",
+      "./fixed/client",
+      "./fixed/executor",
+      "./transport",
+      "./types",
+    ])
+    for (const legacy of [
+      "validation.ts",
+      "containment.ts",
+      "measured-layout.ts",
+      "adaptive-layout.ts",
+      "incremental-layout.ts",
+      "types/model.ts",
+      "types/measured.ts",
+    ]) expect(await Bun.file(join(packageRoot, legacy)).exists(), legacy).toBeFalse()
   })
 
-  test("builds independent core, layout policies and Blender Node Editor consumer", async () => {
+  test("builds independent core, authoring, layout policies and Blender Node Editor consumers", async () => {
     const core = await buildFixture("core-consumer.ts")
+    const authoring = await buildFixture("editor-consumer.ts")
     const fixedLayout = await buildFixture("fixed-layout-consumer.ts")
     const adaptiveLayout = await buildFixture("adaptive-layout-consumer.ts")
-    const adaptiveMeasured = await buildFixture("adaptive-measured-consumer.ts")
     const nodeEditor = await buildFixture("blender-node-editor-consumer.ts")
+    const blenderProjection = await buildFixture("blender-projection-consumer.ts")
 
+    expect(core.source).toContain("Stale NodeTree projection")
+    expect(core.source).toContain("must contain only finite numbers")
     expect(core.source).not.toContain("struct GlobalUniforms")
     expect(core.source).not.toContain("NO_LEGAL_LAYOUT")
-    expect(core.source).not.toContain("NodeSystemSurface")
+    expect(authoring.source).toContain("NodeTreeEditor")
+    expect(authoring.source).toContain("JSON Patch")
+    expect(authoring.source).not.toContain("NO_LEGAL_LAYOUT")
+    expect(authoring.source).not.toContain("struct GlobalUniforms")
     expect(fixedLayout.source).toContain("Port has conflicting edge roles")
     expect(fixedLayout.source).toContain("NO_LEGAL_LAYOUT")
     expect(fixedLayout.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
@@ -80,16 +138,14 @@ describe("universal node-system package boundaries", () => {
     expect(adaptiveLayout.source).not.toContain("NodeSystemSurface")
     expect(adaptiveLayout.source).not.toContain("NodeInspectorSurface")
     expect(adaptiveLayout.source).not.toContain("struct GlobalUniforms")
-    expect(adaptiveMeasured.source).toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
-    expect(adaptiveMeasured.source).not.toContain("Card title must be non-empty")
-    expect(adaptiveMeasured.source).not.toContain("defaultWidth:260")
-    expect(adaptiveMeasured.source).not.toContain("NodeSystemSurface")
-    expect(adaptiveMeasured.source).not.toContain("struct GlobalUniforms")
     expect(nodeEditor.source).toContain("NodeEditor")
     expect(nodeEditor.source).toContain("NodeCanvas")
     expect(nodeEditor.source).toContain("Socket is detached")
     expect(nodeEditor.source).not.toContain("NO_LEGAL_LAYOUT")
     expect(nodeEditor.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
+    expect(blenderProjection.source).toContain("Stale NodeTree projection")
+    expect(blenderProjection.source).toContain("Port has conflicting edge roles")
+    expect(blenderProjection.source).toContain("Missing Blender Node")
     for (const legacy of [
       "NodeSystemSurface",
       "NodeSystemCard",
@@ -97,15 +153,17 @@ describe("universal node-system package boundaries", () => {
       "NodeInspectorSurface",
     ]) expect(nodeEditor.source).not.toContain(legacy)
 
-    expect(core.bytes).toBeLessThan(8_000)
+    expect(core.bytes).toBeLessThan(20_000)
+    expect(authoring.bytes).toBeLessThan(40_000)
+    expect(authoring.gzipBytes).toBeLessThan(12_000)
     expect(fixedLayout.bytes).toBeLessThan(100_000)
     expect(fixedLayout.gzipBytes).toBeLessThan(32_000)
     expect(adaptiveLayout.bytes).toBeLessThan(120_000)
     expect(adaptiveLayout.gzipBytes).toBeLessThan(36_000)
-    expect(adaptiveMeasured.bytes).toBeLessThan(120_000)
-    expect(adaptiveMeasured.gzipBytes).toBeLessThan(38_000)
     expect(nodeEditor.bytes).toBeLessThan(350_000)
     expect(nodeEditor.gzipBytes).toBeLessThan(100_000)
+    expect(blenderProjection.bytes).toBeLessThan(520_000)
+    expect(blenderProjection.gzipBytes).toBeLessThan(145_000)
   })
 })
 

@@ -1,0 +1,223 @@
+import {
+  definePlaygroundRouteTree,
+  type PlaygroundNavigationItem,
+  type PlaygroundStoryIndexItem,
+} from "@ui/playground"
+import {
+  NODE_COMPONENT_STORIES,
+  NODE_COMPONENT_STORY_ROUTES,
+  NODE_SOCKET_STORIES,
+  NODE_SOCKET_STORY_ROUTES,
+  isNodeComponentStoryRoute,
+  isNodeSocketStoryRoute,
+  type NodeComponentStoryRoute,
+  type NodeSocketStoryRoute,
+} from "./ui-story-catalog.ts"
+import {NODE_PARAMETER_FALLBACK_ROUTE} from "./parameter-catalog.ts"
+
+export const NODE_UI_PLAYGROUND_BASE_PATH = "/ui" as const
+
+export const NODE_PLAYGROUND_ROUTES = Object.freeze([
+  ...NODE_COMPONENT_STORY_ROUTES,
+  ...NODE_SOCKET_STORY_ROUTES,
+])
+
+export type NodePlaygroundStoryRoute = NodeComponentStoryRoute | NodeSocketStoryRoute
+export type NodePlaygroundRoute = string
+export type NodePlaygroundGroup = "overview" | "editor" | "parameter" | "socket" | "comparison"
+type NodePlaygroundCatalogGroup = "editor" | "components" | "comparison"
+
+const NODE_PLAYGROUND_GROUP_LABELS = Object.freeze({
+  editor: "Редактор",
+  components: "Компоненты",
+  comparison: "Сравнение",
+} satisfies Readonly<Record<NodePlaygroundCatalogGroup, string>>)
+
+/** Canonical package route hierarchy: root overview, prefix overviews and leaves. */
+export const NODE_PLAYGROUND_ROUTE_TREE = definePlaygroundRouteTree({
+  leaves: NODE_PLAYGROUND_ROUTES,
+})
+export const NODE_PLAYGROUND_FALLBACK_ROUTE = NODE_PARAMETER_FALLBACK_ROUTE
+
+const COMPONENT_ROUTES = Object.freeze({
+  "node-editor": "node-editor",
+  frame: "frame",
+  parameter: "parameter",
+  link: "link",
+  socket: "socket",
+  comparison: "comparison",
+} satisfies Readonly<Record<string, NodePlaygroundRoute>>)
+
+export const NODE_PLAYGROUND_CATALOG: readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] = [
+  {
+    id: "node-editor",
+    label: "Редактор нод",
+    route: COMPONENT_ROUTES["node-editor"],
+    group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
+  },
+  {
+    id: "frame",
+    label: "Frame",
+    route: COMPONENT_ROUTES.frame,
+    group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
+  },
+  {
+    id: "link",
+    label: "Link",
+    route: COMPONENT_ROUTES.link,
+    group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
+  },
+  {
+    id: "parameter",
+    label: "Параметры",
+    route: COMPONENT_ROUTES.parameter,
+    group: {id: "components", label: NODE_PLAYGROUND_GROUP_LABELS.components},
+  },
+  {
+    id: "socket",
+    label: "Сокеты",
+    route: COMPONENT_ROUTES.socket,
+    group: {id: "components", label: NODE_PLAYGROUND_GROUP_LABELS.components},
+  },
+  {
+    id: "comparison",
+    label: "Сравнение",
+    route: COMPONENT_ROUTES.comparison,
+    group: {id: "comparison", label: NODE_PLAYGROUND_GROUP_LABELS.comparison},
+  },
+]
+
+const STORY_INDEX = Object.freeze([
+  ...NODE_COMPONENT_STORIES.index,
+  ...NODE_SOCKET_STORIES.index,
+])
+
+export function nodePlaygroundGroup(route: NodePlaygroundRoute): NodePlaygroundGroup {
+  const componentId = nodePlaygroundComponentId(route)
+  if (componentId === null) return "overview"
+  if (componentId === "parameter") return "parameter"
+  if (componentId === "socket") return "socket"
+  if (componentId === "comparison") return "comparison"
+  return "editor"
+}
+
+export function nodePlaygroundCatalog(
+  _route: NodePlaygroundRoute,
+  collapsedGroups: ReadonlySet<string> = new Set(),
+): readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] {
+  return NODE_PLAYGROUND_CATALOG.map((item) => ({
+    ...item,
+    ...(item.group === undefined ? {} : {group: {
+      ...item.group,
+      ...(collapsedGroups.has(item.group.id) ? {collapsed: true} : {}),
+    }}),
+  }))
+}
+
+export function nodePlaygroundSections(
+  route: NodePlaygroundRoute,
+): readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] {
+  const componentId = nodePlaygroundComponentId(route)
+  if (componentId === null) return Object.freeze([])
+  return NODE_PLAYGROUND_ROUTE_TREE.children(componentId).map((node) => ({
+    id: node.segment,
+    label: nodePlaygroundRouteLabel(node.path),
+    route: node.path,
+  }))
+}
+
+export function nodePlaygroundDockItems(
+  route: NodePlaygroundRoute,
+): readonly PlaygroundNavigationItem<NodePlaygroundRoute>[] {
+  const sectionPath = nodePlaygroundSectionRoute(route)
+  if (sectionPath === null) return Object.freeze([])
+  return NODE_PLAYGROUND_ROUTE_TREE.children(sectionPath).map((node) => ({
+    id: node.segment,
+    label: nodePlaygroundRouteLabel(node.path),
+    route: node.path,
+  }))
+}
+
+export function nodePlaygroundCatalogRoute(route: NodePlaygroundRoute): NodePlaygroundRoute {
+  return nodePlaygroundComponentId(route) ?? ""
+}
+
+export function nodePlaygroundSectionRoute(route: NodePlaygroundRoute): NodePlaygroundRoute | null {
+  const segments = routeSegments(route)
+  if (segments.length < 2) return null
+  return segments.slice(0, 2).join("/")
+}
+
+export function nodePlaygroundSectionTitle(route: NodePlaygroundRoute): string {
+  const componentId = nodePlaygroundComponentId(route)
+  return componentId === null ? "Разделы" : nodePlaygroundRouteLabel(componentId)
+}
+
+export function nodePlaygroundDockTitle(route: NodePlaygroundRoute): string {
+  return nodePlaygroundComponentId(route) === "socket" ? "Направление" : "Варианты"
+}
+
+export function nodePlaygroundWorkbenchStoryRoute(route: NodePlaygroundRoute): NodePlaygroundStoryRoute {
+  const node = NODE_PLAYGROUND_ROUTE_TREE.find(route)
+  if (node === undefined) throw new Error(`Unknown Node playground route: ${route}`)
+  if (node.kind === "leaf") return node.path as NodePlaygroundStoryRoute
+  const prefix = node.path.length === 0 ? "" : `${node.path}/`
+  if (NODE_PLAYGROUND_FALLBACK_ROUTE.startsWith(prefix)) return NODE_PLAYGROUND_FALLBACK_ROUTE
+  const descendant = NODE_PLAYGROUND_ROUTE_TREE.leaves.find((leaf) => leaf.startsWith(prefix))
+  if (descendant === undefined) throw new Error(`Node playground overview has no detail descendant: ${route}`)
+  return descendant as NodePlaygroundStoryRoute
+}
+
+export async function loadNodePlaygroundStory(route: NodePlaygroundRoute) {
+  if (isNodeSocketStoryRoute(route)) return NODE_SOCKET_STORIES.load(route)
+  if (isNodeComponentStoryRoute(route)) return NODE_COMPONENT_STORIES.load(route)
+  throw new Error(`Node playground route is not a detail story: ${route}`)
+}
+
+export function nodePlaygroundStoryIndex(route: NodePlaygroundRoute): PlaygroundStoryIndexItem {
+  const story = STORY_INDEX.find((item) => item.route === route)
+  if (story === undefined) throw new Error(`Node playground route is not a detail story: ${route}`)
+  return story
+}
+
+export function isNodeEditorStoryRoute(route: NodePlaygroundRoute): route is NodeComponentStoryRoute {
+  return isNodeComponentStoryRoute(route) && nodePlaygroundStoryIndex(route).componentId === "node-editor"
+}
+
+export function isNodeFrameStoryRoute(route: NodePlaygroundRoute): route is NodeComponentStoryRoute {
+  return isNodeComponentStoryRoute(route) && nodePlaygroundStoryIndex(route).componentId === "frame"
+}
+
+export function isNodeParameterStoryRoute(route: NodePlaygroundRoute): route is NodeComponentStoryRoute {
+  return isNodeComponentStoryRoute(route) && nodePlaygroundStoryIndex(route).componentId === "parameter"
+}
+
+export function isNodeLinkStoryRoute(route: NodePlaygroundRoute): route is NodeComponentStoryRoute {
+  return isNodeComponentStoryRoute(route) && nodePlaygroundStoryIndex(route).componentId === "link"
+}
+
+function nodePlaygroundComponentId(route: NodePlaygroundRoute): string | null {
+  const componentId = routeSegments(route)[0]
+  return componentId !== undefined && NODE_PLAYGROUND_CATALOG.some(({id}) => id === componentId)
+    ? componentId
+    : null
+}
+
+function nodePlaygroundRouteLabel(route: NodePlaygroundRoute): string {
+  const segments = routeSegments(route)
+  if (segments.length === 0) return "Компоненты @nodes/ui"
+  if (segments.length === 1) {
+    return NODE_PLAYGROUND_CATALOG.find(({id}) => id === segments[0])?.label ?? segments[0]!
+  }
+  const story = firstStoryUnder(route)
+  if (segments.length === 2) return story?.sectionLabel ?? segments[1]!
+  return story?.variantLabel ?? segments.at(-1)!
+}
+
+function firstStoryUnder(route: NodePlaygroundRoute): PlaygroundStoryIndexItem | undefined {
+  return STORY_INDEX.find((story) => story.route === route || story.route.startsWith(`${route}/`))
+}
+
+function routeSegments(route: NodePlaygroundRoute): readonly string[] {
+  return route === "" ? Object.freeze([]) : Object.freeze(route.split("/"))
+}

@@ -20,11 +20,13 @@ const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFr
 })
 ```
 
-`NodeEditor` получает готовый `PositionedNodeTree`, управляет fit,
-pan/zoom и selection и вызывает независимые `NodeRenderer`, `SocketRenderer` и
-`LinkRenderer`. Библиотека не владеет автоматической раскладкой и не импортирует
-старый `NodeSystemDocument`, Card/HUD или продуктовый код. `NodeCanvas`
-предоставляет ту же renderer boundary без пользовательского редактирования.
+`NodeEditor` получает готовую projection либо отдельный `PositionedNodeTree`,
+управляет fit, pan/zoom и selection и вызывает независимые `NodeRenderer`,
+`ParameterRenderer`, `SocketRenderer` и `LinkRenderer`. Exact `node-editor` не
+загружает solver.
+Отдельный `blender-projection` связывает живой root `NodeTree`, числовой
+`@nodes/layout` и Blender renderer. `NodeCanvas` предоставляет ту же renderer
+boundary без пользовательского редактирования.
 
 `Frame` является отдельным positioned component и visual owner вложенности.
 Обычная Node ссылается на него через `frameId`; Frame может быть вложен в другой
@@ -34,15 +36,27 @@ children за пределами direct Frame.
 `blender-node` предоставляет стандартный Node renderer с одним typed local
 plan и одной materialization, 19 Socket presets,
 8 Socket shapes и Link renderer. Это сменяемый preset: consumer может передать
-собственные typed Node/Socket/Link renderer-ы без изменения editor.
+собственные typed Node/Parameter/Socket/Link renderer-ы без изменения editor.
+
+`blender-projection` измеряет каждую изменившуюся Node один раз, переиспользует
+layout при value-only изменениях Parameter и передаёт готовые plans через
+`NodeEditor.setProjection()`. В этом пути NodeEditor не повторяет local plan.
 
 Поля Node properties и default values Socket используют тот же универсальный
 `Field` из `@ui/components`, что и обычные панели вне Node Editor.
 
 Parameter владеет одним `Field`; Socket ссылается на него через `parameterId`.
-Одна Parameter row может иметь отдельный Socket слева, справа или оба endpoint
-одновременно. `direction` не выводится из стороны. Component boundary принимает
-только resolved `left/right`; выбор стороны остаётся у layout policy.
+Один Parameter может иметь отдельный Socket слева, справа или оба endpoint
+одновременно. Node делегирует его ровно одному `ParameterRenderer`, не дублируя
+label, Field, value или callback. Публичный API использует только имена
+`Parameter`, `ParameterPlan`, `ParameterRenderer` и
+`ParameterRendererContext`; row и slot остаются приватными деталями planner.
+`direction` не выводится из стороны. Component boundary принимает только
+resolved `left/right`; выбор стороны остаётся у layout policy.
+
+Exact Parameter API импортируется через `@nodes/ui/parameter`. Его first-class
+renderer не добавляет отдельный selection kind: selection NodeEditor по-прежнему
+различает только Frame, Node и Link.
 
 ## Flexbox-закон
 
@@ -59,15 +73,23 @@ panels выполняется только общими `flexRow`/`flexColumn`/`
 ## Playground
 
 ```bash
-bun run nodes:components
+bun run nodes:playground
+pkg/nodes/playground/.agents/skills/nodes-dev/scripts/nodes-dev.sh ensure "$PWD"
 ```
 
-Dev-only playground использует public `@ui/playground` и разделяет nested path
-routes `editor/*`, `socket/*` и `comparison/blender`. Одновременно виден только
-выбранный Node Editor либо Socket catalog; comparison показывает maintained
-Blender reference и одну representative live Node. Standalone universal fields
-принадлежат `@ui/components` и не входят в этот каталог.
+Центральная page `/ui/*` использует public `@ui/playground`. Sidebar содержит
+`Редактор`, затем `Компоненты` с `Параметры` и `Сокеты`, затем `Сравнение`.
+`/ui/parameter/` является каноническим overview Parameter: второй уровень
+повторяет все 13 public Field kinds, а dock показывает Field без Socket, вход,
+выход, два Socket и подключённый вход. Standalone universal Fields по-прежнему
+принадлежат `@ui/components`; здесь тот же control показан как Field Parameter.
 
 На mobile breakpoint остаётся только активный preview. NodeEditor поддерживает
 single-touch pan и two-touch pinch; overview LOD скрывает только детали controls,
 не меняя NodeTree или renderer identity.
+
+Lifecycle и background browser evidence component catalog маршрутизирует
+единый `$nodes-dev` selector `nodes`; отдельный UI process не создаётся.
+
+Полный runtime-путь `NodeTreeEditor → NodeTree → projection → NodeEditor`
+находится на соседней page `/editor/live-node-tree`; UI catalog не подменяет его.

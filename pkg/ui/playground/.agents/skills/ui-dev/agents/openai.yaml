@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Development"
+  short_description: "Develop the centralized UI playground"
+  default_prompt: "Use $ui-dev to run and verify the centralized UI catalog and its exact package routes without stealing browser focus."

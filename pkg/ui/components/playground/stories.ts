@@ -482,30 +482,6 @@ export const COMPONENT_STORIES = definePlaygroundStories({
 export const COMPONENT_STORY_ROUTES = Object.freeze([...COMPONENT_STORIES.declaration.routes])
 export type ComponentsStoryRoute = typeof COMPONENT_STORY_ROUTES[number]
 
-const LEGACY_COMPONENT_ROUTES: Readonly<Record<string, ComponentsStoryRoute>> = Object.freeze({
-  "button/basic": "button/basic/contained",
-  "button/icon": "button/icon/svg",
-  "button/icon-label": "button/icon-label/left",
-  "button/sizes": "button/sizes/medium",
-  "button/color": "button/color/primary",
-  "pane/variants": "pane/variants/glass",
-  "field/values": "field/text/default",
-  "field/selection": "field/boolean/switch",
-  "field/composite": "field/vector/default",
-  "field/reference": "field/reference/default",
-  "disabled/badge": "badge/basic/default",
-  "disabled/text-field": "text-field/basic/default",
-  "disabled/divider": "divider/variants/full-width",
-  "disabled/scrollbar": "scrollbar/vertical/default",
-  "disabled/scroll-list": "list/basic/default",
-  "disabled/noti-stack": "noti/status/unavailable",
-})
-
-export function normalizeComponentsPlaygroundPath(pathname: string): ComponentsStoryRoute | null {
-  const route = pathname.replace(/^\/+|\/+$/g, "")
-  return LEGACY_COMPONENT_ROUTES[route] ?? null
-}
-
 export function componentStoryIndex(route: ComponentsStoryRoute): PlaygroundStoryIndexItem {
   const story = COMPONENT_STORIES.find(route)
   if (story === undefined) throw new Error(`Unknown Components story: ${route}`)
@@ -514,7 +490,7 @@ export function componentStoryIndex(route: ComponentsStoryRoute): PlaygroundStor
 
 export function componentCatalogItems(
   collapsedGroups: ReadonlySet<string>,
-): readonly PlaygroundNavigationItem<ComponentsStoryRoute>[] {
+): readonly PlaygroundNavigationItem<string>[] {
   const firstByComponent = new Map<string, PlaygroundStoryIndexItem>()
   for (const story of COMPONENT_STORIES.index) {
     if (!firstByComponent.has(story.componentId)) firstByComponent.set(story.componentId, story)
@@ -522,7 +498,7 @@ export function componentCatalogItems(
   return [...firstByComponent.values()].map((story) => ({
     id: story.componentId,
     label: story.componentLabel,
-    route: story.route,
+    route: story.componentId,
     group: {
       id: story.groupId,
       label: story.groupLabel,
@@ -534,7 +510,7 @@ export function componentCatalogItems(
 
 export function componentSectionItems(
   route: ComponentsStoryRoute,
-): readonly PlaygroundNavigationItem<ComponentsStoryRoute>[] {
+): readonly PlaygroundNavigationItem<string>[] {
   const selected = componentStoryIndex(route)
   const firstBySection = new Map<string, PlaygroundStoryIndexItem>()
   for (const story of COMPONENT_STORIES.index) {
@@ -545,7 +521,7 @@ export function componentSectionItems(
   return [...firstBySection.values()].map((story) => ({
     id: story.sectionId,
     label: story.sectionLabel,
-    route: story.route,
+    route: `${story.componentId}/${story.sectionId}`,
   }))
 }
 

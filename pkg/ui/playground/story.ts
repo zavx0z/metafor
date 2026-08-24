@@ -1,5 +1,6 @@
 import type {UiSurface, UiSurfaceRect} from "@ui/elements"
 import {definePlaygroundRoutes, type PlaygroundRouteDeclaration} from "./router.ts"
+import {definePlaygroundRouteTree, type PlaygroundRouteTree} from "./route-tree.ts"
 
 export type PlaygroundStoryArgs = Readonly<Record<string, unknown>>
 
@@ -105,6 +106,7 @@ export type PlaygroundStoryIndexItem = Readonly<{
 
 export type PlaygroundStoryRegistry = Readonly<{
   declaration: PlaygroundRouteDeclaration<string>
+  routeTree: PlaygroundRouteTree<string>
   index: readonly PlaygroundStoryIndexItem[]
   fallback: string
   find(route: string): PlaygroundStoryIndexItem | undefined
@@ -216,12 +218,14 @@ export function definePlaygroundStories(input: PlaygroundStoryCatalogInput): Pla
   const routes = Object.freeze(stories.map(({index}) => index.route))
   const fallback = storyRoute(input.fallback)
   const declaration = definePlaygroundRoutes({routes, fallback})
+  const routeTree = definePlaygroundRouteTree({leaves: routes})
   const byRoute = new Map(stories.map((story) => [story.index.route, story]))
   const loaded = new Map<string, Promise<PlaygroundStoryModule>>()
   const index = Object.freeze(stories.map((story) => story.index))
 
   return Object.freeze({
     declaration,
+    routeTree,
     index,
     fallback,
     find(route: string) {

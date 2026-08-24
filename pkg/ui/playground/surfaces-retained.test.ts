@@ -540,12 +540,6 @@ describe("retained @ui/playground surfaces", () => {
       "source-title",
       "source-copy",
       "source-box",
-      "source-line:0",
-      "source-line:1",
-      "source-line:2",
-      "source-line:3",
-      "source-line:4",
-      "source-line:5",
       "source-tab:controls",
       "source-tab:events",
       "source-control-group:Основные",
@@ -572,6 +566,81 @@ describe("retained @ui/playground surfaces", () => {
     expect(changes).toEqual([["variant", "outlined"]])
     expect(modes).toEqual(["events"])
     surface.dispose()
+  })
+
+  test("scrolls overflowing source on both axes without rematerializing sibling owners", () => {
+    const source = [
+      "export const longHorizontalLine = \"" + "x".repeat(160) + "\"",
+      ...Array.from({length: 60}, (_, index) => `export const line${index} = ${index}`),
+    ].join("\n")
+    const positions: Array<Readonly<{left: number; top: number}>> = []
+    const surface = new PlaygroundStoryPanelSurface({
+      source,
+      args: {},
+      controls: [],
+      events: [],
+      mode: "controls",
+      onModeChange() {},
+      onControlChange() {},
+      onCopy() {},
+      onSourceScrollChange: (position) => { positions.push(position) },
+    })
+    surface.attachCanvas(createFakeRuntime())
+    surface.setRect({x: 0, y: 0, w: 300, h: 900}, 0.001, font)
+    const before = snapshots(surface)
+    expect(surface.sourceScrollPosition).toEqual({left: 0, top: 0})
+
+    const originalRequestAnimationFrame = globalThis.requestAnimationFrame
+    const originalCancelAnimationFrame = globalThis.cancelAnimationFrame
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextFrameId = 1
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback): number => {
+      const id = nextFrameId++
+      callbacks.set(id, callback)
+      return id
+    }) as typeof requestAnimationFrame
+    globalThis.cancelAnimationFrame = ((id: number): void => {
+      callbacks.delete(id)
+    }) as typeof cancelAnimationFrame
+    const drain = (start: number): void => {
+      for (let frame = 0; callbacks.size > 0 && frame < 200; frame += 1) {
+        const queued = [...callbacks.entries()]
+        callbacks.clear()
+        for (const [, callback] of queued) callback(start + frame * 16)
+        surface.flushPendingRender()
+      }
+      expect(callbacks.size).toBe(0)
+    }
+    let prevented = 0
+    const wheel = (deltaX: number, deltaY: number, timeStamp: number): void => surface.onWheel({
+      deltaX,
+      deltaY,
+      deltaMode: 0,
+      shiftKey: false,
+      timeStamp,
+      preventDefault: () => { prevented += 1 },
+    } as unknown as WheelEvent, 100, 100)
+
+    try {
+      wheel(0, 180, 100)
+      drain(116)
+      expect(surface.sourceScrollPosition.top).toBeGreaterThan(0)
+      expect(surface.sourceScrollPosition.left).toBe(0)
+
+      wheel(240, 0, 500)
+      drain(516)
+      expect(surface.sourceScrollPosition.left).toBeGreaterThan(0)
+      expect(surface.sourceScrollPosition.top).toBeGreaterThan(0)
+      expect(prevented).toBe(2)
+      expect(positions.at(-1)?.left).toBe(surface.sourceScrollPosition.left)
+      expect(positions.at(-1)?.top).toBe(surface.sourceScrollPosition.top)
+      expectOwnersStable(surface, before, new Set(["source-box"]))
+      expect(snapshot(owner(surface, "source-box"))).not.toEqual(before.get("source-box"))
+    } finally {
+      globalThis.requestAnimationFrame = originalRequestAnimationFrame
+      globalThis.cancelAnimationFrame = originalCancelAnimationFrame
+      surface.dispose()
+    }
   })
 
   test("reconciles Info descriptors while status dirties only its exact owner and dispose cleans all parents", () => {

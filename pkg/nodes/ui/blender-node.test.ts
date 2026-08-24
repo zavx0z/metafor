@@ -18,6 +18,7 @@ import {
   type BlenderSocket,
   type BlenderSocketShape,
 } from "./blender-node.ts"
+import {blenderParameterRenderer} from "./parameter.ts"
 
 type PaintCall =
   | Readonly<{kind: "rect"; x: number; y: number; w: number; h: number}>
@@ -81,7 +82,7 @@ describe("Blender-like Node presets", () => {
     expect(measured.height).toBeGreaterThan(80)
   })
 
-  test("provides independent Node, Socket and Link renderers", () => {
+  test("provides independent Node, Parameter, Socket and Link renderers", () => {
     const renderers = createBlenderNodeRenderers()
     expect(typeof renderers.frame.renderBackground).toBe("function")
     expect(typeof renderers.frame.renderForeground).toBe("function")
@@ -91,8 +92,78 @@ describe("Blender-like Node presets", () => {
     expect(typeof renderers.node.render).toBe("function")
     expect("renderBackground" in renderers.node).toBeFalse()
     expect("renderForeground" in renderers.node).toBeFalse()
+    expect(renderers.parameter).toBe(blenderParameterRenderer)
+    expect(typeof renderers.parameter.render).toBe("function")
     expect(typeof renderers.socket.render).toBe("function")
     expect(typeof renderers.link.render).toBe("function")
+  })
+
+  test("delegates one public Parameter exactly once even when it owns two Sockets", () => {
+    const node: BlenderNode = {
+      id: "parameter-owner",
+      title: "Parameter owner",
+      parameters: [{
+        id: "gain",
+        label: "Gain",
+        field: {id: "gain-field", label: "Gain", kind: "number", value: 0.5},
+      }],
+      sockets: [
+        {id: "gain-input", label: "Gain", direction: "input", socketType: "float", parameterId: "gain", side: "left"},
+        {id: "gain-output", label: "Gain", direction: "output", socketType: "float", parameterId: "gain", side: "right"},
+      ],
+    }
+    const entry = positionBlenderNode(node, {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height})
+    const plan = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(), selected: false})
+    const calls: Array<Readonly<{nodeId: string; parameterId: string}>> = []
+    const surface = new RetainedHeaderSurface()
+    try {
+      surface.setRect({x: 0, y: 0, w: 240, h: 180}, HEADER_PIXEL_SCALE, projectFont)
+      const parent = surface.createParent()
+      surface.materialize(parent, () => blenderNodeRenderer.render({
+        parameterRenderer: {render({nodeId, entry: parameter}) {
+          calls.push({nodeId, parameterId: parameter.parameter.id})
+        }},
+        host: surface,
+        entry,
+        plan,
+        connectedSocketIds: new Set(),
+        selected: false,
+      }))
+      expect(calls).toEqual([{nodeId: "parameter-owner", parameterId: "gain"}])
+      expect(plan.parameters).toHaveLength(1)
+      expect(plan.sockets).toHaveLength(2)
+    } finally {
+      surface.dispose()
+    }
+  })
+
+  test("keeps Parameter retained identity when two Parameters reuse one Field id", () => {
+    const node: BlenderNode = {
+      id: "shared-field-owner",
+      title: "Shared Field owner",
+      parameters: [
+        {id: "first", label: "First", field: {id: "shared-field", label: "First", kind: "number", value: 1}},
+        {id: "second", label: "Second", field: {id: "shared-field", label: "Second", kind: "number", value: 2}},
+      ],
+    }
+    const entry = positionBlenderNode(node, {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height})
+    const plan = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(), selected: false})
+    const surface = new RetainedHeaderSurface()
+    try {
+      surface.setRect({x: 0, y: 0, w: 240, h: 180}, HEADER_PIXEL_SCALE, projectFont)
+      const parent = surface.createParent()
+      surface.materialize(parent, () => blenderNodeRenderer.render({
+        parameterRenderer: blenderParameterRenderer,
+        host: surface,
+        entry,
+        plan,
+        connectedSocketIds: new Set(),
+        selected: false,
+      }))
+      expect(cachedTextValues(parent)).toEqual(expect.arrayContaining(["First", "Second"]))
+    } finally {
+      surface.dispose()
+    }
   })
 
   test("renders canonical INT through public Field without a local Node control", async () => {
@@ -121,6 +192,7 @@ describe("Blender-like Node presets", () => {
       const entry = positionBlenderNode(node, rect)
       const plan = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(), selected: false})
       surface.materialize(parent, () => blenderNodeRenderer.render({
+        parameterRenderer: blenderParameterRenderer,
         host: surface,
         entry,
         plan,
@@ -246,6 +318,7 @@ describe("Blender-like Node presets", () => {
           const entry = positionBlenderNode(node, rect)
           const plan = planBlenderNode(node, rect)
           surface.materialize(parent, () => blenderNodeRenderer.render({
+            parameterRenderer: blenderParameterRenderer,
             host: surface,
             entry,
             plan,
@@ -283,7 +356,7 @@ describe("Blender-like Node presets", () => {
     }
     const plan = planBlenderNode(node, {x: 20, y: 30, w: 240, h: measureBlenderNode(node).height})
     const property = plan.fields.find(({field}) => field.id === "mode")!.rect
-    const parameter = plan.fields.find(({field}) => field.id === "value")!.rect
+    const parameter = plan.parameters.find(({parameter}) => parameter.id === "value")!.rect
     const output = plan.sockets.find(({socket}) => socket.id === "output")!
     const input = plan.sockets.find(({socket}) => socket.id === "input")!
     expect(output.center.y).toBeLessThan(property.y)
@@ -387,11 +460,12 @@ describe("Blender-like Node presets", () => {
         const connected = new Set(state === "linked" ? [socket.id] : [])
         const entry = positionBlenderNode(node, rect)
         const plan = blenderNodeRenderer.plan({entry, connectedSocketIds: connected, selected: false})
-        const field = plan.fields[0]!
-        const label = plan.parameters[0]!.rect
+        const parameter = plan.parameters[0]!
+        const field = parameter.rect
+        const label = parameter.labelRect
         const positioned = plan.sockets[0]!
 
-        expect(field.rect).toEqual({
+        expect(field).toEqual({
           x: 37,
           y: 62,
           w: 146,
@@ -402,7 +476,7 @@ describe("Blender-like Node presets", () => {
           side: state === "output" ? "right" : "left",
           separateLabel: true,
         })
-        expect(field.editorVisible).toBe(state === "input" || state === "output")
+        expect(parameter.editorVisible).toBe(state === "input" || state === "output")
         expect(positioned.center).toEqual({x: state === "output" ? 200 : 20, y: 73})
 
         if (shape === BLENDER_SOCKET_SHAPES[0]) {
@@ -411,6 +485,7 @@ describe("Blender-like Node presets", () => {
             surface.setRect({x: 0, y: 0, w: 240, h: 180}, HEADER_PIXEL_SCALE, projectFont)
             const parent = surface.createParent()
             surface.materialize(parent, () => blenderNodeRenderer.render({
+              parameterRenderer: blenderParameterRenderer,
               host: surface,
               entry,
               plan,
@@ -491,8 +566,8 @@ describe("Blender-like Node presets", () => {
     expect(unlinkedRotation.center.y).toBe(167)
     expect(linkedRotation.center.y).toBe(98)
     expect(unlinkedRotation.center.y - linkedRotation.center.y).toBe(69)
-    expect(linked.fields.find(({field}) => field.id === "translation")?.rect.h).toBe(22)
-    expect(linked.fields.find(({field}) => field.id === "rotation")?.rect.y).toBe(87)
+    expect(linked.parameters.find(({parameter}) => parameter.id === "translation")?.rect.h).toBe(22)
+    expect(linked.parameters.find(({parameter}) => parameter.id === "rotation")?.rect.y).toBe(87)
 
     const restored = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(), selected: false})
     expect(restored.rect).toEqual(unlinked.rect)
@@ -512,6 +587,7 @@ describe("Blender-like Node presets", () => {
         selected: false,
       }, linked)
       surface.materialize(parent, () => blenderNodeRenderer.render({
+        parameterRenderer: blenderParameterRenderer,
         host: surface,
         entry: presentation,
         connectedSocketIds: new Set(["translation"]),
@@ -547,14 +623,14 @@ describe("Blender-like Node presets", () => {
     const defaultFrame = {x: 20, y: 30, w: unlinked.width, h: unlinked.height}
     const defaultPlan = planBlenderNode(node, defaultFrame)
     expect(defaultPlan.rect.w).toBe(166)
-    expect(defaultPlan.fields.map(({rect}) => ({x: rect.x, w: rect.w}))).toEqual([
+    expect(defaultPlan.parameters.map(({rect}) => ({x: rect.x, w: rect.w}))).toEqual([
       {x: 30, w: 146},
       {x: 30, w: 146},
     ])
 
     const resized = planBlenderNode(node, {...defaultFrame, w: 240})
     expect(resized.rect.w).toBe(240)
-    expect(resized.fields[0]?.rect).toMatchObject({x: 67, w: 146})
+    expect(resized.parameters[0]?.rect).toMatchObject({x: 67, w: 146})
 
     const longHeaderLabel = "Transform Geometry With A Very Long Header"
     const longSocketLabel = "Extremely Long Translation Property Socket Label"
@@ -633,6 +709,7 @@ describe("Blender-like Node presets", () => {
       surface.setRect({x: 0, y: 0, w: 260, h: 260}, HEADER_PIXEL_SCALE, projectFont)
       const parent = surface.createParent()
       surface.materialize(parent, () => blenderNodeRenderer.render({
+        parameterRenderer: blenderParameterRenderer,
         host: surface,
         entry,
         connectedSocketIds: new Set(),
@@ -646,6 +723,7 @@ describe("Blender-like Node presets", () => {
 
       surface.clearRecording()
       surface.materialize(parent, () => blenderNodeRenderer.render({
+        parameterRenderer: blenderParameterRenderer,
         host: surface,
         entry: openEntry,
         connectedSocketIds: new Set(),
@@ -847,6 +925,7 @@ function paintedNodeShadow(collapsed: boolean, selected: boolean): Readonly<{
   } as unknown as Parameters<typeof blenderNodeRenderer.render>[0]["host"]
 
   blenderNodeRenderer.render({
+    parameterRenderer: blenderParameterRenderer,
     host,
     entry,
     plan,
@@ -902,6 +981,7 @@ function paintedNodeHeader(collapsed: boolean): PaintedNodeHeader {
   } as unknown as Parameters<typeof blenderNodeRenderer.render>[0]["host"]
 
   blenderNodeRenderer.render({
+    parameterRenderer: blenderParameterRenderer,
     host,
     entry,
     plan,

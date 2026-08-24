@@ -1,72 +1,82 @@
-# nodes
+# Nodes packages
 
-Node-направление разделено на две независимые границы:
+`pkg/nodes` — workspace-контейнер независимых Node packages и их parent
+playground. Сам package `nodes` не имеет production exports.
 
-* [`@nodes/ui`](ui/README.md) — Blender-подобная компонентная библиотека
-  `NodeTree → Frame / Node → Parameter → Socket → Link` с WebGPU Node Editor и собственным
-  component playground;
-* [`@nodes/layout`](layout/README.md) и корневой `nodes` — временно сохранённое
-  чистое semantic/measured/positioned ядро текущей автоматической раскладки.
+`@nodes/core` владеет живыми сущностями
+`NodeTree → Frame / Node → Parameter → Socket → Link`, значениями Parameter,
+ревизиями, подписками и получением производных проекций.
 
-Новая component library намеренно не адаптируется к прежнему layout format.
-Следующий этап перепишет layout integration непосредственно под `NodeTree` и
-`Socket`; до него обе границы собираются и проверяются независимо.
+`Parameter` является локальным Store своего значения. `NodeTree` наблюдает его
+изменения и сообщает одну новую ревизию дерева; отдельная карта значений рядом
+с графом не создаётся. Чистый `snapshot()` возвращает JSON-данные без методов,
+подписок и callbacks.
 
-## Component library
+## Проекции
 
-```ts
-import {NodeEditor} from "@nodes/ui/node-editor"
-import {
-  createBlenderNodeRenderers,
-  type BlenderFrame,
-  type BlenderLink,
-  type BlenderNode,
-  type BlenderNodePlan,
-  type BlenderSocket,
-} from "@nodes/ui/blender-node"
+`NodeTree` не хранит единственную экранную геометрию. Один живой граф может
+одновременно иметь desktop, mobile, read-only и другие представления. Метод
+`tree.project(projector, request)` получает подключаемый projector и возвращает
+результат для точного renderer, viewport, шрифта, темы и layout policy.
 
-const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
-  renderers: createBlenderNodeRenderers(),
-})
+Projector разделяет три производных результата:
+
+1. intrinsic measurement изменившихся Node и точные local Socket anchors;
+2. расположение Node/Frame и маршруты Link для конкретного viewport;
+3. готовые local render plans, которые renderer материализует без повторного
+   измерения той же Node.
+
+Повторный запрос с тем же ключом и ревизией использует кэш. Изменение значения,
+не меняющее intrinsic geometry, обновляет Field и local plan, но не запускает
+повторный глобальный layout. Pan/zoom принадлежат view и вообще не вызывают
+`NodeTree.project()`.
+
+## Границы пакетов
+
+* [`@nodes/core`](core/README.md) — renderer-neutral runtime, snapshot и
+  projection coordination.
+* [`@nodes/editor`](editor/README.md) — headless JSON Patch commands,
+  optimistic revision и явный layout gate без solver dependency.
+* [`@nodes/layout`](layout/README.md) — чистый числовой solver. Он получает
+  производный serializable graph и не читает живой `NodeTree`, Parameter,
+  renderer или WebGPU. Его собственный SVG playground позволяет разрабатывать
+  fixed/adaptive placement и routing напрямую на numeric fixtures.
+* `@nodes/layout-worker` — отдельные transport, client и executor entrypoints
+  fixed/adaptive Worker. Client entrypoints не загружают solver.
+* [`@nodes/ui`](ui/README.md) — NodeCanvas/NodeEditor и сменяемые
+  Frame/Node/Socket/Link renderers. Он отображает готовую проекцию и владеет
+  только view-state: pan, zoom, selection, hover и overlays.
+* `@nodes/core` координирует живые сущности и проекции, но не зашивает Blender,
+  WebGPU, font или viewport в каноническое состояние графа.
+
+Прежние `NodeSystemDocument`, `MeasuredNodeSystem`, `PositionedNodeSystem`,
+Port/Edge adapters и ручные compatibility helpers не входят в новый public
+contract и удаляются без aliases.
+
+## Playgrounds
+
+```bash
+bun run nodes:playground
 ```
 
-`@nodes/ui` не содержит Card, Fact, HUD или `NodeSystemSurface`. Universal
-fields принадлежат `@ui/components` и одинаково используются внутри Node и вне
-Node Editor. Внутренняя UI-композиция строится только общим Flex из
-`@ui/elements`.
+Главная `/` является каталогом всех пяти production-пакетов и ведёт на package
+overviews `/core/`, `/editor/`, `/layout/`, `/layout-worker/`, `/ui/`. Exact
+route trees внутри этих mounts обслуживает
+один process `@nodes/playground` на порту `4018`, но каждый package page имеет
+собственный browser entry и не загружает соседний bundle. SVG layout остаётся
+без WebGPU, а editor и UI сохраняют независимые WebGPU-модули.
 
-## Текущая layout-граница
-
-```ts
-import {
-  validateNodeSystemDocument,
-  type NodeSystemDocument,
-} from "nodes"
-import {layoutMeasuredNodeSystemAdaptive} from "nodes/adaptive-layout"
-import {layoutFixed} from "@nodes/layout/fixed"
-import {layoutAdaptive} from "@nodes/layout/adaptive"
-```
-
-Эта граница остаётся renderer-free: она не импортирует Node Editor, UI или
-Engine. Fixed/adaptive policies и Worker entrypoints физически разделены. Это
-не обещание совместимости с новым component API, а изолированная основа для
-следующего пересмотра формата раскладки.
+Lifecycle и background browser evidence принадлежат skill
+[`$nodes-dev`](playground/.agents/skills/nodes-dev/SKILL.md). Lifecycle запускает
+один catalog process; package выбирается только exact route.
 
 ## Проверка
 
 ```bash
-bun run --cwd pkg/nodes typecheck
+bun run --cwd pkg/nodes/core typecheck
+bun run --cwd pkg/nodes/editor typecheck
+bun run --cwd pkg/nodes/layout-worker typecheck
 bun run --cwd pkg/nodes/ui typecheck
-bun run --cwd pkg/nodes/ui typecheck:playground
+bun run --cwd pkg/nodes/playground typecheck
 bun test pkg/nodes
 ```
-
-Playgrounds запускаются независимо:
-
-```bash
-bun run nodes:playground
-bun run nodes:components
-```
-
-Первый показывает public layout policies в SVG, второй — Flexbox-композицию
-fields, Node, Socket и Link через WebGPU.

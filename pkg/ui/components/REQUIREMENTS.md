@@ -33,10 +33,14 @@ control нельзя опустить в Elements только ради повт
 
 ## Dev playground boundary
 
-1. Standalone Components playground является desktop consumer общего Workbench
+1. Components package page `/components/` является desktop consumer общего Workbench
    `@ui/playground`. Package-owned typed stories владеют metadata, concrete
-   component/section/variant routes, lazy exact production imports, preview,
-   source и controls; package не копирует общий shell.
+   component/section/variant stories, lazy exact production imports, preview,
+   source и controls; package не копирует общий shell. Mount `/components/` и
+   каждый route prefix открывают overview непосредственных детей и оканчиваются
+   `/`, а полный detail pathname — нет. Overview сохраняет полный five-panel
+   Workbench и использует первый detail descendant для preview/source вместо
+   отдельной generic catalog Surface.
 2. Consumer preview владеет одним устойчивым retained root. Каждый независимо
    изменяемый controlled Field материализуется под устойчивым parent с ключом
    его `id`; изменение одного value не перестраивает shell или соседние Fields.
@@ -58,9 +62,10 @@ control нельзя опустить в Elements только ради повт
 
 1. `Field` является discriminated union с устойчивым `id`, `label`, optional
    description/disabled state и точным value contract.
-2. Первый набор содержит text, number, integer, boolean, enum, color, vector,
-   rotation, matrix, reference и read-only fields. Slider является presentation
-   mode number field, а не отдельным типом значения.
+2. Полный набор содержит `text`, `number`, `integer`, `boolean`, `enum`, `color`,
+   `vector`, `rotation`, `matrix`, `reference`, `collection`, `path` и
+   `readonly` fields. Slider является presentation mode number field, а не
+   отдельным типом значения.
 3. `NumberInput`/number Field является canonical FLOAT contract. Public
    `IntegerInput`/integer Field является canonical INT contract: integer
    normalization, default step `1`, hard/soft bounds и optional in-control

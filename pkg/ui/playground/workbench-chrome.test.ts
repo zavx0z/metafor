@@ -25,7 +25,7 @@ describe("shared Workbench chrome", () => {
     const previewSources = await Promise.all([
       "../elements/playground/story-preview.ts",
       "../components/playground/story-preview.ts",
-      "../../nodes/ui/playground/story-preview.ts",
+      "../../nodes/playground/packages/ui/surfaces/story-preview-surface.ts",
     ].map((path) => Bun.file(join(root, path)).text()))
     const paneSource = await Bun.file(join(root, "../components/Pane.ts")).text()
     const visibleChrome = [...sharedSources, ...previewSources, paneSource].join("\n")

@@ -7,9 +7,11 @@
 
 ## Зависимости и identity
 
-1. Единственное направление зависимостей:
-   `Engine → Elements → Components → Node UI`. Нижний слой не импортирует
-   верхний, а production source не импортирует playground.
+1. Базовое направление UI-зависимостей:
+   `Engine → Elements → Components → Node UI`. Exact `node-editor` остаётся
+   solver-free; только явный `blender-projection` дополнительно импортирует
+   живой `@nodes/core` и чистый `@nodes/layout`. Нижний UI-слой не импортирует верхний,
+   а production source не импортирует playground.
 2. `@metafor/engine` является одной канонической module identity внутри одного
    product/release graph. Разные aliases, URL либо revisions одного Engine не
    считаются общим модулем и запрещены внутри одного воплощения продукта.
@@ -28,7 +30,8 @@
    свой graph с общего barrel.
 2. Elements публикует runtime/surface, layout/theme и exact primitive subpaths.
    Components публикует по одному lowercase subpath на production component.
-   Node UI сохраняет независимые `node-editor`, `blender-node` и `link-curve`.
+   Node UI сохраняет независимые `node-editor`, `blender-node`,
+   `blender-projection` и `link-curve`.
 3. Subpath указывает прямо на единственный production source owner. Alias на
    тот же leaf, generated copy, compatibility bundle и export playground source
    запрещены.

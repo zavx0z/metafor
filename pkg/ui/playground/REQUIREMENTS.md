@@ -1,13 +1,23 @@
 # Требования @ui/playground
 
-`@ui/playground` владеет только переиспользуемой dev-инфраструктурой catalog
-playground. Он не владеет production semantics UI Components либо consumer.
+`@ui/playground` владеет переиспользуемой dev-инфраструктурой catalog playground
+и единым dev-каталогом семейства UI. Он не владеет production semantics UI
+Components либо consumer.
 
 ## Законы
 
-1. Один route выбирает package-specific preview. Общая typed declaration
-   содержит полные вложенные IDs и fallback, а библиотека жёстко материализует
-   их как pathname `/route/id`. Consumer не выбирает hash/path mode или prefix.
+1. Pathname является иерархией каталогов. Mount пакета открывается как
+   `/package/`, каждый непустой префикс story route является самостоятельным
+   overview (`/package/component/`, затем `/package/component/section/`), а
+   только полный путь фиксирует exact detail story в pathname. Overview показывает всех
+   непосредственных детей текущего уровня в существующих catalog/sections/dock
+   regions; выбор ребёнка углубляет тот же pathname на один уровень. Overview
+   не заменяет historical five-panel Workbench отдельной пустой страницей:
+   preview, source, controls и events остаются на месте и используют
+   детерминированный первый detail descendant текущего префикса. Общая typed
+   declaration строит root, все префиксы и leaves из одних package-owned
+   descriptors; consumer не выбирает hash/path mode или параллельную схему
+   адресов.
 2. Общий shell состоит из catalog, sections, preview, dock и info. Он является
    desktop-only рабочей средой, сохраняет historical five-panel geometry и
    занимает весь доступный canvas с небольшим внешним отступом; искусственный
@@ -77,3 +87,30 @@ playground. Он не владеет production semantics UI Components либо
     header/body получают отдельные raw ThemeSpace roles даже при совпадающих
     default bytes. Keyboard focus не заменяет route selection или disclosure;
     accordion header/body не схлопываются в один локальный fill alias.
+19. Source box использует общий scrollable `Pane`, а не обрезает массив строк.
+    При переполнении по соответствующей оси появляются независимые vertical и
+    horizontal scrollbar; wheel axis-lock, track click и thumb drag принадлежат
+    общему `div` scroll primitive. Source update сохраняет допустимую позицию и
+    клампит её к новым bounds, а title, copy, tabs и detail owners не
+    материализуются из-за прокрутки кода.
+20. Канонический адрес package overview и любого prefix overview оканчивается
+    `/`, а exact detail leaf — нет. Входной адрес в противоположной форме может
+    быть только совместимым redirect на канонический адрес. Неизвестный suffix
+    не выбирает случайный fallback story: server и browser tooling отклоняют
+    его fail-closed.
+21. Семейство UI запускается одним Bun process на одном origin
+    `http://127.0.0.1:4017`. Главная `/` перечисляет `@ui/elements`,
+    `@ui/components`, `@ui/playground` и `@ui/hud`, объясняет ответственность
+    пакета и содержание его dev-страницы. Package mounts — соответственно
+    `/elements/`, `/components/`, `/playground/` и `/hud/`; отдельные
+    package-серверы и порты не являются вторым способом запуска.
+22. Один browser target этого origin переходит между package mounts. Каждая
+    страница остаётся отдельным browser bundle и загружает только свой
+    production graph; DOM page не получает WebGPU runtime, а WebGPU page создаёт
+    ровно один `UiRuntime`. `$ui-dev` владеет одним selector `ui`, одним process
+    и одним target, а package выбирается exact route.
+23. Каждая вложенная package, prefix-overview и detail page имеет общий
+    видимый DOM-control `Home`, ведущий на `/` текущего playground origin. Он
+    принадлежит server shell, находится поверх DOM/SVG/WebGPU page и не требует
+    consumer renderer либо ручного изменения адресной строки. На самой главной
+    `/` этот control отсутствует.

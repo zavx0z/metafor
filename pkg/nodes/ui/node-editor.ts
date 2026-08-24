@@ -9,15 +9,19 @@ import {
   type UiTouchPoint,
   type UiSurfaceOpts,
 } from "@ui/elements"
+import type {Parameter, ParameterRenderer} from "./parameter.ts"
+
+export type {
+  Parameter,
+  ParameterPlan,
+  ParameterRenderer,
+  ParameterRendererContext,
+} from "./parameter.ts"
 
 export type NodePoint = Readonly<{x: number; y: number}>
 export type NodeRect = Readonly<{x: number; y: number; w: number; h: number}>
 export type NodeCanvasTransform = Readonly<{x: number; y: number; scale: number}>
 export type NodeCanvasOverlayState = Readonly<{overlays: boolean; previews: boolean}>
-
-export type Parameter = Readonly<{
-  id: string
-}>
 
 /** Minimal Blender-like component identity; domain data is carried by TNode. */
 export type Node = Readonly<{
@@ -134,6 +138,7 @@ export type NodeRendererContext<
 > = NodeRendererPlanContext<TNode, TSocket> & Readonly<{
   host: UiSurface
   plan: TPlan
+  parameterRenderer: ParameterRenderer
 }>
 
 export type SocketRendererContext<TSocket extends Socket> = Readonly<{
@@ -183,6 +188,7 @@ export type NodeEditorRenderers<
 > = Readonly<{
   frame: FrameRenderer<TFrame>
   node: NodeRenderer<TNode, TSocket, TNodePlan>
+  parameter: ParameterRenderer
   socket: SocketRenderer<TSocket>
   link: LinkRenderer<TLink>
 }>
@@ -197,6 +203,18 @@ export type NodeEditorRenderPlan<
   frames: readonly PositionedFrame<TFrame>[]
   nodes: readonly PositionedNode<TNode, TSocket>[]
   links: readonly PositionedLink<TLink>[]
+}>
+
+/** Positioned tree plus the exact local Node plans produced by one projection. */
+export type NodeEditorProjection<
+  TNode extends Node,
+  TSocket extends Socket,
+  TLink extends Link,
+  TFrame extends Frame = Frame,
+  TNodePlan = unknown,
+> = Readonly<{
+  tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
+  nodePlans: ReadonlyMap<string, TNodePlan>
 }>
 
 export type NodeEditorPaintStep =
@@ -282,6 +300,7 @@ export class NodeCanvas<
   readonly #nodes = new Map<string, RetainedComponent<PositionedNode<TNode, TSocket>>>()
   readonly #interactionDirtyParents = new Set<Object3D>()
   #tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>
+  #projectedNodePlans: ReadonlyMap<string, TNodePlan> | null = null
   #transform = DEFAULT_TRANSFORM
   #overlayState: NodeCanvasOverlayState
   #selection: NodeEditorSelection = null
@@ -348,6 +367,22 @@ export class NodeCanvas<
   }
 
   setTree(tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>): void {
+    this.#projectedNodePlans = null
+    this.#acceptTree(tree)
+  }
+
+  setProjection(
+    projection: NodeEditorProjection<TNode, TSocket, TLink, TFrame, TNodePlan>,
+  ): void {
+    validatePositionedNodeTree(projection.tree)
+    for (const {node} of projection.tree.nodes) {
+      if (!projection.nodePlans.has(node.id)) throw new Error(`Projection omitted Node plan: ${node.id}`)
+    }
+    this.#projectedNodePlans = projection.nodePlans
+    this.#acceptTree(projection.tree)
+  }
+
+  #acceptTree(tree: PositionedNodeTree<TNode, TSocket, TLink, TFrame>): void {
     validatePositionedNodeTree(tree)
     this.#tree = tree
     const frameIds = new Set(tree.frames.map(({frame}) => frame.id))
@@ -397,6 +432,9 @@ export class NodeCanvas<
     const next = normalizeOverlayState(state)
     if (sameOverlayState(next, this.#overlayState)) return false
     this.#overlayState = next
+    // External plans belong to the overlay state of their projection. Until a
+    // new projection is installed, fall back to the renderer's local planner.
+    this.#projectedNodePlans = null
     this.#contentClean = false
     this.requestRender()
     return true
@@ -561,8 +599,12 @@ export class NodeCanvas<
           selected,
           overlayState: this.#overlayState,
         }
-        this.#diagnostics.localLayoutPlans += 1
-        const plan = this.#renderers.node.plan(context)
+        const projectedPlan = this.#projectedNodePlans?.get(entry.node.id)
+        if (this.#projectedNodePlans !== null && projectedPlan === undefined) {
+          throw new Error(`Projection omitted Node plan: ${entry.node.id}`)
+        }
+        if (projectedPlan === undefined) this.#diagnostics.localLayoutPlans += 1
+        const plan = projectedPlan ?? this.#renderers.node.plan(context)
         nodePlans.set(entry.node.id, plan)
         nodePresentations.set(
           entry.node.id,
@@ -695,7 +737,12 @@ export class NodeCanvas<
             () => this.select({kind: "node", id: entry.node.id}),
             {key: `node-editor:node:${entry.node.id}`},
           )
-          this.#renderers.node.render({host: this, ...presentationContext, plan})
+          this.#renderers.node.render({
+            host: this,
+            ...presentationContext,
+            plan,
+            parameterRenderer: this.#renderers.parameter,
+          })
           for (const socket of presentation.sockets) this.#renderers.socket.render({
             host: this,
             entry: socket,

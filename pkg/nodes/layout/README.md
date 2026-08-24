@@ -15,7 +15,7 @@ placement, размеры compound-контейнеров, gateways и орто�
 Worker, UI, управление видом и traffic presentation не принадлежат этим
 документам.
 
-Layout ничего не знает о тексте карточки, Flex, `NodeSystemDocument`, DOM,
+Layout ничего не знает о живом `NodeTree`, Parameter, тексте, Flex, DOM,
 WebGPU, конкретном consumer или способе отображения результата.
 
 ## Policies и общий solver
@@ -137,7 +137,7 @@ const {result, diagnostics} = layoutAdaptiveWithDiagnostics({
 ```
 
 Diagnostics не входят в `LayoutResult`: production consumer может вызвать
-`layoutAdaptive`, а playground и benchmark получают candidate counts через
+`layoutAdaptive`, а focused tests и benchmark получают candidate counts через
 явный диагностический вызов. Невозможный выбор возвращает
 `AdaptiveLayoutError` с machine-readable witness.
 
@@ -164,7 +164,7 @@ merge/split junction частью bundle, не разрешает overlap нес
 
 Layout не переставляет parameter rows: `ports[].y` является уже измеренным
 входом минимального протокола. Перестановка связанных строк до повторного layout
-принадлежит presentation-adapter пакета [`nodes`](../README.md).
+принадлежит presentation-adapter пакета [`@nodes/core`](../README.md).
 
 В portrait placement боковой routing reserve не копируется автоматически под
 последний child. Сначала проверяется компактный вариант с одним socket pitch
@@ -215,7 +215,7 @@ compound corridor и каждого фактического межслойно�
 отдельно в [`ADAPTIVE.md`](requirements/ADAPTIVE.md),
 [`RIGHT.md`](requirements/RIGHT.md) и
 [`DOWN.md`](requirements/DOWN.md). Интеграция и Worker принадлежат
-[`nodes`](../REQUIREMENTS.md), а renderer/view —
+[`@nodes/core`](../core/REQUIREMENTS.md), Worker boundary — `@nodes/layout-worker`, а renderer/view —
 [`@nodes/ui`](../ui/REQUIREMENTS.md).
 
 ## TSDoc и проверки
@@ -225,19 +225,18 @@ compound corridor и каждого фактического межслойно�
 ```bash
 bun test pkg/nodes/layout/src
 bun run --cwd pkg/nodes/layout typecheck
-bun run --cwd pkg/nodes/layout typecheck:playground
+bun test pkg/nodes/playground/packages/layout/layout-playground.test.ts
 ```
 
-Лёгкий dev-only SVG playground запускается из корня репозитория:
+Dev-only SVG playground принадлежит центральному package `@nodes/playground` и
+находится в `pkg/nodes/playground/packages/layout`. Он вызывает только public
+fixed/adaptive entrypoints через private registry, сравнивает `RIGHT`/`DOWN`
+fixtures и показывает готовую geometry без NodeTree, Card, WebGPU, HUD и
+product renderer. Playground не экспортируется из `@nodes/layout`; его
+числовые fixtures, SVG и hashes проверяются отдельно от production package.
 
-```bash
-bun run nodes:playground
-```
-
-Он вызывает public fixed/adaptive entrypoints через private registry,
-сравнивает `RIGHT`/`DOWN` fixtures и показывает готовую geometry без Card,
-WebGPU, HUD и product renderer. Playground не экспортируется из package и не
-заменяет runtime-проверку consumer.
+Полный consumer-путь `NodeTree → projection → NodeEditor` отдельно показывает
+центральная WebGPU page `/editor/live-node-tree` того же `bun run nodes:playground`.
 
 ## Обязательный benchmark перед REVIEW
 

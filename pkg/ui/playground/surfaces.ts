@@ -8,6 +8,7 @@ import {
   activeUiTheme,
   blenderRgba8ToColor,
   div,
+  divScrollPosition,
   flexColumn,
   flexRow,
   li,
@@ -93,6 +94,7 @@ export type PlaygroundStoryPanelOptions = Readonly<{
   onModeChange(mode: PlaygroundStoryPanelMode): void
   onControlChange(key: string, value: unknown): void
   onCopy(source: string): void | Promise<void>
+  onSourceScrollChange?(position: Readonly<{left: number; top: number}>): void
 }>
 
 export type PlaygroundRetainedOwnerDiagnostics = Readonly<{
@@ -183,6 +185,7 @@ type NormalizedStoryPanelOptions = Readonly<{
   onModeChange(mode: PlaygroundStoryPanelMode): void
   onControlChange(key: string, value: unknown): void
   onCopy(source: string): void | Promise<void>
+  onSourceScrollChange: ((position: Readonly<{left: number; top: number}>) => void) | undefined
 }>
 
 const PANEL_OWNER = "panel"
@@ -192,6 +195,7 @@ const SEARCH_OWNER = "search"
 const SOURCE_TITLE_OWNER = "source-title"
 const SOURCE_COPY_OWNER = "source-copy"
 const SOURCE_BOX_OWNER = "source-box"
+const SOURCE_SCROLL_KEY = "story-source-scroll"
 const SOURCE_CONTROLS_TAB_OWNER = "source-tab:controls"
 const SOURCE_EVENTS_TAB_OWNER = "source-tab:events"
 const workbenchText = rgba8ToColor(activeUiTheme.widgets.box.text)
@@ -1123,20 +1127,23 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
     this.#options = normalizeStoryPanelOptions(options)
   }
 
+  /** Current code-pane position owned by the shared scrollable Pane primitive. */
+  get sourceScrollPosition(): Readonly<{left: number; top: number}> {
+    return divScrollPosition(this, SOURCE_SCROLL_KEY)
+  }
+
   setOptions(options: PlaygroundStoryPanelOptions): void {
     const next = normalizeStoryPanelOptions(options)
     const previous = this.#options
+    const sourceChanged = previous.source !== next.source
     const structureChanged = previous.mode !== next.mode ||
-      previous.sourceLines.length !== next.sourceLines.length ||
       !sameStrings(previous.controls.map(({descriptor}) => descriptor.key), next.controls.map(({descriptor}) => descriptor.key)) ||
       !sameStrings(previous.events.map(({id}) => id), next.events.map(({id}) => id))
     let changed = structureChanged
 
-    for (const [index, line] of next.sourceLines.entries()) {
-      if (previous.sourceLines[index] !== line) {
-        this.markOwnerDirty(sourceLineOwnerKey(index))
-        changed = true
-      }
+    if (sourceChanged) {
+      this.markOwnerDirty(SOURCE_BOX_OWNER)
+      changed = true
     }
     const previousControls = new Map(previous.controls.map((control) => [control.descriptor.key, control] as const))
     for (const control of next.controls) {
@@ -1202,17 +1209,6 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
       Math.min(uiShapeMetrics.rowHeight * 14, this.rectH * 0.36),
     )
     frames.set(SOURCE_BOX_OWNER, {x: horizontalPad, y: codeY, w: Math.max(0, this.rectW - horizontalPad * 2), h: codeH})
-    const sourceInset = uiShapeMetrics.tightGap * 2
-    const sourceLineHeight = uiShapeMetrics.compactFontPx + uiShapeMetrics.tightGap + uiShapeMetrics.separatorWidth
-    const visibleSourceLines = Math.max(1, Math.floor((codeH - sourceInset * 2) / sourceLineHeight))
-    for (const [index] of this.#options.sourceLines.slice(0, visibleSourceLines).entries()) {
-      frames.set(sourceLineOwnerKey(index), {
-        x: horizontalPad + sourceInset,
-        y: codeY + sourceInset + index * sourceLineHeight,
-        w: Math.max(0, this.rectW - horizontalPad * 2 - sourceInset * 2),
-        h: sourceLineHeight,
-      })
-    }
 
     const tabsY = codeY + codeH + uiShapeMetrics.panelSectionGap
     flexRow({
@@ -1311,10 +1307,34 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
       return
     }
     if (key === SOURCE_BOX_OWNER) {
+      const sourceInset = uiShapeMetrics.tightGap * 2
+      const sourceLineHeight = uiShapeMetrics.compactFontPx + uiShapeMetrics.tightGap + uiShapeMetrics.separatorWidth
+      const sourceWidth = Math.max(
+        1,
+        ...this.#options.sourceLines.map((line) => this.measureText(line, uiShapeMetrics.compactFontPx)),
+      )
+      const sourceHeight = Math.max(1, this.#options.sourceLines.length * sourceLineHeight)
       Pane(this, 0, 0, frame.w, frame.h, {
         appearance: "box",
+        key: SOURCE_SCROLL_KEY,
+        scrollContentWidth: sourceWidth,
+        scrollContentHeight: sourceHeight,
+        children: ({scrollLeft, scrollTop, viewportWidth, viewportHeight, contentWidth}) => {
+          this.#options.onSourceScrollChange?.(Object.freeze({left: scrollLeft, top: scrollTop}))
+          for (const [index, line] of this.#options.sourceLines.entries()) {
+            const y = sourceInset + index * sourceLineHeight - scrollTop
+            if (y + sourceLineHeight < sourceInset || y > sourceInset + viewportHeight) continue
+            Typography(this, sourceInset - scrollLeft, y, Math.max(contentWidth, viewportWidth), sourceLineHeight, {
+              children: line,
+              variant: "caption",
+              color: index === 0 ? workbenchText : workbenchMuted,
+            })
+          }
+        },
         sx: {
-          padding: 0,
+          padding: sourceInset,
+          overflow: "auto",
+          scrollbarWidth: uiShapeMetrics.tightGap,
         },
       })
       return
@@ -1329,16 +1349,6 @@ export class PlaygroundStoryPanelSurface extends RetainedPlaygroundSurface {
         selected: this.#options.mode === mode,
         fontPx: uiShapeMetrics.compactFontPx,
         onClick: () => this.#options.onModeChange(mode),
-      })
-      return
-    }
-    if (key.startsWith("source-line:")) {
-      const index = Number.parseInt(key.slice("source-line:".length), 10)
-      const line = this.#options.sourceLines[index]
-      if (line !== undefined) Typography(this, 0, 0, frame.w, frame.h, {
-        children: line,
-        variant: "caption",
-        color: index === 0 ? workbenchText : workbenchMuted,
       })
       return
     }
@@ -1539,6 +1549,7 @@ function normalizeStoryPanelOptions(options: PlaygroundStoryPanelOptions): Norma
     onModeChange: options.onModeChange,
     onControlChange: options.onControlChange,
     onCopy: options.onCopy,
+    onSourceScrollChange: options.onSourceScrollChange,
   })
 }
 
@@ -1561,10 +1572,6 @@ function normalizeInfoOptions(options: PlaygroundInfoOptions): NormalizedInfoOpt
 
 function itemOwnerKey(id: string): string {
   return `item:${id}`
-}
-
-function sourceLineOwnerKey(index: number): string {
-  return `source-line:${index}`
 }
 
 function storyControlOwnerKey(key: string): string {

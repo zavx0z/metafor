@@ -5,9 +5,9 @@ import {
   PlaygroundBackdropSurface,
   PlaygroundDockSurface,
   PlaygroundNavigationSurface,
-  PlaygroundRouter,
+  PlaygroundRouteTreeRouter,
   PlaygroundStoryPanelSurface,
-  definePlaygroundRoutes,
+  definePlaygroundRouteTree,
   definePlaygroundStories,
   drawPlaygroundPreviewChrome,
   planPlaygroundShell,
@@ -21,7 +21,15 @@ import {
 
 type PageRoute = "overview" | "details"
 const pageRoutes = ["overview", "details"] as const
-const pageDeclaration = definePlaygroundRoutes({routes: pageRoutes, fallback: "overview"})
+const pageRouteTree = definePlaygroundRouteTree({leaves: pageRoutes})
+const PLAYGROUND_MOUNT_PATH = "/playground"
+
+type PageRouteReader = Readonly<{
+  readonly current: PageRoute
+  readonly path: string
+  readonly kind: "overview" | "leaf"
+  subscribe(listener: () => void): () => void
+}>
 
 let recordStoryClick = (): void => {}
 
@@ -123,13 +131,17 @@ async function startWorkbench(): Promise<void> {
   const canvas = document.getElementById("playground-canvas")
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error("playground-canvas not found")
   document.documentElement.dataset.playgroundReady = "starting"
+  document.documentElement.dataset.uiPlayground = "starting"
+  document.documentElement.dataset.uiPlaygroundPage = "playground"
   try {
     const runtime = await UiRuntime.create(canvas, {
       fontUrl: "/JetBrainsMono-Bold.ttf",
       virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
     })
     runtime.handleResize()
-    const pageRouter = new PlaygroundRouter(pageDeclaration)
+    const mountedRouter = new PlaygroundRouteTreeRouter(pageRouteTree, {basePath: PLAYGROUND_MOUNT_PATH})
+    const pageRouter = mountedPageRouter(mountedRouter)
+    document.documentElement.dataset.playgroundPage = "workbench"
     let storyRoute = storyRegistry.fallback
     let storyIndex = requireStory(storyRoute)
     let storyModule = await storyRegistry.load(storyRoute)
@@ -203,7 +215,8 @@ async function startWorkbench(): Promise<void> {
     runtime.addSurface(storyPanel, ({w, h}) => frames(w, h).info)
 
     const snapshot = (): Readonly<Record<string, unknown>> => Object.freeze({
-      pageRoute: pageRouter.current,
+      pageRoute: pageRouter.path,
+      pageDetailRoute: pageRouter.current,
       storyRoute,
       args,
       source: storyModule.source(args),
@@ -217,7 +230,9 @@ async function startWorkbench(): Promise<void> {
     const publish = (): Readonly<Record<string, unknown>> => {
       for (const surface of [catalog, sections, dock, storyPanel, preview]) surface.flushPendingRender()
       const current = snapshot()
-      document.documentElement.dataset.playgroundRoute = pageRouter.current
+      document.documentElement.dataset.playgroundRoute = pageRouter.path
+      document.documentElement.dataset.playgroundRouteKind = pageRouter.kind
+      document.documentElement.dataset.playgroundDetailRoute = pageRouter.current
       document.documentElement.dataset.playgroundStoryRoute = storyRoute
       document.documentElement.dataset.playgroundRetained = JSON.stringify(current)
       return current
@@ -302,8 +317,10 @@ async function startWorkbench(): Promise<void> {
     }).observe(canvas)
     publish()
     document.documentElement.dataset.playgroundReady = "ready"
+    document.documentElement.dataset.uiPlayground = "ready"
   } catch (error) {
     document.documentElement.dataset.playgroundReady = "error"
+    document.documentElement.dataset.uiPlayground = "error"
     document.documentElement.dataset.playgroundError = error instanceof Error ? error.stack ?? error.message : String(error)
     throw error
   }
@@ -337,6 +354,24 @@ function sectionNavigationItems(selected: PlaygroundStoryIndexItem): readonly Pl
 
 function variantNavigationItems(selected: PlaygroundStoryIndexItem): readonly PlaygroundNavigationItem<string>[] {
   return storyRegistry.variants(selected.route).map((item) => ({id: item.variantId, label: item.variantLabel, route: item.route}))
+}
+
+function mountedPageRouter(router: PlaygroundRouteTreeRouter<PageRoute>): PageRouteReader {
+  return Object.freeze({
+    get current(): PageRoute {
+      const current = router.current
+      return current.kind === "leaf" ? current.path : "overview"
+    },
+    get path(): string {
+      return router.current.path
+    },
+    get kind(): "overview" | "leaf" {
+      return router.current.kind
+    },
+    subscribe(listener): () => void {
+      return router.subscribe(() => { listener() })
+    },
+  })
 }
 
 if (typeof document !== "undefined") await startWorkbench()

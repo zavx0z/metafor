@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL(".", import.meta.url))
 
 describe("@ui/playground package boundary", () => {
   test("contains no consumer or product vocabulary", async () => {
-    const files = ["index.ts", "router.ts", "layout.ts", "surfaces.ts", "theme.ts", "server.ts"]
+    const files = ["index.ts", "router.ts", "route-tree.ts", "layout.ts", "surfaces.ts", "theme.ts", "server.ts"]
     const source = (await Promise.all(files.map((path) => Bun.file(join(root, path)).text()))).join("\n")
     for (const forbidden of ["NodeEditor", "NodeCanvas", "Blender", "Socket", "Parameter", "Hamiltonian", "Bulk"]) {
       expect(source).not.toContain(forbidden)
@@ -24,17 +24,17 @@ describe("@ui/playground package boundary", () => {
   test("builds one consumer without embedding package-specific vocabulary", async () => {
     const fixtureSource = await Bun.file(join(root, "fixture/entry.ts")).text()
     const fixtureStory = await Bun.file(join(root, "fixture/stories/button.ts")).text()
-    const fixtureServer = await Bun.file(join(root, "fixture/server.ts")).text()
+    const pageRegistry = await Bun.file(join(root, "hub/server/page-registry.ts")).text()
     expect(fixtureSource).toContain("createRetainedParent")
     expect(fixtureSource).toContain("playgroundRetained")
-    expect(fixtureSource).toContain('definePlaygroundRoutes({routes: pageRoutes, fallback: "overview"})')
+    expect(fixtureSource).toContain("definePlaygroundRouteTree({leaves: pageRoutes})")
     expect(fixtureSource).toContain("definePlaygroundStories")
     expect(fixtureSource).toContain("PlaygroundStoryPanelSurface")
     expect(fixtureSource).toContain('import("./stories/button.ts")')
     expect(fixtureStory).toContain('from "@ui/components/button"')
     expect(fixtureStory).not.toContain('from "@ui/components"')
-    expect(fixtureServer).toContain('packageName: "@ui/playground"')
-    expect(fixtureServer).not.toContain("title:")
+    expect(pageRegistry).toContain("playground: pageFiles({")
+    expect(pageRegistry).toContain('canvasId: "playground-canvas"')
     const build = await Bun.build({
       entrypoints: [join(root, "fixture/entry.ts")],
       target: "browser",

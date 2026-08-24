@@ -3,7 +3,7 @@ import type {
   LayoutWorkerRequest,
   LayoutWorkerSuccess,
   SerializedLayoutWorkerError,
-} from "../types/worker.ts"
+} from "./types/worker.ts"
 
 export type LayoutWorkerComputation<Result, Diagnostics = never> = Readonly<{
   result: Result

@@ -9,7 +9,6 @@ import {
 
 export * from "./window.ts"
 export * from "./pane-frame.ts"
-export * from "./node-view.ts"
 export * from "./timeline.ts"
 
 export type HudPoint = {x: number; y: number}

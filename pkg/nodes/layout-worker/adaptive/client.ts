@@ -3,7 +3,7 @@ import type {
   AdaptiveLayoutWorkerEndpoint,
   AdaptiveLayoutWorkerFailure,
   AdaptiveLayoutWorkerSuccess,
-} from "../../types/worker.ts"
+} from "../types/worker.ts"
 import type {AdaptiveLayoutDiagnostics, AdaptiveLayoutGraph} from "@nodes/layout/adaptive"
 import type {LayoutResult} from "@nodes/layout/types"
 

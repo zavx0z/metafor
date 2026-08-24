@@ -48,9 +48,9 @@
 * [Production delivery UI](../pkg/ui/DELIVERY.md) — независимые ESM subpath
   imports, один product-owned `UiRuntime` и shared Engine/Elements code без
   дублирования между динамически загружаемыми modules.
-* [UI playground](../pkg/ui/playground/REQUIREMENTS.md) — общий typed router,
-  historical five-panel FlexBox shell и no-HMR dev lifecycle для package-owned
-  playground без consumer semantics.
+* [UI playground](../pkg/ui/playground/REQUIREMENTS.md) — общий typed route
+  tree, historical five-panel FlexBox shell и единый no-HMR каталог package
+  pages без consumer semantics в общей инфраструктуре.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
@@ -64,14 +64,19 @@
   пространству `@internal/*` (далее — internal-пакеты), а [готовая визуальная
   среда Cosmos](../cosmos/internal/visual/README.md#визуальная-среда-main) —
   `@internal/visual` (далее — visual).
-* [Node system](../pkg/nodes/README.md) — Blender-подобная компонентная
-  библиотека `NodeTree → Frame / Node → Parameter → Socket → Link`, universal
-  fields и отдельно сохранённое layout-ядро `@nodes/layout` (далее — layout).
+* [Node system](../pkg/nodes/README.md) — живой runtime-граф `@nodes/core`
+  `NodeTree → Frame / Node → Parameter → Socket → Link`, Parameter-store,
+  производные view-проекции и отдельно сохранённое layout-ядро
+  `@nodes/layout` (далее — layout).
   Node Editor и его
   FlexBox/view законы
   принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md) (далее — node UI),
-  временная semantic/measured/Worker граница —
-  [`nodes`](../pkg/nodes/REQUIREMENTS.md),
+  runtime/snapshot/projection граница —
+  [`@nodes/core`](../pkg/nodes/core/REQUIREMENTS.md),
+  universal authoring-команды —
+  [`@nodes/editor`](../pkg/nodes/editor/REQUIREMENTS.md),
+  единый dev-каталог всех package pages —
+  [`@nodes/playground`](../pkg/nodes/playground/REQUIREMENTS.md),
   а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
   [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),
@@ -86,19 +91,12 @@
   RPC-проекций.
 * [Разработка](DEVELOPMENT.md) и [вклад](CONTRIBUTING.md) — запуск и проверки.
 
-## Карта незавершённой работы
+## Сохранённые project-материалы
 
-* [Универсальный рабочий процесс](../project/README.md) определяет единый способ
-  вести работу и переносится между репозиториями.
-* [Дорожная карта MetaFor](../project/ROADMAP.md) задаёт направления и крупный
-  порядок развития.
-* [Накопитель MetaFor](../project/BACKLOG.md) хранит ещё не принятую работу.
-* [Граф исполнения MetaFor](../project/TODO.md) хранит приоритеты, зависимости,
-  состояния и ссылки на живые карточки.
-
-Других рабочих списков и отдельных аудитов в репозитории нет. Подробное
-обсуждение находится только в `project/tasks/<ID>.md`, а исходные файлы — в
-`project/artifacts/<ID>/`.
+`project/` остаётся в репозитории как сохранённый набор прежних планов и
+артефактов. Он не является текущим рабочим процессом, обязательной очередью или
+источником действующих контрактов; обращаться к нему нужно только по прямому
+запросу пользователя.
 
 `create-metafor/templates/TODO.md` является содержимым создаваемого шаблона, а
 не рабочим списком самого MetaFor.

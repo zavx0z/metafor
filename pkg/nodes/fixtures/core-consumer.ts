@@ -1,6 +1,12 @@
-import type {NodeSystemDocument} from "nodes/types"
-import {validateNodeSystemDocument} from "nodes/validation"
+import {NodeTree} from "@nodes/core/node-tree"
+import {Parameter} from "@nodes/core/parameter"
 
-export function validateConsumerDocument(document: NodeSystemDocument): number {
-  return validateNodeSystemDocument(document).nodes.size
+export function createConsumerTree(): NodeTree {
+  return new NodeTree({
+    nodes: [{
+      id: "node",
+      parameters: [new Parameter("value", 1)],
+      sockets: [],
+    }],
+  })
 }
