@@ -1,18 +1,18 @@
 /**
- * Browser entrypoint готовой визуальной среды Cosmos.
- *
- * Initial evaluation требует принадлежащий приложению canvas, создаёт один
- * `UiRuntime`, основное пространство, display и HUD-навигацию, затем удерживает
- * размер display согласованным с canvas. Отсутствующий canvas завершает запуск
- * до экспорта готового runtime.
- *
- * Пользовательский [закон визуальной среды](../README.md#визуальная-среда-main)
- * отделяет эту инфраструктуру от смысла показываемых Quantum/metafor данных.
- * Состав package и build boundaries проверяет
- * [visual regression](../../../tests/ham-005.boundary.spec.ts).
- *
- * @packageDocumentation
- */
+Browser entrypoint готовой визуальной среды Cosmos.
+
+Initial evaluation требует принадлежащий приложению canvas, создаёт один
+`UiRuntime`, основное пространство, display и HUD-навигацию, затем удерживает
+размер display согласованным с canvas. Отсутствующий canvas завершает запуск
+до экспорта готового runtime.
+
+Пользовательский [закон визуальной среды](../README.md#визуальная-среда-main)
+отделяет эту инфраструктуру от смысла показываемых Quantum/metafor данных.
+Состав package и build boundaries проверяет
+[visual regression](../../../tests/ham-005.boundary.spec.ts).
+
+@packageDocumentation
+*/
 
 import {GridHelper} from "@metafor/engine"
 import {UiRuntime} from "@ui/elements"

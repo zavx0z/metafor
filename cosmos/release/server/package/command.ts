@@ -1,10 +1,10 @@
 import {resolve} from "node:path"
 
 /**
- * Читает env production command и адаптирует только общий development profile.
- *
- * Entry point, target, format, external и outfile всегда принадлежат package.
- */
+Читает env production command и адаптирует только общий development profile.
+
+Entry point, target, format, external и outfile всегда принадлежат package.
+*/
 export function packageBuildCommand(
   script: string,
   environment = Bun.env.NODE_ENV,

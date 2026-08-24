@@ -30,11 +30,11 @@ export interface ReleaseHost {
 }
 
 /**
- * Создаёт единственную runtime-границу startup → release.
- *
- * Startup хранит только текущий runtime и его незавершённые browser events.
- * Остальное прикладное поведение остаётся внутри release.
- */
+Создаёт единственную runtime-границу startup → release.
+
+Startup хранит только текущий runtime и его незавершённые browser events.
+Остальное прикладное поведение остаётся внутри release.
+*/
 export function createReleaseHost(
   source: Request,
   loader: ReleaseLoader,

@@ -91,6 +91,29 @@ test("Cosmos packages do not re-export types owned by another package", async ()
   expect(await crossPackageTypeReexports()).toEqual([])
 })
 
+test("tracked Cosmos multiline TSDoc uses starless Markdown bodies", async () => {
+  const violations: Array<{file: string; line: number}> = []
+
+  for (const path of await trackedCosmosSourceFiles()) {
+    const source = await Bun.file(path).text()
+    const comments = parseSync(path, source).comments
+    for (const comment of comments) {
+      if (comment.type !== "Block" || source.slice(comment.start, comment.start + 3) !== "/**")
+        continue
+      const block = source.slice(comment.start, comment.end)
+      if (!block.includes("\n")) continue
+      for (const match of block.matchAll(/^[\t ]*\*(?:[\t ]|$)/gm)) {
+        violations.push({
+          file: relative(cosmos, path),
+          line: source.slice(0, comment.start + (match.index ?? 0)).split(/\r?\n/).length,
+        })
+      }
+    }
+  }
+
+  expect(violations).toEqual([])
+})
+
 test("type re-export ownership covers every supported export form", async () => {
   const directory = await mkdtemp(join(tmpdir(), "metafor-type-ownership-"))
   const owner = join(directory, "owner")
@@ -674,6 +697,24 @@ async function sourceFiles(root: string): Promise<string[]> {
     else if (entry.isFile() && entry.name.endsWith(".ts")) files.push(path)
   }
   return files
+}
+
+async function trackedCosmosSourceFiles(): Promise<string[]> {
+  const child = Bun.spawn(["git", "ls-files", "-z", "--", "cosmos"], {
+    cwd: repository,
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [exitCode, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
+  if (exitCode !== 0) throw new Error(`Cannot list tracked Cosmos source: ${stderr}`)
+  return stdout.split("\0")
+    .filter((path) => /\.(?:[cm]?ts|tsx)$/.test(path))
+    .filter((path) => !path.split("/").some((part) => part === "dist" || part === "node_modules"))
+    .map((path) => join(repository, path))
 }
 
 async function readTypeReexports(path: string) {

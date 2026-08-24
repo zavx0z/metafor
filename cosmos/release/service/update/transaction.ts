@@ -33,11 +33,11 @@ export async function pendingTransaction() {
 }
 
 /**
- * Первой entry создаёт marker до любой загрузки или code write.
- * Существующая transaction не хранит server delta: release получает её заново.
- *
- * @returns `true`, если эта transaction уже существовала.
- */
+Первой entry создаёт marker до любой загрузки или code write.
+Существующая transaction не хранит server delta: release получает её заново.
+
+@returns `true`, если эта transaction уже существовала.
+*/
 export async function beginTransaction() {
   if (await pendingTransaction()) return true
 

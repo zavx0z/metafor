@@ -19,13 +19,13 @@ import {
 const codeCaches = ["release", "internal", "metafor"] as const
 
 /**
- * Применяет только fresh server delta через одну durable transaction.
- *
- * До первого old deletion canonical caches сохраняют весь old
- * composition. Cleanup начинается только после записи и повторной
- * проверки всех new candidates. После этой границы операция
- * движется только вперёд и последней удаляет transaction cache.
- */
+Применяет только fresh server delta через одну durable transaction.
+
+До первого old deletion canonical caches сохраняют весь old
+composition. Cleanup начинается только после записи и повторной
+проверки всех new candidates. После этой границы операция
+движется только вперёд и последней удаляет transaction cache.
+*/
 export async function updateRelease(
   startup: ReleaseLoader,
   delta: ReleaseDelta,

@@ -1,12 +1,12 @@
 /**
- * Неизменяемая Service Worker оболочка `@cosmos/startup`.
- *
- * Она синхронно регистрирует browser listeners, сразу запускает release и
- * оставляет всё прикладное поведение самому release.
- * Пользовательский lifecycle задан [startup owner law](../README.md#как-начинается-работа).
- *
- * @packageDocumentation
- */
+Неизменяемая Service Worker оболочка `@cosmos/startup`.
+
+Она синхронно регистрирует browser listeners, сразу запускает release и
+оставляет всё прикладное поведение самому release.
+Пользовательский lifecycle задан [startup owner law](../README.md#как-начинается-работа).
+
+@packageDocumentation
+*/
 
 import * as loader from "./loader"
 import {createReleaseHost, registerReleaseListeners, type StartupEventScope} from "./runtime"
