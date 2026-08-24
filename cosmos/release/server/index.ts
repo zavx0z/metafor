@@ -65,8 +65,11 @@ export type {
 } from "../shared/protocol"
 export {
   browserPackageEnvironments,
+  bunPackageEnvironments,
+  isBunPackageEnvironment,
   isBrowserPackageEnvironment,
   isPackageEnvironment,
+  packageEnvironmentBuildTarget,
   packageEnvironments,
 } from "../../shared/package/environment"
 export {getPackage, getRelease} from "./http/delivery"

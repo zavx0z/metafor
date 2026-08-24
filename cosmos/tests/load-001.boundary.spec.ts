@@ -44,12 +44,16 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(startupRuntime).toContain("await drain(previous.runtime)")
   expect(startupRuntime).toContain("await executor.destroy(previous)")
 
-  const startupPackage = await Bun.file(join(cosmos, "startup/package.json")).json() as {
-    artifact?: unknown
-    dependencies?: Record<string, string>
-  }
+  const [startupPackage, releasePackage] = await Promise.all([
+    Bun.file(join(cosmos, "startup/package.json")).json() as Promise<{
+      artifact?: unknown
+      dependencies?: Record<string, string>
+    }>,
+    Bun.file(join(cosmos, "release/package.json")).json() as Promise<{version: string}>,
+  ])
   expect(startupPackage.artifact).toBeUndefined()
-  expect(startupPackage.dependencies?.["@cosmos/release"]).toBe("workspace:^0.1.14")
+  expect(startupPackage.dependencies?.["@cosmos/release"])
+    .toBe(`workspace:^${releasePackage.version}`)
   expect(packageBuild).toContain('"Service-Worker-Allowed": "/"')
   expect(packageBuild).toContain('"Content-Security-Policy": "script-src \'unsafe-eval\'"')
 

@@ -1,8 +1,9 @@
 import {realpath} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
 import {
-  browserPackageEnvironments,
+  isBrowserPackageEnvironment,
   isPackageEnvironment,
+  packageEnvironmentBuildTarget,
   type PackageEnvironment,
 } from "../../../shared/package/environment"
 import {artifactIntegrity} from "../../../shared/package/integrity"
@@ -23,7 +24,6 @@ interface PackageLocation {
 
 const repositoryRoot = dirname(cosmosRoot)
 const packageLocations = new Map<BuildablePackage, Promise<PackageLocation>>()
-const browserEnvironments = new Set<PackageEnvironment>(browserPackageEnvironments)
 
 /** Возвращает свежий env-specific package build contract. */
 export async function packageOwner(
@@ -90,7 +90,7 @@ export function packageEnvironmentExports(manifest: PackageManifest): PackageEnv
     const env = condition.slice(scope.length + 1)
     if (!isPackageEnvironment(env)) throw new Error(`Unsupported package environment ${env}`)
 
-    const target = browserEnvironments.has(env) ? "browser" : "bun"
+    const target = packageEnvironmentBuildTarget(env)
     const entrypoint = relativeSource(value, `${condition} entrypoint`)
     const expected = `./${env}/index.ts`
     if (entrypoint !== expected) throw new Error(`${condition} export must target ${expected}`)
@@ -187,7 +187,7 @@ async function environmentOwner(
 }
 
 function singleBrowserEnvironment(name: string, owners: PackageOwner[]) {
-  const browser = owners.filter(({env}) => browserEnvironments.has(env))
+  const browser = owners.filter(({env}) => isBrowserPackageEnvironment(env))
   if (browser.length !== 1)
     throw new Error(`${name} requires an explicit browser environment`)
   return browser[0]!.env

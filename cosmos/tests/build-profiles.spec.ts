@@ -11,7 +11,16 @@ import {
   packageEnvironmentExports,
   packageOwners,
 } from "../release/server"
-import type {PackageEnvironment} from "../shared/package/environment"
+import {
+  browserPackageEnvironments,
+  bunPackageEnvironments,
+  isBrowserPackageEnvironment,
+  isBunPackageEnvironment,
+  isPackageEnvironment,
+  packageEnvironmentBuildTarget,
+  packageEnvironments,
+  type PackageEnvironment,
+} from "../shared/package/environment"
 import {artifactIntegrity} from "../shared/package/integrity"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
@@ -142,16 +151,60 @@ test("build executor resolves package contracts without a module registry", asyn
   expect(source).not.toContain("const packageOwners")
 })
 
-test("package exports keep server and server-worker as separate direct env entrypoints", () => {
+test("package environments form one exact browser and Bun partition", () => {
+  expect(packageEnvironments).toEqual([
+    ...browserPackageEnvironments,
+    ...bunPackageEnvironments,
+  ])
+  expect(new Set(packageEnvironments).size).toBe(packageEnvironments.length)
+  expect(browserPackageEnvironments.every((env) => !isBunPackageEnvironment(env))).toBeTrue()
+  expect(bunPackageEnvironments.every((env) => !isBrowserPackageEnvironment(env))).toBeTrue()
+
+  for (const environment of packageEnvironments) {
+    expect(isPackageEnvironment(environment)).toBeTrue()
+    expect(packageEnvironmentBuildTarget(environment)).toBe(
+      isBrowserPackageEnvironment(environment) ? "browser" : "bun",
+    )
+  }
+  expect(isPackageEnvironment("service-worker")).toBeFalse()
+  expect(isBrowserPackageEnvironment("server")).toBeFalse()
+  expect(isBunPackageEnvironment("service")).toBeFalse()
+  expect(() => packageEnvironmentBuildTarget("unknown" as PackageEnvironment)).toThrow(
+    "Package environment unknown has no build target",
+  )
+})
+
+test("package exports assign every environment to its exact build target", () => {
   expect(packageEnvironmentExports({
     name: "@example/runtime",
     exports: {
       ".": {
+        "example:main": "./main/index.ts",
+        "example:worker": "./worker/index.ts",
+        "example:service": "./service/index.ts",
         "example:server": "./server/index.ts",
         "example:server-worker": "./server-worker/index.ts",
       },
     },
   })).toEqual([
+    {
+      env: "main",
+      condition: "example:main",
+      entrypoint: "./main/index.ts",
+      target: "browser",
+    },
+    {
+      env: "worker",
+      condition: "example:worker",
+      entrypoint: "./worker/index.ts",
+      target: "browser",
+    },
+    {
+      env: "service",
+      condition: "example:service",
+      entrypoint: "./service/index.ts",
+      target: "browser",
+    },
     {
       env: "server",
       condition: "example:server",

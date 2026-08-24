@@ -69,6 +69,29 @@ cosmos/
 реализацию возможности; загруженный доменный код получает эту возможность как
 часть собранной среды.
 
+## Среды выполнения packages
+
+Environment отвечает только на вопрос, где исполняется конкретный artifact
+package. Он не определяет namespace package, его предметную роль или способ
+доставки всего выпуска.
+
+| Environment | Platform | Место исполнения |
+| --- | --- | --- |
+| `main` | Browser | Главный context страницы `Window` |
+| `worker` | Browser | Browser Worker, отличный от Service Worker |
+| `service` | Browser | `ServiceWorkerGlobalScope` |
+| `server` | Bun | Отдельный Bun process; текущий lifecycle запускает его через `Bun.spawn` |
+| `server-worker` | Bun | Bun Worker, созданный через `Worker`, а не через `Bun.spawn` |
+
+Browser subset состоит из `main`, `worker` и `service`. Эти artifacts собираются
+для browser и могут доставляться через package URL, Cache Storage и Service
+Worker transaction. Bun subset состоит из `server` и `server-worker`; эти
+artifacts собираются для Bun и не входят в browser delivery/cache projection.
+
+Build target выбирается только по явной принадлежности одному из двух subsets.
+Если полный список получит новый environment без browser/Bun-классификации,
+сборка завершается ошибкой, а не считает его Bun environment по умолчанию.
+
 ## Сборка
 
 `build.ts` читает зависимости пакета Cosmos и передаёт принадлежащие выпуску
