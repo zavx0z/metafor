@@ -4,8 +4,8 @@ import {fileURLToPath} from "node:url"
 
 const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 
-describe("parent nodes playground scaffold", () => {
-  test("is a private dev-only workspace with one shared server dependency", async () => {
+describe("central Nodes playground scaffold", () => {
+  test("is one private dev-only workspace that composes every package", async () => {
     const manifest = await Bun.file(join(playgroundRoot, "package.json")).json() as {
       name?: string
       private?: boolean
@@ -22,8 +22,11 @@ describe("parent nodes playground scaffold", () => {
       typecheck: "tsc --noEmit --pretty false",
     })
     expect(manifest.dependencies).toEqual({
+      "@metafor/engine": "workspace:*",
       "@nodes/core": "workspace:*",
       "@nodes/editor": "workspace:*",
+      "@nodes/layout": "workspace:*",
+      "@nodes/layout-worker": "workspace:*",
       "@nodes/ui": "workspace:*",
       "@ui/components": "workspace:*",
       "@ui/elements": "workspace:*",
@@ -32,25 +35,31 @@ describe("parent nodes playground scaffold", () => {
     expect(manifest.exports).toBeUndefined()
   })
 
-  test("delegates HTML and no-HMR delivery to the shared package server", async () => {
+  test("delegates one no-HMR origin and six independent pages to the shared hub server", async () => {
     const server = await Bun.file(join(playgroundRoot, "server.ts")).text()
-    const style = await Bun.file(join(playgroundRoot, "style.css")).text()
+    const registry = await Bun.file(join(playgroundRoot, "server/page-registry.ts")).text()
+    const catalog = await Bun.file(join(playgroundRoot, "catalog/package-catalog.ts")).text()
 
     expect(server).toContain('from "@ui/playground/server"')
-    expect(server).toContain("startPlaygroundServer({")
-    expect(server).toContain('packageName: "nodes"')
-    expect(server).toContain('canvasId: "nodes-playground-canvas"')
+    expect(server).toContain("startPlaygroundHubServer({")
+    expect(server).toContain("createNodesPlaygroundPages()")
     expect(server).toContain("Bun.env.NODES_PLAYGROUND_HOST")
     expect(server).toContain("Bun.env.NODES_PLAYGROUND_PORT ?? 4018")
-    expect(server).toContain('entrypoint: join(import.meta.dir, "entry.ts")')
     expect(server).not.toContain("Bun.serve")
     expect(server).not.toContain("hmr: true")
-    expect(style).toContain("#nodes-playground-canvas")
-    expect(style).toContain("touch-action: none")
+    expect(registry).toContain('mountPath: "/"')
+    expect(registry).toContain('canvasId: "nodes-playground-canvas"')
+    for (const id of ["core", "editor", "layout", "layout-worker", "ui"]) {
+      expect(catalog).toContain(`id: ${JSON.stringify(id)}`)
+      expect(registry).toContain(id === "layout-worker" ? '"layout-worker":' : `${id}:`)
+    }
   })
 
-  test("connects the live root runtime without a separate Field state map or manual Node coordinates", async () => {
-    const entry = await Bun.file(join(playgroundRoot, "entry.ts")).text()
+  test("keeps editor integration isolated in its clearly named package module", async () => {
+    const entry = await Bun.file(join(
+      playgroundRoot,
+      "packages/editor/editor-playground.ts",
+    )).text()
 
     expect(entry).toContain('from "@nodes/core/node-tree"')
     expect(entry).toContain('from "@nodes/core/parameter"')
@@ -73,5 +82,14 @@ describe("parent nodes playground scaffold", () => {
     expect(entry).not.toContain("NodeFieldValueState")
     expect(entry).not.toContain("bindNodeFieldValueState")
     expect(entry).not.toContain("positionBlenderNode")
+  })
+
+  test("removes package-local playground servers after centralization", async () => {
+    for (const path of [
+      "../layout/playground/server.ts",
+      "../layout/playground/tsconfig.json",
+      "../ui/playground/server.ts",
+      "../ui/playground/tsconfig.json",
+    ]) expect(await Bun.file(join(playgroundRoot, path)).exists(), path).toBeFalse()
   })
 })

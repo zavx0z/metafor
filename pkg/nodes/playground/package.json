@@ -1,7 +1,7 @@
 {
   "name": "@nodes/playground",
   "version": "0.0.1",
-  "description": "Dev-only WebGPU playground for the parent nodes package.",
+  "description": "Central dev-only catalog for every Nodes package playground.",
   "type": "module",
   "private": true,
   "scripts": {
@@ -10,8 +10,11 @@
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
+    "@metafor/engine": "workspace:*",
     "@nodes/core": "workspace:*",
     "@nodes/editor": "workspace:*",
+    "@nodes/layout": "workspace:*",
+    "@nodes/layout-worker": "workspace:*",
     "@nodes/ui": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*",

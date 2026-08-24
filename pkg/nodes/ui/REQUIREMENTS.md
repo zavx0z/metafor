@@ -148,11 +148,11 @@ solver-free; explicit `blender-projection` адаптирует живой root 
 2. Прежний root `NodeSystem*` format удалён. Живой `@nodes/core` Parameter-store и
    `blender-projection` являются единственным новым parent integration path;
    product consumers подключаются отдельно.
-3. Package-level tests, component playground и parent runtime playground
-   доказывают разные границы и не подменяют друг друга.
-4. Dev-only component playground является desktop consumer общего Workbench
-   `@ui/playground`; его exact lifecycle маршрутизирует `$nodes-dev` public
-   name `ui` через общий selector `node-ui`. Catalog выбирает NodeEditor, Socket
+3. Package-level tests, central UI page и editor integration page доказывают
+   разные границы и не подменяют друг друга.
+4. Dev-only UI page является desktop consumer общего Workbench
+   `@ui/playground`; её exact lifecycle маршрутизирует один `$nodes-dev`
+   selector `nodes`, а package identity задаёт mount `/ui`. Catalog выбирает NodeEditor, Socket
    и comparison. Для
    выбранного Socket вторая панель перечисляет все concrete Socket type presets,
    center показывает один production detail preview, dock — независимые

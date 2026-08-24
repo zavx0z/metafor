@@ -72,6 +72,8 @@
   [`@nodes/core`](../pkg/nodes/core/REQUIREMENTS.md),
   universal authoring-команды —
   [`@nodes/editor`](../pkg/nodes/editor/REQUIREMENTS.md),
+  единый dev-каталог всех package pages —
+  [`@nodes/playground`](../pkg/nodes/playground/REQUIREMENTS.md),
   а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
   [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),

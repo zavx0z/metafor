@@ -64,12 +64,12 @@ panels выполняется только общими `flexRow`/`flexColumn`/`
 ## Playground
 
 ```bash
-bun run nodes:components
-pkg/nodes/.agents/skills/nodes-dev/scripts/nodes-dev.sh ensure "$PWD" --playground ui
+bun run nodes:playground
+pkg/nodes/playground/.agents/skills/nodes-dev/scripts/nodes-dev.sh ensure "$PWD"
 ```
 
-Dev-only playground использует public `@ui/playground` и разделяет nested path
-routes `editor/*`, `socket/*` и `comparison/blender`. Одновременно виден только
+Центральная page `/ui/*` использует public `@ui/playground` и разделяет nested
+story routes `node-editor/*`, `socket/*` и `comparison/blender`. Одновременно виден только
 выбранный Node Editor либо Socket catalog; comparison показывает maintained
 Blender reference и одну representative live Node. Standalone universal fields
 принадлежат `@ui/components` и не входят в этот каталог.
@@ -79,8 +79,7 @@ single-touch pan и two-touch pinch; overview LOD скрывает только 
 не меняя NodeTree или renderer identity.
 
 Lifecycle и background browser evidence component catalog маршрутизирует
-`$nodes-dev` через общий exact selector `node-ui`; второй UI process не
-создаётся.
+единый `$nodes-dev` selector `nodes`; отдельный UI process не создаётся.
 
-Полный runtime-путь `NodeTree → projection → NodeEditor` принадлежит parent
-playground `bun run nodes:playground`; component catalog не подменяет его.
+Полный runtime-путь `NodeTreeEditor → NodeTree → projection → NodeEditor`
+находится на соседней page `/editor/live-node-tree`; UI catalog не подменяет его.

@@ -134,13 +134,13 @@
 
 ## Локальная разработка и WebGPU Inspector
 
-- Каждый package сохраняет собственный playground. Parent или integration
-  playground дополняет package-local playground, но не заменяет и не удаляет
-  его. Для всех трёх Node playground — root `nodes`, чистого SVG
-  `@nodes/layout` и Blender-based `@nodes/ui` — использовать skill `$nodes-dev`
-  из `pkg/nodes/.agents/skills/nodes-dev` с `--playground root|layout|ui`. Он
-  сохраняет package ownership и переиспользует общий безопасный
-  lifecycle/background-CDP dispatcher.
+- Все package pages семейства Nodes принадлежат единому dev-каталогу
+  `@nodes/playground`: один process/origin, главная `/` и exact routes
+  `/core/*`, `/editor/*`, `/layout/*`, `/layout-worker/*`, `/ui/*`. Для их
+  lifecycle и browser-проверки использовать skill `$nodes-dev` из
+  `pkg/nodes/playground/.agents/skills/nodes-dev`. Lifecycle-команды не выбирают
+  package: package задаётся только `--route`, а DOM/SVG и WebGPU capabilities
+  определяются fail-closed по центральному catalog manifest.
 - Для standalone-разработки, lifecycle, browser-проверки и профилирования
   playground-пакетов `@ui/elements`, `@ui/components` и общего `@ui/playground`
   использовать skill `$ui-dev` из

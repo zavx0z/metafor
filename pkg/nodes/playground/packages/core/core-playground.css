@@ -1,0 +1,16 @@
+:root { color-scheme: dark; font-family: "JetBrains Mono", ui-monospace, monospace; background: #07101b; color: #e9edf3; }
+* { box-sizing: border-box; }
+body { min-height: 100vh; margin: 0; background: #07101b; }
+.core-page { width: min(1400px, calc(100% - 32px)); margin: 0 auto; padding: 36px 0 60px; }
+header { max-width: 900px; }
+.eyebrow { color: #65c7ff; }
+h1 { margin: 8px 0; font-size: clamp(32px, 5vw, 58px); }
+header p { color: #aab7c7; line-height: 1.6; }
+a { color: #6fcbff; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 26px 0 12px; }
+button { padding: 10px 14px; border: 1px solid #45627d; border-radius: 7px; background: #18334b; color: #fff; font: inherit; cursor: pointer; }
+.status { display: block; margin-bottom: 16px; color: #70d39b; }
+.data-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+article { min-width: 0; border: 1px solid #26384b; border-radius: 10px; background: #101a27; }
+article h2 { margin: 0; padding: 12px 14px; border-bottom: 1px solid #26384b; font-size: 15px; }
+pre { min-height: 360px; max-height: 68vh; margin: 0; padding: 14px; overflow: auto; color: #b9c6d5; }

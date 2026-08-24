@@ -72,8 +72,6 @@
     "runtime:universe:once": "bun cosmos/internal/supervisor/universe.ts --once",
     "runtime:universe:logs": "METAFOR_LOG_IMPULSES=full bun cosmos/internal/supervisor/universe.ts",
     "nodes:playground": "bun run --cwd pkg/nodes/playground playground",
-    "nodes:layout:playground": "bun run --cwd pkg/nodes/layout playground",
-    "nodes:components": "bun run --cwd pkg/nodes/ui playground",
     "visual:playground": "bun pkg/visual/playground/server.ts",
     "boundary:backup": "bun quantum/boundary/backup.ts",
     "checkpoint:capture": "bun quantum/dark/checkpoint/cli.ts",

@@ -225,25 +225,18 @@ compound corridor и каждого фактического межслойно�
 ```bash
 bun test pkg/nodes/layout/src
 bun run --cwd pkg/nodes/layout typecheck
-bun run --cwd pkg/nodes/layout typecheck:playground
+bun test pkg/nodes/playground/packages/layout/layout-playground.test.ts
 ```
 
-Package-local SVG playground запускается из корня репозитория:
-
-```bash
-bun run nodes:layout:playground
-pkg/nodes/.agents/skills/nodes-dev/scripts/nodes-dev.sh ensure "$PWD" --playground layout
-```
-
-Он работает на `http://127.0.0.1:4015`, вызывает только public fixed/adaptive
-entrypoints через private registry, сравнивает `RIGHT`/`DOWN` fixtures и
-показывает готовую geometry без NodeTree, Card, WebGPU, HUD и product renderer.
-Playground не экспортируется из package и не заменяется parent runtime-стендом.
-Его exact lifecycle, DOM и console evidence маршрутизирует `$nodes-dev`; SVG не
-подменяется canvas capture.
+Dev-only SVG playground принадлежит центральному package `@nodes/playground` и
+находится в `pkg/nodes/playground/packages/layout`. Он вызывает только public
+fixed/adaptive entrypoints через private registry, сравнивает `RIGHT`/`DOWN`
+fixtures и показывает готовую geometry без NodeTree, Card, WebGPU, HUD и
+product renderer. Playground не экспортируется из `@nodes/layout`; его
+числовые fixtures, SVG и hashes проверяются отдельно от production package.
 
 Полный consumer-путь `NodeTree → projection → NodeEditor` отдельно показывает
-parent WebGPU playground `bun run nodes:playground`.
+центральная WebGPU page `/editor/live-node-tree` того же `bun run nodes:playground`.
 
 ## Обязательный benchmark перед REVIEW
 

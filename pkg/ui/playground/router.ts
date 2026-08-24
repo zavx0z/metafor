@@ -11,6 +11,10 @@ export type PlaygroundRouteDeclarationInput<Routes extends readonly string[]> = 
 
 export type PlaygroundRouteChange<Route extends string> = (route: Route, previous: Route) => void
 
+export type PlaygroundRouterOptions = Readonly<{
+  basePath?: string
+}>
+
 export function definePlaygroundRoutes<const Routes extends readonly string[]>(
   input: PlaygroundRouteDeclarationInput<Routes>,
 ): PlaygroundRouteDeclaration<Routes[number]> {
@@ -26,24 +30,32 @@ export function definePlaygroundRoutes<const Routes extends readonly string[]>(
 export function resolvePlaygroundRoute<Route extends string>(
   declaration: PlaygroundRouteDeclaration<Route>,
   location: Readonly<{pathname: string}>,
+  options: PlaygroundRouterOptions = {},
 ): Route {
-  const route = location.pathname.replace(/^\/+|\/+$/g, "")
+  const route = routeWithinBasePath(location.pathname, normalizeBasePath(options.basePath))
+  if (route === null) return declaration.fallback
   return declaration.routes.includes(route as Route) ? route as Route : declaration.fallback
 }
 
-export function playgroundRouteUrl(route: string): string {
-  return `/${validateRouteId(route)}`
+export function playgroundRouteUrl(route: string, options: PlaygroundRouterOptions = {}): string {
+  const basePath = normalizeBasePath(options.basePath)
+  return `${basePath}/${validateRouteId(route)}`
 }
 
 export class PlaygroundRouter<Route extends string> {
   readonly #declaration: PlaygroundRouteDeclaration<Route>
+  readonly #basePath: string
   readonly #listeners = new Set<PlaygroundRouteChange<Route>>()
   #route: Route
   readonly #onLocationChange = (): void => this.#set(this.#read())
 
-  constructor(declaration: PlaygroundRouteDeclaration<Route>) {
+  constructor(
+    declaration: PlaygroundRouteDeclaration<Route>,
+    options: PlaygroundRouterOptions = {},
+  ) {
     if (declaration.location !== "pathname") throw new Error("Playground routes must use pathname")
     this.#declaration = declaration
+    this.#basePath = normalizeBasePath(options.basePath)
     this.#route = this.#read()
     window.addEventListener("popstate", this.#onLocationChange)
   }
@@ -54,7 +66,7 @@ export class PlaygroundRouter<Route extends string> {
 
   go(route: Route): void {
     if (!this.#declaration.routes.includes(route)) return
-    const url = playgroundRouteUrl(route)
+    const url = playgroundRouteUrl(route, {basePath: this.#basePath})
     if (window.location.pathname !== url) history.pushState(null, "", url)
     this.#set(route)
   }
@@ -70,7 +82,7 @@ export class PlaygroundRouter<Route extends string> {
   }
 
   #read(): Route {
-    return resolvePlaygroundRoute(this.#declaration, window.location)
+    return resolvePlaygroundRoute(this.#declaration, window.location, {basePath: this.#basePath})
   }
 
   #set(route: Route): void {
@@ -79,6 +91,28 @@ export class PlaygroundRouter<Route extends string> {
     this.#route = route
     for (const listener of this.#listeners) listener(route, previous)
   }
+}
+
+function normalizeBasePath(basePath: string | undefined): string {
+  if (basePath === undefined || basePath === "" || basePath === "/") return ""
+  const route = basePath.replace(/^\/+|\/+$/g, "")
+  if (route.length === 0) return ""
+  try {
+    return `/${validateRouteId(route)}`
+  } catch {
+    throw new Error(`Playground basePath must be a normalized pathname mount: ${basePath}`)
+  }
+}
+
+function routeWithinBasePath(pathname: string, basePath: string): string | null {
+  if (basePath === "") return pathname.replace(/^\/+|\/+$/g, "")
+  const path = pathname.replace(/\/+$/g, "") || "/"
+  if (path === basePath) return ""
+  const prefix = `${basePath}/`
+  if (!path.startsWith(prefix)) return null
+  const route = path.slice(prefix.length)
+  if (route.startsWith("/")) return null
+  return route
 }
 
 function validateRouteId(route: string): string {

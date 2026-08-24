@@ -6,7 +6,7 @@ const visibleOwnerRoots = [
   "pkg/ui/playground/fixture",
   "pkg/ui/components/playground",
   "pkg/ui/elements/playground",
-  "pkg/nodes/ui/playground",
+  "pkg/nodes/playground/packages/ui",
 ] as const
 
 const forbiddenVisiblePhrases = [

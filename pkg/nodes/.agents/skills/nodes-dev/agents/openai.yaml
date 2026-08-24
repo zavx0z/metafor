@@ -1,4 +1,0 @@
-interface:
-  display_name: "Nodes Development"
-  short_description: "Develop and verify all Nodes playgrounds"
-  default_prompt: "Use $nodes-dev to select and verify the root, layout, or UI Nodes playground without crossing package ownership."

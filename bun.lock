@@ -148,8 +148,11 @@
       "name": "@nodes/playground",
       "version": "0.0.1",
       "dependencies": {
+        "@metafor/engine": "workspace:*",
         "@nodes/core": "workspace:*",
         "@nodes/editor": "workspace:*",
+        "@nodes/layout": "workspace:*",
+        "@nodes/layout-worker": "workspace:*",
         "@nodes/ui": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
@@ -165,9 +168,6 @@
         "@nodes/layout": "workspace:*",
         "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
-      },
-      "devDependencies": {
-        "@ui/playground": "workspace:*",
       },
     },
     "pkg/ui/components": {

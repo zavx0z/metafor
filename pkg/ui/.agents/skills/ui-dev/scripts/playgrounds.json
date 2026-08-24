@@ -11,10 +11,10 @@
       "port": 4018,
       "portEnv": "NODES_PLAYGROUND_PORT",
       "origin": "http://127.0.0.1:4018",
-      "httpMarker": "<title>nodes</title>",
+      "httpMarker": "<title>Nodes playground</title>",
       "ready": {"kind": "dataset", "name": "nodesPlayground", "value": "ready"},
       "canvas": {"selector": "#nodes-playground-canvas", "capability": "webgpu", "touch": true},
-      "routes": {"default": "/node-tree/runtime/live"},
+      "routes": {"default": "/"},
       "stateKey": "nodes",
       "logName": "nodes.log"
     },

@@ -56,23 +56,18 @@ contract и удаляются без aliases.
 ## Playgrounds
 
 ```bash
-bun run nodes:playground         # root nodes: полный runtime-путь
-bun run nodes:layout:playground  # @nodes/layout: чистая SVG-геометрия
-bun run nodes:components         # @nodes/ui: каталог компонентов
+bun run nodes:playground
 ```
 
-Parent WebGPU playground показывает полный путь `NodeTreeEditor → NodeTree →
-projection → NodeEditor`: Node, Parameter и Link редактируются через JSON Patch,
-значение остаётся в том же живом Parameter, а layout перестраивается отдельной
-кнопкой. Рядом видны чистый snapshot и диагностика кэша. `@nodes/layout`
-независимо показывает fixed/adaptive
-`RIGHT`/`DOWN` geometry без UI-зависимостей. `@nodes/ui` независимо показывает
-визуальные компоненты. Playground каждого package дополняет соседние и не
-заменяется parent playground.
+Главная `/` является каталогом всех пяти production-пакетов. Exact routes
+`/core/*`, `/editor/*`, `/layout/*`, `/layout-worker/*` и `/ui/*` обслуживает
+один process `@nodes/playground` на порту `4018`, но каждый package page имеет
+собственный browser entry и не загружает соседний bundle. SVG layout остаётся
+без WebGPU, а editor и UI сохраняют независимые WebGPU-модули.
 
-Lifecycle и background browser evidence всех трёх contours принадлежат skill
-[`$nodes-dev`](.agents/skills/nodes-dev/SKILL.md), который выбирает их через
-`--playground root|layout|ui` без дублирования package processes.
+Lifecycle и background browser evidence принадлежат skill
+[`$nodes-dev`](playground/.agents/skills/nodes-dev/SKILL.md). Lifecycle запускает
+один catalog process; package выбирается только exact route.
 
 ## Проверка
 

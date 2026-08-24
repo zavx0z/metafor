@@ -1,14 +1,18 @@
 import {join} from "node:path"
-import {startPlaygroundServer} from "@ui/playground/server"
+import {startPlaygroundHubServer} from "@ui/playground/server"
+import {createNodesPlaygroundPages} from "./server/page-registry.ts"
 
-const server = startPlaygroundServer({
-  packageName: "nodes",
-  canvasId: "nodes-playground-canvas",
+const server = startPlaygroundHubServer({
+  pages: createNodesPlaygroundPages(),
   hostname: Bun.env.NODES_PLAYGROUND_HOST ?? "127.0.0.1",
   port: Number(Bun.env.NODES_PLAYGROUND_PORT ?? 4018),
-  entrypoint: join(import.meta.dir, "entry.ts"),
-  stylePath: join(import.meta.dir, "style.css"),
-  fontPath: join(import.meta.dir, "../../engine/static/JetBrainsMono-Bold.ttf"),
+  staticFiles: {
+    "/JetBrainsMono-Bold.ttf": join(import.meta.dir, "../../engine/static/JetBrainsMono-Bold.ttf"),
+    "/assets/ui/blender-4.5.5-reference.png": join(
+      import.meta.dir,
+      "packages/ui/blender-4.5.5-reference.png",
+    ),
+  },
 })
 
-console.log(`[nodes playground] ${server.url}`)
+console.log(`[nodes playground catalog] ${server.url}`)

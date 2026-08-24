@@ -14,9 +14,7 @@
     "./link-curve": "./link-curve.ts"
   },
   "scripts": {
-    "playground": "bun playground/server.ts",
-    "typecheck": "tsc --noEmit --pretty false",
-    "typecheck:playground": "tsc --noEmit --pretty false --project playground/tsconfig.json"
+    "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
     "@metafor/engine": "workspace:*",
@@ -24,8 +22,5 @@
     "@nodes/layout": "workspace:*",
     "@ui/components": "workspace:*",
     "@ui/elements": "workspace:*"
-  },
-  "devDependencies": {
-    "@ui/playground": "workspace:*"
   }
 }
