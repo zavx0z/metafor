@@ -13,6 +13,7 @@ import {
   type NodeComponentStoryRoute,
   type NodeSocketStoryRoute,
 } from "./ui-story-catalog.ts"
+import {NODE_PARAMETER_FALLBACK_ROUTE} from "./parameter-catalog.ts"
 
 export const NODE_UI_PLAYGROUND_BASE_PATH = "/ui" as const
 
@@ -24,11 +25,11 @@ export const NODE_PLAYGROUND_ROUTES = Object.freeze([
 export type NodePlaygroundStoryRoute = NodeComponentStoryRoute | NodeSocketStoryRoute
 export type NodePlaygroundRoute = string
 export type NodePlaygroundGroup = "overview" | "editor" | "parameter" | "socket" | "comparison"
-type NodePlaygroundCatalogGroup = "editor" | "socket" | "comparison"
+type NodePlaygroundCatalogGroup = "editor" | "components" | "comparison"
 
 const NODE_PLAYGROUND_GROUP_LABELS = Object.freeze({
   editor: "Редактор",
-  socket: "Сокеты",
+  components: "Компоненты",
   comparison: "Сравнение",
 } satisfies Readonly<Record<NodePlaygroundCatalogGroup, string>>)
 
@@ -36,7 +37,7 @@ const NODE_PLAYGROUND_GROUP_LABELS = Object.freeze({
 export const NODE_PLAYGROUND_ROUTE_TREE = definePlaygroundRouteTree({
   leaves: NODE_PLAYGROUND_ROUTES,
 })
-export const NODE_PLAYGROUND_FALLBACK_ROUTE = NODE_SOCKET_STORIES.fallback as NodeSocketStoryRoute
+export const NODE_PLAYGROUND_FALLBACK_ROUTE = NODE_PARAMETER_FALLBACK_ROUTE
 
 const COMPONENT_ROUTES = Object.freeze({
   "node-editor": "node-editor",
@@ -61,22 +62,22 @@ export const NODE_PLAYGROUND_CATALOG: readonly PlaygroundNavigationItem<NodePlay
     group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
   },
   {
-    id: "parameter",
-    label: "Parameter",
-    route: COMPONENT_ROUTES.parameter,
-    group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
-  },
-  {
     id: "link",
     label: "Link",
     route: COMPONENT_ROUTES.link,
     group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
   },
   {
+    id: "parameter",
+    label: "Параметры",
+    route: COMPONENT_ROUTES.parameter,
+    group: {id: "components", label: NODE_PLAYGROUND_GROUP_LABELS.components},
+  },
+  {
     id: "socket",
-    label: "Сокет",
+    label: "Сокеты",
     route: COMPONENT_ROUTES.socket,
-    group: {id: "socket", label: NODE_PLAYGROUND_GROUP_LABELS.socket},
+    group: {id: "components", label: NODE_PLAYGROUND_GROUP_LABELS.components},
   },
   {
     id: "comparison",

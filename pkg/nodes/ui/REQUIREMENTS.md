@@ -170,9 +170,12 @@ solver-free; explicit `blender-projection` адаптирует живой root 
    `/ui/socket/boolean/` — все варианты Boolean, и только
    `/ui/socket/boolean/input` задаёт exact detail story. Prefix overview не
    скрывает прежний Workbench: для preview/source он использует первый detail
-   descendant, сохраняя catalog, sections, dock и code panel. Catalog выбирает
-   NodeEditor, Frame, Parameter, Socket, Link и comparison; `/ui/parameter/`
-   является каноническим overview публичного Parameter API. Для
+   descendant, сохраняя catalog, sections, dock и code panel. Catalog группирует
+   NodeEditor, Frame и Link в `Редактор`, Parameter и Socket — в `Компоненты`,
+   где `Параметры` идут перед `Сокеты`, а comparison остаётся отдельным.
+   `/ui/parameter/` является каноническим overview публичного Parameter API;
+   его sections точно повторяют все public Field kinds, а каждый kind показывает
+   `field | input | output | both | connected` без нового Parameter vocabulary. Для
    выбранного Socket вторая панель перечисляет все concrete Socket type presets,
    center показывает один production detail preview, dock — независимые
    `input | output | bidirectional` variants, а правая панель постоянно хранит
@@ -181,7 +184,8 @@ solver-free; explicit `blender-projection` адаптирует живой root 
    story и не заменяет detail route. Story metadata и lazy implementation
    принадлежат package consumer и импортируют production через exact public
    subpath; общий Workbench не получает Node vocabulary. Standalone Fields
-   принадлежат playground `@ui/components`; здесь они видны только внутри Node.
+   принадлежат playground `@ui/components`; Nodes catalog показывает те же
+   controls только как принадлежащий Parameter `Field`.
    Comparison сохраняет maintained Blender screenshot и representative live
    Node; asset и Surface не экспортируются production package. Client-side
    смена route повторно применяет layout без fake resize или page reload.

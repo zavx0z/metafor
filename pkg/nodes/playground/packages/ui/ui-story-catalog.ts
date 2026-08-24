@@ -4,6 +4,17 @@ import {
   type PlaygroundStoryIndexItem,
   type PlaygroundStoryModule,
 } from "@ui/playground"
+import {
+  NODE_PARAMETER_FIELD_KINDS,
+  NODE_PARAMETER_FIELD_LABELS,
+  NODE_PARAMETER_VARIANTS,
+  NODE_PARAMETER_VARIANT_LABELS,
+  type NodeParameterFieldKind,
+  type NodeParameterStoryRoute,
+  type NodeParameterVariant,
+} from "./parameter-catalog.ts"
+
+export type {NodeParameterStoryRoute} from "./parameter-catalog.ts"
 
 export const NODE_SOCKET_KINDS = Object.freeze([
   "boolean",
@@ -69,13 +80,6 @@ export type NodeEditorStoryRoute =
   | "node-editor/collapsed/default"
   | "node-editor/collapsed/selected"
   | "node-editor/popup/select-open"
-export type NodeParameterStoryRoute =
-  | "parameter/composition/field"
-  | "parameter/composition/left"
-  | "parameter/composition/right"
-  | "parameter/composition/both"
-  | "parameter/connection/unconnected"
-  | "parameter/connection/connected"
 export type NodeComponentStoryRoute =
   | NodeEditorStoryRoute
   | NodeParameterStoryRoute
@@ -157,10 +161,11 @@ const loadNodeComponentStory = (
 }
 
 const loadParameterStory = (
-  variant: "field" | "left" | "right" | "both" | "unconnected" | "connected",
+  kind: NodeParameterFieldKind,
+  variant: NodeParameterVariant,
 ) => async (): Promise<PlaygroundStoryModule> => {
   const {createParameterStory} = await import("./stories/parameter.ts")
-  return createParameterStory(variant)
+  return createParameterStory(kind, variant)
 }
 
 export const NODE_SOCKET_STORIES = definePlaygroundStories({
@@ -444,62 +449,20 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
       },
       {
         id: "parameter",
-        label: "Parameter",
+        label: "Параметры",
         apiName: "Parameter",
         tags: ["parameter", "field", "socket", "link"],
-        sections: [{
-          id: "composition",
-          label: "Состав",
-          variants: [
-            {
-              id: "field",
-              label: "Только Field",
-              title: "Parameter · Field без Socket",
-              tags: ["parameter", "field"],
-              load: loadParameterStory("field"),
-            },
-            {
-              id: "left",
-              label: "Socket слева",
-              title: "Parameter · Socket слева",
-              tags: ["parameter", "socket", "left"],
-              load: loadParameterStory("left"),
-            },
-            {
-              id: "right",
-              label: "Socket справа",
-              title: "Parameter · Socket справа",
-              tags: ["parameter", "socket", "right"],
-              load: loadParameterStory("right"),
-            },
-            {
-              id: "both",
-              label: "Два Socket",
-              title: "Parameter · Socket с двух сторон",
-              tags: ["parameter", "socket", "left", "right"],
-              load: loadParameterStory("both"),
-            },
-          ],
-        }, {
-          id: "connection",
-          label: "Связь",
-          variants: [
-            {
-              id: "unconnected",
-              label: "Без Link",
-              title: "Parameter · Без Link",
-              tags: ["parameter", "link", "unconnected"],
-              load: loadParameterStory("unconnected"),
-            },
-            {
-              id: "connected",
-              label: "С Link",
-              title: "Parameter · С Link",
-              tags: ["parameter", "link", "connected"],
-              load: loadParameterStory("connected"),
-            },
-          ],
-        }],
+        sections: NODE_PARAMETER_FIELD_KINDS.map((kind) => ({
+          id: kind,
+          label: NODE_PARAMETER_FIELD_LABELS[kind],
+          variants: NODE_PARAMETER_VARIANTS.map((variant) => ({
+            id: variant,
+            label: NODE_PARAMETER_VARIANT_LABELS[variant],
+            title: `${NODE_PARAMETER_FIELD_LABELS[kind]} · ${NODE_PARAMETER_VARIANT_LABELS[variant]}`,
+            tags: ["parameter", "field", kind, variant],
+            load: loadParameterStory(kind, variant),
+          })),
+        })),
       },
       {
         id: "link",

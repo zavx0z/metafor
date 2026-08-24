@@ -22,8 +22,8 @@ describe("central Nodes package route manifest", () => {
       expect(tree.leaves.length).toBeGreaterThan(0)
     }
     expect(nodesPackageRouteTree("ui").find("parameter")).toMatchObject({kind: "overview"})
-    expect(nodesPackageRouteTree("ui").find("parameter/composition")).toMatchObject({kind: "overview"})
-    expect(nodesPackageRouteTree("ui").find("parameter/composition/field")).toMatchObject({kind: "leaf"})
+    expect(nodesPackageRouteTree("ui").find("parameter/text")).toMatchObject({kind: "overview"})
+    expect(nodesPackageRouteTree("ui").find("parameter/text/field")).toMatchObject({kind: "leaf"})
     expect(nodesPackageRouteTree("ui").find("socket")).toMatchObject({kind: "overview"})
     expect(nodesPackageRouteTree("ui").find("socket/boolean")).toMatchObject({kind: "overview"})
     expect(nodesPackageRouteTree("ui").find("socket/boolean/input")).toMatchObject({kind: "leaf"})
@@ -50,16 +50,18 @@ describe("central Nodes package route manifest", () => {
       node: {kind: "overview", path: "parameter"},
       redirect: false,
     })
-    expect(resolveNodesPackageRoute("/ui/parameter/connection/")?.resolution).toMatchObject({
+    expect(resolveNodesPackageRoute("/ui/parameter/text/")?.resolution).toMatchObject({
       kind: "match",
-      node: {kind: "overview", path: "parameter/connection"},
+      node: {kind: "overview", path: "parameter/text"},
       redirect: false,
     })
-    expect(resolveNodesPackageRoute("/ui/parameter/connection/connected")?.resolution).toMatchObject({
+    expect(resolveNodesPackageRoute("/ui/parameter/text/connected")?.resolution).toMatchObject({
       kind: "match",
-      node: {kind: "leaf", path: "parameter/connection/connected"},
+      node: {kind: "leaf", path: "parameter/text/connected"},
       redirect: false,
     })
+    expect(resolveNodesPackageRoute("/ui/parameter/composition/field")?.resolution).toEqual({kind: "not-found"})
+    expect(resolveNodesPackageRoute("/ui/parameter/connection/connected")?.resolution).toEqual({kind: "not-found"})
     expect(resolveNodesPackageRoute("/ui/parameter/missing")?.resolution).toEqual({kind: "not-found"})
     expect(resolveNodesPackageRoute("/ui/socket/unknown")?.resolution).toEqual({kind: "not-found"})
     expect(resolveNodesPackageRoute("/unknown")).toBeNull()

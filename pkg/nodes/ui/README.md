@@ -77,12 +77,12 @@ bun run nodes:playground
 pkg/nodes/playground/.agents/skills/nodes-dev/scripts/nodes-dev.sh ensure "$PWD"
 ```
 
-Центральная page `/ui/*` использует public `@ui/playground` и разделяет nested
-story routes `node-editor/*`, `parameter/*`, `socket/*` и
-`comparison/blender`. `/ui/parameter/` является каноническим overview
-Parameter; comparison показывает maintained Blender reference и одну
-representative live Node. Standalone universal fields принадлежат
-`@ui/components` и не входят в этот каталог.
+Центральная page `/ui/*` использует public `@ui/playground`. Sidebar содержит
+`Редактор`, затем `Компоненты` с `Параметры` и `Сокеты`, затем `Сравнение`.
+`/ui/parameter/` является каноническим overview Parameter: второй уровень
+повторяет все 13 public Field kinds, а dock показывает Field без Socket, вход,
+выход, два Socket и подключённый вход. Standalone universal Fields по-прежнему
+принадлежат `@ui/components`; здесь тот же control показан как Field Parameter.
 
 На mobile breakpoint остаётся только активный preview. NodeEditor поддерживает
 single-touch pan и two-touch pinch; overview LOD скрывает только детали controls,

@@ -137,6 +137,35 @@ describe("Blender-like Node presets", () => {
     }
   })
 
+  test("keeps Parameter retained identity when two Parameters reuse one Field id", () => {
+    const node: BlenderNode = {
+      id: "shared-field-owner",
+      title: "Shared Field owner",
+      parameters: [
+        {id: "first", label: "First", field: {id: "shared-field", label: "First", kind: "number", value: 1}},
+        {id: "second", label: "Second", field: {id: "shared-field", label: "Second", kind: "number", value: 2}},
+      ],
+    }
+    const entry = positionBlenderNode(node, {x: 20, y: 30, w: 180, h: measureBlenderNode(node).height})
+    const plan = blenderNodeRenderer.plan({entry, connectedSocketIds: new Set(), selected: false})
+    const surface = new RetainedHeaderSurface()
+    try {
+      surface.setRect({x: 0, y: 0, w: 240, h: 180}, HEADER_PIXEL_SCALE, projectFont)
+      const parent = surface.createParent()
+      surface.materialize(parent, () => blenderNodeRenderer.render({
+        parameterRenderer: blenderParameterRenderer,
+        host: surface,
+        entry,
+        plan,
+        connectedSocketIds: new Set(),
+        selected: false,
+      }))
+      expect(cachedTextValues(parent)).toEqual(expect.arrayContaining(["First", "Second"]))
+    } finally {
+      surface.dispose()
+    }
+  })
+
   test("renders canonical INT through public Field without a local Node control", async () => {
     const surface = new RetainedHeaderSurface()
     try {

@@ -62,9 +62,10 @@ control нельзя опустить в Elements только ради повт
 
 1. `Field` является discriminated union с устойчивым `id`, `label`, optional
    description/disabled state и точным value contract.
-2. Первый набор содержит text, number, integer, boolean, enum, color, vector,
-   rotation, matrix, reference и read-only fields. Slider является presentation
-   mode number field, а не отдельным типом значения.
+2. Полный набор содержит `text`, `number`, `integer`, `boolean`, `enum`, `color`,
+   `vector`, `rotation`, `matrix`, `reference`, `collection`, `path` и
+   `readonly` fields. Slider является presentation mode number field, а не
+   отдельным типом значения.
 3. `NumberInput`/number Field является canonical FLOAT contract. Public
    `IntegerInput`/integer Field является canonical INT contract: integer
    normalization, default step `1`, hard/soft bounds и optional in-control

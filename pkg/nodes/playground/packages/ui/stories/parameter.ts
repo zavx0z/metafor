@@ -11,16 +11,23 @@ import {
 } from "@ui/playground/stories"
 import {
   createParameterStoryFixture,
-  type ParameterStoryVariant,
 } from "../fixtures/parameter-fixtures.ts"
+import type {
+  NodeParameterFieldKind,
+  NodeParameterVariant,
+} from "../parameter-catalog.ts"
 
 type ParameterStoryArgs = PlaygroundStoryArgs & Readonly<{
-  variant: ParameterStoryVariant
+  kind: NodeParameterFieldKind
+  variant: NodeParameterVariant
 }>
 
-export function createParameterStory(variant: ParameterStoryVariant): PlaygroundStoryModule {
+export function createParameterStory(
+  kind: NodeParameterFieldKind,
+  variant: NodeParameterVariant,
+): PlaygroundStoryModule {
   return definePlaygroundStoryModule<ParameterStoryArgs>({
-    defaultArgs: {variant},
+    defaultArgs: {kind, variant},
     render(surface, args, frame) {
       flexColumn({
         x: frame.x,
@@ -33,13 +40,22 @@ export function createParameterStory(variant: ParameterStoryVariant): Playground
         justifyContent: "center",
         items: [{
           width: Math.min(520, Math.max(300, frame.w * 0.58)),
-          height: 220,
+          height: "1fr",
           draw(x, y, w, h) {
-            const fixture = createParameterStoryFixture(args.variant, {
+            const parameterWidth = Math.max(180, w - 72)
+            const probe = createParameterStoryFixture(args.kind, args.variant, {
+              x: 0,
+              y: 0,
+              w: parameterWidth,
+              h,
+            })
+            const linkHeight = probe.links.length === 0 ? 0 : 46
+            const parameterY = y + (h - probe.entry.rect.h - linkHeight) / 2 + linkHeight
+            const fixture = createParameterStoryFixture(args.kind, args.variant, {
               x: x + 36,
-              y: y + (h - 128) / 2,
-              w: Math.max(180, w - 72),
-              h: 128,
+              y: parameterY,
+              w: parameterWidth,
+              h,
             })
             for (const entry of fixture.links) {
               blenderLinkRenderer.render({host: surface, entry, selected: false})
@@ -63,7 +79,7 @@ export function createParameterStory(variant: ParameterStoryVariant): Playground
       })
     },
     source(args) {
-      const fixture = createParameterStoryFixture(args.variant, {x: 80, y: 80, w: 360, h: 128})
+      const fixture = createParameterStoryFixture(args.kind, args.variant, {x: 80, y: 80, w: 360, h: 320})
       return [
         'import {blenderParameterRenderer, type ParameterPlan} from "@nodes/ui/parameter"',
         'import {blenderLinkRenderer, blenderSocketRenderer, type BlenderLink, type BlenderSocket} from "@nodes/ui/blender-node"',

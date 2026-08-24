@@ -39,7 +39,7 @@ describe("Node playground on shared @ui/playground shell", () => {
   })
 
   test("uses the production story preview for Parameter on the same five-panel shell", () => {
-    const parameter = planNodeComponentPlaygroundFrames(1920, 1080, "parameter/composition/left")
+    const parameter = planNodeComponentPlaygroundFrames(1920, 1080, "parameter/text/input")
     expect(parameter.catalog).toEqual({x: 3, y: 3, w: 210, h: 1074})
     expect(parameter.section).toEqual({x: 214, y: 3, w: 160, h: 1074})
     expect(parameter.storyPreview).toEqual({x: 375, y: 3, w: 1101, h: 1049})

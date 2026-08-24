@@ -48,7 +48,7 @@ export const blenderParameterRenderer: ParameterRenderer = Object.freeze({
       const slot = separateLabel ? editorRect : rect
       Field(host, slot.x, slot.y, slot.w, {
         ...parameter.field,
-        key: `${nodeId}:${parameter.field.id}`,
+        key: `${nodeId}:${parameter.id}`,
         ...(separateLabel ? {compactLabel: "hidden" as const} : {}),
       }, {density: "compact"})
     }

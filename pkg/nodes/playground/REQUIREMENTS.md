@@ -35,9 +35,19 @@
 5. `ui` сохраняет полный каталог NodeEditor, Frame, Node, Parameter, Socket и
    Link stories. Story route получает prefix `ui/`, но story identity и lazy
    source module не меняются.
-6. Default addresses принадлежат одному manifest и не дублируются строками в
+6. Sidebar `ui` сначала показывает группу `Редактор` с NodeEditor, Frame и
+   Link, затем группу `Компоненты` с `Параметры` и `Сокеты` именно в таком
+   порядке, после неё — `Сравнение`.
+7. `Параметры` показывают все public Field kinds в порядке `text`, `number`,
+   `integer`, `boolean`, `enum`, `color`, `vector`, `rotation`, `matrix`,
+   `reference`, `collection`, `path`, `readonly`. Каждый Field kind имеет exact
+   variants `field`, `input`, `output`, `both`, `connected`, поэтому detail
+   route имеет форму `/ui/parameter/<field-kind>/<variant>`. Package overview
+   использует первый detail `parameter/text/field`; старые разделы
+   `parameter/composition` и `parameter/connection` не являются routes.
+8. Default addresses принадлежат одному manifest и не дублируются строками в
    server, catalog и skill.
-7. Каждый package mount и каждый префикс его внутреннего route является
+9. Каждый package mount и каждый префикс его внутреннего route является
    каноническим overview со слешем в конце. Например, `/ui/socket/` показывает
    все Socket types, `/ui/socket/boolean/` — его направления, а
    `/ui/socket/boolean/input` — один detail story. Тот же переход
