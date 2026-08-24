@@ -1,6 +1,6 @@
 ---
 name: metafor-dev
-description: Develop and verify MetaFor locally through one persistent visible iTerm session, one Cosmos startup-owned process tree, and one dedicated CDP Chrome. Use for MetaFor or Cosmos implementation, server lifecycle, browser functional checks, console inspection, visual verification, WebGPU profiling, or GPU capture. Preserve user-started processes and never use the retired multi-port runtime:universe or launchd contour.
+description: Develop, document, and verify MetaFor locally through one persistent visible iTerm session, one Cosmos startup-owned process tree, and one dedicated CDP Chrome. Use for MetaFor or Cosmos implementation, documentation ownership and TSDoc, server lifecycle, browser functional checks, console inspection, visual verification, WebGPU profiling, or GPU capture. Preserve user-started processes and never use the retired multi-port runtime:universe or launchd contour.
 ---
 
 # MetaFor development
@@ -59,6 +59,15 @@ parents or start a second Cosmos to obtain a debugger.
 
 Do not use `runtime:universe`, ports 4000-4005, `launchd`, HMR, another Chrome
 profile, or a second CDP port for this contour.
+
+## Документация
+
+Перед изменением документов-владельцев, package README, карты документации или
+public TSDoc полностью прочитать
+[правила документации MetaFor](references/documentation.md). Они определяют
+иерархию владельцев, содержание смысловых документов, внутрикодовую техническую
+документацию, терминологию, контекстные ссылки и проверки. Не создавать рядом
+отдельный documentation skill для одного package или контура.
 
 ## Browser module development
 

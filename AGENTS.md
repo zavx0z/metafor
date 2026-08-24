@@ -133,13 +133,10 @@
 
 ## Локальная разработка и WebGPU Inspector
 
-- Перед изменением архитектуры, документов-владельцев, public contracts,
-  TSDoc, package environments, artifact storage или browser/Bun adapters внутри
-  `cosmos/` использовать skill `$cosmos-development` из
-  `cosmos/.agents/skills/cosmos-development`. Он владеет правилом общего
-  interface для одинаковой ответственности и разделением краткого owner law с
-  подробной внутрикодовой TSDoc-механикой. Если изменение требует запуска Cosmos или
-  browser evidence, дополнительно использовать `$metafor-dev`.
+- Перед изменением документов-владельцев, package README, карты документации
+  или public TSDoc использовать `$metafor-dev` и полностью читать
+  `.agents/skills/metafor-dev/references/documentation.md`. Отдельные
+  documentation skills для packages и контуров не создавать.
 - Для standalone-разработки, lifecycle, browser-проверки и профилирования
   playground-пакетов `@ui/elements`, `@ui/components`, общего `@ui/playground`
   и Blender-based `@nodes/ui` использовать skill `$ui-dev` из
@@ -151,7 +148,7 @@
   вручную и не вызывает focus, activate, `Page.bringToFront`, window APIs или
   AI macOS. Этот узкий package-owned path не меняет глобальные macOS-правила
   управления Chrome за его пределами.
-- Перед локальной разработкой Hamiltonian или product contour, его runtime- и
+- Перед локальной разработкой Cosmos или product contour, его runtime- и
   browser-проверкой, а также профилированием `Bulk` или `Visual` использовать
   skill `$metafor-dev`: он
   сохраняет один видимый владельцу Hamiltonian в помеченной iTerm-сессии, один
