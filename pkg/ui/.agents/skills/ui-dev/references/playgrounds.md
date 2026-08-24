@@ -9,17 +9,14 @@ The executable registry is `scripts/playgrounds.json`.
 
 | Selector | Package contour | Origin | Ready and canvas capability |
 | --- | --- | --- | --- |
-| `nodes` | parent runtime consumer `@nodes/playground`, `pkg/nodes/playground` | `http://127.0.0.1:4018` | `nodesPlayground=ready`, WebGPU canvas, touch, pathname routes; lifecycle belongs `$nodes-dev` |
-| `node-layout` | `@nodes/layout`, `pkg/nodes/layout` | `http://127.0.0.1:4015` | `nodesLayoutPlayground=ready`, SVG/HMR, no canvas; lifecycle belongs `$nodes-dev` |
-| `node-ui` | `@nodes/ui`, `pkg/nodes/ui` | `http://127.0.0.1:4016` | `nodeComponentPlayground=ready`, WebGPU canvas, touch, pathname routes; lifecycle belongs `$nodes-dev` |
+| `nodes` | central `@nodes/playground`, `pkg/nodes/playground` | `http://127.0.0.1:4018` | one catalog/process; DOM, SVG and WebGPU package routes; lifecycle belongs `$nodes-dev` |
 | `components` | `@ui/components`, `pkg/ui/components` | `http://127.0.0.1:4017` | loaded `#stage-canvas`, WebGPU canvas, pathname routes |
 | `ui-fixture` | diagnostic `@ui/playground` fixture | `http://127.0.0.1:4192` | `playgroundReady=ready`, WebGPU canvas, pathname routes |
 | `elements` | `@ui/elements`, `pkg/ui/elements` | `http://127.0.0.1:7901` | `elementsPlayground=ready`, WebGPU canvas, pathname routes |
 
-The three Node selectors are registered here only so `$nodes-dev` can reuse the
-same exact process and background-target implementation. Enter their workflow
-through `$nodes-dev --playground root|layout|ui`; parent, SVG solver and UI
-catalog remain independent package contours.
+The one `nodes` selector is registered here only so `$nodes-dev` can reuse the
+same exact process and background-target implementation. Package identity is a
+route of the central catalog, never another selector or port.
 
 ## Lifecycle and ownership
 
@@ -54,23 +51,18 @@ Elements uses the same exact package ownership and singleton target rules.
 
 ### Source freshness gate
 
-WebGPU selectors are no-HMR by design. `node-layout` keeps HMR for package-local
-SVG iteration, but HMR is never final evidence: it can preserve stale state or
-load only part of a changed graph. A final proof after source changes therefore
-restarts and reloads the exact selected contour in both modes.
+WebGPU selectors are no-HMR by design. The central Nodes catalog is also
+no-HMR, including its SVG page; a final proof after source changes restarts one
+process and reloads every required exact package route.
 
 Use this decision table after a stable scoped source checkpoint:
 
 | Changed scope | Required selector restart |
 | --- | --- |
-| `pkg/ui/elements` production, exports or manifest | `elements`, `components`, `node-ui`, `nodes`, and every running shared fixture importer |
-| `pkg/ui/components` production, exports or manifest | `components`, `node-ui`, `nodes`, and every running shared fixture importer |
+| `pkg/ui/elements` production, exports or manifest | `elements`, `components`, `nodes`, and every running shared fixture importer |
+| `pkg/ui/components` production, exports or manifest | `components`, `nodes`, and every running shared fixture importer |
 | root `pkg/nodes` runtime, projection contract or exports | `nodes` |
-| `pkg/nodes/layout` production, exports or manifest | `node-layout` and `nodes` |
-| package-owned layout playground source | `node-layout` |
-| `pkg/nodes/ui` production | `node-ui` and `nodes` |
-| package-owned Node UI stories | `node-ui` |
-| parent `pkg/nodes/playground` source | `nodes` |
+| any `pkg/nodes` production or centralized package-page source | `nodes` |
 | package-owned Elements stories | `elements` |
 | package-owned Components stories | `components` |
 | shared `pkg/ui/playground` shell/router/theme | every running maintained selector |
@@ -85,9 +77,8 @@ consumer as affected instead of assuming freshness.
 After every restart, resolve the existing singleton target and run explicit
 `reload --target-id ... --route ...`. This is mandatory even if the target URL
 already matches: same-URL navigation may leave the previous document loaded.
-Then prove DOM ready plus exact route/source/args and console `0`. A non-black
-canvas is additionally required only when the selector advertises a WebGPU
-canvas; `node-layout` instead proves its successful SVG readiness marker.
+Then prove DOM ready plus exact route/source/args and console `0`. Editor and UI
+routes additionally require a non-black canvas; layout proves its SVG marker.
 
 Do not restart an owner-visible contour while source is an unfinished atomic
 patch merely to preview it. A deliberate RED diagnosis of dirty source must be
@@ -122,15 +113,15 @@ bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" components \
 bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" elements --route /layout/flex-css
 bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" elements \
   --route /layout/flex-css --output /tmp/elements-flex-css.png
-bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" node-ui --route /editor/scene
-bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" node-ui \
-  --route /comparison/blender --output /tmp/node-comparison.png
+bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" nodes --route /layout/fixed-adaptive
+bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" nodes \
+  --route /ui/comparison/blender/default --output /tmp/node-comparison.png
 ```
 
 The common route declaration fixes pathname behavior for every maintained
-playground. The default Node route and CLI `--route /editor/scene` both resolve
-to `http://127.0.0.1:4016/editor/scene`; selector registry cannot override the
-pathname behavior.
+playground. The default Nodes route resolves to the catalog on `4018`; an exact
+`--route /ui/node-editor/scene/default` navigates the same target to that
+package page. Selector registry cannot override pathname behavior.
 
 Route is page state, not a reason to create another tab. `open`, `dom`,
 `console`, `canvas`, `interact`, `viewports`, `touch` and `profile` attach to the
@@ -229,7 +220,7 @@ write or remove the destination. There is no further retry.
 capture_dir="$(mktemp -d)"
 bun "$SKILL/scripts/ui-browser.ts" viewports "$PWD" components \
   --route /button/basic/text --output-dir "$capture_dir"
-bun "$SKILL/scripts/ui-browser.ts" touch "$PWD" node-ui
+bun "$SKILL/scripts/ui-browser.ts" touch "$PWD" nodes --route /ui/node-editor/scene/default
 ```
 
 `viewports` records native desktop metrics, verifies portrait `390x844 @2` and

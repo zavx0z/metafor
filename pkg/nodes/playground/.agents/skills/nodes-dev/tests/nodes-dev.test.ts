@@ -97,6 +97,8 @@ describe("centralized nodes-dev package boundary", () => {
       stateKey: "nodes",
       logName: "nodes.log",
     })
+    expect(registry.selectors["node-layout"]).toBeUndefined()
+    expect(registry.selectors["node-ui"]).toBeUndefined()
   })
 
   test("contains named centralized references and no unfinished placeholders", async () => {

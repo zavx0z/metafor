@@ -56,7 +56,7 @@ describe("ui-dev registry", () => {
         routes?: {default: string}
       }>
     }
-    expect(Object.keys(registry.selectors).sort()).toEqual(["components", "elements", "node-layout", "node-ui", "nodes", "ui-fixture"])
+    expect(Object.keys(registry.selectors).sort()).toEqual(["components", "elements", "nodes", "ui-fixture"])
     expect(registry.selectors.nodes).toMatchObject({
       supported: true,
       package: "@nodes/playground",
@@ -65,31 +65,6 @@ describe("ui-dev registry", () => {
       canvas: {capability: "webgpu"},
       routes: {default: "/"},
       httpMarker: "<title>Nodes playground</title>",
-    })
-    expect(registry.selectors["node-ui"]).toMatchObject({
-      supported: true,
-      port: 4016,
-      command: ["bun", "playground/server.ts"],
-      canvas: {capability: "webgpu"},
-      routes: {default: "/editor/scene"},
-      httpMarker: "<title>@nodes/ui</title>",
-    })
-    expect(registry.selectors["node-layout"]).toEqual({
-      supported: true,
-      package: "@nodes/layout",
-      cwd: "pkg/nodes/layout",
-      command: ["bun", "playground/server.ts"],
-      host: "127.0.0.1",
-      hostEnv: "NODES_LAYOUT_PLAYGROUND_HOST",
-      port: 4015,
-      portEnv: "NODES_LAYOUT_PLAYGROUND_PORT",
-      origin: "http://127.0.0.1:4015",
-      httpMarker: "<title>@nodes/layout</title>",
-      ready: {kind: "dataset", name: "nodesLayoutPlayground", value: "ready"},
-      canvas: {selector: "#svg-view svg", capability: "none", touch: false},
-      routes: {default: "/"},
-      stateKey: "node-layout",
-      logName: "node-layout.log",
     })
     expect(registry.selectors.components).toMatchObject({
       supported: true,
@@ -125,20 +100,14 @@ describe("ui-dev registry", () => {
     const registry = await Bun.file(registryPath).json() as {
       selectors: Record<string, {routes?: {default: string}}>
     }
-    const nodeRoutes = registry.selectors["node-ui"]!.routes!
-    const layoutRoutes = registry.selectors["node-layout"]!.routes!
     const parentNodeRoutes = registry.selectors.nodes!.routes!
     const componentRoutes = registry.selectors.components!.routes!
     const elementRoutes = registry.selectors.elements!.routes!
 
     expect(playgroundTargetUrl("http://127.0.0.1:4018", parentNodeRoutes.default))
       .toBe("http://127.0.0.1:4018/")
-    expect(playgroundTargetUrl("http://127.0.0.1:4015", layoutRoutes.default))
-      .toBe("http://127.0.0.1:4015/")
-    expect(playgroundTargetUrl("http://127.0.0.1:4016", nodeRoutes.default))
-      .toBe("http://127.0.0.1:4016/editor/scene")
-    expect(playgroundTargetUrl("http://127.0.0.1:4016", "/socket/types"))
-      .toBe("http://127.0.0.1:4016/socket/types")
+    expect(playgroundTargetUrl("http://127.0.0.1:4018", "/ui/socket/boolean/input"))
+      .toBe("http://127.0.0.1:4018/ui/socket/boolean/input")
     expect(playgroundTargetUrl("http://127.0.0.1:4017", componentRoutes.default))
       .toBe("http://127.0.0.1:4017/button/basic")
     expect(playgroundTargetUrl("http://127.0.0.1:7901", "/layout/flex-css"))
@@ -350,36 +319,36 @@ describe("ui-dev lifecycle dispatcher", () => {
     }
   }, 30000)
 
-  test("runs exact Node UI lifecycle and preserves structured log ownership", async () => {
+  test("runs exact centralized Nodes lifecycle and preserves structured log ownership", async () => {
     const port = await freePort()
     const root = await stateRoot()
-    const start = spawnLong("start", "node-ui", port, root)
+    const start = spawnLong("start", "nodes", port, root)
     try {
-      const status = await waitOwned("node-ui", port, root)
+      const status = await waitOwned("nodes", port, root)
       expect(status).toMatchObject({
-        selector: "node-ui",
-        package: "@nodes/ui",
+        selector: "nodes",
+        package: "@nodes/playground",
         ownership: "skill",
         managedHealthy: true,
         port,
         testOverride: true,
-        command: ["bun", "playground/server.ts"],
+        command: ["bun", "server.ts"],
       })
-      expect(status.cwd).toBe(join(checkout, "pkg/nodes/ui"))
+      expect(status.cwd).toBe(join(checkout, "pkg/nodes/playground"))
       expect(status.processStart).toBeString()
-      expect(status.log).toEndWith("/node-ui.log")
-      const health = await run("health", "node-ui", port, root)
+      expect(status.log).toEndWith("/nodes.log")
+      const health = await run("health", "nodes", port, root)
       expect(health.exitCode).toBe(0)
       expect(parseStatus(health).pid).toBe(status.pid)
-      const logs = await run("logs", "node-ui", port, root)
+      const logs = await run("logs", "nodes", port, root)
       expect(logs.exitCode).toBe(0)
-      expect(logs.stdout).toContain("Node component playground:")
-      const stopped = await run("stop", "node-ui", port, root)
+      expect(logs.stdout).toContain("[nodes playground catalog]")
+      const stopped = await run("stop", "nodes", port, root)
       expect(stopped.exitCode).toBe(0)
       expect(parseStatus(stopped)).toMatchObject({status: "stopped", ownership: "none", pid: null})
       await start.exited
     } finally {
-      await run("stop", "node-ui", port, root)
+      await run("stop", "nodes", port, root)
       start.kill()
     }
   }, 30000)
@@ -424,15 +393,15 @@ describe("ui-dev lifecycle dispatcher", () => {
       fetch: () => new Response("<!doctype html><title>Node Component Library</title>foreign"),
     })
     try {
-      const status = await run("status", "node-ui", port, root)
+      const status = await run("status", "nodes", port, root)
       expect(status.exitCode).toBe(0)
       expect(parseStatus(status)).toMatchObject({status: "foreign", ownership: "foreign", managedHealthy: false})
-      const refusedStart = await run("start", "node-ui", port, root)
+      const refusedStart = await run("start", "nodes", port, root)
       expect(refusedStart.exitCode).toBe(2)
-      const refusedEnsure = await run("ensure", "node-ui", port, root)
+      const refusedEnsure = await run("ensure", "nodes", port, root)
       expect(refusedEnsure.exitCode).toBe(2)
       expect(parseStatus(refusedEnsure)).toMatchObject({outcome: "refused-foreign", ownership: "foreign"})
-      const refusedStop = await run("stop", "node-ui", port, root)
+      const refusedStop = await run("stop", "nodes", port, root)
       expect(refusedStop.exitCode).toBe(2)
       expect(await fetch(`http://127.0.0.1:${port}/`).then((response) => response.text())).toContain("foreign")
     } finally {
