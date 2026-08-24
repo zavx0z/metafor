@@ -33,8 +33,8 @@ The document owner stays short and semantic. It states:
 Do not copy method lists, generic parameters, DTO fields, implementation steps,
 or exhaustive error cases into the owner document.
 
-Public interfaces, types, functions, and adapters carry complete TSDoc suitable
-for TypeDoc. Explain there:
+Public interfaces, types, functions, and adapters carry complete in-code TSDoc.
+Explain there:
 
 - responsibility and boundary of the symbol;
 - type parameters and method contracts;
@@ -44,11 +44,11 @@ for TypeDoc. Explain there:
 - fail-closed errors and unsupported cases;
 - links to the tests proving important scenarios.
 
-TypeDoc is the rendered view of source TSDoc. This repository currently has no
-generated TypeDoc output. Until a real stable TypeDoc target exists, link owner
-documents directly to the public source declaration containing the TSDoc; never
-invent or preserve a broken TypeDoc URL. When generation is restored, replace
-the source link with the stable symbol link instead of duplicating text.
+TSDoc is internal in-code documentation. It is read directly from source and
+IDE and is not generated or published as a separate site or output. Owner
+documents link directly to the public source declaration containing the TSDoc.
+Do not add documentation-generation configs, scripts, dependencies, output
+directories, publication steps, or generated-documentation URLs.
 
 Tests prove observable laws and failure paths. They do not replace the short
 owner law or the detailed public contract.
