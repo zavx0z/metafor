@@ -152,13 +152,14 @@ export class NodeTreeEditorDockSurface extends UiSurface {
 
   #drawHeader(frame: NodeTreeEditorDockPlan["header"]): void {
     const options = this.#options
+    const compact = frame.w < 560
     flexRow({
       ...frame,
       gap: uiShapeMetrics.tightGap,
       alignItems: "stretch",
       items: [
         ...(["nodes", "parameters", "links"] as const).map((mode) => ({
-          width: 108,
+          width: compact ? 78 : 108,
           height: frame.h,
           draw: (x: number, y: number, w: number, h: number) => Button(this, x, y, w, h, {
             children: MODE_LABELS[mode],
@@ -176,7 +177,7 @@ export class NodeTreeEditorDockSurface extends UiSurface {
             color: options.layoutDirty ? "orange" : "muted",
           })
         }},
-        {width: 190, height: frame.h, draw: (x: number, y: number, w: number, h: number) => Button(this, x, y, w, h, {
+        {width: compact ? 170 : 190, height: frame.h, draw: (x: number, y: number, w: number, h: number) => Button(this, x, y, w, h, {
           children: "Перестроить layout",
           variant: options.layoutDirty ? "contained" : "glass",
           color: options.layoutDirty ? "warning" : "neutral",
