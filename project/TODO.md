@@ -68,7 +68,8 @@ documentation-only diff от executable package change. Текущий диаг�
 срезы `.5/.6` сохранили startup/recovery executable fail-closed commit-ом
 `cb853c0bc`, а `.7` опубликовал только действительно изменившийся release
 `0.1.18` commit-ом `59e1f5394`. Задача находится в `REVIEW` и ждёт независимой
-закрывающей проверки.
+закрывающей проверки; текущая `.8` исправляет единственный review blocker —
+exact-string проверку совместимого startup dependency range.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
