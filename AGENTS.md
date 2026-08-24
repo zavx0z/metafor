@@ -133,6 +133,13 @@
 
 ## Локальная разработка и WebGPU Inspector
 
+- Перед изменением архитектуры, документов-владельцев, public contracts,
+  TSDoc, package environments, artifact storage или browser/Bun adapters внутри
+  `cosmos/` использовать skill `$cosmos-development` из
+  `cosmos/.agents/skills/cosmos-development`. Он владеет правилом общего
+  interface для одинаковой ответственности и разделением краткого owner law с
+  подробной TSDoc/TypeDoc-механикой. Если изменение требует запуска Cosmos или
+  browser evidence, дополнительно использовать `$metafor-dev`.
 - Для standalone-разработки, lifecycle, browser-проверки и профилирования
   playground-пакетов `@ui/elements`, `@ui/components`, общего `@ui/playground`
   и Blender-based `@nodes/ui` использовать skill `$ui-dev` из
