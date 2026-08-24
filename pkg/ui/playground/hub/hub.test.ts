@@ -42,6 +42,8 @@ describe("central UI playground hub", () => {
     const hudEntry = await Bun.file(join(hubRoot, "packages/hud/hud-playground.ts")).text()
     expect(hudBody).toContain("Отдельный visual playground для HUD пока не реализован")
     expect(hudBody).toContain("не создаёт UiRuntime")
+    expect(hudBody).not.toContain("node-view")
+    expect(hudEntry).not.toContain("представление нод")
     expect(hudEntry).not.toContain("UiRuntime")
     expect(hudEntry).not.toContain("canvas")
   })

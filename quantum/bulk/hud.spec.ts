@@ -94,6 +94,8 @@ describe("Bulk causal HUD mount", () => {
 			})
 		expect(mounted[2]?.opts?.zIndex).toBe(91)
 		expect(relayouts).toBe(1)
+		expect(controller).not.toHaveProperty("setNodeView")
+		expect(controller).not.toHaveProperty("nodeViewActive")
 		expect(controller).not.toHaveProperty("toggleTime")
 		expect(controller).not.toHaveProperty("timeActive")
 	})

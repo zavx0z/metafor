@@ -254,7 +254,7 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   радиусу формы относительно package-owned baseline пустого корневого Torus.
   Поэтому выросший от содержимого Torus сохраняет читаемый масштаб подписи, а
   малый Torus не уменьшает её ниже viewport baseline.
-- Меню, HUD, Node View, navigation/picking, camera pose, viewport fit,
+- Меню, HUD, navigation/picking, camera pose, viewport fit,
   fullscreen, Force impulses, causal timeline с отдельным control dock и
   capture остаются Bulk-owned поведением и не заменяются вместе с
   layout/visual law.

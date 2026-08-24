@@ -8,7 +8,6 @@ if (!(exportsList instanceof HTMLUListElement)) throw new Error("HUD public surf
 for (const label of [
   "HUD-окно и боковые вкладки",
   "Перемещение, изменение размера и docking рамки",
-  "Read-only представление нод",
   "Read-only timeline",
 ]) {
   const item = document.createElement("li")

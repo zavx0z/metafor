@@ -302,7 +302,6 @@
         "@metafor/engine": "workspace:*",
         "@metafor/types": "workspace:*",
         "@ui/elements": "workspace:*",
-        "@ui/hud": "workspace:*",
       },
     },
     "quantum/bulk/weak": {

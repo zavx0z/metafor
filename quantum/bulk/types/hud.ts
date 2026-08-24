@@ -57,7 +57,5 @@ export type BulkTimeFrame = {
 }
 
 export type BulkHudController = {
-	nodeViewActive(): boolean
   relayout(): void
-  setNodeView(document: import("@ui/hud").HudNodeViewDocument): void
 }

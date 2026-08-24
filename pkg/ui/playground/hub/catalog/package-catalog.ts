@@ -47,7 +47,7 @@ export const UI_PACKAGE_CATALOG: readonly UiPackageCatalogEntry[] = Object.freez
     id: "hud",
     packageName: "@ui/hud",
     title: "HUD",
-    summary: "HUD-панели, взаимодействие с рамкой, представление нод и timeline.",
+    summary: "HUD-панели, визуальные controls, взаимодействие с рамкой и timeline.",
     playground: "Честная DOM-страница состава package: отдельного visual stand сейчас нет.",
     routePrefix: "/hud",
     defaultRoute: "/hud/",
