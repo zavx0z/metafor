@@ -60,8 +60,8 @@ flowchart LR
 
 [`DOC-002 — Привести TSDoc Cosmos к единому Markdown-формату`](tasks/DOC-002.md)
 нормализует все многострочные внутрикодовые комментарии Cosmos без изменения
-их смысла. Текущий срез `DOC-002.1` удаляет decorative `*` и добавляет static
-regression; затем `DOC-002.2` сведёт source maps и package artifacts.
+их смысла. `DOC-002.1` завершён commit-ом `e89e22ce5`; текущий `DOC-002.2`
+сводит source maps и package artifacts.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
