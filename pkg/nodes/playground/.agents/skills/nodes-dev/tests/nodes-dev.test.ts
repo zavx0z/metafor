@@ -66,6 +66,8 @@ describe("centralized nodes-dev package boundary", () => {
       [process.execPath, browserWrapper, "canvas", fakeCheckout, "--route", "/layout/fixed-adaptive"],
       [process.execPath, browserWrapper, "interact", fakeCheckout, "--route", "/core/live-node-tree"],
       [process.execPath, browserWrapper, "dom", fakeCheckout, "--route", "/unknown"],
+      [process.execPath, browserWrapper, "dom", fakeCheckout, "--route", "/core/unknown"],
+      [process.execPath, browserWrapper, "canvas", fakeCheckout, "--route", "/ui/unknown"],
       [process.execPath, browserWrapper, "dom", fakeCheckout, "--playground", "ui"],
     ]) {
       const rejected = await run(argv)

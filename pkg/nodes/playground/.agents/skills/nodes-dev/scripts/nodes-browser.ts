@@ -5,6 +5,7 @@ import {
   NODES_CATALOG_ROUTE,
   nodesPackageForPath,
 } from "../../../../catalog/package-catalog.ts"
+import {NODE_PLAYGROUND_ROUTES} from "../../../../packages/ui/ui-navigation.ts"
 
 const [action, checkoutInput, ...args] = Bun.argv.slice(2)
 if (action === undefined || checkoutInput === undefined) {
@@ -28,6 +29,10 @@ const page = effectiveRoute === undefined || effectiveRoute === NODES_CATALOG_RO
   : nodesPackageForPath(effectiveRoute)
 if (effectiveRoute !== undefined && effectiveRoute !== NODES_CATALOG_ROUTE && page === null) {
   console.error(`error: route is outside the centralized Nodes package catalog: ${effectiveRoute}`)
+  process.exit(1)
+}
+if (effectiveRoute !== undefined && page !== null && !isExactPackageRoute(page.id, effectiveRoute, page.defaultRoute)) {
+  console.error(`error: route is not registered by ${page.packageName}: ${effectiveRoute}`)
   process.exit(1)
 }
 
@@ -59,3 +64,11 @@ const child = Bun.spawn([
 })
 
 process.exit(await child.exited)
+
+function isExactPackageRoute(id: string, route: string, defaultRoute: string): boolean {
+  if (id !== "ui") return route === defaultRoute
+  const prefix = "/ui/"
+  return route.startsWith(prefix) && NODE_PLAYGROUND_ROUTES.includes(
+    route.slice(prefix.length) as (typeof NODE_PLAYGROUND_ROUTES)[number],
+  )
+}
