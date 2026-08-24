@@ -35,8 +35,10 @@ control нельзя опустить в Elements только ради повт
 
 1. Standalone Components playground является desktop consumer общего Workbench
    `@ui/playground`. Package-owned typed stories владеют metadata, concrete
-   component/section/variant routes, lazy exact production imports, preview,
-   source и controls; package не копирует общий shell.
+   component/section/variant stories, lazy exact production imports, preview,
+   source и controls; package не копирует общий shell. Mount `/components/` и
+   каждый route prefix открывают overview непосредственных детей и оканчиваются
+   `/`, а полный detail pathname — нет.
 2. Consumer preview владеет одним устойчивым retained root. Каждый независимо
    изменяемый controlled Field материализуется под устойчивым parent с ключом
    его `id`; изменение одного value не перестраивает shell или соседние Fields.

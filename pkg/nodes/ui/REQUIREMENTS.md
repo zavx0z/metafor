@@ -152,8 +152,11 @@ solver-free; explicit `blender-projection` адаптирует живой root 
    разные границы и не подменяют друг друга.
 4. Dev-only UI page является desktop consumer общего Workbench
    `@ui/playground`; её exact lifecycle маршрутизирует один `$nodes-dev`
-   selector `nodes`, а package identity задаёт mount `/ui`. Catalog выбирает NodeEditor, Socket
-   и comparison. Для
+   selector `nodes`, а package identity задаёт mount `/ui/`. Выбор Component
+   сначала открывает его overview: `/ui/socket/` показывает все Socket types,
+   `/ui/socket/boolean/` — все варианты Boolean, и только
+   `/ui/socket/boolean/input` загружает detail story. Catalog выбирает
+   NodeEditor, Socket и comparison. Для
    выбранного Socket вторая панель перечисляет все concrete Socket type presets,
    center показывает один production detail preview, dock — независимые
    `input | output | bidirectional` variants, а правая панель постоянно хранит

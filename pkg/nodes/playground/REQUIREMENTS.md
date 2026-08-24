@@ -10,7 +10,8 @@
    `http://127.0.0.1:4018`. Параллельные package servers и отдельные ports для
    layout или UI запрещены.
 2. Главная страница `/` перечисляет каждый production-пакет, простое описание
-   его ответственности, содержание playground и ссылку на exact default route.
+   его ответственности, содержание playground и ссылку на package overview:
+   `/core/`, `/editor/`, `/layout/`, `/layout-worker/` либо `/ui/`.
 3. Каталог содержит `@nodes/core`, `@nodes/editor`, `@nodes/layout`,
    `@nodes/layout-worker` и `@nodes/ui`; скрытый package-specific стенд не
    допускается.
@@ -33,6 +34,12 @@
    source module не меняются.
 6. Default addresses принадлежат одному manifest и не дублируются строками в
    server, catalog и skill.
+7. Каждый package mount и каждый префикс его внутреннего route является
+   каноническим overview со слешем в конце. Например, `/ui/socket/` показывает
+   все Socket types, `/ui/socket/boolean/` — его направления, а
+   `/ui/socket/boolean/input` — один detail story. Тот же переход
+   `package → component → section → detail` действует для всех package pages;
+   leaf не подставляется при выборе более высокого уровня.
 
 ## Структура модулей
 
@@ -61,8 +68,9 @@
    `nodes`, одним process и одним origin. Lifecycle-команды больше не принимают
    `--playground`.
 4. Browser wrapper принимает exact `--route`, выводит package из центрального
-   manifest и fail-closed отклоняет canvas/touch/profile actions для DOM/SVG
-   pages.
+   manifest, fail-closed отклоняет неизвестный route и canvas/touch/profile
+   actions для DOM/SVG pages. Неканоническая форма overview без `/` либо leaf с
+   `/` нормализуется server redirect, но не является вторым route.
 5. Catalog, core, layout и layout-worker требуют route/DOM/console evidence;
    editor и UI дополнительно требуют non-black exact canvas. Layout отдельно
    доказывает наличие SVG.

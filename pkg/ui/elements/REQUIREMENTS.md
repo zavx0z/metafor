@@ -183,9 +183,10 @@ FlexBox единолично вычисляет local child slots, а child то
 
 1. Standalone Elements playground является desktop consumer общего Workbench
    `@ui/playground`. Package-owned typed stories владеют metadata, concrete
-   component/section/variant routes, lazy exact public imports, preview, source
+   component/section/variant stories, lazy exact public imports, preview, source
    и controls; package не копирует общий shell и не передаёт ему Elements
-   vocabulary.
+   vocabulary. Mount `/elements/` и каждый route prefix открывают overview
+   непосредственных детей и оканчиваются `/`, а полный detail pathname — нет.
 2. Catalog явно разделяет primitives, layout, style и events. Вторая панель
    выбирает реальные sections одного Element, dock — его variants, а справа
    постоянно видны exact TypeScript/copy и controls/events. Статический Info и
