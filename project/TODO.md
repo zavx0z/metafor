@@ -60,7 +60,8 @@ flowchart LR
 
 [`COS-002 — Однозначно описать среды выполнения пакетов`](tasks/COS-002.md)
 фиксирует полную browser/Bun-классификацию `PackageEnvironment`, понятный смысл
-каждого env и fail-closed выбор build target. Текущий срез — `COS-002.1`.
+каждого env и fail-closed выбор build target. Result `71a0c059b`, canonical
+typecheck, Cosmos `80/80` и live exact artifacts готовы к independent review.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
@@ -317,7 +318,7 @@ correction без fixture offset.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
-| COS-002 | IN_PROGRESS | нет        | [Открыть](tasks/COS-002.md) |
+| COS-002 | REVIEW      | нет        | [Открыть](tasks/COS-002.md) |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | HAM-006 | WAITING    | MF-424      | [Открыть](tasks/HAM-006.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
