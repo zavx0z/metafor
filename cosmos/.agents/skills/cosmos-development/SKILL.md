@@ -65,10 +65,16 @@ interfaces и владельцев.
 
 ## Release и artifacts
 
-Одна package version охватывает все объявленные platform parts. Изменение любой
-part требует новой package version и полного набора exact artifacts этой
-версии. Artifact identity содержит package, environment, version, SHA-256 и
-byte size; разные способы хранения или доставки не меняют identity.
+Одна package version охватывает все объявленные platform parts. Изменение
+исполняемой part или её canonical JavaScript bytes требует новой package
+version и полного набора exact artifacts этой версии. Artifact identity
+содержит package, environment, version, SHA-256 и byte size; разные способы
+хранения или доставки не меняют identity.
+
+Documentation-only Cosmos diff
+[определяется общей классификацией изменения MetaFor](../../../../.agents/skills/metafor-dev/references/documentation.md#проверка-изменения)
+и не изменяет package version, artifacts или live contour. TSDoc-only map drift
+не является release: существующая map принадлежит последней executable version.
 
 Release composition и выбор physical placement — разные решения. Release
 содержит все выбранные package parts, а runtime выбирает допустимые

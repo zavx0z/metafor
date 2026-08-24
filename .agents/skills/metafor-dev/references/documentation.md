@@ -109,14 +109,28 @@ generator configs, scripts, dependencies и команды `docs:*` не соз�
 ## Проверка изменения
 
 До редактирования сверить документы-владельцы, public types, code/tests,
-package exports, связанные карточки и существенную Git-историю. После правки:
+package exports, связанные карточки и существенную Git-историю.
+
+Documentation-only является только такой срез или итоговый diff, в котором
+изменяются исключительно README и другие текстовые документы, body TSDoc
+comments либо текстовые инструкции skills. Он не содержит изменений executable
+tokens или signatures и не затрагивает manifests, build, runtime либо test code.
+Если вместе с документацией изменилось что-либо из этой исполняемой границы,
+весь mixed diff не получает documentation-only исключение.
+
+Для documentation-only diff не выполнять build, publication, version bump,
+materialization artifacts или maps, restart, `clear-site-data`, typecheck и
+tests. Допустимы только перечитывание полного diff, Markdown/TSDoc parsing,
+проверка изменённых links и anchors и `git diff --check`.
+
+После правки:
 
 * убедиться, что один закон имеет одного владельца и не продублирован;
 * проверить соответствие терминов и package aliases;
 * проверить контекст всех изменённых links и anchors;
 * убедиться, что технические сведения находятся у TSDoc/development/tests;
 * перечитать итоговый текст как одну связную историю;
-* выполнить `git diff --check` и релевантные проверки ссылок/contracts.
+* выполнить проверки, разрешённые классификацией итогового diff.
 
 Документационный test или isolated audit подтверждает только проверенное
 свойство и не заменяет owner review смысла.

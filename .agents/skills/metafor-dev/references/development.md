@@ -181,9 +181,17 @@ build script, outfile, URL/cache identity, RPC metadata и lifecycle kind — е
 один target. Package объявляет один `typecheck` для всего source composition и
 по одному `build:<env>`. `prebuild`, generic `build` и `typecheck:<env>` не
 объявляются. Executor запускает `typecheck` один раз и только после успеха —
-все нужные env builds. Один SemVer принадлежит всему package: изменение одного
-env требует новой package version и полного набора объявленных artifacts этой
-версии. Неизменившийся package не пересобирать и не заменять.
+все нужные env builds. Один SemVer принадлежит всему package: изменение
+исполняемой part одного env или её canonical JavaScript bytes требует новой
+package version и полного набора объявленных artifacts этой версии.
+Неизменившийся package не пересобирать и не заменять.
+
+Изменение только body TSDoc comments не меняет исполняемую part. Drift
+`sourcesContent` в development source map от такого изменения сам по себе не
+является release и не требует build, publication или новой version. Уже
+опубликованная exact map остаётся companion последней executable version и не
+заменяется ради совпадения с текущим TSDoc; при следующем изменении executable
+JavaScript новая version снова публикует согласованные JavaScript и map.
 
 Direct production-команда `build:<env>` повторяет `./<env>/index.ts`, выбирает
 condition `<scope>:<env>` и точный target. Bun `1.4.0` не разрешает bare package specifier как CLI build
@@ -196,8 +204,9 @@ env одного package не должен совпадать; обязател�
 Release server кеширует только найденные root и manifest path, а содержимое
 `package.json` перечитывает и проверяет перед каждым typecheck/build.
 
-Изменение source, состава или bytes package требует новой версии и нового
-immutable artifact; прежний versioned artifact не заменять другими bytes.
+Изменение executable source, исполняемого состава или canonical JavaScript
+bytes package требует новой версии и нового immutable artifact; прежний
+versioned artifact не заменять другими bytes.
 Window composition packages собираются с внешними package dependencies и
 сохраняют bare imports; transport URL, conditional browser adapter или имя
 отдельной зависимости в source build adapter не добавлять.
