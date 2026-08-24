@@ -62,8 +62,9 @@ flowchart LR
 переносит принятую документационную систему в `$metafor-dev` и исправляет
 текущие Cosmos README, снова смешавшие owner law с технической механикой.
 Общие и Cosmos-specific skill rules разделены; текущий source-срез —
-`DOC-001.2`. Зависимый `DOC-001.4` сведёт изменённый внутрикодовый TSDoc с
-package-wide immutable artifacts и начнётся только после source checkpoint.
+`DOC-001.2` завершён commit-ом `e02bb03de`. Текущий `DOC-001.4` сводит
+изменённый внутрикодовый TSDoc с package-wide immutable artifacts без изменения
+runtime-поведения.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
