@@ -11,7 +11,7 @@ checkout=${2:-}
   exit 1
 }
 
-shared="$checkout/pkg/ui/.agents/skills/ui-dev/scripts/ui-dev.sh"
+shared="$checkout/pkg/ui/playground/.agents/skills/ui-dev/scripts/ui-dispatcher.sh"
 [[ -x $shared ]] || {
   printf 'error: shared UI dispatcher is missing or not executable: %s\n' "$shared" >&2
   exit 1

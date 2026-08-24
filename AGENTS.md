@@ -141,13 +141,13 @@
   `pkg/nodes/playground/.agents/skills/nodes-dev`. Lifecycle-команды не выбирают
   package: package задаётся только `--route`, а DOM/SVG и WebGPU capabilities
   определяются fail-closed по центральному catalog manifest.
-- Для standalone-разработки, lifecycle, browser-проверки и профилирования
-  playground-пакетов `@ui/elements`, `@ui/components` и общего `@ui/playground`
+- Для разработки, lifecycle, browser-проверки и профилирования единого каталога
+  package pages `@ui/elements`, `@ui/components`, `@ui/playground` и `@ui/hud`
   использовать skill `$ui-dev` из
-  `pkg/ui/.agents/skills/ui-dev`. Он владеет package-contour и exact target
-  только в границах своих selectors; команды и договор dispatcher здесь не
+  `pkg/ui/playground/.agents/skills/ui-dev`. Он владеет единым UI catalog и exact target
+  только в границах selector `ui`; команды и договор dispatcher здесь не
   дублировать.
-- Browser evidence в этих standalone-contours получать только через встроенный
+- Browser evidence в этих package-contours получать только через встроенный
   в owning skill background exact-target CDP path. Агент не воспроизводит его CDP
   вручную и не вызывает focus, activate, `Page.bringToFront`, window APIs или
   AI macOS. Этот узкий package-owned path не меняет глобальные macOS-правила

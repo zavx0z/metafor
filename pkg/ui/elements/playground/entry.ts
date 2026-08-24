@@ -3,10 +3,8 @@ import {
   PlaygroundBackdropSurface,
   PlaygroundDockSurface,
   PlaygroundNavigationSurface,
-  PlaygroundRouter,
   PlaygroundStoryPanelSurface,
   planPlaygroundShell,
-  playgroundRouteUrl,
   type PlaygroundStoryArgs,
   type PlaygroundStoryModule,
   type PlaygroundStoryPanelMode,
@@ -18,10 +16,15 @@ import {
   elementSectionItems,
   elementStoryIndex,
   elementVariantItems,
-  normalizeElementsPlaygroundPath,
   type ElementsStoryRoute,
 } from "./stories.ts"
 import {ElementsStoryPreviewSurface} from "./story-preview.ts"
+import {
+  createMountedStoryRoute,
+  mountStoryOverview,
+} from "../../playground/hub/mounted-story-page.ts"
+
+const ELEMENTS_MOUNT_PATH = "/elements"
 
 export type ElementsPlaygroundObserver = Readonly<{
   snapshot(): Readonly<Record<string, unknown>>
@@ -38,6 +41,8 @@ async function startElementsPlayground(): Promise<void> {
   const canvas = document.getElementById("stage-canvas")
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error("stage-canvas not found")
   document.documentElement.dataset.elementsPlayground = "starting"
+  document.documentElement.dataset.uiPlayground = "starting"
+  document.documentElement.dataset.uiPlaygroundPage = "elements"
   try {
     const runtime = await UiRuntime.create(canvas, {
       fontUrl: "/JetBrainsMono-Bold.ttf",
@@ -45,11 +50,16 @@ async function startElementsPlayground(): Promise<void> {
     })
     runtime.handleResize()
 
-    const legacyRoute = normalizeElementsPlaygroundPath(window.location.pathname)
-    if (legacyRoute !== null) history.replaceState(null, "", playgroundRouteUrl(legacyRoute))
-    const router = new PlaygroundRouter(ELEMENT_STORIES.declaration)
-    const resolvedPath = playgroundRouteUrl(router.current)
-    if (window.location.pathname !== resolvedPath) history.replaceState(null, "", resolvedPath)
+    const mounted = createMountedStoryRoute<ElementsStoryRoute>(ELEMENT_STORIES, ELEMENTS_MOUNT_PATH)
+    if (mounted.kind === "overview") {
+      mountStoryOverview(runtime, canvas, ELEMENT_STORIES, mounted, "Элементы UI")
+      document.documentElement.dataset.elementsPlaygroundRoute = mounted.node.path
+      document.documentElement.dataset.elementsPlaygroundPage = "overview"
+      document.documentElement.dataset.elementsPlayground = "ready"
+      document.documentElement.dataset.uiPlayground = "ready"
+      return
+    }
+    const router = mounted.router
 
     let storyRoute = router.current as ElementsStoryRoute
     let storyIndex = elementStoryIndex(storyRoute)
@@ -233,6 +243,7 @@ async function startElementsPlayground(): Promise<void> {
     runtime.handleResize()
     publish()
     document.documentElement.dataset.elementsPlayground = "ready"
+    document.documentElement.dataset.uiPlayground = "ready"
   } catch (error) {
     publishElementsError(error)
     throw error
@@ -241,6 +252,7 @@ async function startElementsPlayground(): Promise<void> {
 
 function publishElementsError(error: unknown): void {
   document.documentElement.dataset.elementsPlayground = "error"
+  document.documentElement.dataset.uiPlayground = "error"
   document.documentElement.dataset.elementsPlaygroundError = error instanceof Error
     ? error.stack ?? error.message
     : String(error)

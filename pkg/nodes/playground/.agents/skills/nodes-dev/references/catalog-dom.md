@@ -6,7 +6,8 @@ All commands use the single `nodes` lifecycle process on
 ## Catalog
 
 Route `/` must publish `nodesPlayground=ready`, `nodesPlaygroundPage=catalog`
-and five package cards with links to the manifest-owned default routes.
+and five package cards with links to the manifest-owned package overviews.
+Every nested overview/detail DOM must expose `data-playground-home` with `/`.
 
 ## Core
 

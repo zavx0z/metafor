@@ -4,9 +4,9 @@ import {
   PlaygroundBackdropSurface,
   PlaygroundDockSurface,
   PlaygroundNavigationSurface,
-  PlaygroundRouter,
+  PlaygroundOverviewSurface,
+  PlaygroundRouteTreeRouter,
   PlaygroundStoryPanelSurface,
-  playgroundRouteUrl,
   type PlaygroundStoryArgs,
   type PlaygroundStoryModule,
   type PlaygroundStoryPanelMode,
@@ -34,17 +34,22 @@ import {planNodeComponentPlaygroundFrames} from "./ui-workbench-layout.ts"
 import {waitForReferenceFrame} from "./evidence/reference-readiness.ts"
 import {createPlaygroundRetainedObserver, type PlaygroundRetainedObserver} from "./evidence/retained-observer.ts"
 import {
-  NODE_PLAYGROUND_ROUTE_DECLARATION,
+  NODE_PLAYGROUND_ROUTE_TREE,
   NODE_UI_PLAYGROUND_BASE_PATH,
   isNodeEditorStoryRoute,
   isNodeFrameStoryRoute,
   isNodeLinkStoryRoute,
   loadNodePlaygroundStory,
-  normalizeNodePlaygroundPath,
   nodePlaygroundCatalog,
   nodePlaygroundCatalogRoute,
+  nodePlaygroundDockTitle,
   nodePlaygroundDockItems,
   nodePlaygroundGroup,
+  nodePlaygroundIsOverview,
+  nodePlaygroundOverviewDescription,
+  nodePlaygroundOverviewItems,
+  nodePlaygroundOverviewTitle,
+  nodePlaygroundSectionRoute,
   nodePlaygroundSectionTitle,
   nodePlaygroundSections,
   nodePlaygroundStoryIndex,
@@ -75,16 +80,13 @@ try {
     fontUrl: "/JetBrainsMono-Bold.ttf",
     virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
   })
-  const legacyRoute = normalizeNodePlaygroundPath(window.location.pathname)
-  if (legacyRoute !== null) history.replaceState(null, "", playgroundRouteUrl(legacyRoute, {
-    basePath: NODE_UI_PLAYGROUND_BASE_PATH,
-  }))
-  const router = new PlaygroundRouter(NODE_PLAYGROUND_ROUTE_DECLARATION, {
+  const router = new PlaygroundRouteTreeRouter(NODE_PLAYGROUND_ROUTE_TREE, {
     basePath: NODE_UI_PLAYGROUND_BASE_PATH,
   })
-  const resolvedPath = playgroundRouteUrl(router.current, {basePath: NODE_UI_PLAYGROUND_BASE_PATH})
-  if (window.location.pathname !== resolvedPath) history.replaceState(null, "", resolvedPath)
-  const navigate = (route: NodePlaygroundRoute): void => router.go(route)
+  const currentRoute = (): NodePlaygroundRoute => router.current.path
+  const navigate = (route: NodePlaygroundRoute): void => {
+    if (!router.go(route)) throw new Error(`Unknown Node playground route: ${route}`)
+  }
   const tree = createCatalogNodeTree()
   const comparisonTree = createNoiseComparisonTree()
   let nodeFieldRoute: NodePlaygroundRoute | null = null
@@ -101,21 +103,27 @@ try {
   const backdrop = new PlaygroundBackdropSurface()
   const catalog = new PlaygroundNavigationSurface<NodePlaygroundRoute>({
     title: "Компоненты нод",
-    items: nodePlaygroundCatalog(router.current, collapsedCatalogGroups),
-    route: nodePlaygroundCatalogRoute(router.current),
+    items: nodePlaygroundCatalog(currentRoute(), collapsedCatalogGroups),
+    route: nodePlaygroundCatalogRoute(currentRoute()),
     onNavigate: navigate,
     onGroupToggle: handleCatalogGroupToggle,
   })
   const sections = new PlaygroundNavigationSurface<NodePlaygroundRoute>({
-    title: nodePlaygroundSectionTitle(router.current),
-    items: nodePlaygroundSections(router.current),
-    route: router.current,
+    title: nodePlaygroundSectionTitle(currentRoute()),
+    items: nodePlaygroundSections(currentRoute()),
+    route: nodePlaygroundSectionRoute(currentRoute()) ?? currentRoute(),
     onNavigate: navigate,
   })
   const dock = new PlaygroundDockSurface<NodePlaygroundRoute>({
-    title: isNodeSocketStoryRoute(router.current) ? "Направление" : "Варианты",
-    items: nodePlaygroundDockItems(router.current),
-    route: router.current,
+    title: nodePlaygroundDockTitle(currentRoute()),
+    items: nodePlaygroundDockItems(currentRoute()),
+    route: currentRoute(),
+    onNavigate: navigate,
+  })
+  const overview = new PlaygroundOverviewSurface<NodePlaygroundRoute>({
+    title: nodePlaygroundOverviewTitle(currentRoute()),
+    description: nodePlaygroundOverviewDescription(currentRoute()),
+    items: nodePlaygroundOverviewItems(currentRoute()),
     onNavigate: navigate,
   })
   const storyPreview = new NodeStoryPreviewSurface()
@@ -138,17 +146,17 @@ try {
     onControlChange(key, value) {
       if (storyModule === null) return
       const nextArgs = Object.freeze({...storyArgs, [key]: value})
-      if (isNodeEditorStoryRoute(router.current) && (key === "target" || key === "selected")) {
+      if (isNodeEditorStoryRoute(currentRoute()) && (key === "target" || key === "selected")) {
         const state = nodeEditorStoryState(nextArgs)
         const nextRoute = nodeEditorStoryRoute(state.target, state.selected)
-        if (nextRoute !== router.current) {
+        if (nextRoute !== currentRoute()) {
           navigate(nextRoute)
           return
         }
       }
       storyArgs = nextArgs
-      if (isNodeSocketStoryRoute(router.current)) storyPreview.setArgs(storyArgs)
-      applyProductionStoryState(router.current)
+      if (isNodeSocketStoryRoute(currentRoute())) storyPreview.setArgs(storyArgs)
+      applyProductionStoryState(currentRoute())
       storyPanel.setOptions(storyPanelOptions())
       publishStoryState()
     },
@@ -193,13 +201,14 @@ try {
   editor.setTree(tree)
 
   const frames = (w: number, h: number) => {
-    const planned = planNodeComponentPlaygroundFrames(w, h, router.current)
+    const planned = planNodeComponentPlaygroundFrames(w, h, currentRoute())
     if (!preparingReference || planned.reference.visible !== false) return planned
     return {...planned, reference: {x: 0, y: 0, w: 1, h: 1}}
   }
   runtime.addSurface(backdrop, ({w, h}) => frames(w, h).backdrop)
   runtime.addSurface(catalog, ({w, h}) => frames(w, h).catalog)
   runtime.addSurface(sections, ({w, h}) => frames(w, h).section)
+  runtime.addSurface(overview, ({w, h}) => frames(w, h).overview)
   runtime.addSurface(editor, ({w, h}) => frames(w, h).editor)
   runtime.addSurface(storyPreview, ({w, h}) => frames(w, h).storyPreview)
   runtime.addSurface(reference, ({w, h}) => frames(w, h).reference)
@@ -220,22 +229,41 @@ try {
       onNavigate: navigate,
       onGroupToggle: handleCatalogGroupToggle,
     })
-    sections.setOptions({title: nodePlaygroundSectionTitle(route), items: sectionItems, route, onNavigate: navigate})
+    sections.setOptions({
+      title: nodePlaygroundSectionTitle(route),
+      items: sectionItems,
+      route: nodePlaygroundSectionRoute(route) ?? route,
+      onNavigate: navigate,
+    })
     dock.setOptions({
-      title: isNodeSocketStoryRoute(route) ? "Направление" : "Варианты",
+      title: nodePlaygroundDockTitle(route),
       items: nodePlaygroundDockItems(route),
       route,
       onNavigate: navigate,
     })
+    overview.setOptions({
+      title: nodePlaygroundOverviewTitle(route),
+      description: nodePlaygroundOverviewDescription(route),
+      items: nodePlaygroundOverviewItems(route),
+      onNavigate: navigate,
+    })
     const group = nodePlaygroundGroup(route)
     document.documentElement.dataset.nodePlaygroundRoute = route
+    document.documentElement.dataset.nodePlaygroundRouteKind = nodePlaygroundIsOverview(route) ? "overview" : "story"
     document.documentElement.dataset.nodePlaygroundGroup = group
     document.documentElement.dataset.comparison = group === "comparison" ? "blender-reference-live-editor" : ""
     runtime.relayout()
     retainedObserver?.publishAfterFrame()
+    if (nodePlaygroundIsOverview(route)) {
+      storyModule = null
+      storyArgs = Object.freeze({})
+      publishStoryState()
+      renderPlaygroundFrame()
+      return
+    }
     const index = nodePlaygroundStoryIndex(route)
     const loaded = await loadNodePlaygroundStory(route)
-    if (revision !== storyRevision || router.current !== route) return
+    if (revision !== storyRevision || currentRoute() !== route) return
     storyModule = loaded
     storyArgs = Object.freeze({...loaded.defaultArgs})
     if (isNodeSocketStoryRoute(route)) storyPreview.setStory(index, loaded, storyArgs)
@@ -245,8 +273,8 @@ try {
     renderPlaygroundFrame()
   }
 
-  router.subscribe((route) => {
-    void applyRoute(route).catch(publishPlaygroundError)
+  router.subscribe((node) => {
+    void applyRoute(node.path).catch(publishPlaygroundError)
   })
 
   function handleCatalogGroupToggle(groupId: string, collapsed: boolean): void {
@@ -255,15 +283,15 @@ try {
     else collapsedCatalogGroups.delete(groupId)
     catalog.setOptions({
       title: "Компоненты нод",
-      items: nodePlaygroundCatalog(router.current, collapsedCatalogGroups),
-      route: nodePlaygroundCatalogRoute(router.current),
+      items: nodePlaygroundCatalog(currentRoute(), collapsedCatalogGroups),
+      route: nodePlaygroundCatalogRoute(currentRoute()),
       onNavigate: navigate,
       onGroupToggle: handleCatalogGroupToggle,
     })
     runtime.relayout()
   }
   runtime.handleResize()
-  await applyRoute(router.current)
+  await applyRoute(currentRoute())
   new ResizeObserver(() => {
     runtime.handleResize()
     retainedObserver?.publishAfterFrame()
@@ -300,7 +328,7 @@ try {
   }
 
   function publishStoryState(): void {
-    const route = router.current
+    const route = currentRoute()
     document.documentElement.dataset.nodeStoryRoute = route
     document.documentElement.dataset.nodeStorySource = storyModule !== null
       ? storyModule.source(storyArgs)
@@ -353,7 +381,7 @@ try {
         previewEnabledByNode,
         previewBuffer: (storyArgs["preview-buffer"] ?? "primary") as "primary" | "alternate" | "missing" | "zero",
         onPreviewToggle(nodeId: string, enabled: boolean) {
-          if (router.current !== route) return
+          if (currentRoute() !== route) return
           previewEnabledByNode = Object.freeze({...previewEnabledByNode, [nodeId]: enabled})
           if (nodeId === "scalar") storyArgs = Object.freeze({...storyArgs, "preview-enabled": enabled})
           applyProductionStoryState(route)
@@ -369,13 +397,13 @@ try {
       nodeFieldActions = Object.freeze([])
     }
     editor.setTree(bindNodeFieldValueState(baseTree, nodeFieldValues, (nodeId, fieldId, value) => {
-      if (router.current !== route) return
+      if (currentRoute() !== route) return
       nodeFieldValues = updateNodeFieldValueState(nodeFieldValues, nodeId, fieldId, value)
       applyProductionStoryState(route)
       publishStoryState()
       retainedObserver?.publishAfterFrame()
     }, (action) => {
-      if (router.current !== route) return
+      if (currentRoute() !== route) return
       nodeFieldActions = Object.freeze([...nodeFieldActions, action].slice(-32))
       publishStoryState()
     }))

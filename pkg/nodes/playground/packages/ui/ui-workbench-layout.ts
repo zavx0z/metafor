@@ -1,11 +1,16 @@
 import {flexRowCss} from "@ui/elements"
 import {planPlaygroundShell, type PlaygroundFrame} from "@ui/playground"
-import {nodePlaygroundGroup, type NodePlaygroundRoute} from "./ui-navigation.ts"
+import {
+  nodePlaygroundGroup,
+  nodePlaygroundIsOverview,
+  type NodePlaygroundRoute,
+} from "./ui-navigation.ts"
 
 export type NodeComponentPlaygroundFrames = Readonly<{
   backdrop: PlaygroundFrame
   catalog: PlaygroundFrame
   section: PlaygroundFrame
+  overview: PlaygroundFrame
   editor: PlaygroundFrame
   sockets: PlaygroundFrame
   storyPreview: PlaygroundFrame
@@ -29,13 +34,26 @@ export function planNodeComponentPlaygroundFrames(
     dockHeight: 0,
   } : {})
   let editor = hidden()
+  let overview = hidden()
   let sockets = hidden()
   let storyPreview = hidden()
   let reference = hidden()
   let detail = hidden()
-  const story = compact ? hidden() : shell.info
+  let story = compact ? hidden() : shell.info
+  let dock = compact ? hidden() : shell.dock
   const group = nodePlaygroundGroup(route)
-  if (group === "editor") editor = shell.preview
+  if (nodePlaygroundIsOverview(route)) {
+    const right = compact ? shell.preview.x + shell.preview.w : shell.info.x + shell.info.w
+    const bottom = compact ? shell.preview.y + shell.preview.h : shell.dock.y + shell.dock.h
+    overview = {
+      x: shell.preview.x,
+      y: shell.preview.y,
+      w: Math.max(1, right - shell.preview.x),
+      h: Math.max(1, bottom - shell.preview.y),
+    }
+    story = hidden()
+    dock = hidden()
+  } else if (group === "editor") editor = shell.preview
   else if (group === "socket") {
     storyPreview = shell.preview
   }
@@ -54,12 +72,13 @@ export function planNodeComponentPlaygroundFrames(
     backdrop: {x: 0, y: 0, w: width, h: height},
     catalog: shell.catalog,
     section: shell.section,
+    overview,
     editor,
     sockets,
     storyPreview,
     reference,
     detail,
-    dock: compact ? hidden() : shell.dock,
+    dock,
     story,
   }
 }

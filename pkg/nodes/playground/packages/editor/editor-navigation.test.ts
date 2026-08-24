@@ -1,33 +1,35 @@
 import {describe, expect, test} from "bun:test"
-import {resolvePlaygroundRoute} from "@ui/playground"
+import {resolvePlaygroundRouteTree} from "@ui/playground"
 import {
   NODE_EDITOR_PLAYGROUND_BASE_PATH,
+  NODE_EDITOR_PLAYGROUND_OVERVIEW_PATH,
   NODE_EDITOR_PLAYGROUND_PATH,
   NODE_EDITOR_PLAYGROUND_READY_MARKER,
   NODE_EDITOR_PLAYGROUND_ROUTE,
-  NODE_EDITOR_PLAYGROUND_ROUTE_DECLARATION,
+  NODE_EDITOR_PLAYGROUND_ROUTE_TREE,
 } from "./editor-navigation.ts"
 
 describe("@nodes/editor centralized playground routes", () => {
-  test("owns one exact live NodeTree pathname and deterministic fallback", () => {
+  test("owns a package overview and one exact live NodeTree leaf", () => {
     expect(NODE_EDITOR_PLAYGROUND_BASE_PATH).toBe("/editor")
     expect(NODE_EDITOR_PLAYGROUND_ROUTE).toBe("live-node-tree")
     expect(NODE_EDITOR_PLAYGROUND_PATH).toBe("/editor/live-node-tree")
-    expect(NODE_EDITOR_PLAYGROUND_ROUTE_DECLARATION).toEqual({
-      location: "pathname",
-      routes: ["live-node-tree"],
-      fallback: "live-node-tree",
-    })
-    expect(resolvePlaygroundRoute(
-      NODE_EDITOR_PLAYGROUND_ROUTE_DECLARATION,
+    expect(NODE_EDITOR_PLAYGROUND_OVERVIEW_PATH).toBe("/editor/")
+    expect(resolvePlaygroundRouteTree(
+      NODE_EDITOR_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/editor/"},
+      {basePath: NODE_EDITOR_PLAYGROUND_BASE_PATH},
+    )).toMatchObject({kind: "match", node: {kind: "overview", path: ""}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_EDITOR_PLAYGROUND_ROUTE_TREE,
       {pathname: "/editor/live-node-tree"},
       {basePath: NODE_EDITOR_PLAYGROUND_BASE_PATH},
-    )).toBe(NODE_EDITOR_PLAYGROUND_ROUTE)
-    expect(resolvePlaygroundRoute(
-      NODE_EDITOR_PLAYGROUND_ROUTE_DECLARATION,
-      {pathname: "/unknown"},
+    )).toMatchObject({kind: "match", node: {kind: "leaf", path: "live-node-tree"}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_EDITOR_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/editor/unknown"},
       {basePath: NODE_EDITOR_PLAYGROUND_BASE_PATH},
-    )).toBe(NODE_EDITOR_PLAYGROUND_ROUTE)
+    )).toEqual({kind: "not-found"})
   })
 
   test("publishes the shared centralized readiness contract", () => {

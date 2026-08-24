@@ -1,19 +1,30 @@
 <main class="core-page">
-  <header>
-    <p class="eyebrow">@nodes/core · DOM-only</p>
-    <h1>Живой NodeTree</h1>
-    <p>Один runtime показывает Parameter Store, revisions, массивный snapshot и устойчивый ID-keyed document без renderer и layout.</p>
-    <a href="/">← Каталог пакетов</a>
-  </header>
-  <section class="toolbar" aria-label="Команды core">
-    <button id="gain">Gain + 1</button>
-    <button id="add-parameter">Добавить Parameter</button>
-    <button id="remove-parameter">Удалить Parameter</button>
+  <section id="core-overview" hidden>
+    <header>
+      <p class="eyebrow">@nodes/core · обзор</p>
+      <h1>Core playground</h1>
+      <p>Живой NodeTree, Parameter Store, revisions, snapshot и ordered authoring document.</p>
+      <a href="/">← Каталог пакетов</a>
+    </header>
+    <a id="core-detail-link" href="#">Открыть живой NodeTree</a>
   </section>
-  <output id="core-status" class="status"></output>
-  <section class="data-grid">
-    <article><h2>snapshot()</h2><pre id="core-snapshot"></pre></article>
-    <article><h2>document()</h2><pre id="core-document"></pre></article>
-    <article><h2>События</h2><pre id="core-events"></pre></article>
+  <section id="core-detail" hidden>
+    <header>
+      <p class="eyebrow">@nodes/core · DOM-only</p>
+      <h1>Живой NodeTree</h1>
+      <p>Один runtime показывает Parameter Store, revisions, массивный snapshot и устойчивый ID-keyed document без renderer и layout.</p>
+      <a href="/core/">← Обзор core</a>
+    </header>
+    <section class="toolbar" aria-label="Команды core">
+      <button id="gain">Gain + 1</button>
+      <button id="add-parameter">Добавить Parameter</button>
+      <button id="remove-parameter">Удалить Parameter</button>
+    </section>
+    <output id="core-status" class="status"></output>
+    <section class="data-grid">
+      <article><h2>snapshot()</h2><pre id="core-snapshot"></pre></article>
+      <article><h2>document()</h2><pre id="core-document"></pre></article>
+      <article><h2>События</h2><pre id="core-events"></pre></article>
+    </section>
   </section>
 </main>

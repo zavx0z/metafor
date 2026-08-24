@@ -26,8 +26,8 @@ for (const entry of NODES_PACKAGE_CATALOG) {
   meta.textContent = `${entry.presentation.toUpperCase()} · ${entry.defaultRoute}`
   const link = document.createElement("a")
   link.href = entry.defaultRoute
-  link.textContent = "Открыть playground"
-  link.setAttribute("aria-label", `Открыть playground ${entry.packageName}`)
+  link.textContent = "Открыть обзор"
+  link.setAttribute("aria-label", `Открыть обзор playground ${entry.packageName}`)
 
   article.append(heading, title, summary, playground, meta, link)
   cards.append(article)

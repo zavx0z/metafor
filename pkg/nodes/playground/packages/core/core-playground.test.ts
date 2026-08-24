@@ -1,5 +1,9 @@
 import {describe, expect, test} from "bun:test"
+import {join} from "node:path"
+import {fileURLToPath} from "node:url"
 import {createCoreRuntimeScenario} from "./core-runtime-scenario.ts"
+
+const playgroundRoot = fileURLToPath(new URL(".", import.meta.url))
 
 describe("@nodes/core centralized playground", () => {
   test("shows Parameter, snapshot, ordered document and atomic topology without UI", () => {
@@ -17,5 +21,18 @@ describe("@nodes/core centralized playground", () => {
     expect(scenario.removeParameter()).toBeTrue()
     expect(scenario.removeParameter()).toBeFalse()
     expect(scenario.changes.map(({kind}) => kind)).toEqual(["parameter", "topology", "topology"])
+  })
+
+  test("keeps package overview separate from the lazy live detail", async () => {
+    const entry = await Bun.file(join(playgroundRoot, "core-playground.ts")).text()
+    const detail = await Bun.file(join(playgroundRoot, "core-detail.ts")).text()
+    const body = await Bun.file(join(playgroundRoot, "core-playground-body.html")).text()
+    expect(entry).toContain("CORE_PLAYGROUND_ROUTE_TREE")
+    expect(entry).toContain('await import("./core-detail.ts")')
+    expect(entry).not.toContain("createCoreRuntimeScenario")
+    expect(detail).toContain("createCoreRuntimeScenario")
+    expect(body).toContain('id="core-overview" hidden')
+    expect(body).toContain('id="core-detail" hidden')
+    expect(body).toContain('id="core-detail-link"')
   })
 })

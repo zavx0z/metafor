@@ -48,9 +48,9 @@
 * [Production delivery UI](../pkg/ui/DELIVERY.md) — независимые ESM subpath
   imports, один product-owned `UiRuntime` и shared Engine/Elements code без
   дублирования между динамически загружаемыми modules.
-* [UI playground](../pkg/ui/playground/REQUIREMENTS.md) — общий typed router,
-  historical five-panel FlexBox shell и no-HMR dev lifecycle для package-owned
-  playground без consumer semantics.
+* [UI playground](../pkg/ui/playground/REQUIREMENTS.md) — общий typed route
+  tree, historical five-panel FlexBox shell и единый no-HMR каталог package
+  pages без consumer semantics в общей инфраструктуре.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.

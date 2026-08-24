@@ -5,13 +5,11 @@ import {TrueTypeFont} from "@metafor/engine"
 import {definePlaygroundStoryModule, planPlaygroundShell} from "@ui/playground"
 import type {UiRuntime} from "@ui/elements/runtime"
 import {
-  ELEMENT_LEGACY_ROUTES,
   ELEMENT_STORIES,
   ELEMENT_STORY_ROUTES,
   elementCatalogItems,
   elementSectionItems,
   elementVariantItems,
-  normalizeElementsPlaygroundPath,
 } from "./stories.ts"
 import {ElementsStoryPreviewSurface} from "./story-preview.ts"
 import {uiShapeMetrics} from "../shape.ts"
@@ -25,41 +23,13 @@ beforeAll(async () => {
 })
 
 describe("@ui/elements package-owned Workbench stories", () => {
-  test("normalizes every historical route without silently dropping a screen", () => {
-    expect(ELEMENT_LEGACY_ROUTES).toEqual([
-      "div",
-      "div/scroll",
-      "span",
-      "button",
-      "input",
-      "img",
-      "ul",
-      "layout/flex",
-      "layout/flex-css",
-      "style/css",
-      "style/theme",
-      "events",
-    ])
-    const expected = new Map<string, string>([
-      ["div", "div/basic/background"],
-      ["div/scroll", "div/scroll/vertical"],
-      ["span", "span/content/left"],
-      ["button", "button/state/default"],
-      ["input", "input/state/inactive"],
-      ["img", "img/fit/cover"],
-      ["ul", "list/mode/regular"],
-      ["layout/flex", "flex/direction/row"],
-      ["layout/flex-css", "flex-css/sizes/fraction"],
-      ["style/css", "css/padding/default"],
-      ["style/theme", "theme/tone/cyan"],
-      ["events", "pointer/state/idle"],
-    ])
-    for (const legacy of ELEMENT_LEGACY_ROUTES) {
-      const normalized = normalizeElementsPlaygroundPath(`/${legacy}`)
-      expect(normalized).toBe(expected.get(legacy)!)
-      expect(ELEMENT_STORY_ROUTES).toContain(normalized!)
-    }
-    expect(normalizeElementsPlaygroundPath("/missing")).toBeNull()
+  test("derives package and prefix overviews from every exact story leaf", () => {
+    expect(ELEMENT_STORIES.routeTree.find("")).toMatchObject({kind: "overview", path: ""})
+    expect(ELEMENT_STORIES.routeTree.find("div")).toMatchObject({kind: "overview", path: "div"})
+    expect(ELEMENT_STORIES.routeTree.find("div/basic")).toMatchObject({kind: "overview", path: "div/basic"})
+    expect(ELEMENT_STORIES.routeTree.find("div/basic/background")).toMatchObject({kind: "leaf"})
+    expect(ELEMENT_STORIES.routeTree.find("missing")).toBeUndefined()
+    expect(ELEMENT_STORIES.routeTree.leaves).toEqual(ELEMENT_STORY_ROUTES)
   })
 
   test("catalogs concrete Russian Elements and their real sections", () => {
@@ -258,23 +228,24 @@ describe("@ui/elements package-owned Workbench stories", () => {
     expect(outputs.some(({source}) => source.includes("function createPopoverStory"))).toBeTrue()
   })
 
-  test("serves detail paths through the package no-HMR server and full desktop shell", async () => {
+  test("serves detail paths through the central no-HMR UI hub and full desktop shell", async () => {
     const desktop = planPlaygroundShell(1920, 1080)
     expect(desktop.preview).toEqual({x: 375, y: 3, w: 1101, h: 1049})
     expect(desktop.info).toEqual({x: 1477, y: 3, w: 440, h: 1074})
 
     const port = await freePort()
-    const process = Bun.spawn(["bun", "playground/server.ts"], {
-      cwd: fileURLToPath(new URL("..", import.meta.url)),
-      env: {...Bun.env, ELEMENTS_PLAYGROUND_PORT: String(port)},
+    const process = Bun.spawn(["bun", "hub/server.ts"], {
+      cwd: fileURLToPath(new URL("../../playground", import.meta.url)),
+      env: {...Bun.env, UI_PLAYGROUND_PORT: String(port)},
       stdout: "pipe",
       stderr: "pipe",
     })
     try {
-      const html = await waitForText(`http://127.0.0.1:${port}/flex-css/sizes/fraction`)
-      expect(html).toContain("<title>@ui/elements</title>")
+      const html = await waitForText(`http://127.0.0.1:${port}/elements/flex-css/sizes/fraction`)
+      expect(html).toContain("<title>UI playground · @ui/elements</title>")
       expect(html).toContain('<canvas id="stage-canvas"></canvas>')
-      const entry = await fetch(`http://127.0.0.1:${port}/entry.js`)
+      expect(html).toContain('data-playground-home href="/"')
+      const entry = await fetch(`http://127.0.0.1:${port}/@playground-assets/elements/entry.js`)
       const source = await entry.text()
       expect(entry.status).toBe(200)
       expect(source).toContain("elementsPlayground")

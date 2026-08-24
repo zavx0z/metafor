@@ -5,9 +5,10 @@ import {
   PlaygroundBackdropSurface,
   PlaygroundDockSurface,
   PlaygroundNavigationSurface,
-  PlaygroundRouter,
+  PlaygroundOverviewSurface,
+  PlaygroundRouteTreeRouter,
   PlaygroundStoryPanelSurface,
-  definePlaygroundRoutes,
+  definePlaygroundRouteTree,
   definePlaygroundStories,
   drawPlaygroundPreviewChrome,
   planPlaygroundShell,
@@ -21,7 +22,13 @@ import {
 
 type PageRoute = "overview" | "details"
 const pageRoutes = ["overview", "details"] as const
-const pageDeclaration = definePlaygroundRoutes({routes: pageRoutes, fallback: "overview"})
+const pageRouteTree = definePlaygroundRouteTree({leaves: pageRoutes})
+const PLAYGROUND_MOUNT_PATH = "/playground"
+
+type PageRouteReader = Readonly<{
+  readonly current: PageRoute
+  subscribe(listener: () => void): () => void
+}>
 
 let recordStoryClick = (): void => {}
 
@@ -123,13 +130,40 @@ async function startWorkbench(): Promise<void> {
   const canvas = document.getElementById("playground-canvas")
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error("playground-canvas not found")
   document.documentElement.dataset.playgroundReady = "starting"
+  document.documentElement.dataset.uiPlayground = "starting"
+  document.documentElement.dataset.uiPlaygroundPage = "playground"
   try {
     const runtime = await UiRuntime.create(canvas, {
       fontUrl: "/JetBrainsMono-Bold.ttf",
       virtualDisplay: {initial: "near", surfaceDisplay: true, grid: false},
     })
     runtime.handleResize()
-    const pageRouter = new PlaygroundRouter(pageDeclaration)
+    const mountedRouter = new PlaygroundRouteTreeRouter(pageRouteTree, {basePath: PLAYGROUND_MOUNT_PATH})
+    if (mountedRouter.current.kind === "overview") {
+      const backdrop = new PlaygroundBackdropSurface()
+      const overview = new PlaygroundOverviewSurface<string>({
+        title: "Инфраструктура Workbench",
+        description: "Выберите существующую диагностическую страницу общей playground-инфраструктуры.",
+        items: [
+          {id: "overview", label: "Обзор", route: "overview"},
+          {id: "details", label: "Детали", route: "details"},
+        ],
+        onNavigate(path) {
+          if (!mountedRouter.go(path)) throw new Error(`Unknown playground fixture route: ${path}`)
+          window.location.reload()
+        },
+      })
+      runtime.addSurface(backdrop, ({w, h}) => ({x: 0, y: 0, w, h}))
+      runtime.addSurface(overview, ({w, h}) => ({x: 3, y: 3, w: Math.max(1, w - 6), h: Math.max(1, h - 6)}))
+      new ResizeObserver(() => runtime.handleResize()).observe(canvas)
+      runtime.handleResize()
+      document.documentElement.dataset.playgroundRoute = ""
+      document.documentElement.dataset.playgroundPage = "overview"
+      document.documentElement.dataset.playgroundReady = "ready"
+      document.documentElement.dataset.uiPlayground = "ready"
+      return
+    }
+    const pageRouter = mountedPageRouter(mountedRouter)
     let storyRoute = storyRegistry.fallback
     let storyIndex = requireStory(storyRoute)
     let storyModule = await storyRegistry.load(storyRoute)
@@ -302,8 +336,10 @@ async function startWorkbench(): Promise<void> {
     }).observe(canvas)
     publish()
     document.documentElement.dataset.playgroundReady = "ready"
+    document.documentElement.dataset.uiPlayground = "ready"
   } catch (error) {
     document.documentElement.dataset.playgroundReady = "error"
+    document.documentElement.dataset.uiPlayground = "error"
     document.documentElement.dataset.playgroundError = error instanceof Error ? error.stack ?? error.message : String(error)
     throw error
   }
@@ -337,6 +373,25 @@ function sectionNavigationItems(selected: PlaygroundStoryIndexItem): readonly Pl
 
 function variantNavigationItems(selected: PlaygroundStoryIndexItem): readonly PlaygroundNavigationItem<string>[] {
   return storyRegistry.variants(selected.route).map((item) => ({id: item.variantId, label: item.variantLabel, route: item.route}))
+}
+
+function mountedPageRouter(router: PlaygroundRouteTreeRouter<PageRoute>): PageRouteReader {
+  return Object.freeze({
+    get current(): PageRoute {
+      const current = router.current
+      if (current.kind !== "leaf") throw new Error(`Playground fixture route is not a leaf: ${current.path}`)
+      return current.path
+    },
+    subscribe(listener): () => void {
+      return router.subscribe((node) => {
+        if (node.kind !== "leaf") {
+          window.location.reload()
+          return
+        }
+        listener()
+      })
+    },
+  })
 }
 
 if (typeof document !== "undefined") await startWorkbench()

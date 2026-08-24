@@ -2,6 +2,16 @@ import {describe, expect, test} from "bun:test"
 import {planNodeComponentPlaygroundFrames} from "./ui-workbench-layout.ts"
 
 describe("Node playground on shared @ui/playground shell", () => {
+  test("uses the combined detail area for a package or prefix overview", () => {
+    const root = planNodeComponentPlaygroundFrames(1920, 1080, "")
+    const socket = planNodeComponentPlaygroundFrames(1920, 1080, "socket")
+    expect(root.overview).toEqual(socket.overview)
+    expect(root.overview.w).toBeGreaterThan(root.storyPreview.w)
+    expect(root.editor.visible).toBeFalse()
+    expect(root.story.visible).toBeFalse()
+    expect(root.dock.visible).toBeFalse()
+  })
+
   test("gives editor the full-viewport desktop preview region", () => {
     const frames = planNodeComponentPlaygroundFrames(1920, 1080, "node-editor/scene/default")
     expect(frames.catalog).toEqual({x: 3, y: 3, w: 210, h: 1074})

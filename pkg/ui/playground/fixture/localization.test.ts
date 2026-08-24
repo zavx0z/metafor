@@ -3,6 +3,7 @@ import {join, resolve} from "node:path"
 
 const repositoryRoot = resolve(import.meta.dir, "../../../..")
 const visibleOwnerRoots = [
+  "pkg/ui/playground/hub",
   "pkg/ui/playground/fixture",
   "pkg/ui/components/playground",
   "pkg/ui/elements/playground",

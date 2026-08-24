@@ -2,7 +2,7 @@
 
 | Property | Value |
 | --- | --- |
-| Default route | `/ui/socket/boolean/input` |
+| Representative detail route | `/ui/socket/boolean/input` |
 | Ready | `nodesPlayground=ready`, `nodeComponentPlayground=ready` |
 | Canvas | `#nodes-playground-canvas` |
 

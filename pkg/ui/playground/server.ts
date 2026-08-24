@@ -1,4 +1,8 @@
 import {basename} from "node:path"
+import {
+  resolvePlaygroundRouteTree,
+  type PlaygroundRouteTree,
+} from "./route-tree.ts"
 
 export type PlaygroundServerOptions = Readonly<{
   packageName: string
@@ -22,7 +26,9 @@ export type PlaygroundPageOptions = Readonly<{
   entrypoint: string
   stylePath: string
   body: PlaygroundPageBody
+  homePath?: string
   deepRoutes?: boolean
+  routeTree?: PlaygroundRouteTree<string>
 }>
 
 export type PlaygroundPageDiagnostics = Readonly<{
@@ -33,9 +39,12 @@ export type PlaygroundPage = Readonly<{
   id: string
   mountPath: string
   deepRoutes: boolean
+  routeTree: PlaygroundRouteTree<string> | null
   assetBasePath: string
   readonly diagnostics: PlaygroundPageDiagnostics
+  owns(pathname: string): boolean
   matches(pathname: string): boolean
+  routeResponse(pathname: string): Promise<Response | null>
   htmlResponse(): Promise<Response>
   assetResponse(pathname: string): Promise<Response | null>
 }>
@@ -129,9 +138,14 @@ export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnT
 export function createPlaygroundPage(options: PlaygroundPageOptions): PlaygroundPage {
   const id = validatePageId(options.id)
   const mountPath = normalizeMountPath(options.mountPath)
+  const homePath = options.homePath === undefined ? null : normalizeHomePath(options.homePath)
+  if (options.routeTree !== undefined && options.deepRoutes !== undefined) {
+    throw new Error("Playground page routeTree cannot be combined with deepRoutes")
+  }
   const deepRoutes = options.deepRoutes ?? true
+  const routeTree = options.routeTree ?? null
   const assetBasePath = `/@playground-assets/${id}`
-  const html = createPageHtml(options, mountPath, assetBasePath)
+  const html = createPageHtml(options, mountPath, assetBasePath, homePath)
   let builds = 0
   let built: BuiltPageAssets | null = null
   let buildInFlight: Promise<BuiltPageAssets> | null = null
@@ -151,25 +165,49 @@ export function createPlaygroundPage(options: PlaygroundPageOptions): Playground
     buildInFlight = pending
     return pending
   }
+  const htmlResponse = async (): Promise<Response> => new Response(await html, {
+    headers: {"content-type": "text/html; charset=utf-8", "cache-control": "no-cache"},
+  })
 
   return Object.freeze({
     id,
     mountPath,
     deepRoutes,
+    routeTree,
     assetBasePath,
     get diagnostics(): PlaygroundPageDiagnostics {
       return Object.freeze({builds})
     },
+    owns(pathname: string): boolean {
+      return ownsMountPath(pathname, mountPath)
+    },
     matches(pathname: string): boolean {
+      if (!ownsMountPath(pathname, mountPath)) return false
+      if (routeTree !== null) {
+        return resolvePlaygroundRouteTree(routeTree, {pathname}, {basePath: mountPath}).kind === "match"
+      }
       if (pathname === mountPath) return true
       if (!deepRoutes) return false
       return mountPath === "/" ? pathname.startsWith("/") : pathname.startsWith(`${mountPath}/`)
     },
-    async htmlResponse(): Promise<Response> {
-      return new Response(await html, {
-        headers: {"content-type": "text/html; charset=utf-8", "cache-control": "no-cache"},
-      })
+    async routeResponse(pathname: string): Promise<Response | null> {
+      if (!ownsMountPath(pathname, mountPath)) return null
+      if (routeTree !== null) {
+        const resolution = resolvePlaygroundRouteTree(routeTree, {pathname}, {basePath: mountPath})
+        if (resolution.kind === "not-found") return notFound()
+        if (resolution.redirect) {
+          return new Response(null, {
+            status: 308,
+            headers: {location: resolution.canonicalPath, "cache-control": "no-cache"},
+          })
+        }
+        return htmlResponse()
+      }
+      const legacyMatch = pathname === mountPath || (deepRoutes &&
+        (mountPath === "/" ? pathname.startsWith("/") : pathname.startsWith(`${mountPath}/`)))
+      return legacyMatch ? htmlResponse() : notFound()
     },
+    htmlResponse,
     async assetResponse(pathname: string): Promise<Response | null> {
       if (!pathname.startsWith(`${assetBasePath}/`)) return null
       const assetName = pathname.slice(assetBasePath.length + 1)
@@ -234,8 +272,9 @@ export function startPlaygroundHubServer(options: PlaygroundHubServerOptions): R
         }
         return notFound()
       }
-      const page = pages.find((candidate) => candidate.matches(pathname))
-      return page === undefined ? notFound() : page.htmlResponse()
+      const page = pages.find((candidate) => candidate.owns(pathname))
+      if (page === undefined) return notFound()
+      return await page.routeResponse(pathname) ?? notFound()
     },
   })
 }
@@ -275,11 +314,15 @@ function createPageHtml(
   options: PlaygroundPageOptions,
   mountPath: string,
   assetBasePath: string,
+  homePath: string | null,
 ): Promise<string> {
   const body = options.body.kind === "canvas"
     ? Promise.resolve(`<canvas id="${escapeHtml(options.body.canvasId)}"></canvas>`)
     : Bun.file(options.body.bodyHtmlPath).text()
   const baseHref = mountPath === "/" ? "/" : `${mountPath}/`
+  const home = homePath === null
+    ? ""
+    : `<a class="playground-home" data-playground-home href="${escapeHtml(homePath)}" aria-label="На главную playground">Home</a>`
   return body.then((bodyHtml) => `<!doctype html>
 <html lang="ru">
   <head>
@@ -290,8 +333,34 @@ function createPageHtml(
     <link rel="icon" href="data:,">
     <title>${escapeHtml(options.packageName)}</title>
     <link rel="stylesheet" href="${assetBasePath}/style.css">
+    <style>
+      .playground-home {
+        position: fixed;
+        left: 10px;
+        bottom: 10px;
+        z-index: 2147483647;
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 3px;
+        background: rgba(35, 35, 35, 0.94);
+        color: rgba(255, 255, 255, 0.9);
+        font: 600 12px/1 monospace;
+        letter-spacing: 0.02em;
+        text-decoration: none;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+      }
+      .playground-home:hover,
+      .playground-home:focus-visible {
+        border-color: rgba(96, 165, 250, 0.9);
+        outline: 1px solid rgba(96, 165, 250, 0.65);
+      }
+    </style>
   </head>
   <body>
+    ${home}
     ${bodyHtml}
     <script type="module" src="${assetBasePath}/entry.js"></script>
   </body>
@@ -324,6 +393,19 @@ function normalizeMountPath(value: string): string {
     throw new Error(`Playground mount must be a normalized absolute pathname: ${value}`)
   }
   return value
+}
+
+function normalizeHomePath(value: string): string {
+  if (!value.startsWith("/") || value.includes("//") || /[?#*]/.test(value)) {
+    throw new Error(`Playground home path must be an absolute pathname: ${value}`)
+  }
+  return value.length > 1 ? value.replace(/\/+$/g, "") : value
+}
+
+function ownsMountPath(pathname: string, mountPath: string): boolean {
+  if (!pathname.startsWith("/")) return false
+  if (mountPath === "/") return true
+  return pathname === mountPath || pathname.startsWith(`${mountPath}/`)
 }
 
 function normalizeStaticRoute(value: string): string {

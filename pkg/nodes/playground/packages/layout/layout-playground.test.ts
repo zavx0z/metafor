@@ -71,6 +71,7 @@ describe("dev-only nodes layout playground", () => {
       scripts?: Record<string, string>
     }
     const client = await Bun.file(join(playgroundRoot, "layout-playground.ts")).text()
+    const detail = await Bun.file(join(playgroundRoot, "layout-detail.ts")).text()
 
     expect(await Bun.file(join(layoutRoot, "playground/server.ts")).exists()).toBeFalse()
     expect(await Bun.file(join(layoutRoot, "playground/tsconfig.json")).exists()).toBeFalse()
@@ -82,8 +83,21 @@ describe("dev-only nodes layout playground", () => {
       scripts: {playground: "bun server.ts", test: "bun test .", typecheck: "tsc --noEmit --pretty false"},
     })
     expect(client).toContain('document.documentElement.dataset.nodesLayoutPlayground = "starting"')
-    expect(client).toContain('document.documentElement.dataset.nodesLayoutPlayground = "ready"')
-    expect(client).toContain('document.documentElement.dataset.nodesLayoutPlayground = "error"')
+    expect(`${client}\n${detail}`).toContain('document.documentElement.dataset.nodesLayoutPlayground = "ready"')
+    expect(detail).toContain('document.documentElement.dataset.nodesLayoutPlayground = "error"')
+  })
+
+  test("keeps package overview separate from the lazy SVG detail", async () => {
+    const entry = await Bun.file(join(playgroundRoot, "layout-playground.ts")).text()
+    const detail = await Bun.file(join(playgroundRoot, "layout-detail.ts")).text()
+    const body = await Bun.file(join(playgroundRoot, "layout-playground-body.html")).text()
+    expect(entry).toContain("LAYOUT_PLAYGROUND_ROUTE_TREE")
+    expect(entry).toContain('await import("./layout-detail.ts")')
+    expect(entry).not.toContain("runPlaygroundLayout")
+    expect(detail).toContain("runPlaygroundLayout")
+    expect(body).toContain('id="layout-overview"')
+    expect(body).toContain('id="layout-detail"')
+    expect(body).toContain('id="layout-detail-link"')
   })
 
   test("runs the public fixed policy against frozen RIGHT and DOWN inputs", () => {
@@ -134,7 +148,7 @@ describe("dev-only nodes layout playground", () => {
     }
 
     const html = await Bun.file(join(playgroundRoot, "layout-playground-body.html")).text()
-    const client = await Bun.file(join(playgroundRoot, "layout-playground.ts")).text()
+    const client = await Bun.file(join(playgroundRoot, "layout-detail.ts")).text()
     const styles = await Bun.file(join(playgroundRoot, "layout-playground.css")).text()
     expect(html).toContain('<output id="policy-value" class="readonly-value"></output>')
     expect(html).not.toContain('<select id="policy"')
@@ -359,10 +373,11 @@ describe("dev-only nodes layout playground", () => {
 
   test("keeps the complete visible playground interface in Russian", async () => {
     const html = await Bun.file(join(playgroundRoot, "layout-playground-body.html")).text()
-    const client = await Bun.file(join(playgroundRoot, "layout-playground.ts")).text()
+    const entry = await Bun.file(join(playgroundRoot, "layout-playground.ts")).text()
+    const detail = await Bun.file(join(playgroundRoot, "layout-detail.ts")).text()
     const fixtures = await Bun.file(join(playgroundRoot, "layout-fixtures.ts")).text()
     const policies = await Bun.file(join(playgroundRoot, "layout-policies.ts")).text()
-    const visibleSource = [html, client, fixtures, policies].join("\n")
+    const visibleSource = [html, entry, detail, fixtures, policies].join("\n")
 
     expect(html).toContain('class="layout-playground" lang="ru"')
     for (const required of [

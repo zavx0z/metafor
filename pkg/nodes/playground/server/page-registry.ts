@@ -5,6 +5,7 @@ import {
   nodesPackageCatalogEntry,
   type NodesPackagePlaygroundId,
 } from "../catalog/package-catalog.ts"
+import {nodesPackageRouteTree} from "../catalog/package-route-manifest.ts"
 
 export type NodesPlaygroundPageId = "catalog" | NodesPackagePlaygroundId
 
@@ -71,7 +72,8 @@ export function createNodesPlaygroundPages(): readonly PlaygroundPage[] {
       entrypoint: files.entrypoint,
       stylePath: files.stylePath,
       body: files.body,
-      ...(files.deepRoutes === undefined ? {} : {deepRoutes: files.deepRoutes}),
+      homePath: "/",
+      routeTree: nodesPackageRouteTree(entry.id),
     }))
   }
   return Object.freeze(pages)

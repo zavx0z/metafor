@@ -1,10 +1,13 @@
 import {describe, expect, test} from "bun:test"
 import {
   PlaygroundRouter,
+  PlaygroundRouteTreeNotFoundError,
+  PlaygroundRouteTreeRouter,
   definePlaygroundRoutes,
   playgroundRouteUrl,
   resolvePlaygroundRoute,
 } from "./router.ts"
+import {definePlaygroundRouteTree} from "./route-tree.ts"
 
 const routes = ["editor/scene", "socket/types", "comparison/blender"] as const
 const declaration = definePlaygroundRoutes({routes, fallback: "editor/scene"})
@@ -100,10 +103,55 @@ describe("PlaygroundRouter mounted browser lifecycle", () => {
       expect(router.current).toBe("editor/scene")
     })
   })
+
+  test("navigates registered route-tree nodes, canonicalizes history and fails closed", () => {
+    const tree = definePlaygroundRouteTree({
+      leaves: ["button/basic/contained", "button/basic/text"] as const,
+    })
+    withBrowser("/ui/button", ({pushed, replaced, navigate}) => {
+      const notFound: string[] = []
+      const router = new PlaygroundRouteTreeRouter(tree, {
+        basePath: "/ui",
+        onNotFound: (error) => notFound.push(error.pathname),
+      })
+      const changes: string[] = []
+      router.subscribe((node, previous) => changes.push(`${previous.path}->${node.path}`))
+
+      expect(router.current).toMatchObject({kind: "overview", path: "button"})
+      expect(replaced).toEqual(["/ui/button/"])
+      expect(router.go("button/basic/contained")).toBeTrue()
+      expect(pushed).toEqual(["/ui/button/basic/contained"])
+      expect(router.current).toMatchObject({kind: "leaf", path: "button/basic/contained"})
+      expect(router.go("missing")).toBeFalse()
+      expect(pushed).toHaveLength(1)
+
+      navigate("/ui/button/basic/text/")
+      expect(replaced.at(-1)).toBe("/ui/button/basic/text")
+      expect(router.current).toMatchObject({kind: "leaf", path: "button/basic/text"})
+      navigate("/ui/missing")
+      navigate("/other/button/basic/text")
+      expect(notFound).toEqual(["/ui/missing", "/other/button/basic/text"])
+      expect(router.current).toMatchObject({kind: "leaf", path: "button/basic/text"})
+      expect(changes).toEqual([
+        "button->button/basic/contained",
+        "button/basic/contained->button/basic/text",
+      ])
+
+      router.dispose()
+      navigate("/ui/")
+      expect(router.current).toMatchObject({kind: "leaf", path: "button/basic/text"})
+    })
+
+    withBrowser("/ui/missing", () => {
+      expect(() => new PlaygroundRouteTreeRouter(tree, {basePath: "/ui"}))
+        .toThrow(PlaygroundRouteTreeNotFoundError)
+    })
+  })
 })
 
 type BrowserHarness = Readonly<{
   pushed: string[]
+  replaced: string[]
   navigate(pathname: string): void
 }>
 
@@ -113,6 +161,7 @@ function withBrowser(pathname: string, run: (harness: BrowserHarness) => void): 
   const listeners = new Set<() => void>()
   const location = {pathname}
   const pushed: string[] = []
+  const replaced: string[] = []
   const browserWindow = {
     location,
     addEventListener(type: string, listener: () => void) {
@@ -129,6 +178,12 @@ function withBrowser(pathname: string, run: (harness: BrowserHarness) => void): 
       pushed.push(next)
       location.pathname = next
     },
+    replaceState(_data: unknown, _unused: string, url: string | URL | null) {
+      if (url === null) return
+      const next = String(url)
+      replaced.push(next)
+      location.pathname = next
+    },
   }
 
   Object.defineProperty(globalThis, "window", {configurable: true, value: browserWindow})
@@ -136,6 +191,7 @@ function withBrowser(pathname: string, run: (harness: BrowserHarness) => void): 
   try {
     run({
       pushed,
+      replaced,
       navigate(nextPathname) {
         location.pathname = nextPathname
         for (const listener of [...listeners]) listener()

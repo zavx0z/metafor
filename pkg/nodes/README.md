@@ -59,8 +59,9 @@ contract и удаляются без aliases.
 bun run nodes:playground
 ```
 
-Главная `/` является каталогом всех пяти production-пакетов. Exact routes
-`/core/*`, `/editor/*`, `/layout/*`, `/layout-worker/*` и `/ui/*` обслуживает
+Главная `/` является каталогом всех пяти production-пакетов и ведёт на package
+overviews `/core/`, `/editor/`, `/layout/`, `/layout-worker/`, `/ui/`. Exact
+route trees внутри этих mounts обслуживает
 один process `@nodes/playground` на порту `4018`, но каждый package page имеет
 собственный browser entry и не загружает соседний bundle. SVG layout остаётся
 без WebGPU, а editor и UI сохраняют независимые WebGPU-модули.

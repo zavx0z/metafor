@@ -25,14 +25,21 @@ describe("parent nodes playground server", () => {
       expect(catalogHtml).toContain("<title>Nodes playground</title>")
       expect(catalogHtml).toContain('id="nodes-package-catalog"')
 
-      const cases = [
+      const overviewCases = [
+        ["/core/", "@nodes/core", 'id="core-overview"', "core"],
+        ["/editor/", "@nodes/editor", 'id="nodes-playground-canvas"', "editor"],
+        ["/layout/", "@nodes/layout", 'id="layout-overview"', "layout"],
+        ["/layout-worker/", "@nodes/layout-worker", 'id="layout-worker-overview"', "layout-worker"],
+        ["/ui/", "@nodes/ui", 'id="nodes-playground-canvas"', "ui"],
+      ] as const
+      const leafCases = [
         ["/core/live-node-tree", "@nodes/core", 'id="core-snapshot"', "core"],
         ["/editor/live-node-tree", "@nodes/editor", 'id="nodes-playground-canvas"', "editor"],
         ["/layout/fixed-adaptive", "@nodes/layout", 'id="svg-view"', "layout"],
         ["/layout-worker/protocol", "@nodes/layout-worker", 'id="worker-request"', "layout-worker"],
         ["/ui/socket/boolean/input", "@nodes/ui", 'id="nodes-playground-canvas"', "ui"],
       ] as const
-      for (const [route, packageName, marker, pageId] of cases) {
+      for (const [route, packageName, marker, pageId] of [...overviewCases, ...leafCases]) {
         const response = await fetch(`${origin}${route}`)
         const html = await response.text()
         expect(response.status, route).toBe(200)
@@ -44,6 +51,11 @@ describe("parent nodes playground server", () => {
         expect(entry.headers.get("content-type"), pageId).toContain("text/javascript")
       }
       expect(await fetch(`${origin}/unknown`).then(({status}) => status)).toBe(404)
+      expect(await fetch(`${origin}/core/unknown`).then(({status}) => status)).toBe(404)
+      expect(await fetch(`${origin}/ui/socket/unknown`).then(({status}) => status)).toBe(404)
+      const redirect = await fetch(`${origin}/core`, {redirect: "manual"})
+      expect(redirect.status).toBe(308)
+      expect(redirect.headers.get("location")).toBe("/core/")
     } finally {
       process.kill()
       await process.exited

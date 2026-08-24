@@ -9,7 +9,7 @@ const skillRoot = resolve(import.meta.dir, "..")
 const checkout = resolve(skillRoot, "../../../../../..")
 const lifecycleWrapper = join(skillRoot, "scripts/nodes-dev.sh")
 const browserWrapper = join(skillRoot, "scripts/nodes-browser.ts")
-const registryPath = join(checkout, "pkg/ui/.agents/skills/ui-dev/scripts/playgrounds.json")
+const registryPath = join(checkout, "pkg/ui/playground/.agents/skills/ui-dev/scripts/playgrounds.json")
 const temporaryRoots: string[] = []
 
 afterAll(async () => {
@@ -37,10 +37,17 @@ describe("centralized nodes-dev package boundary", () => {
     const fakeCheckout = await createFakeCheckout()
     for (const route of [
       "/",
+      "/core/",
       "/core/live-node-tree",
+      "/layout/",
       "/layout/fixed-adaptive",
+      "/layout-worker/",
       "/layout-worker/protocol",
+      "/editor/",
       "/editor/live-node-tree",
+      "/ui/",
+      "/ui/socket/",
+      "/ui/socket/boolean/",
       "/ui/socket/boolean/input",
     ]) {
       const action = route.startsWith("/editor/") || route.startsWith("/ui/") ? "canvas" : "dom"
@@ -68,6 +75,8 @@ describe("centralized nodes-dev package boundary", () => {
       [process.execPath, browserWrapper, "dom", fakeCheckout, "--route", "/unknown"],
       [process.execPath, browserWrapper, "dom", fakeCheckout, "--route", "/core/unknown"],
       [process.execPath, browserWrapper, "canvas", fakeCheckout, "--route", "/ui/unknown"],
+      [process.execPath, browserWrapper, "dom", fakeCheckout, "--route", "/core"],
+      [process.execPath, browserWrapper, "canvas", fakeCheckout, "--route", "/ui/socket"],
       [process.execPath, browserWrapper, "dom", fakeCheckout, "--playground", "ui"],
     ]) {
       const rejected = await run(argv)
@@ -81,7 +90,7 @@ describe("centralized nodes-dev package boundary", () => {
       version: number
       selectors: Record<string, unknown>
     }
-    expect(registry.version).toBe(1)
+    expect(registry.version).toBe(2)
     expect(registry.selectors.nodes).toEqual({
       supported: true,
       package: "@nodes/playground",
@@ -101,6 +110,7 @@ describe("centralized nodes-dev package boundary", () => {
     })
     expect(registry.selectors["node-layout"]).toBeUndefined()
     expect(registry.selectors["node-ui"]).toBeUndefined()
+    expect(registry.selectors.ui).toBeDefined()
   })
 
   test("contains named centralized references and no unfinished placeholders", async () => {
@@ -151,9 +161,9 @@ describe("centralized nodes-dev package boundary", () => {
 async function createFakeCheckout(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "nodes-dev-test-"))
   temporaryRoots.push(root)
-  const scripts = join(root, "pkg/ui/.agents/skills/ui-dev/scripts")
+  const scripts = join(root, "pkg/ui/playground/.agents/skills/ui-dev/scripts")
   await mkdir(scripts, {recursive: true})
-  const lifecycle = join(scripts, "ui-dev.sh")
+  const lifecycle = join(scripts, "ui-dispatcher.sh")
   await writeFile(lifecycle, "#!/usr/bin/env bash\nprintf '%s\\n' \"$@\"\n")
   await chmod(lifecycle, 0o755)
   await writeFile(join(scripts, "ui-browser.ts"), "console.log(JSON.stringify(Bun.argv.slice(2)))\n")

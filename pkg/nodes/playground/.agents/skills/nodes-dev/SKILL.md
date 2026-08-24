@@ -16,14 +16,17 @@ owning requirements before its implementation.
 
 ## Central package catalog
 
-| Package page | Default route | Presentation |
+| Package page | Overview route | Presentation |
 | --- | --- | --- |
 | catalog | `/` | DOM package catalog |
-| `@nodes/core` | `/core/live-node-tree` | DOM runtime/document |
-| `@nodes/editor` | `/editor/live-node-tree` | WebGPU editor |
-| `@nodes/layout` | `/layout/fixed-adaptive` | DOM/SVG solver |
-| `@nodes/layout-worker` | `/layout-worker/protocol` | DOM wire protocol |
-| `@nodes/ui` | `/ui/socket/boolean/input` | WebGPU story catalog |
+| `@nodes/core` | `/core/` | DOM runtime/document |
+| `@nodes/editor` | `/editor/` | WebGPU editor |
+| `@nodes/layout` | `/layout/` | DOM/SVG solver |
+| `@nodes/layout-worker` | `/layout-worker/` | DOM wire protocol |
+| `@nodes/ui` | `/ui/` | WebGPU story catalog |
+
+Every prefix overview ends in `/`; exact leaves do not. Nested pages expose the
+shared `Home` control back to `/`, and unknown suffixes fail closed.
 
 - Read [references/catalog-dom.md](references/catalog-dom.md) for catalog,
   core and layout-worker checks.

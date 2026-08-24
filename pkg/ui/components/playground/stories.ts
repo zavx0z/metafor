@@ -482,30 +482,6 @@ export const COMPONENT_STORIES = definePlaygroundStories({
 export const COMPONENT_STORY_ROUTES = Object.freeze([...COMPONENT_STORIES.declaration.routes])
 export type ComponentsStoryRoute = typeof COMPONENT_STORY_ROUTES[number]
 
-const LEGACY_COMPONENT_ROUTES: Readonly<Record<string, ComponentsStoryRoute>> = Object.freeze({
-  "button/basic": "button/basic/contained",
-  "button/icon": "button/icon/svg",
-  "button/icon-label": "button/icon-label/left",
-  "button/sizes": "button/sizes/medium",
-  "button/color": "button/color/primary",
-  "pane/variants": "pane/variants/glass",
-  "field/values": "field/text/default",
-  "field/selection": "field/boolean/switch",
-  "field/composite": "field/vector/default",
-  "field/reference": "field/reference/default",
-  "disabled/badge": "badge/basic/default",
-  "disabled/text-field": "text-field/basic/default",
-  "disabled/divider": "divider/variants/full-width",
-  "disabled/scrollbar": "scrollbar/vertical/default",
-  "disabled/scroll-list": "list/basic/default",
-  "disabled/noti-stack": "noti/status/unavailable",
-})
-
-export function normalizeComponentsPlaygroundPath(pathname: string): ComponentsStoryRoute | null {
-  const route = pathname.replace(/^\/+|\/+$/g, "")
-  return LEGACY_COMPONENT_ROUTES[route] ?? null
-}
-
 export function componentStoryIndex(route: ComponentsStoryRoute): PlaygroundStoryIndexItem {
   const story = COMPONENT_STORIES.find(route)
   if (story === undefined) throw new Error(`Unknown Components story: ${route}`)

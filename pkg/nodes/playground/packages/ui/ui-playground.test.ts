@@ -2,7 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {basename, join} from "node:path"
 import {fileURLToPath} from "node:url"
 import {FIELD_KINDS} from "@ui/components"
-import {resolvePlaygroundRoute} from "@ui/playground"
+import {resolvePlaygroundRouteTree} from "@ui/playground"
 import {BLENDER_SOCKET_KINDS, BLENDER_SOCKET_PRESETS, BLENDER_SOCKET_SHAPES} from "@nodes/ui/blender-node"
 import {validatePositionedNodeTree} from "@nodes/ui/node-editor"
 import {
@@ -12,7 +12,7 @@ import {
 } from "./fixtures/ui-fixtures.ts"
 import {
   NODE_PLAYGROUND_CATALOG,
-  NODE_PLAYGROUND_ROUTE_DECLARATION,
+  NODE_PLAYGROUND_ROUTE_TREE,
   NODE_PLAYGROUND_ROUTES,
   nodePlaygroundCatalog,
   nodePlaygroundDockItems,
@@ -50,13 +50,13 @@ describe("Blender-like Node component playground", () => {
     expect(surfaces).not.toContain("createStandaloneFields")
   })
 
-  test("routes Socket to 19 concrete detail sections and three direction variants", () => {
+  test("opens package and Socket prefixes before exact detail stories", () => {
     expect(NODE_PLAYGROUND_CATALOG.map(({route}) => route)).toEqual([
-      "node-editor/scene/default",
-      "frame/nested/default",
-      "link/orthogonal/selected",
-      "socket/boolean/input",
-      "comparison/blender/default",
+      "node-editor",
+      "frame",
+      "link",
+      "socket",
+      "comparison",
     ])
     expect(NODE_PLAYGROUND_CATALOG.map(({group}) => group?.id)).toEqual([
       "editor",
@@ -74,21 +74,40 @@ describe("Blender-like Node component playground", () => {
     ])
     expect(NODE_PLAYGROUND_ROUTES.slice(0, NODE_COMPONENT_STORY_ROUTES.length)).toEqual([...NODE_COMPONENT_STORY_ROUTES])
     expect(NODE_PLAYGROUND_ROUTES).toHaveLength(NODE_COMPONENT_STORY_ROUTES.length + BLENDER_SOCKET_KINDS.length * NODE_SOCKET_DIRECTIONS.length)
-    expect(NODE_PLAYGROUND_ROUTE_DECLARATION.location).toBe("pathname")
-    expect(NODE_PLAYGROUND_ROUTE_DECLARATION.routes).toEqual(NODE_PLAYGROUND_ROUTES)
-    expect(NODE_PLAYGROUND_ROUTE_DECLARATION.fallback).toBe("socket/boolean/input")
     expect(NODE_PLAYGROUND_ROUTES).not.toContain("socket/types" as never)
-    expect(resolvePlaygroundRoute(NODE_PLAYGROUND_ROUTE_DECLARATION, {pathname: "/socket/types"})).toBe(
-      "socket/boolean/input",
-    )
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/"},
+      {basePath: "/ui"},
+    )).toMatchObject({kind: "match", node: {kind: "overview", path: ""}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/socket/"},
+      {basePath: "/ui"},
+    )).toMatchObject({kind: "match", node: {kind: "overview", path: "socket"}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/socket/boolean/"},
+      {basePath: "/ui"},
+    )).toMatchObject({kind: "match", node: {kind: "overview", path: "socket/boolean"}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/socket/boolean/input"},
+      {basePath: "/ui"},
+    )).toMatchObject({kind: "match", node: {kind: "leaf", path: "socket/boolean/input"}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/socket/missing"},
+      {basePath: "/ui"},
+    )).toEqual({kind: "not-found"})
     expect(nodePlaygroundGroup("node-editor/scene/default")).toBe("editor")
     expect(nodePlaygroundGroup("socket/boolean/input")).toBe("socket")
     expect(nodePlaygroundGroup("comparison/blender/default")).toBe("comparison")
-    expect(nodePlaygroundSections("socket/boolean/input").map(({id}) => id)).toEqual([...BLENDER_SOCKET_KINDS])
-    expect(nodePlaygroundSections("socket/boolean/input").map(({label}) => label)).toEqual(
+    expect(nodePlaygroundSections("socket").map(({id}) => id)).toEqual([...BLENDER_SOCKET_KINDS])
+    expect(nodePlaygroundSections("socket").map(({label}) => label)).toEqual(
       BLENDER_SOCKET_KINDS.map((kind) => BLENDER_SOCKET_PRESETS[kind].label),
     )
-    expect(nodePlaygroundDockItems("socket/boolean/input").map(({id}) => id)).toEqual([...NODE_SOCKET_DIRECTIONS])
+    expect(nodePlaygroundDockItems("socket/boolean").map(({id}) => id)).toEqual([...NODE_SOCKET_DIRECTIONS])
   })
 
   test("loads lazy source modules for the remaining production Node components", async () => {
@@ -458,11 +477,11 @@ describe("Blender-like Node component playground", () => {
     const production = await Bun.file(join(playgroundRoot, "../../../ui/node-editor.ts")).text()
     const browser = await Bun.file(join(
       playgroundRoot,
-      "../../../../ui/.agents/skills/ui-dev/scripts/ui-browser.ts",
+      "../../../../ui/playground/.agents/skills/ui-dev/scripts/ui-browser.ts",
     )).text()
     const registry = await Bun.file(join(
       playgroundRoot,
-      "../../../../ui/.agents/skills/ui-dev/scripts/playgrounds.json",
+      "../../../../ui/playground/.agents/skills/ui-dev/scripts/playgrounds.json",
     )).json() as {selectors: Record<string, unknown>}
 
     expect(client).toContain("createPlaygroundRetainedObserver(editor)")
@@ -477,15 +496,15 @@ describe("Blender-like Node component playground", () => {
       canvas: {selector: "#nodes-playground-canvas", capability: "webgpu", touch: true},
       routes: {default: "/"},
     })
-    expect(client).toContain("new PlaygroundRouter(NODE_PLAYGROUND_ROUTE_DECLARATION, {")
+    expect(client).toContain("new PlaygroundRouteTreeRouter(NODE_PLAYGROUND_ROUTE_TREE, {")
     expect(client).toContain("basePath: NODE_UI_PLAYGROUND_BASE_PATH")
-    expect(client).toContain('history.replaceState(null, "", resolvedPath)')
+    expect(client).toContain("new PlaygroundOverviewSurface<NodePlaygroundRoute>")
     expect(client).not.toContain("nodePlaygroundHash")
     expect(client).not.toContain("window.location.hash")
-    const applyRoute = client.slice(client.indexOf("const applyRoute"), client.indexOf("router.subscribe((route)"))
+    const applyRoute = client.slice(client.indexOf("const applyRoute"), client.indexOf("router.subscribe((node)"))
     expect(applyRoute).toContain("runtime.relayout()")
     expect(applyRoute).not.toContain("runtime.handleResize()")
-    expect(client).toContain("runtime.handleResize()\n  await applyRoute(router.current)")
+    expect(client).toContain("runtime.handleResize()\n  await applyRoute(currentRoute())")
     expect(client).toContain("new PlaygroundStoryPanelSurface(storyPanelOptions())")
     expect(client).toContain("applyNodeEditorStoryState(storyArgs")
     expect(client).toContain("dataset.nodeStoryTargetId = state.nodeId")

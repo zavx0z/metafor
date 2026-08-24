@@ -3,9 +3,9 @@ import type {FieldDefinition} from "@ui/components"
 import {
   PlaygroundBackdropSurface,
   PlaygroundNavigationSurface,
-  PlaygroundRouter,
+  PlaygroundOverviewSurface,
+  PlaygroundRouteTreeRouter,
   PlaygroundStoryPanelSurface,
-  playgroundRouteUrl,
   type PlaygroundNavigationItem,
   type PlaygroundStoryPanelMode,
   type PlaygroundStoryPanelOptions,
@@ -39,9 +39,8 @@ import {
 } from "./editor-dock-surface.ts"
 import {
   NODE_EDITOR_PLAYGROUND_BASE_PATH,
-  NODE_EDITOR_PLAYGROUND_PATH,
   NODE_EDITOR_PLAYGROUND_ROUTE,
-  NODE_EDITOR_PLAYGROUND_ROUTE_DECLARATION,
+  NODE_EDITOR_PLAYGROUND_ROUTE_TREE,
 } from "./editor-navigation.ts"
 import {planEditorWorkbench} from "./editor-workbench-layout.ts"
 
@@ -50,7 +49,7 @@ if (!(canvas instanceof HTMLCanvasElement)) throw new Error("nodes playground ca
 
 document.documentElement.dataset.nodesPlayground = "starting"
 document.documentElement.dataset.nodesPlaygroundPage = "editor"
-document.documentElement.dataset.nodesPlaygroundRoute = NODE_EDITOR_PLAYGROUND_ROUTE
+document.documentElement.dataset.nodesPlaygroundRoute = ""
 
 const numberParameter = (id: string, label: string, value: number): BlenderRuntimeParameter =>
   new Parameter<NodeJsonValue, BlenderParameterPresentation>(id, value, numberPresentation(id, label))
@@ -140,16 +139,14 @@ try {
   })
   runtime.handleResize()
 
-  const route = new PlaygroundRouter(NODE_EDITOR_PLAYGROUND_ROUTE_DECLARATION, {
+  const route = new PlaygroundRouteTreeRouter(NODE_EDITOR_PLAYGROUND_ROUTE_TREE, {
     basePath: NODE_EDITOR_PLAYGROUND_BASE_PATH,
   })
-  if (window.location.pathname !== NODE_EDITOR_PLAYGROUND_PATH) {
-    history.replaceState(null, "", playgroundRouteUrl(route.current, {
-      basePath: NODE_EDITOR_PLAYGROUND_BASE_PATH,
-    }))
+  const currentRoute = (): string => route.current.path
+  const navigate = (next: string): void => {
+    if (!route.go(next)) throw new Error(`Unknown editor playground route: ${next}`)
   }
-  const navigate = (): void => route.go(NODE_EDITOR_PLAYGROUND_ROUTE)
-  const item: PlaygroundNavigationItem<typeof NODE_EDITOR_PLAYGROUND_ROUTE> = {
+  const item: PlaygroundNavigationItem<string> = {
     id: "node-tree-runtime",
     label: "Живой NodeTree",
     route: NODE_EDITOR_PLAYGROUND_ROUTE,
@@ -159,13 +156,24 @@ try {
   const catalog = new PlaygroundNavigationSurface({
     title: "Пакет @nodes/editor",
     items: [item],
-    route: NODE_EDITOR_PLAYGROUND_ROUTE,
-    onNavigate: navigate,
+    route: currentRoute(),
+    onNavigate: (next) => navigate(next),
   })
   const sections = new PlaygroundNavigationSurface({
     title: "NodeTree",
     items: [{id: item.id, route: item.route, label: "Проекция"}],
-    route: NODE_EDITOR_PLAYGROUND_ROUTE,
+    route: currentRoute(),
+    onNavigate: (next) => navigate(next),
+  })
+  const overview = new PlaygroundOverviewSurface<string>({
+    title: "Пакет @nodes/editor",
+    description: "Выберите сценарий универсального редактирования NodeTree.",
+    items: [{
+      id: item.id,
+      label: item.label,
+      description: "NodeTreeEditor → NodeTree → projection → NodeEditor",
+      route: item.route,
+    }],
     onNavigate: navigate,
   })
   const editor = new NodeEditor({
@@ -219,15 +227,29 @@ try {
   storyPanel = new PlaygroundStoryPanelSurface(panelOptions())
 
   const shell = planEditorWorkbench
+  const hidden = () => ({x: 0, y: 0, w: 0, h: 0, visible: false as const})
+  const overviewFrame = (w: number, h: number) => {
+    const frames = shell(w, h)
+    if (route.current.kind !== "overview") return hidden()
+    const right = frames.info.visible === false ? frames.preview.x + frames.preview.w : frames.info.x + frames.info.w
+    const bottom = frames.dock.visible === false ? frames.preview.y + frames.preview.h : frames.dock.y + frames.dock.h
+    return {
+      x: frames.preview.x,
+      y: frames.preview.y,
+      w: Math.max(1, right - frames.preview.x),
+      h: Math.max(1, bottom - frames.preview.y),
+    }
+  }
   runtime.addSurface(backdrop, ({w, h}) => ({x: 0, y: 0, w, h}))
   runtime.addSurface(catalog, ({w, h}) => shell(w, h).catalog)
   runtime.addSurface(sections, ({w, h}) => shell(w, h).section)
-  runtime.addSurface(editor, ({w, h}) => shell(w, h).preview)
-  runtime.addSurface(editorDock, ({w, h}) => shell(w, h).dock)
-  runtime.addSurface(storyPanel, ({w, h}) => shell(w, h).info)
+  runtime.addSurface(overview, ({w, h}) => overviewFrame(w, h))
+  runtime.addSurface(editor, ({w, h}) => route.current.kind === "leaf" ? shell(w, h).preview : hidden())
+  runtime.addSurface(editorDock, ({w, h}) => route.current.kind === "leaf" ? shell(w, h).dock : hidden())
+  runtime.addSurface(storyPanel, ({w, h}) => route.current.kind === "leaf" ? shell(w, h).info : hidden())
 
   const observerSnapshot = (): Readonly<Record<string, unknown>> => Object.freeze({
-    route: route.current,
+    route: currentRoute(),
     treeRevision: tree.revision,
     topologyRevision: tree.topologyRevision,
     parameterRevision: gain.revision,
@@ -250,7 +272,8 @@ try {
 
   const publish = (): void => {
     const snapshot = observerSnapshot()
-    document.documentElement.dataset.nodesPlaygroundRoute = route.current
+    document.documentElement.dataset.nodesPlaygroundRoute = currentRoute()
+    document.documentElement.dataset.nodesPlaygroundRouteKind = route.current.kind
     document.documentElement.dataset.nodeTreeRevision = String(tree.revision)
     document.documentElement.dataset.nodeTreeTopologyRevision = String(tree.topologyRevision)
     document.documentElement.dataset.nodeTreeProjectionRevision = String(latestProjection?.revision ?? "")
@@ -676,9 +699,27 @@ try {
       publishError(error)
     }
   })
-  route.subscribe(() => {
+  route.subscribe((node) => {
+    catalog.setOptions({
+      title: "Пакет @nodes/editor",
+      items: [item],
+      route: node.path,
+      onNavigate: navigate,
+    })
+    sections.setOptions({
+      title: "NodeTree",
+      items: [{id: item.id, route: item.route, label: "Проекция"}],
+      route: node.path,
+      onNavigate: navigate,
+    })
     runtime.relayout()
     publish()
+    if (node.kind === "leaf") void scheduleProjection()
+    else {
+      runtime.space.updateWorldMatrix()
+      runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
+      document.documentElement.dataset.nodesPlayground = "ready"
+    }
   })
   globalThis.__nodeEditorPlaygroundObserver = Object.freeze({
     snapshot: observerSnapshot,
@@ -697,11 +738,21 @@ try {
   })
   new ResizeObserver(() => {
     runtime.handleResize()
-    if (author.layoutDirty) renderWorkbench()
+    if (route.current.kind === "overview") {
+      runtime.space.updateWorldMatrix()
+      runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
+    } else if (author.layoutDirty) renderWorkbench()
     else void scheduleProjection()
   }).observe(canvas)
 
-  await applyProjection()
+  if (route.current.kind === "leaf") await applyProjection()
+  else {
+    runtime.relayout()
+    runtime.space.updateWorldMatrix()
+    runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
+    publish()
+    document.documentElement.dataset.nodesPlayground = "ready"
+  }
 } catch (error) {
   publishError(error)
 }

@@ -7,6 +7,7 @@ import {
   startPlaygroundHubServer,
   startPlaygroundServer,
 } from "./server.ts"
+import {definePlaygroundRouteTree} from "./route-tree.ts"
 
 const temporaryRoots: string[] = []
 
@@ -154,6 +155,103 @@ describe("@ui/playground server", () => {
       expect(await fetch(new URL("/@playground-assets/missing/entry.js", server.url)).then((response) => response.status)).toBe(404)
       expect(await fetch(new URL("/missing", server.url)).then((response) => response.status)).toBe(404)
       expect(await fetch(new URL("/shared.txt", server.url)).then((response) => response.text())).toBe("shared-static")
+    } finally {
+      server.stop(true)
+    }
+  })
+
+  test("serves only registered route-tree overviews and leaves with canonical redirects", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ui-playground-route-tree-"))
+    temporaryRoots.push(root)
+    const entrypoint = join(root, "client.ts")
+    const stylePath = join(root, "style.css")
+    const bodyPath = join(root, "body.html")
+    await Promise.all([
+      Bun.write(entrypoint, 'document.documentElement.dataset.routeTree = "ready"'),
+      Bun.write(stylePath, "html { background: black }"),
+      Bun.write(bodyPath, '<main id="route-tree-body">Route tree</main>'),
+    ])
+    const catalog = createPlaygroundPage({
+      id: "catalog",
+      mountPath: "/",
+      packageName: "Catalog",
+      entrypoint,
+      stylePath,
+      body: {kind: "html", bodyHtmlPath: bodyPath},
+      routeTree: definePlaygroundRouteTree({leaves: [] as const}),
+    })
+    const ui = createPlaygroundPage({
+      id: "ui",
+      mountPath: "/ui",
+      packageName: "UI",
+      entrypoint,
+      stylePath,
+      body: {kind: "canvas", canvasId: "ui-canvas"},
+      homePath: "/",
+      routeTree: definePlaygroundRouteTree({
+        leaves: ["button/basic/contained", "button/basic/text"] as const,
+      }),
+    })
+    expect(() => createPlaygroundPage({
+      id: "invalid",
+      mountPath: "/invalid",
+      packageName: "Invalid",
+      entrypoint,
+      stylePath,
+      body: {kind: "canvas", canvasId: "invalid-canvas"},
+      routeTree: definePlaygroundRouteTree({leaves: [] as const}),
+      deepRoutes: false,
+    })).toThrow("routeTree cannot be combined with deepRoutes")
+    expect(() => createPlaygroundPage({
+      id: "invalid-home",
+      mountPath: "/invalid-home",
+      packageName: "Invalid home",
+      entrypoint,
+      stylePath,
+      body: {kind: "canvas", canvasId: "invalid-home-canvas"},
+      homePath: "relative",
+    })).toThrow("home path must be an absolute pathname")
+    const server = startPlaygroundHubServer({pages: [catalog, ui], hostname: "127.0.0.1", port: 0})
+
+    try {
+      const redirects = [
+        ["/ui", "/ui/"],
+        ["/ui/button", "/ui/button/"],
+        ["/ui/button/basic", "/ui/button/basic/"],
+        ["/ui/button/basic/contained/", "/ui/button/basic/contained"],
+      ] as const
+      for (const [pathname, location] of redirects) {
+        const response = await fetch(new URL(pathname, server.url), {redirect: "manual"})
+        expect(response.status, pathname).toBe(308)
+        expect(response.headers.get("location"), pathname).toBe(location)
+      }
+
+      for (const pathname of [
+        "/",
+        "/ui/",
+        "/ui/button/",
+        "/ui/button/basic/",
+        "/ui/button/basic/contained",
+        "/ui/button/basic/text",
+      ]) {
+        const response = await fetch(new URL(pathname, server.url))
+        expect(response.status, pathname).toBe(200)
+        const html = await response.text()
+        if (pathname === "/") expect(html).not.toContain("data-playground-home")
+        else {
+          expect(html).toContain('data-playground-home href="/"')
+          expect(html).toContain(">Home</a>")
+        }
+      }
+      for (const pathname of [
+        "/unknown",
+        "/ui/missing",
+        "/ui/button/missing",
+        "/ui/button/basic/contained/extra",
+        "/ui-other/button/basic/contained",
+      ]) {
+        expect(await fetch(new URL(pathname, server.url)).then(({status}) => status), pathname).toBe(404)
+      }
     } finally {
       server.stop(true)
     }

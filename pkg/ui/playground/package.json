@@ -9,12 +9,15 @@
   "exports": {
     ".": "./index.ts",
     "./router": "./router.ts",
+    "./route-tree": "./route-tree.ts",
+    "./overview": "./overview.ts",
     "./stories": "./story.ts",
     "./layout": "./layout.ts",
     "./surfaces": "./surfaces.ts",
     "./server": "./server.ts"
   },
   "scripts": {
+    "playground": "bun hub/server.ts",
     "typecheck": "tsc --noEmit --pretty false",
     "test": "bun test ."
   },

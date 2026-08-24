@@ -1,4 +1,0 @@
-interface:
-  display_name: "UI Development"
-  short_description: "Develop, interact with, and profile UI playgrounds"
-  default_prompt: "Use $ui-dev to develop and verify the appropriate UI package playground through source-fresh background interaction without stealing browser focus."

@@ -293,41 +293,6 @@ export const ELEMENT_STORIES = definePlaygroundStories({
 export const ELEMENT_STORY_ROUTES = Object.freeze([...ELEMENT_STORIES.declaration.routes])
 export type ElementsStoryRoute = typeof ELEMENT_STORY_ROUTES[number]
 
-export const ELEMENT_LEGACY_ROUTES = Object.freeze([
-  "div",
-  "div/scroll",
-  "span",
-  "button",
-  "input",
-  "img",
-  "ul",
-  "layout/flex",
-  "layout/flex-css",
-  "style/css",
-  "style/theme",
-  "events",
-] as const)
-
-const LEGACY_ELEMENT_ROUTES: Readonly<Record<typeof ELEMENT_LEGACY_ROUTES[number], ElementsStoryRoute>> = Object.freeze({
-  div: "div/basic/background",
-  "div/scroll": "div/scroll/vertical",
-  span: "span/content/left",
-  button: "button/state/default",
-  input: "input/state/inactive",
-  img: "img/fit/cover",
-  ul: "list/mode/regular",
-  "layout/flex": "flex/direction/row",
-  "layout/flex-css": "flex-css/sizes/fraction",
-  "style/css": "css/padding/default",
-  "style/theme": "theme/tone/cyan",
-  events: "pointer/state/idle",
-})
-
-export function normalizeElementsPlaygroundPath(pathname: string): ElementsStoryRoute | null {
-  const route = pathname.replace(/^\/+|\/+$/g, "")
-  return LEGACY_ELEMENT_ROUTES[route as typeof ELEMENT_LEGACY_ROUTES[number]] ?? null
-}
-
 export function elementStoryIndex(route: ElementsStoryRoute): PlaygroundStoryIndexItem {
   const story = ELEMENT_STORIES.find(route)
   if (story === undefined) throw new Error(`Unknown Elements story: ${route}`)

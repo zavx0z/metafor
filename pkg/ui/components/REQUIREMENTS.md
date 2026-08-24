@@ -33,7 +33,7 @@ control нельзя опустить в Elements только ради повт
 
 ## Dev playground boundary
 
-1. Standalone Components playground является desktop consumer общего Workbench
+1. Components package page `/components/` является desktop consumer общего Workbench
    `@ui/playground`. Package-owned typed stories владеют metadata, concrete
    component/section/variant stories, lazy exact production imports, preview,
    source и controls; package не копирует общий shell. Mount `/components/` и

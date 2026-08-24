@@ -33,7 +33,6 @@
     "./table": "./Table.ts"
   },
   "scripts": {
-    "playground": "bun playground/server.ts",
     "typecheck": "tsc --noEmit --pretty false",
     "typecheck:playground": "tsc --noEmit --pretty false --project playground/tsconfig.json"
   },

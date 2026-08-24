@@ -28,7 +28,7 @@ export const NODES_PACKAGE_CATALOG: readonly NodesPackageCatalogEntry[] = Object
     summary: "NodeTree, Parameter, revisions, snapshot и атомарная смена topology.",
     playground: "Сравнивает runtime definition, ID-keyed document, JSON snapshot и события одного дерева.",
     routePrefix: "/core",
-    defaultRoute: "/core/live-node-tree",
+    defaultRoute: "/core/",
     presentation: "dom",
   }),
   Object.freeze({
@@ -38,7 +38,7 @@ export const NODES_PACKAGE_CATALOG: readonly NodesPackageCatalogEntry[] = Object
     summary: "JSON Patch-команды add/remove/connect/disconnect над живым NodeTree.",
     playground: "Редактирует Node, Parameter и Link, затем отдельно перестраивает layout и WebGPU projection.",
     routePrefix: "/editor",
-    defaultRoute: "/editor/live-node-tree",
+    defaultRoute: "/editor/",
     presentation: "webgpu",
   }),
   Object.freeze({
@@ -48,7 +48,7 @@ export const NODES_PACKAGE_CATALOG: readonly NodesPackageCatalogEntry[] = Object
     summary: "Fixed/adaptive placement и ортогональный routing без UI и NodeTree.",
     playground: "Запускает frozen RIGHT/DOWN fixtures и показывает точный результат как DOM/SVG и JSON.",
     routePrefix: "/layout",
-    defaultRoute: "/layout/fixed-adaptive",
+    defaultRoute: "/layout/",
     presentation: "svg",
   }),
   Object.freeze({
@@ -58,7 +58,7 @@ export const NODES_PACKAGE_CATALOG: readonly NodesPackageCatalogEntry[] = Object
     summary: "Serializable request/result/error envelopes для fixed и adaptive executors.",
     playground: "Показывает точный wire request, generation, response и typed failure без main-thread fallback.",
     routePrefix: "/layout-worker",
-    defaultRoute: "/layout-worker/protocol",
+    defaultRoute: "/layout-worker/",
     presentation: "dom",
   }),
   Object.freeze({
@@ -68,7 +68,7 @@ export const NODES_PACKAGE_CATALOG: readonly NodesPackageCatalogEntry[] = Object
     summary: "NodeEditor, Frame, Node, Parameter, Socket и Link renderers.",
     playground: "Сохраняет полный WebGPU story catalog, Blender comparison, controls и retained diagnostics.",
     routePrefix: "/ui",
-    defaultRoute: "/ui/socket/boolean/input",
+    defaultRoute: "/ui/",
     presentation: "webgpu",
   }),
 ])

@@ -181,7 +181,7 @@ FlexBox единолично вычисляет local child slots, а child то
 
 ## Dev playground boundary
 
-1. Standalone Elements playground является desktop consumer общего Workbench
+1. Elements package page `/elements/` является desktop consumer общего Workbench
    `@ui/playground`. Package-owned typed stories владеют metadata, concrete
    component/section/variant stories, lazy exact public imports, preview, source
    и controls; package не копирует общий shell и не передаёт ему Elements
