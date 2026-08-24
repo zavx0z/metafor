@@ -5,7 +5,6 @@ import {
   PlaygroundNavigationSurface,
   PlaygroundRouter,
   PlaygroundStoryPanelSurface,
-  planPlaygroundShell,
   playgroundRouteUrl,
   type PlaygroundNavigationItem,
   type PlaygroundStoryPanelMode,
@@ -44,6 +43,7 @@ import {
   NODE_EDITOR_PLAYGROUND_ROUTE,
   NODE_EDITOR_PLAYGROUND_ROUTE_DECLARATION,
 } from "./editor-navigation.ts"
+import {planEditorWorkbench} from "./editor-workbench-layout.ts"
 
 const canvas = document.getElementById("nodes-playground-canvas")
 if (!(canvas instanceof HTMLCanvasElement)) throw new Error("nodes playground canvas not found")
@@ -218,7 +218,7 @@ try {
   })
   storyPanel = new PlaygroundStoryPanelSurface(panelOptions())
 
-  const shell = (w: number, h: number) => planPlaygroundShell(w, h, {dockHeight: 220})
+  const shell = planEditorWorkbench
   runtime.addSurface(backdrop, ({w, h}) => ({x: 0, y: 0, w, h}))
   runtime.addSurface(catalog, ({w, h}) => shell(w, h).catalog)
   runtime.addSurface(sections, ({w, h}) => shell(w, h).section)

@@ -23,13 +23,17 @@ export function planNodeComponentPlaygroundFrames(
   height: number,
   route: NodePlaygroundRoute = "node-editor/scene/default",
 ): NodeComponentPlaygroundFrames {
-  const shell = planPlaygroundShell(width, height)
+  const compact = width < 980
+  const shell = planPlaygroundShell(width, height, compact ? {
+    collapsed: ["catalog", "section", "info"],
+    dockHeight: 0,
+  } : {})
   let editor = hidden()
   let sockets = hidden()
   let storyPreview = hidden()
   let reference = hidden()
   let detail = hidden()
-  const story = shell.info
+  const story = compact ? hidden() : shell.info
   const group = nodePlaygroundGroup(route)
   if (group === "editor") editor = shell.preview
   else if (group === "socket") {
@@ -55,7 +59,7 @@ export function planNodeComponentPlaygroundFrames(
     storyPreview,
     reference,
     detail,
-    dock: shell.dock,
+    dock: compact ? hidden() : shell.dock,
     story,
   }
 }

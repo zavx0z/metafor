@@ -73,6 +73,7 @@ function runEditedInput(): void {
     exportSvg.disabled = false
     setStatus("ok", `Готово · ${formatDirection(run.result.direction)} · ${formatDuration(run.metrics.durationMs)}`)
     applyLayerVisibility()
+    document.documentElement.dataset.nodesLayoutSvgCount = String(svgView.querySelectorAll("svg").length)
     document.documentElement.dataset.nodesLayoutPlayground = "ready"
     document.documentElement.dataset.nodesPlayground = "ready"
   } catch (error) {
@@ -85,6 +86,7 @@ function runEditedInput(): void {
     exportSvg.disabled = true
     setStatus("error", "Раскладка отклонила входные данные")
     document.documentElement.dataset.nodesLayoutPlayground = "error"
+    document.documentElement.dataset.nodesLayoutSvgCount = "0"
     document.documentElement.dataset.nodesPlayground = "error"
   }
 }

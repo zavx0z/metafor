@@ -57,6 +57,7 @@ export function startPlaygroundServer(options: PlaygroundServerOptions): ReturnT
     <base href="/">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta http-equiv="cache-control" content="no-cache">
+    <link rel="icon" href="data:,">
     <title>${escapeHtml(options.packageName)}</title>
     <link rel="stylesheet" href="/style.css">
   </head>
@@ -286,6 +287,7 @@ function createPageHtml(
     <base href="${escapeHtml(baseHref)}">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta http-equiv="cache-control" content="no-cache">
+    <link rel="icon" href="data:,">
     <title>${escapeHtml(options.packageName)}</title>
     <link rel="stylesheet" href="${assetBasePath}/style.css">
   </head>

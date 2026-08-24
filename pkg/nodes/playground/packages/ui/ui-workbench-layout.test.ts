@@ -27,4 +27,14 @@ describe("Node playground on shared @ui/playground shell", () => {
     expect(comparison.detail).toEqual({x: 934.5, y: 3, w: 541.5, h: 1049})
     expect(comparison.story).toEqual({x: 1477, y: 3, w: 440, h: 1074})
   })
+
+  test("shows only the active preview on a compact centralized target", () => {
+    const frames = planNodeComponentPlaygroundFrames(493, 1088, "node-editor/scene/default")
+    expect(frames.catalog.visible).toBeFalse()
+    expect(frames.section.visible).toBeFalse()
+    expect(frames.story.visible).toBeFalse()
+    expect(frames.dock.visible).toBeFalse()
+    expect(frames.editor.w).toBeGreaterThan(470)
+    expect(frames.editor.h).toBeGreaterThan(1000)
+  })
 })
