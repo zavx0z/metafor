@@ -6,24 +6,20 @@ import {fileURLToPath} from "node:url"
 
 const packageRoot = fileURLToPath(new URL(".", import.meta.url))
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url))
+const coreRoot = join(packageRoot, "core")
+const layoutWorkerRoot = join(packageRoot, "layout-worker")
 
 describe("universal node-system package boundaries", () => {
-  test("keeps the core package free of renderer, HUD and product imports", async () => {
-    const packageJson = await Bun.file(join(packageRoot, "package.json")).json() as {
+  test("keeps @nodes/core free of renderer, layout, HUD and product imports", async () => {
+    const packageJson = await Bun.file(join(coreRoot, "package.json")).json() as {
       dependencies?: Record<string, string>
     }
-    expect(Object.keys(packageJson.dependencies ?? {}).sort()).toEqual(["@nodes/layout"])
+    expect(Object.keys(packageJson.dependencies ?? {})).toEqual([])
 
-    const files = (await sourceFiles(packageRoot))
-      .filter((path) => !path.includes("/.agents/"))
-      .filter((path) => !path.includes("/fixtures/"))
-      .filter((path) => !path.includes("/layout/"))
-      .filter((path) => !path.includes("/playground/"))
-      .filter((path) => !path.includes("/ui/"))
-      .filter((path) => !path.includes("/hud/"))
+    const files = (await sourceFiles(coreRoot))
       .filter((path) => !path.endsWith(".test.ts"))
     const source = await readAll(files)
-    expect(source).not.toMatch(/from ["']@nodes\/(?:ui|hud)/)
+    expect(source).not.toMatch(/from ["']@nodes\//)
     expect(source).not.toMatch(/from ["']@ui\//)
     expect(source).not.toMatch(/from ["']@metafor\/engine/)
     expect(source).not.toContain("Hamiltonian")
@@ -42,8 +38,8 @@ describe("universal node-system package boundaries", () => {
     const exactEditor = await Bun.file(join(uiRoot, "node-editor.ts")).text()
     const projection = await Bun.file(join(uiRoot, "blender-projection.ts")).text()
     expect(source).not.toMatch(/from ["']@ui\/hud/)
-    expect(exactEditor).not.toMatch(/from ["'](?:nodes|@nodes\/layout)/)
-    expect(projection).toContain('from "nodes/node-tree"')
+    expect(exactEditor).not.toMatch(/from ["']@nodes\//)
+    expect(projection).toContain('from "@nodes/core/node-tree"')
     expect(projection).toContain('from "@nodes/layout/fixed"')
     expect(source).not.toMatch(/\b(?:NodeSystemSurface|NodeSystemCard|NodeSystemFact)\b/)
     for (const productTerm of [
@@ -55,7 +51,12 @@ describe("universal node-system package boundaries", () => {
   })
 
   test("publishes only existing independent entrypoints", async () => {
-    for (const packagePath of ["pkg/nodes", "pkg/nodes/ui", "pkg/nodes/layout"]) {
+    for (const packagePath of [
+      "pkg/nodes/core",
+      "pkg/nodes/layout",
+      "pkg/nodes/layout-worker",
+      "pkg/nodes/ui",
+    ]) {
       const root = join(repositoryRoot, packagePath)
       const packageJson = await Bun.file(join(root, "package.json")).json() as {
         exports?: Record<string, string | Readonly<{default?: string; types?: string}>>
@@ -68,20 +69,35 @@ describe("universal node-system package boundaries", () => {
       }
     }
     const rootManifest = await Bun.file(join(packageRoot, "package.json")).json() as {
+      main?: string
+      types?: string
+      exports?: Record<string, unknown>
+    }
+    expect(rootManifest.main).toBeUndefined()
+    expect(rootManifest.types).toBeUndefined()
+    expect(rootManifest.exports).toBeUndefined()
+
+    const coreManifest = await Bun.file(join(coreRoot, "package.json")).json() as {
       exports: Record<string, unknown>
     }
-    expect(Object.keys(rootManifest.exports).sort()).toEqual([
+    expect(Object.keys(coreManifest.exports).sort()).toEqual([
       ".",
-      "./layout-worker",
-      "./layout-worker/adaptive/client",
-      "./layout-worker/adaptive/executor",
-      "./layout-worker/fixed/client",
-      "./layout-worker/fixed/executor",
-      "./layout-worker/transport",
-      "./layout-worker/types",
       "./node-tree",
       "./parameter",
       "./projection-types",
+    ])
+
+    const layoutWorkerManifest = await Bun.file(join(layoutWorkerRoot, "package.json")).json() as {
+      exports: Record<string, unknown>
+    }
+    expect(Object.keys(layoutWorkerManifest.exports).sort()).toEqual([
+      ".",
+      "./adaptive/client",
+      "./adaptive/executor",
+      "./fixed/client",
+      "./fixed/executor",
+      "./transport",
+      "./types",
     ])
     for (const legacy of [
       "validation.ts",

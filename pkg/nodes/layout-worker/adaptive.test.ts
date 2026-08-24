@@ -3,9 +3,9 @@ import {
   layoutAdaptiveWithDiagnostics,
   type AdaptiveLayoutGraph,
 } from "@nodes/layout/adaptive"
-import {AdaptiveLayoutWorkerClient} from "./layout-worker/adaptive/client.ts"
-import {runAdaptiveLayoutWorkerRequest} from "./layout-worker/adaptive/executor.ts"
-import {LayoutWorkerRemoteError} from "./layout-worker/transport.ts"
+import {AdaptiveLayoutWorkerClient} from "./adaptive/client.ts"
+import {runAdaptiveLayoutWorkerRequest} from "./adaptive/executor.ts"
+import {LayoutWorkerRemoteError} from "./transport.ts"
 import type {
   AdaptiveLayoutWorkerEndpoint,
   AdaptiveLayoutWorkerRequest,

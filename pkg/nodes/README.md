@@ -1,8 +1,11 @@
-# nodes
+# Nodes packages
 
-`nodes` — корневой runtime-пакет универсального нодового графа. Он владеет
-живыми сущностями `NodeTree → Frame / Node → Parameter → Socket → Link`,
-значениями Parameter, ревизиями, подписками и получением производных проекций.
+`pkg/nodes` — workspace-контейнер независимых Node packages и их parent
+playground. Сам package `nodes` не имеет production exports.
+
+`@nodes/core` владеет живыми сущностями
+`NodeTree → Frame / Node → Parameter → Socket → Link`, значениями Parameter,
+ревизиями, подписками и получением производных проекций.
 
 `Parameter` является локальным Store своего значения. `NodeTree` наблюдает его
 изменения и сообщает одну новую ревизию дерева; отдельная карта значений рядом
@@ -30,14 +33,18 @@ Projector разделяет три производных результата:
 
 ## Границы пакетов
 
+* [`@nodes/core`](core/README.md) — renderer-neutral runtime, snapshot и
+  projection coordination.
 * [`@nodes/layout`](layout/README.md) — чистый числовой solver. Он получает
   производный serializable graph и не читает живой `NodeTree`, Parameter,
   renderer или WebGPU. Его собственный SVG playground позволяет разрабатывать
   fixed/adaptive placement и routing напрямую на numeric fixtures.
+* `@nodes/layout-worker` — отдельные transport, client и executor entrypoints
+  fixed/adaptive Worker. Client entrypoints не загружают solver.
 * [`@nodes/ui`](ui/README.md) — NodeCanvas/NodeEditor и сменяемые
   Frame/Node/Socket/Link renderers. Он отображает готовую проекцию и владеет
   только view-state: pan, zoom, selection, hover и overlays.
-* `nodes` координирует живые сущности и проекции, но не зашивает Blender,
+* `@nodes/core` координирует живые сущности и проекции, но не зашивает Blender,
   WebGPU, font или viewport в каноническое состояние графа.
 
 Прежние `NodeSystemDocument`, `MeasuredNodeSystem`, `PositionedNodeSystem`,
@@ -66,7 +73,9 @@ Lifecycle и background browser evidence всех трёх contours принад
 ## Проверка
 
 ```bash
-bun run --cwd pkg/nodes typecheck
+bun run --cwd pkg/nodes/core typecheck
+bun run --cwd pkg/nodes/layout-worker typecheck
+bun run --cwd pkg/nodes/ui typecheck
 bun run --cwd pkg/nodes/playground typecheck
 bun test pkg/nodes
 ```

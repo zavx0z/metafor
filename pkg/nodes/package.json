@@ -1,28 +1,16 @@
 {
   "name": "nodes",
   "version": "0.0.1",
-  "description": "Live NodeTree runtime, Parameter stores and projection coordination.",
+  "description": "Workspace container for the independent Nodes packages and their integration playground.",
   "type": "module",
   "private": true,
-  "main": "index.ts",
-  "types": "index.ts",
-  "exports": {
-    ".": "./index.ts",
-    "./parameter": "./parameter.ts",
-    "./node-tree": "./node-tree.ts",
-    "./projection-types": "./projection-types.ts",
-    "./layout-worker": "./layout-worker.ts",
-    "./layout-worker/types": "./types/worker.ts",
-    "./layout-worker/transport": "./layout-worker/transport.ts",
-    "./layout-worker/fixed/client": "./layout-worker/fixed/client.ts",
-    "./layout-worker/fixed/executor": "./layout-worker/fixed/executor.ts",
-    "./layout-worker/adaptive/client": "./layout-worker/adaptive/client.ts",
-    "./layout-worker/adaptive/executor": "./layout-worker/adaptive/executor.ts"
-  },
   "scripts": {
     "typecheck": "tsc --noEmit --pretty false"
   },
-  "dependencies": {
-    "@nodes/layout": "workspace:*"
+  "devDependencies": {
+    "@nodes/core": "workspace:*",
+    "@nodes/layout": "workspace:*",
+    "@nodes/layout-worker": "workspace:*",
+    "@nodes/ui": "workspace:*"
   }
 }

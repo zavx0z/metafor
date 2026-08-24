@@ -24,8 +24,8 @@ task; passing one ID does not waive the singleton rule.
 ```bash
 SKILL=pkg/nodes/.agents/skills/nodes-dev
 "$SKILL/scripts/nodes-dev.sh" ensure "$PWD" --playground root
-bun test ./pkg/nodes/node-tree-runtime.test.ts \
-  ./pkg/nodes/parameter.test.ts \
+bun test ./pkg/nodes/core/node-tree-runtime.test.ts \
+  ./pkg/nodes/core/parameter.test.ts \
   ./pkg/nodes/ui/blender-projection.test.ts
 "$SKILL/scripts/nodes-dev.sh" restart "$PWD" --playground root
 bun "$SKILL/scripts/nodes-browser.ts" targets "$PWD" --playground root

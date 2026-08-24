@@ -3,7 +3,7 @@ import type {
   FixedLayoutWorkerEndpoint,
   FixedLayoutWorkerFailure,
   FixedLayoutWorkerSuccess,
-} from "../../types/worker.ts"
+} from "../types/worker.ts"
 import type {FixedLayoutGraph, FixedLayoutResult} from "@nodes/layout/fixed"
 
 /** Main-thread client for a physically separate fixed-policy Worker. */

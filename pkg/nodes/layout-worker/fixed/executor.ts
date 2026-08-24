@@ -3,7 +3,7 @@ import {createLayoutWorkerExecutor, serializeLayoutWorkerError} from "../executo
 import type {
   FixedLayoutWorkerRequest,
   FixedLayoutWorkerResponse,
-} from "../../types/worker.ts"
+} from "../types/worker.ts"
 
 const execute = createLayoutWorkerExecutor(
   (graph: FixedLayoutWorkerRequest["graph"]) => ({result: layoutFixed(graph)}),

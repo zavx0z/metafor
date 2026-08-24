@@ -1,5 +1,5 @@
-import {NodeTree} from "nodes/node-tree"
-import {Parameter} from "nodes/parameter"
+import {NodeTree} from "@nodes/core/node-tree"
+import {Parameter} from "@nodes/core/parameter"
 
 export function createConsumerTree(): NodeTree {
   return new NodeTree({

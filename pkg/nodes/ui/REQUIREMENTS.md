@@ -145,7 +145,7 @@ solver-free; explicit `blender-projection` адаптирует живой root 
 
 1. Старые Card model, Card layout/adapters, `NodeSystemSurface` и Card HUD
    удаляются без aliases, deprecated exports или compatibility bundles.
-2. Прежний root `NodeSystem*` format удалён. Живой `nodes` Parameter-store и
+2. Прежний root `NodeSystem*` format удалён. Живой `@nodes/core` Parameter-store и
    `blender-projection` являются единственным новым parent integration path;
    product consumers подключаются отдельно.
 3. Package-level tests, component playground и parent runtime playground

@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {TrueTypeFont} from "@metafor/engine"
-import {NodeTree} from "nodes/node-tree"
-import {Parameter, type NodeJsonValue} from "nodes/parameter"
+import {NodeTree} from "@nodes/core/node-tree"
+import {Parameter, type NodeJsonValue} from "@nodes/core/parameter"
 import {
   createBlenderNodeTreeProjector,
   type BlenderFrameMetadata,

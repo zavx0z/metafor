@@ -24,8 +24,8 @@ import {
 } from "@nodes/ui/blender-projection"
 import {createBlenderNodeRenderers} from "@nodes/ui/blender-node"
 import {NodeEditor} from "@nodes/ui/node-editor"
-import {NodeTree, StaleNodeTreeProjectionError} from "nodes/node-tree"
-import {Parameter, type NodeJsonValue} from "nodes/parameter"
+import {NodeTree, StaleNodeTreeProjectionError} from "@nodes/core/node-tree"
+import {Parameter, type NodeJsonValue} from "@nodes/core/parameter"
 import {
   NODES_PLAYGROUND_PATH,
   NODES_PLAYGROUND_ROUTE,

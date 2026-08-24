@@ -1,4 +1,4 @@
-import type {PendingLayout} from "../types/worker-internal.ts"
+import type {PendingLayout} from "./types/worker-internal.ts"
 import type {
   LayoutWorkerEndpoint,
   LayoutWorkerFailure,
@@ -6,7 +6,7 @@ import type {
   LayoutWorkerRequest,
   LayoutWorkerSuccess,
   SerializedLayoutWorkerError,
-} from "../types/worker.ts"
+} from "./types/worker.ts"
 
 /** Error received from a Worker without running a main-thread fallback. */
 export class LayoutWorkerRemoteError<Failure extends SerializedLayoutWorkerError = SerializedLayoutWorkerError>

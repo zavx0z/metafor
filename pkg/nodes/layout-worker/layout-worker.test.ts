@@ -1,7 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {layout, type LayoutGraph} from "@nodes/layout"
-import {LayoutWorkerClient, runLayoutWorkerRequest} from "./layout-worker.ts"
-import {LayoutWorkerRemoteError} from "./layout-worker/transport.ts"
+import {LayoutWorkerClient, runLayoutWorkerRequest} from "./index.ts"
+import {LayoutWorkerRemoteError} from "./transport.ts"
 import type {
   LayoutWorkerEndpoint,
   LayoutWorkerRequest,

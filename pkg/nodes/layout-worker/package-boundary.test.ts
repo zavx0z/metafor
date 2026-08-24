@@ -7,11 +7,33 @@ import {fileURLToPath} from "node:url"
 const packageRoot = fileURLToPath(new URL(".", import.meta.url))
 
 describe("layout Worker policy bundle boundaries", () => {
+  test("publishes only exact policy entrypoints from the physical package", async () => {
+    const manifest = await Bun.file(join(packageRoot, "package.json")).json() as {
+      name?: string
+      dependencies?: Record<string, string>
+      exports?: Record<string, string>
+    }
+    expect(manifest.name).toBe("@nodes/layout-worker")
+    expect(manifest.dependencies).toEqual({"@nodes/layout": "workspace:*"})
+    expect(Object.keys(manifest.exports ?? {}).sort()).toEqual([
+      ".",
+      "./adaptive/client",
+      "./adaptive/executor",
+      "./fixed/client",
+      "./fixed/executor",
+      "./transport",
+      "./types",
+    ])
+    for (const target of Object.values(manifest.exports ?? {})) {
+      expect(await Bun.file(join(packageRoot, target)).exists(), target).toBeTrue()
+    }
+  })
+
   test("keeps shared transport policy-neutral and executors exact", async () => {
-    const transport = await Bun.file(join(packageRoot, "layout-worker/transport.ts")).text()
-    const executor = await Bun.file(join(packageRoot, "layout-worker/executor.ts")).text()
-    const fixed = await Bun.file(join(packageRoot, "layout-worker/fixed/executor.ts")).text()
-    const adaptive = await Bun.file(join(packageRoot, "layout-worker/adaptive/executor.ts")).text()
+    const transport = await Bun.file(join(packageRoot, "transport.ts")).text()
+    const executor = await Bun.file(join(packageRoot, "executor.ts")).text()
+    const fixed = await Bun.file(join(packageRoot, "fixed/executor.ts")).text()
+    const adaptive = await Bun.file(join(packageRoot, "adaptive/executor.ts")).text()
 
     expect(transport).not.toMatch(/@nodes\/layout/)
     expect(executor).not.toMatch(/@nodes\/layout/)

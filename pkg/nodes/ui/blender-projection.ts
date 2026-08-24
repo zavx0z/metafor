@@ -8,9 +8,9 @@ import {
   type NodeTreeSnapshot,
   type Frame as RuntimeFrame,
   type Socket as RuntimeSocket,
-} from "nodes/node-tree"
-import {Parameter, type NodeJsonObject, type NodeJsonValue} from "nodes/parameter"
-import type {NodeTreeProjector} from "nodes/projection-types"
+} from "@nodes/core/node-tree"
+import {Parameter, type NodeJsonObject, type NodeJsonValue} from "@nodes/core/parameter"
+import type {NodeTreeProjector} from "@nodes/core/projection-types"
 import {
   DEFAULT_NODE_CANVAS_OVERLAY_STATE,
   type NodeCanvasOverlayState,

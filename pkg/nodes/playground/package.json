@@ -10,9 +10,9 @@
     "typecheck": "tsc --noEmit --pretty false"
   },
   "dependencies": {
+    "@nodes/core": "workspace:*",
     "@nodes/ui": "workspace:*",
     "@ui/elements": "workspace:*",
-    "nodes": "workspace:*",
     "@ui/playground": "workspace:*"
   }
 }

@@ -22,10 +22,10 @@ describe("parent nodes playground scaffold", () => {
       typecheck: "tsc --noEmit --pretty false",
     })
     expect(manifest.dependencies).toEqual({
+      "@nodes/core": "workspace:*",
       "@nodes/ui": "workspace:*",
       "@ui/elements": "workspace:*",
       "@ui/playground": "workspace:*",
-      nodes: "workspace:*",
     })
     expect(manifest.exports).toBeUndefined()
   })
@@ -50,8 +50,8 @@ describe("parent nodes playground scaffold", () => {
   test("connects the live root runtime without a separate Field state map or manual Node coordinates", async () => {
     const entry = await Bun.file(join(playgroundRoot, "entry.ts")).text()
 
-    expect(entry).toContain('from "nodes/node-tree"')
-    expect(entry).toContain('from "nodes/parameter"')
+    expect(entry).toContain('from "@nodes/core/node-tree"')
+    expect(entry).toContain('from "@nodes/core/parameter"')
     expect(entry).toContain('from "@nodes/ui/blender-projection"')
     expect(entry).toContain("tree.project(projector")
     expect(entry).toContain("editor.setProjection(projection)")

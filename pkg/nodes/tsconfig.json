@@ -1,6 +1,8 @@
 {
   "extends": "../../tsconfig.json",
   "include": [
-    "**/*.ts"
+    "package-boundary.test.ts",
+    "fixtures/**/*.ts",
+    "ui/wgsl-shim.d.ts"
   ]
 }

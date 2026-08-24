@@ -164,7 +164,7 @@ merge/split junction частью bundle, не разрешает overlap нес
 
 Layout не переставляет parameter rows: `ports[].y` является уже измеренным
 входом минимального протокола. Перестановка связанных строк до повторного layout
-принадлежит presentation-adapter пакета [`nodes`](../README.md).
+принадлежит presentation-adapter пакета [`@nodes/core`](../README.md).
 
 В portrait placement боковой routing reserve не копируется автоматически под
 последний child. Сначала проверяется компактный вариант с одним socket pitch
@@ -215,7 +215,7 @@ compound corridor и каждого фактического межслойно�
 отдельно в [`ADAPTIVE.md`](requirements/ADAPTIVE.md),
 [`RIGHT.md`](requirements/RIGHT.md) и
 [`DOWN.md`](requirements/DOWN.md). Интеграция и Worker принадлежат
-[`nodes`](../REQUIREMENTS.md), а renderer/view —
+[`@nodes/core`](../core/REQUIREMENTS.md), Worker boundary — `@nodes/layout-worker`, а renderer/view —
 [`@nodes/ui`](../ui/REQUIREMENTS.md).
 
 ## TSDoc и проверки

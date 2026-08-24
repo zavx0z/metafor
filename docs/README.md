@@ -61,7 +61,7 @@
   [инфраструктурные возможности](../cosmos/internal/README.md) — пространству
   `@internal/*`, а текущая [визуальная возможность](../cosmos/internal/visual/README.md)
   — пакету `@internal/visual`.
-* [Node system](../pkg/nodes/README.md) — живой runtime-граф
+* [Node system](../pkg/nodes/README.md) — живой runtime-граф `@nodes/core`
   `NodeTree → Frame / Node → Parameter → Socket → Link`, Parameter-store,
   производные view-проекции и отдельно сохранённое layout-ядро
   `@nodes/layout` (далее — layout).
@@ -69,7 +69,7 @@
   FlexBox/view законы
   принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md) (далее — node UI),
   runtime/snapshot/projection граница —
-  [`nodes`](../pkg/nodes/REQUIREMENTS.md),
+  [`@nodes/core`](../pkg/nodes/core/REQUIREMENTS.md),
   а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
   [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),

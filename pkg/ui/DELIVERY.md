@@ -10,7 +10,7 @@
 1. Базовое направление UI-зависимостей:
    `Engine → Elements → Components → Node UI`. Exact `node-editor` остаётся
    solver-free; только явный `blender-projection` дополнительно импортирует
-   живой `nodes` и чистый `@nodes/layout`. Нижний UI-слой не импортирует верхний,
+   живой `@nodes/core` и чистый `@nodes/layout`. Нижний UI-слой не импортирует верхний,
    а production source не импортирует playground.
 2. `@metafor/engine` является одной канонической module identity внутри одного
    product/release graph. Разные aliases, URL либо revisions одного Engine не
