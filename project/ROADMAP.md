@@ -96,6 +96,35 @@ runtime occurrence и минимальное Matter closure с явной гра
 Новая access policy и конкурентные чтения в эту задачу не входят:
 [`MF-407`](tasks/MF-407.md).
 
+## Cosmos: общий package lifecycle
+
+Cosmos является внешним контуром исполнения и предоставляет один смысловой
+путь для browser и server:
+
+```text
+тонкая точка входа → startup → release → internal → metafor
+```
+
+Один release содержит согласованные browser- и server-environments одних
+package versions. Общая логика владеет identity artifact, проверкой,
+подготовкой, активацией и завершением runtime. Технологии платформы принадлежат
+adapter: browser исполняет проверенный source через `Function()` и передаёт
+Service Worker events, server запускает exact artifact отдельным Bun-процессом
+и наблюдает его через IPC.
+
+Server startup не удерживает последовательно импортированные release versions
+в одном ESM module cache и не становится HTTP/WebSocket proxy. Он проверяет
+artifact, запускает release process, ждёт `ready` и наблюдает exit. Только
+release process создаёт единственный `Bun.serve`, напрямую использует Bun
+WebSocket и владеет полной HTTP/WebSocket composition.
+
+Первый этап реализован и закреплён действующим
+[контуром запуска Cosmos](../cosmos/README.md#текущий-контур-запуска): доказанный
+browser lifecycle и server process adapter используют общий interface без
+Quantum-доменов. Перенос единственного listener из Dark, запуск
+`internal`/`metafor`, пустая первая Вселенная и восстановление из Boundary
+остаются следующими отдельно принимаемыми этапами.
+
 ## Hamiltonian и воплощения
 
 Рабочее целевое направление отделяет причинный contour Вселенной от
