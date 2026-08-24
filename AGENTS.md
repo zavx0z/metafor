@@ -135,8 +135,13 @@
 
 - Перед изменением документов-владельцев, package README, карты документации
   или public TSDoc использовать `$metafor-dev` и полностью читать
-  `.agents/skills/metafor-dev/references/documentation.md`. Отдельные
-  documentation skills для packages и контуров не создавать.
+  `.agents/skills/metafor-dev/references/documentation.md`. Общие правила не
+  копировать в domain/package skills; они могут добавлять только свою специфику.
+- Перед изменением Cosmos architecture, public contracts, package environments,
+  artifact storage, release composition или browser/Bun adapters дополнительно
+  использовать `$cosmos-development` из
+  `cosmos/.agents/skills/cosmos-development`. Он добавляет только предметные
+  правила Cosmos поверх общей documentation reference `$metafor-dev`.
 - Для standalone-разработки, lifecycle, browser-проверки и профилирования
   playground-пакетов `@ui/elements`, `@ui/components`, общего `@ui/playground`
   и Blender-based `@nodes/ui` использовать skill `$ui-dev` из
