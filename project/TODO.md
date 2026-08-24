@@ -61,7 +61,9 @@ flowchart LR
 [`DOC-001 — Вернуть единые правила документации MetaFor`](tasks/DOC-001.md)
 переносит принятую документационную систему в `$metafor-dev` и исправляет
 текущие Cosmos README, снова смешавшие owner law с технической механикой.
-Общие и Cosmos-specific skill rules разделены; текущий срез — `DOC-001.2`.
+Общие и Cosmos-specific skill rules разделены; текущий source-срез —
+`DOC-001.2`. Зависимый `DOC-001.4` сведёт изменённый внутрикодовый TSDoc с
+package-wide immutable artifacts и начнётся только после source checkpoint.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
