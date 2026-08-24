@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@nodes/core": "workspace:*",
+    "@nodes/editor": "workspace:*",
     "@nodes/layout": "workspace:*",
     "@nodes/layout-worker": "workspace:*",
     "@nodes/ui": "workspace:*"

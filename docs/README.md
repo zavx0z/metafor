@@ -70,6 +70,8 @@
   принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md) (далее — node UI),
   runtime/snapshot/projection граница —
   [`@nodes/core`](../pkg/nodes/core/REQUIREMENTS.md),
+  universal authoring-команды —
+  [`@nodes/editor`](../pkg/nodes/editor/REQUIREMENTS.md),
   а алгоритмические законы
   разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
   [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),

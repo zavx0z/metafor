@@ -37,6 +37,7 @@
     "pkg/web-push",
     "pkg/nodes",
     "pkg/nodes/core",
+    "pkg/nodes/editor",
     "pkg/nodes/layout",
     "pkg/nodes/layout-worker",
     "pkg/nodes/ui",

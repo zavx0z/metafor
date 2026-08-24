@@ -53,6 +53,7 @@ describe("universal node-system package boundaries", () => {
   test("publishes only existing independent entrypoints", async () => {
     for (const packagePath of [
       "pkg/nodes/core",
+      "pkg/nodes/editor",
       "pkg/nodes/layout",
       "pkg/nodes/layout-worker",
       "pkg/nodes/ui",
@@ -82,6 +83,7 @@ describe("universal node-system package boundaries", () => {
     }
     expect(Object.keys(coreManifest.exports).sort()).toEqual([
       ".",
+      "./json-patch",
       "./node-tree",
       "./parameter",
       "./projection-types",
@@ -110,8 +112,9 @@ describe("universal node-system package boundaries", () => {
     ]) expect(await Bun.file(join(packageRoot, legacy)).exists(), legacy).toBeFalse()
   })
 
-  test("builds independent core, layout policies and Blender Node Editor consumer", async () => {
+  test("builds independent core, authoring, layout policies and Blender Node Editor consumers", async () => {
     const core = await buildFixture("core-consumer.ts")
+    const authoring = await buildFixture("editor-consumer.ts")
     const fixedLayout = await buildFixture("fixed-layout-consumer.ts")
     const adaptiveLayout = await buildFixture("adaptive-layout-consumer.ts")
     const nodeEditor = await buildFixture("blender-node-editor-consumer.ts")
@@ -121,6 +124,10 @@ describe("universal node-system package boundaries", () => {
     expect(core.source).toContain("must contain only finite numbers")
     expect(core.source).not.toContain("struct GlobalUniforms")
     expect(core.source).not.toContain("NO_LEGAL_LAYOUT")
+    expect(authoring.source).toContain("NodeTreeEditor")
+    expect(authoring.source).toContain("JSON Patch")
+    expect(authoring.source).not.toContain("NO_LEGAL_LAYOUT")
+    expect(authoring.source).not.toContain("struct GlobalUniforms")
     expect(fixedLayout.source).toContain("Port has conflicting edge roles")
     expect(fixedLayout.source).toContain("NO_LEGAL_LAYOUT")
     expect(fixedLayout.source).not.toContain("NO_LEGAL_ADAPTIVE_SIDE_ASSIGNMENT")
@@ -147,6 +154,8 @@ describe("universal node-system package boundaries", () => {
     ]) expect(nodeEditor.source).not.toContain(legacy)
 
     expect(core.bytes).toBeLessThan(20_000)
+    expect(authoring.bytes).toBeLessThan(40_000)
+    expect(authoring.gzipBytes).toBeLessThan(12_000)
     expect(fixedLayout.bytes).toBeLessThan(100_000)
     expect(fixedLayout.gzipBytes).toBeLessThan(32_000)
     expect(adaptiveLayout.bytes).toBeLessThan(120_000)

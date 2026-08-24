@@ -116,6 +116,7 @@
       "version": "0.0.1",
       "devDependencies": {
         "@nodes/core": "workspace:*",
+        "@nodes/editor": "workspace:*",
         "@nodes/layout": "workspace:*",
         "@nodes/layout-worker": "workspace:*",
         "@nodes/ui": "workspace:*",
@@ -124,6 +125,13 @@
     "pkg/nodes/core": {
       "name": "@nodes/core",
       "version": "0.0.1",
+    },
+    "pkg/nodes/editor": {
+      "name": "@nodes/editor",
+      "version": "0.0.1",
+      "dependencies": {
+        "@nodes/core": "workspace:*",
+      },
     },
     "pkg/nodes/layout": {
       "name": "@nodes/layout",
@@ -141,7 +149,9 @@
       "version": "0.0.1",
       "dependencies": {
         "@nodes/core": "workspace:*",
+        "@nodes/editor": "workspace:*",
         "@nodes/ui": "workspace:*",
+        "@ui/components": "workspace:*",
         "@ui/elements": "workspace:*",
         "@ui/playground": "workspace:*",
       },
@@ -448,6 +458,8 @@
     "@metafor/web-push": ["@metafor/web-push@workspace:pkg/web-push"],
 
     "@nodes/core": ["@nodes/core@workspace:pkg/nodes/core"],
+
+    "@nodes/editor": ["@nodes/editor@workspace:pkg/nodes/editor"],
 
     "@nodes/layout": ["@nodes/layout@workspace:pkg/nodes/layout"],
 

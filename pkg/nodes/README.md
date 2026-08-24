@@ -35,6 +35,8 @@ Projector разделяет три производных результата:
 
 * [`@nodes/core`](core/README.md) — renderer-neutral runtime, snapshot и
   projection coordination.
+* [`@nodes/editor`](editor/README.md) — headless JSON Patch commands,
+  optimistic revision и явный layout gate без solver dependency.
 * [`@nodes/layout`](layout/README.md) — чистый числовой solver. Он получает
   производный serializable graph и не читает живой `NodeTree`, Parameter,
   renderer или WebGPU. Его собственный SVG playground позволяет разрабатывать
@@ -59,9 +61,11 @@ bun run nodes:layout:playground  # @nodes/layout: чистая SVG-геомет�
 bun run nodes:components         # @nodes/ui: каталог компонентов
 ```
 
-Parent WebGPU playground показывает полный путь `NodeTree → projection →
-NodeEditor`, изменение значения через тот же живой Parameter, чистый snapshot и
-диагностику кэша. `@nodes/layout` независимо показывает fixed/adaptive
+Parent WebGPU playground показывает полный путь `NodeTreeEditor → NodeTree →
+projection → NodeEditor`: Node, Parameter и Link редактируются через JSON Patch,
+значение остаётся в том же живом Parameter, а layout перестраивается отдельной
+кнопкой. Рядом видны чистый snapshot и диагностика кэша. `@nodes/layout`
+независимо показывает fixed/adaptive
 `RIGHT`/`DOWN` geometry без UI-зависимостей. `@nodes/ui` независимо показывает
 визуальные компоненты. Playground каждого package дополняет соседние и не
 заменяется parent playground.
@@ -74,6 +78,7 @@ Lifecycle и background browser evidence всех трёх contours принад
 
 ```bash
 bun run --cwd pkg/nodes/core typecheck
+bun run --cwd pkg/nodes/editor typecheck
 bun run --cwd pkg/nodes/layout-worker typecheck
 bun run --cwd pkg/nodes/ui typecheck
 bun run --cwd pkg/nodes/playground typecheck

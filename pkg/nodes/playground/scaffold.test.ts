@@ -23,7 +23,9 @@ describe("parent nodes playground scaffold", () => {
     })
     expect(manifest.dependencies).toEqual({
       "@nodes/core": "workspace:*",
+      "@nodes/editor": "workspace:*",
       "@nodes/ui": "workspace:*",
+      "@ui/components": "workspace:*",
       "@ui/elements": "workspace:*",
       "@ui/playground": "workspace:*",
     })
@@ -52,13 +54,22 @@ describe("parent nodes playground scaffold", () => {
 
     expect(entry).toContain('from "@nodes/core/node-tree"')
     expect(entry).toContain('from "@nodes/core/parameter"')
+    expect(entry).toContain('from "@nodes/editor"')
     expect(entry).toContain('from "@nodes/ui/blender-projection"')
     expect(entry).toContain("tree.project(projector")
     expect(entry).toContain("editor.setProjection(projection)")
-    expect(entry).toContain("gain.set(value)")
+    expect(entry).toContain("new NodeTreeEditor(tree)")
+    expect(entry).toContain("new NodeTreeEditorDockSurface(dockOptions())")
+    expect(entry).toContain("author.addParameter({")
+    expect(entry).toContain("author.connect({")
+    expect(entry).toContain("author.markLayoutApplied(projection)")
+    expect(entry).toContain('event.key === "F6"')
+    expect(entry).toContain('event.key === "F7"')
     expect(entry).toContain('event.key === "F8"')
+    expect(entry).toContain('event.key === "F9"')
     expect(entry).toContain("nodeTreeMaterializations")
     expect(entry).toContain("return applyProjection()")
+    expect(entry).not.toContain("gain.set(value)")
     expect(entry).not.toContain("NodeFieldValueState")
     expect(entry).not.toContain("bindNodeFieldValueState")
     expect(entry).not.toContain("positionBlenderNode")

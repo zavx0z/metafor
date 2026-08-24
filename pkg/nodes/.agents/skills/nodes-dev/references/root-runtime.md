@@ -58,3 +58,18 @@ Assert `treeRevision=1`, `projectionRevision=1`, `reusedMeasurements=2` and
 `reusedLayouts=1` in the checkpoint DOM. Reload alone proves only the initial
 projection. These counters are runtime evidence, not proof of another package
 or product integration.
+
+For structural authoring, use the separate repeatable editor plan after an
+exact reload:
+
+```bash
+bun "$SKILL/scripts/nodes-browser.ts" interact "$PWD" --playground root \
+  --route /node-tree/runtime/live --target-id "$target_id" \
+  --plan pkg/nodes/.agents/skills/nodes-dev/references/root-editor-topology.plan.json
+```
+
+Its first two checkpoints must keep the previous projection while
+`nodeTreeLayoutDirty=true`; the final F9 checkpoint must match tree and
+projection topology revisions, clear the dirty marker and capture a non-black
+canvas. F6 adds one Parameter, F7 disconnects one Link, and neither command
+runs layout before F9.
