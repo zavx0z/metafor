@@ -21,7 +21,6 @@ flowchart LR
     AUD012["AUD-012 · завершение Renderer"]
     AUD013["AUD-013 · серверные проверки"]
     AUD014["AUD-014 · корневой пакет"]
-    COS003["COS-003 · документация Cosmos"]
     MF411["MF-411 · что делает Hamiltonian"]
     MF414["MF-414 · где работают домены"]
     MF421["MF-421 · деактивация невидимого monitor display"]
@@ -57,12 +56,6 @@ flowchart LR
 ```
 
 ## P1 — ближайшая работа
-
-[`COS-003 — Закрепить правила документации Cosmos`](tasks/COS-003.md) создаёт
-локальный skill: краткий owner contract ссылается на глубокую внутрикодовую
-TSDoc-документацию, а одинаковая ответственность browser/Bun сначала
-выражается общим interface. Correction `52c28a80a` связала environment owner law
-с public source declaration и готова к повторному review.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
@@ -319,7 +312,6 @@ correction без fixture offset.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
-| COS-003 | REVIEW      | нет        | [Открыть](tasks/COS-003.md) |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | HAM-006 | WAITING    | MF-424      | [Открыть](tasks/HAM-006.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
