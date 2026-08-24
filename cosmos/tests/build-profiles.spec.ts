@@ -21,7 +21,6 @@ import {
   packageEnvironments,
   type PackageEnvironment,
 } from "../shared/package/environment"
-import {artifactIntegrity} from "../shared/package/integrity"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
@@ -471,7 +470,7 @@ test("development keeps debug and source maps while production drops both", asyn
   }
 }, 30_000)
 
-test("current startup version converges with every exact environment artifact", async () => {
+test("current startup version keeps exact executable bytes and non-empty development maps", async () => {
   const directory = await mkdtemp(join(tmpdir(), "metafor-startup-convergence-"))
   const manifest = await Bun.file(join(cosmos, "startup/package.json")).json() as {
     version: string
@@ -519,17 +518,22 @@ test("current startup version converges with every exact environment artifact", 
     ])
 
     for (const env of environments) {
-      const exact = join(cosmos, "startup/dist/versions", manifest.version, `${env}.js`)
-      for (const [current, versioned] of [
-        [staged[env], exact],
-        [`${staged[env]}.map`, `${exact}.map`],
-      ] as const) {
-        const artifact = Bun.file(versioned)
-        if (!await artifact.exists()) throw new Error(`Exact startup artifact is missing: ${versioned}`)
-        expect(await artifactIntegrity(await artifact.arrayBuffer())).toEqual(
-          await artifactIntegrity(await Bun.file(current).arrayBuffer()),
-        )
-      }
+      const exactExecutablePath = join(
+        cosmos,
+        "startup/dist/versions",
+        manifest.version,
+        `${env}.js`,
+      )
+      const exactExecutable = Bun.file(exactExecutablePath)
+      if (!await exactExecutable.exists())
+        throw new Error(`Exact startup executable is missing: ${exactExecutablePath}`)
+      expect(await exactExecutable.bytes()).toEqual(await Bun.file(staged[env]).bytes())
+
+      const exactMapPath = `${exactExecutablePath}.map`
+      const exactMap = Bun.file(exactMapPath)
+      if (!await exactMap.exists())
+        throw new Error(`Exact startup development map is missing: ${exactMapPath}`)
+      expect(exactMap.size).toBeGreaterThan(0)
     }
   } finally {
     await rm(directory, {recursive: true, force: true})

@@ -123,6 +123,44 @@ test("converged publication state does not emit recovery diagnostics", async () 
   }
 })
 
+test("documentation-only recovery keeps the exact map of identical executable code", async () => {
+  const state = await releaseWorkspaceState(cosmos)
+  try {
+    const {stdout, result} = await runReleaseFixture("documentation-recovery")
+    const recoveryOutput = afterRecoveryMarker(stdout)
+    expect(result).toEqual(expect.objectContaining({
+      error: null,
+      recovered: [],
+      rewritten: [],
+      documentationDrift: {javascript: false, sourceMap: true},
+    }))
+    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
+    expect(recoveryOutput).not.toContain("восстановление публикации начато")
+    expect(recoveryOutput).not.toContain("восстановление публикации завершено")
+  } finally {
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
+  }
+})
+
+test("recovery restores a missing exact map from the staged build", async () => {
+  const state = await releaseWorkspaceState(cosmos)
+  try {
+    const {stdout, result} = await runReleaseFixture("missing-map-recovery")
+    const recoveryOutput = afterRecoveryMarker(stdout)
+    expect(result).toEqual(expect.objectContaining({
+      error: null,
+      recovered: [],
+      rewritten: [],
+      missingSourceMap: {restored: true, matchesStaged: true},
+    }))
+    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
+    expect(recoveryOutput).toContain("восстановление публикации начато")
+    expect(recoveryOutput).toContain("восстановление публикации завершено")
+  } finally {
+    expect(await releaseWorkspaceState(cosmos)).toEqual(state)
+  }
+})
+
 test("cold recovery rejects changed source behind a complete exact composition", async () => {
   const state = await releaseWorkspaceState(cosmos)
   try {

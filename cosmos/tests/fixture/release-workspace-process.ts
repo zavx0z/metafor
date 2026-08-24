@@ -35,6 +35,18 @@ test("release workspace fixture", async () => {
       throw new Error(`Release paths fixture was not installed: ${resolvedPaths.cosmosRoot}`)
 
     if (isRecoveryScenario()) await prepareRecoveryArtifacts()
+    let documentationDrift: {javascript: boolean; sourceMap: boolean} | null = null
+    let missingSourceMap: {restored: boolean; matchesStaged: boolean} | null = null
+    if (scenario === "documentation-recovery") {
+      await writeSource(
+        join(cosmos, "release", "main", "index.ts"),
+        '/**\nDocumentation-only fixture comment.\n*/\nexport const environment = "main"\n',
+      )
+      documentationDrift = await measureDocumentationDrift()
+    }
+    if (scenario === "missing-map-recovery") {
+      await rm(recoverySourceMap(), {force: true})
+    }
     if (scenario === "conflicting-recovery") {
       await writeSource(
         join(cosmos, "release", "main", "index.ts"),
@@ -63,6 +75,8 @@ test("release workspace fixture", async () => {
     } else if (
       scenario === "cold-recovery"
       || scenario === "converged-recovery"
+      || scenario === "documentation-recovery"
+      || scenario === "missing-map-recovery"
       || scenario === "conflicting-recovery"
     ) {
       const {recoverPublication} = await import("../../release/server/release/publication")
@@ -76,11 +90,19 @@ test("release workspace fixture", async () => {
         error = reason instanceof Error ? reason.message : String(reason)
       }
       const after = await artifactStamps()
+      if (scenario === "missing-map-recovery") {
+        missingSourceMap = {
+          restored: await Bun.file(recoverySourceMap()).exists(),
+          matchesStaged: await equalFiles(recoverySourceMap(), stagedRecoverySourceMap()),
+        }
+      }
       console.log(JSON.stringify({
         root,
         error,
         recovered: result?.recovered ?? [],
         rewritten: Object.keys(before).filter((path) => after[path] !== before[path]),
+        documentationDrift,
+        missingSourceMap,
         artifacts: (result?.artifacts ?? []).map(({path, sha256, size}) => ({
           path: path.slice(cosmos.length),
           sha256,
@@ -282,6 +304,8 @@ async function prepareRecoveryArtifacts() {
 function isRecoveryScenario() {
   return scenario === "cold-recovery"
     || scenario === "converged-recovery"
+    || scenario === "documentation-recovery"
+    || scenario === "missing-map-recovery"
     || scenario === "conflicting-recovery"
 }
 
@@ -293,12 +317,66 @@ async function artifactStamps() {
     ["internal/visual", "main"],
     ["internal/visual", "server"],
   ]
-  return Object.fromEntries((await Promise.all(artifacts.map(async ([path, env]) => {
+  const paths = artifacts.flatMap(([path, env]) => {
     const artifact = join(cosmos, path, "dist", "versions", targetVersion, `${env}.js`)
-    if (!await Bun.file(artifact).exists()) return null
-    const state = await stat(artifact, {bigint: true})
-    return [artifact, `${state.dev}:${state.ino}:${state.mtimeNs}:${state.size}`] as const
+    return [artifact, `${artifact}.map`]
+  })
+  return Object.fromEntries((await Promise.all(paths.map(async (path) => {
+    if (!await Bun.file(path).exists()) return null
+    const state = await stat(path, {bigint: true})
+    return [path, `${state.dev}:${state.ino}:${state.mtimeNs}:${state.size}`] as const
   }))).filter((entry) => entry !== null))
+}
+
+async function measureDocumentationDrift() {
+  const {buildPackage} = await import("../../release/server/package/build")
+  const {packageArtifact} = await import("../../release/server/package/manifest")
+  const result = await buildPackage("@cosmos/release", {
+    env: "main",
+    artifact: join(cosmos, ".fixture-publication", "0.js"),
+  })
+  if (!result.success) throw new Error(`Documentation drift build failed: ${result.stderr}`)
+
+  const exactArtifact = await packageArtifact(join(
+    cosmos,
+    "release",
+    "dist",
+    "versions",
+    targetVersion,
+    "main.js",
+  ))
+  const exactSourceMap = await packageArtifact(recoverySourceMap())
+  if (!exactArtifact || !exactSourceMap)
+    throw new Error("Documentation drift exact artifacts are missing")
+  return {
+    javascript: result.outputs[0]?.sha256 !== exactArtifact.sha256,
+    sourceMap: result.outputs[1]?.sha256 !== exactSourceMap.sha256,
+  }
+}
+
+function recoverySourceMap() {
+  return join(
+    cosmos,
+    "release",
+    "dist",
+    "versions",
+    targetVersion,
+    "main.js.map",
+  )
+}
+
+function stagedRecoverySourceMap() {
+  return join(cosmos, ".fixture-publication", "0.js.map")
+}
+
+async function equalFiles(left: string, right: string) {
+  const [leftSource, rightSource] = await Promise.all([
+    Bun.file(left).arrayBuffer(),
+    Bun.file(right).arrayBuffer(),
+  ])
+  const leftHash = new Bun.CryptoHasher("sha256").update(leftSource).digest("hex")
+  const rightHash = new Bun.CryptoHasher("sha256").update(rightSource).digest("hex")
+  return leftHash === rightHash
 }
 
 async function writeJson(path: string, value: unknown) {

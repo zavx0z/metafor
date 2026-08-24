@@ -166,7 +166,7 @@ async function runRecovery(): Promise<RecoveryResult> {
     if (failure)
       throw new Error(`Recovery build failed for ${failure.module}:${failure.env}: ${failure.stderr}`)
 
-    await materializePlans(plans, results)
+    await materializeRecoveryPlans(plans, results)
     await writeChildVersions(pending)
     await readReleasedPackages()
     const artifacts = await exactPlanArtifacts(plans)
@@ -248,6 +248,32 @@ async function materializePlans(
       publishImmutableArtifact(staged, target)))
     results[index]!.outputs = published
     artifacts.push(published[0]!)
+  }
+  return artifacts
+}
+
+async function materializeRecoveryPlans(
+  plans: ReleasePlan[],
+  results: PackageReleaseResult[],
+) {
+  const artifactPlans = plans.flatMap((plan) => plan.artifacts)
+  const artifacts: PackageBuildArtifact[] = []
+  for (const [index, plan] of artifactPlans.entries()) {
+    const artifact = await publishImmutableArtifact(
+      plan.stagedArtifact,
+      plan.publishedArtifact,
+    )
+    const outputs = [artifact]
+    if (Bun.env.NODE_ENV === "development") {
+      const existingSourceMap = await packageArtifact(plan.publishedSourceMap)
+      const sourceMap = existingSourceMap ?? await publishImmutableArtifact(
+        plan.stagedSourceMap,
+        plan.publishedSourceMap,
+      )
+      outputs.push(sourceMap)
+    }
+    results[index]!.outputs = outputs
+    artifacts.push(artifact)
   }
   return artifacts
 }
