@@ -66,8 +66,9 @@ documentation-only diff от executable package change. Текущий диаг�
 полную причинную цепочку. `DOC-002.4` закрепил documentation-only lifecycle у
 постоянных владельцев commit-ом `2a1e77e25`. Независимые текущие
 срезы `.5/.6` сохранили startup/recovery executable fail-closed commit-ом
-`cb853c0bc`. Текущий `.7` публикует только действительно изменившийся
-executable release package.
+`cb853c0bc`, а `.7` опубликовал только действительно изменившийся release
+`0.1.18` commit-ом `59e1f5394`. Задача находится в `REVIEW` и ждёт независимой
+закрывающей проверки.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
@@ -324,7 +325,7 @@ correction без fixture offset.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
-| DOC-002 | IN_PROGRESS | нет        | [Открыть](tasks/DOC-002.md) |
+| DOC-002 | REVIEW      | нет        | [Открыть](tasks/DOC-002.md) |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | HAM-006 | WAITING    | MF-424      | [Открыть](tasks/HAM-006.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
