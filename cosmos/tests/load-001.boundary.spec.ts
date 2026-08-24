@@ -2,6 +2,7 @@ import {expect, test} from "bun:test"
 import {existsSync} from "node:fs"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
+import {satisfiesWorkspaceRange} from "../release/server"
 
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
@@ -52,8 +53,9 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
     Bun.file(join(cosmos, "release/package.json")).json() as Promise<{version: string}>,
   ])
   expect(startupPackage.artifact).toBeUndefined()
-  expect(startupPackage.dependencies?.["@cosmos/release"])
-    .toBe(`workspace:^${releasePackage.version}`)
+  const declaredReleaseRange = startupPackage.dependencies?.["@cosmos/release"]
+  expect(declaredReleaseRange).toBeDefined()
+  expect(satisfiesWorkspaceRange(releasePackage.version, declaredReleaseRange ?? "")).toBeTrue()
   expect(packageBuild).toContain('"Service-Worker-Allowed": "/"')
   expect(packageBuild).toContain('"Content-Security-Policy": "script-src \'unsafe-eval\'"')
 
