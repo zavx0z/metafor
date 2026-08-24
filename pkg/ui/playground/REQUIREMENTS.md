@@ -88,7 +88,7 @@ Components либо consumer.
     horizontal scrollbar; wheel axis-lock, track click и thumb drag принадлежат
     общему `div` scroll primitive. Source update сохраняет допустимую позицию и
     клампит её к новым bounds, а title, copy, tabs и detail owners не
-   материализуются из-за прокрутки кода.
+    материализуются из-за прокрутки кода.
 20. Канонический адрес package overview и любого prefix overview оканчивается
     `/`, а exact detail leaf — нет. Входной адрес в противоположной форме может
     быть только совместимым redirect на канонический адрес. Неизвестный suffix
@@ -105,3 +105,8 @@ Components либо consumer.
     production graph; DOM page не получает WebGPU runtime, а WebGPU page создаёт
     ровно один `UiRuntime`. `$ui-dev` владеет одним selector `ui`, одним process
     и одним target, а package выбирается exact route.
+23. Каждая вложенная package, prefix-overview и detail page имеет общий
+    видимый DOM-control `Home`, ведущий на `/` текущего playground origin. Он
+    принадлежит server shell, находится поверх DOM/SVG/WebGPU page и не требует
+    consumer renderer либо ручного изменения адресной строки. На самой главной
+    `/` этот control отсутствует.

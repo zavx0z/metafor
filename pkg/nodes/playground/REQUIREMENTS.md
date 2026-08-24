@@ -17,6 +17,9 @@
    допускается.
 4. Один browser target этого origin переходит между package routes. Навигация
    не создаёт второй target или второй runtime process.
+5. На каждом package overview, prefix overview и detail route видна общая
+   кнопка `Home`, возвращающая на главный каталог `/`; она не рисуется отдельно
+   в DOM, SVG и WebGPU consumers.
 
 ## Package routes
 
