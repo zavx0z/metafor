@@ -321,7 +321,7 @@ correction без fixture offset.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
-| DOC-001 | IN_PROGRESS | нет        | [Открыть](tasks/DOC-001.md) |
+| DOC-001 | REVIEW      | нет        | [Открыть](tasks/DOC-001.md) |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | HAM-006 | WAITING    | MF-424      | [Открыть](tasks/HAM-006.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
