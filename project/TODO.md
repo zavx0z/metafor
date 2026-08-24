@@ -61,8 +61,8 @@ flowchart LR
 [`COS-003 — Закрепить правила документации Cosmos`](tasks/COS-003.md) создаёт
 локальный skill: краткий owner contract ссылается на глубокую внутрикодовую
 TSDoc-документацию, а одинаковая ответственность browser/Bun сначала
-выражается общим interface. Result `62f1b774e` удалил остаточные понятия
-генерации и готов к independent review.
+выражается общим interface. Review result `62f1b774e` открыл одну correction:
+environment owner law должен ссылаться на public source declaration.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
@@ -319,7 +319,7 @@ correction без fixture offset.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
-| COS-003 | REVIEW      | нет        | [Открыть](tasks/COS-003.md) |
+| COS-003 | IN_PROGRESS | нет        | [Открыть](tasks/COS-003.md) |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | HAM-006 | WAITING    | MF-424      | [Открыть](tasks/HAM-006.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
