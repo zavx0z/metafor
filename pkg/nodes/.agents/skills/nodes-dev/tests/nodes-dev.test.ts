@@ -155,7 +155,6 @@ describe("nodes-dev package boundary", () => {
     expect(plan.steps?.map(({kind}) => kind)).toEqual([
       "key-down",
       "key-up",
-      "settle",
       "checkpoint",
     ])
     expect(plan.steps?.[0]?.code).toBe("F8")

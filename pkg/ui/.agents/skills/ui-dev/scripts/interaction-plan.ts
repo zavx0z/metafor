@@ -329,6 +329,7 @@ export async function executeInteractionPlan(
           type: "keyUp",
           key,
           ...(descriptor.code === undefined ? {} : {code: descriptor.code}),
+          ...virtualKeyCode(key),
           modifiers: 0,
         })
       } catch (cleanupError) {
@@ -507,8 +508,16 @@ function keyEvent(
     type,
     key: step.key,
     ...(step.code === undefined ? {} : {code: step.code}),
+    ...virtualKeyCode(step.key),
     modifiers: modifierMask(step.modifiers),
   }
+}
+
+function virtualKeyCode(key: string): JsonObject {
+  const match = /^F([1-9]|1[0-2])$/.exec(key)
+  if (match === null) return {}
+  const code = 111 + Number(match[1])
+  return {windowsVirtualKeyCode: code, nativeVirtualKeyCode: code}
 }
 
 async function mouse(

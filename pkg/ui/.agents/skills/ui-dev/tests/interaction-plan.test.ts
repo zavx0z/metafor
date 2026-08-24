@@ -129,6 +129,43 @@ describe("ui-dev data-only interaction plans", () => {
     }), host)).rejects.toThrow("is not down")
   })
 
+  test("dispatches function keys with the virtual key code required by CDP", async () => {
+    const calls: Array<Readonly<{method: string; params: unknown}>> = []
+    const host: InteractionCommandHost = {
+      viewport: {width: 100, height: 80},
+      async send(method, params) { calls.push({method, params}) },
+      async settle() {},
+      async checkpoint() { return {} },
+    }
+
+    await executeInteractionPlan(parseInteractionPlan({
+      version: 1,
+      steps: [
+        {kind: "key-down", key: "F8", code: "F8"},
+        {kind: "key-up", key: "F8", code: "F8"},
+      ],
+    }), host)
+
+    expect(calls).toEqual([
+      {method: "Input.dispatchKeyEvent", params: {
+        type: "keyDown",
+        key: "F8",
+        code: "F8",
+        windowsVirtualKeyCode: 119,
+        nativeVirtualKeyCode: 119,
+        modifiers: 0,
+      }},
+      {method: "Input.dispatchKeyEvent", params: {
+        type: "keyUp",
+        key: "F8",
+        code: "F8",
+        windowsVirtualKeyCode: 119,
+        nativeVirtualKeyCode: 119,
+        modifiers: 0,
+      }},
+    ])
+  })
+
   test("requires an existing exact selector route and target before interaction", () => {
     const valid = {
       selector: "components",
