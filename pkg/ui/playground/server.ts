@@ -336,7 +336,7 @@ function createPageHtml(
     <style>
       .playground-home {
         position: fixed;
-        left: 10px;
+        right: 10px;
         bottom: 10px;
         z-index: 2147483647;
         display: inline-flex;
