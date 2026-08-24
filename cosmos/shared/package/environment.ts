@@ -20,6 +20,9 @@
  * Storage и Service Worker transaction. Bun environments собираются для Bun и
  * не входят в browser delivery/cache projection.
  *
+ * Понятный [закон environments](../../README.md#среды-выполнения-packages)
+ * связывает этот public contract с общей картиной Cosmos.
+ *
  * @packageDocumentation
  */
 

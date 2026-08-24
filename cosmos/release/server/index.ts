@@ -1,4 +1,12 @@
-/** Public API env `server` package `@cosmos/release`. */
+/**
+ * Public Bun API server-части release.
+ *
+ * Entry point объединяет package discovery/build/publication, release state,
+ * delivery и RPC под одним release-owned listener. Смысл полного состава и
+ * handover принадлежит [release owner law](../README.md#как-сменяется-выпуск).
+ *
+ * @packageDocumentation
+ */
 import {runReleaseServer, startReleaseServer} from "./runtime"
 
 export type {

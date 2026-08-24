@@ -1,3 +1,17 @@
+/**
+ * Bun entrypoint устойчивого startup.
+ *
+ * Он разрешает exact server artifact текущего release, передаёт его общему
+ * process executor, ждёт готовность и наблюдает завершение. Signal shutdown
+ * уничтожает только принадлежащую startup release incarnation.
+ *
+ * Пользовательский lifecycle задан [startup owner law](../README.md#как-начинается-работа),
+ * а process outcomes проверяет
+ * [server startup regression](../../tests/server-startup.spec.ts).
+ *
+ * @packageDocumentation
+ */
+
 import type {ActivePackage, PackageExit} from "@cosmos/release"
 import {currentServerReleaseArtifact, serverStartupCosmosRoot} from "./artifact"
 import {

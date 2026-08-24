@@ -3,6 +3,7 @@
  *
  * Она синхронно регистрирует browser listeners, сразу запускает release и
  * оставляет всё прикладное поведение самому release.
+ * Пользовательский lifecycle задан [startup owner law](../README.md#как-начинается-работа).
  *
  * @packageDocumentation
  */

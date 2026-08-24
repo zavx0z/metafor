@@ -1,3 +1,19 @@
+/**
+ * Browser entrypoint готовой визуальной среды Cosmos.
+ *
+ * Initial evaluation требует принадлежащий приложению canvas, создаёт один
+ * `UiRuntime`, основное пространство, display и HUD-навигацию, затем удерживает
+ * размер display согласованным с canvas. Отсутствующий canvas завершает запуск
+ * до экспорта готового runtime.
+ *
+ * Пользовательский [закон визуальной среды](../README.md#визуальная-среда-main)
+ * отделяет эту инфраструктуру от смысла показываемых Quantum/metafor данных.
+ * Состав package и build boundaries проверяет
+ * [visual regression](../../../tests/ham-005.boundary.spec.ts).
+ *
+ * @packageDocumentation
+ */
+
 import {GridHelper} from "@metafor/engine"
 import {UiRuntime} from "@ui/elements"
 import {DisplayDockSurface} from "./display-dock.ts"
@@ -7,6 +23,7 @@ const VISUAL_FONT_URL = "/assets/fonts/JetBrainsMono-Bold.ttf"
 const VISUAL_DISPLAY_ID = "main"
 const VISUAL_DISPLAY_CENTER_MM = {x: 0, y: 0, z: 900} as const
 
+/** Точный browser environment этого platform entrypoint. */
 export const environment = "main" as const
 
 const canvas = document.getElementById(VISUAL_CANVAS_ID)
@@ -14,6 +31,7 @@ if (!(canvas instanceof HTMLCanvasElement)) {
   throw new Error(`Window visual canvas #${VISUAL_CANVAS_ID} is missing`)
 }
 
+/** Готовый shared visual runtime после обязательной initial materialization. */
 export const runtime = await UiRuntime.create(canvas, {
   fontUrl: VISUAL_FONT_URL,
   virtualDisplay: {

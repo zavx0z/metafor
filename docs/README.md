@@ -54,13 +54,16 @@
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
-* [Cosmos](../cosmos/README.md) — внешний контур исполнения: сервер, сборка,
-  публикация выпуска и предоставление возможностей Quantum. Его минимальный
-  [устойчивый вход](../cosmos/startup/README.md) принадлежит `@cosmos/startup`,
-  [сменяемый выпуск](../cosmos/release/README.md) — `@cosmos/release`,
-  [инфраструктурные возможности](../cosmos/internal/README.md) — пространству
-  `@internal/*`, а текущая [визуальная возможность](../cosmos/internal/visual/README.md)
-  — пакету `@internal/visual`.
+* [Внешний уровень исполнения Cosmos](../cosmos/README.md) задаёт общий закон
+  запуска, выпуска и инфраструктуры. [Устойчивый запуск
+  выпуска](../cosmos/startup/README.md#как-начинается-работа) принадлежит
+  `@cosmos/startup` (далее — startup), [подготовка полного
+  выпуска](../cosmos/release/README.md#что-называется-выпуском) —
+  `@cosmos/release` (далее — release), [закон внутренних
+  пакетов](../cosmos/internal/README.md#внутренний-пакет-и-его-возможность) —
+  пространству `@internal/*` (далее — internal-пакеты), а [готовая визуальная
+  среда Cosmos](../cosmos/internal/visual/README.md#визуальная-среда-main) —
+  `@internal/visual` (далее — visual).
 * [Node system](../pkg/nodes/README.md) — Blender-подобная компонентная
   библиотека `NodeTree → Frame / Node → Parameter → Socket → Link`, universal
   fields и отдельно сохранённое layout-ядро `@nodes/layout` (далее — layout).

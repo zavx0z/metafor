@@ -1,6 +1,8 @@
 /**
  * Сменяемый Service Worker release между startup bridge и browser packages.
  * Factory возвращает inert runtime; RPC и timers появляются только в start().
+ * Пользовательский lifecycle принадлежит
+ * [release owner law](../../README.md#как-сменяется-выпуск).
  *
  * @packageDocumentation
  */

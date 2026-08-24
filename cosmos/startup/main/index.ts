@@ -4,6 +4,7 @@
  * При первой установке модуль ждёт появления Service Worker controller, а при
  * уже controlled document использует текущий controller. Service Worker
  * release запускается самой startup-оболочкой, а Window запускает свой release.
+ * Пользовательский lifecycle задан [startup owner law](../README.md#как-начинается-работа).
  *
  * @packageDocumentation
  */

@@ -1,130 +1,64 @@
 # `@cosmos/release`
 
-`@cosmos/release` — сменяемый механизм сборки, публикации, доставки и обновления
-выпуска Cosmos.
+`@cosmos/release` (далее — release) готовит, проверяет, публикует и
+восстанавливает сменяемый выпуск Cosmos. [Устойчивый запуск
+выпуска](../startup/README.md#как-начинается-работа) делает подготовленного
+кандидата действующим вместо предшественника.
 
-Release не владеет предметным состоянием Quantum. Он работает с пакетами,
-версиями, artifacts и платформенными средами и обеспечивает переход между
-согласованными составами без частично принятого выпуска.
+Выпуск объединяет точные версии release, `@internal/*` (далее —
+internal-пакеты) и `@metafor/*` (далее — metafor-пакеты). Internal-пакеты
+объявляют свои части и общую версию по
+[закону внутренних пакетов](../internal/README.md#внутренний-пакет-и-его-возможность).
 
-## Среды
+## Что называется выпуском
 
-Пакет имеет три среды:
+Выпуск — согласованный набор точных версий packages со всеми платформенными
+частями этих версий. Startup остаётся отдельной устойчивой частью установленной
+среды, пока выпуск заменяется.
 
-```text
-cosmos:main     -> ./main/index.ts
-cosmos:service  -> ./service/index.ts
-cosmos:server   -> ./server/index.ts
-```
+Состав выпуска однозначно задаёт:
 
-### `main`
+1. входящие packages;
+1. точную версию каждого package;
+1. все платформенные части выбранных версий;
+1. удовлетворённые зависимости между packages.
 
-Window-entrypoint текущего выпуска. Сейчас он подключает `@internal/visual` и
-тем самым материализует визуальную возможность текущего browser release.
+Каждый package сам объявляет поддерживаемые environments. Одна package version
+охватывает все объявленные платформенные части. Release читает это объявление,
+проверяет полный состав и готовит только допустимые parts; выбор места их
+воплощения не меняет состав выпуска.
 
-### `service`
+Совместимым является только полный состав, в котором присутствуют все
+выбранные packages и их parts, а зависимости удовлетворяются выбранными
+версиями.
 
-Service Worker runtime выпуска. Он владеет:
+<a id="обновление-browser-release"></a>
 
-- browser Cache Storage для release/internal/metafor artifacts;
-- RPC-синхронизацией с сервером через `/sw`;
-- подготовкой exact artifacts;
-- durable transaction обновления;
-- проверкой полного candidate composition;
-- переключением release runtime через контракт `startup`;
-- перезагрузкой управляемых Window после принятого изменения.
+## Как сменяется выпуск
 
-Cache Storage сохраняет package artifacts, startup core и только необходимые
-runtime assets. Текущий runtime asset — `/assets/fonts/JetBrainsMono-Bold.ttf`.
-Manifest screenshots, icons и favicon не сохраняются Worker: online-запрос
-получает их из сети, а offline-запрос без внешнего ответа получает `503`.
+Когда среде назначен новый состав:
 
-### `server`
+1. release получает целевой состав;
+1. получает и проверяет все его packages и платформенные части;
+1. готовит полного кандидата рядом с действующим выпуском;
+1. проверяет полноту и совместимость кандидата;
+1. запрашивает handover у startup;
+1. startup запускает кандидата, переводит на него новые события, дожидается
+   операций предшественника и завершает прежнее исполнение;
+1. новый release восстанавливает принадлежащие ему обязательные связи.
 
-Server artifact запускается startup отдельным Bun-процессом и сам создаёт
-единственный HTTP/WebSocket server Cosmos. После IPC `ready` startup только
-наблюдает process lifecycle; routes и transport остаются внутри release.
+Прерванная подготовка продолжается из последнего пригодного состояния.
+Частичный состав и смесь package versions не становятся действующим выпуском.
 
-Серверная часть владеет техническим release lifecycle:
+Наблюдаемый результат — environment управляет один полный совместимый release,
+а предшественник завершает уже принятую работу до уничтожения.
 
-- разрешением package manifests и environments;
-- package-owned typecheck/build;
-- вычислением следующей SemVer;
-- immutable versioned artifacts;
-- root release composition;
-- атомарной публикацией и восстановлением незавершённой публикации;
-- HTTP delivery browser artifacts;
-- `/code` state/publication API;
-- WebSocket RPC для Service Worker.
+## Один закон для всех environments
 
-## Состав выпуска
+Для browser и Bun действует один закон выпуска. Различаются средства получения,
+хранения и исполнения artifacts, а состав, package versions и проверяемая
+identity остаются общими.
 
-Root membership задаётся зависимостями `cosmos/package.json`. Сменяемый browser
-release сейчас включает `@cosmos/release` и подходящие `@internal/*` пакеты.
-Каждый package сам объявляет поддерживаемые environments через conditional
-exports.
-
-Для каждого участника release фиксирует:
-
-```text
-package name
-version
-supported environments
-artifact sha256
-artifact size
-```
-
-Browser artifact имеет канонический URL:
-
-```text
-/@scope/package?env=<environment>&version=<semver>
-```
-
-Stable URL без `version` указывает на текущую принятую версию.
-
-В development-профиле каждый JavaScript artifact получает отдельную immutable
-source map. JavaScript связывается с ней HTTP-заголовком `SourceMap`; map не
-входит в release identity, `/code` или Cache Storage и загружается DevTools
-только по отдельному URL с последним параметром `source-map`.
-
-При `Accept-Encoding: br` server передаёт JavaScript и source map через Brotli.
-`Vary: Accept-Encoding` разделяет транспортные представления, а package
-SHA-256 и size по-прежнему относятся к распакованным canonical bytes.
-
-## Публикация
-
-Серверная publication выполняется как одна сериализованная операция:
-
-1. определяется новый target version для изменяемых пакетов;
-2. target versions записываются в root manifest как durable intent;
-3. пакеты проходят typecheck и build;
-4. artifacts и development source maps публикуются по immutable versioned paths;
-5. child manifests получают согласованные версии;
-6. новое состояние становится доступно через `/code`;
-7. Service Worker получает сигнал `release-changed` и самостоятельно сверяет
-   своё фактическое состояние.
-
-Если build не прошёл до принятия нового состава, root intent восстанавливается.
-Если процесс был прерван после durable intent, `recoverPublication()` завершает
-переход при следующем старте сервера.
-
-## Browser transaction
-
-Service Worker не заменяет canonical caches по одному файлу без общей границы.
-Обновление проходит через фиксированный cache `transaction`:
-
-1. exact candidates загружаются и проверяются;
-2. доказывается полный candidate composition;
-3. при необходимости заранее готовится новый `release/service` runtime;
-4. canonical caches приводятся к candidate composition;
-5. итоговый composition повторно проверяется;
-6. transaction удаляется последней durable операцией;
-7. подготовленный runtime активируется.
-
-При остановке между шагами следующий запуск продолжает ту же транзакцию.
-
-## Граница ответственности
-
-`release` отвечает за техническую целостность выпуска, но не определяет смысл
-пакетов и не становится владельцем Quantum-состояния. Cosmos предоставляет
-готовую среду и возможности; предметные законы остаются в Quantum.
+В [общей системе Cosmos](../README.md#распределение-ответственности) release
+владеет технической целостностью выпуска. Internal- и metafor-пакеты сохраняют
+смысл предоставляемых возможностей и предметной работы.
