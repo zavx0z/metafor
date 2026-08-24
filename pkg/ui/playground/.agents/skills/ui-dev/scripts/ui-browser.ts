@@ -584,11 +584,27 @@ async function readDom(cdp: CdpConnection, canvasSelector: string): Promise<Json
 }
 
 async function capturePage(cdp: CdpConnection, destination: string): Promise<JsonObject> {
-  const response = await cdp.send<{data?: string}>("Page.captureScreenshot", {
-    format: "png",
-    fromSurface: true,
-    captureBeyondViewport: false,
-  })
+  await setFocusEmulation(cdp, true)
+  let response: {data?: string}
+  try {
+    await evaluate(cdp, `new Promise((resolve) => {
+      window.dispatchEvent(new Event("resize"))
+      let frames = 0
+      const step = () => {
+        frames += 1
+        if (frames >= 2) resolve(frames)
+        else requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    })`, true)
+    response = await cdp.send<{data?: string}>("Page.captureScreenshot", {
+      format: "png",
+      fromSurface: true,
+      captureBeyondViewport: false,
+    })
+  } finally {
+    await setFocusEmulation(cdp, false)
+  }
   if (typeof response.data !== "string" || response.data.length === 0) {
     throw new Error("Page.captureScreenshot returned no PNG data")
   }
