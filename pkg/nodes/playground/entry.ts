@@ -114,6 +114,7 @@ let parameterSequence = 0
 let nodeSequence = 0
 let linkSequence = 0
 let lastTransaction: NodeTreeEditorResult | null = null
+let structuralCommandDepth = 0
 
 export type NodesPlaygroundObserver = Readonly<{
   snapshot(): Readonly<Record<string, unknown>>
@@ -502,7 +503,7 @@ try {
     if (nodeId === null) throw new Error("Select a Node before adding a Parameter")
     parameterSequence += 1
     const id = `parameter-${parameterSequence}`
-    const transaction = author.addParameter({
+    const transaction = structuralCommand(() => author.addParameter({
       expectedRevision: tree.revision,
       nodeId,
       parameter: {
@@ -510,7 +511,7 @@ try {
         value: 0,
         presentation: numberPresentation(id, `Parameter ${parameterSequence}`),
       },
-    })
+    }))
     selectedNodeId = nodeId
     selectedParameterId = id
     return recordTransaction(transaction)
@@ -520,11 +521,13 @@ try {
     if (selectedNodeId === null || selectedParameterId === null) {
       throw new Error("Select a Parameter before removing it")
     }
-    const transaction = author.removeParameter({
+    const nodeId = selectedNodeId
+    const parameterId = selectedParameterId
+    const transaction = structuralCommand(() => author.removeParameter({
       expectedRevision: tree.revision,
-      nodeId: selectedNodeId,
-      parameterId: selectedParameterId,
-    })
+      nodeId,
+      parameterId,
+    }))
     selectedParameterId = null
     return recordTransaction(transaction)
   }
@@ -532,7 +535,7 @@ try {
   function addNode(): Readonly<Record<string, unknown>> {
     nodeSequence += 1
     const id = `dynamic-${nodeSequence}`
-    const transaction = author.addNode({
+    const transaction = structuralCommand(() => author.addNode({
       expectedRevision: tree.revision,
       node: {
         id,
@@ -559,7 +562,7 @@ try {
         ],
         metadata: {title: `Dynamic ${nodeSequence}`, category: "Editor"},
       },
-    })
+    }))
     selectedNodeId = id
     selectedParameterId = "value"
     normalizeEndpointSelections()
@@ -568,11 +571,12 @@ try {
 
   function removeSelectedNode(): Readonly<Record<string, unknown>> {
     if (selectedNodeId === null) throw new Error("Select a Node before removing it")
-    const transaction = author.removeNode({
+    const nodeId = selectedNodeId
+    const transaction = structuralCommand(() => author.removeNode({
       expectedRevision: tree.revision,
-      nodeId: selectedNodeId,
+      nodeId,
       disconnectLinks: true,
-    })
+    }))
     selectedNodeId = null
     selectedParameterId = null
     selectedLinkId = null
@@ -585,7 +589,7 @@ try {
     const to = parseEndpointValue(toEndpointId)
     linkSequence += 1
     const id = `editor-link-${linkSequence}`
-    const transaction = author.connect({
+    const transaction = structuralCommand(() => author.connect({
       expectedRevision: tree.revision,
       link: {
         id,
@@ -593,17 +597,18 @@ try {
         to,
         metadata: {label: `${from.nodeId} → ${to.nodeId}`, socketType: "float"},
       },
-    })
+    }))
     selectedLinkId = id
     return recordTransaction(transaction)
   }
 
   function disconnectSelected(): Readonly<Record<string, unknown>> {
     if (selectedLinkId === null) throw new Error("Select a Link before disconnecting it")
-    const transaction = author.disconnect({
+    const linkId = selectedLinkId
+    const transaction = structuralCommand(() => author.disconnect({
       expectedRevision: tree.revision,
-      linkId: selectedLinkId,
-    })
+      linkId,
+    }))
     selectedLinkId = null
     return recordTransaction(transaction)
   }
@@ -633,11 +638,21 @@ try {
   }
 
   function onTreeChange(change: NodeTreeChange): void {
+    if (change.kind === "topology" && structuralCommandDepth > 0) return
     if (change.kind === "parameter" && !author.layoutDirty) {
       void scheduleProjection()
       return
     }
     renderWorkbench()
+  }
+
+  function structuralCommand<T>(command: () => T): T {
+    structuralCommandDepth += 1
+    try {
+      return command()
+    } finally {
+      structuralCommandDepth -= 1
+    }
   }
 
   tree.subscribe(onTreeChange)
