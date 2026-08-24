@@ -51,10 +51,11 @@ describe("Blender-like Node component playground", () => {
     expect(surfaces).not.toContain("createStandaloneFields")
   })
 
-  test("opens package and Socket prefixes before exact detail stories", () => {
+  test("opens package, Parameter and Socket prefixes before exact detail stories", () => {
     expect(NODE_PLAYGROUND_CATALOG.map(({route}) => route)).toEqual([
       "node-editor",
       "frame",
+      "parameter",
       "link",
       "socket",
       "comparison",
@@ -63,10 +64,12 @@ describe("Blender-like Node component playground", () => {
       "editor",
       "editor",
       "editor",
+      "editor",
       "socket",
       "comparison",
     ])
     expect(nodePlaygroundCatalog("comparison/blender/default", new Set(["editor"])).map(({group}) => group?.collapsed === true)).toEqual([
+      true,
       true,
       true,
       true,
@@ -81,6 +84,21 @@ describe("Blender-like Node component playground", () => {
       {pathname: "/ui/"},
       {basePath: "/ui"},
     )).toMatchObject({kind: "match", node: {kind: "overview", path: ""}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/parameter/"},
+      {basePath: "/ui"},
+    )).toMatchObject({kind: "match", node: {kind: "overview", path: "parameter"}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/parameter/composition/"},
+      {basePath: "/ui"},
+    )).toMatchObject({kind: "match", node: {kind: "overview", path: "parameter/composition"}, redirect: false})
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/parameter/composition/left"},
+      {basePath: "/ui"},
+    )).toMatchObject({kind: "match", node: {kind: "leaf", path: "parameter/composition/left"}, redirect: false})
     expect(resolvePlaygroundRouteTree(
       NODE_PLAYGROUND_ROUTE_TREE,
       {pathname: "/ui/socket/"},
@@ -98,17 +116,29 @@ describe("Blender-like Node component playground", () => {
     )).toMatchObject({kind: "match", node: {kind: "leaf", path: "socket/boolean/input"}, redirect: false})
     expect(resolvePlaygroundRouteTree(
       NODE_PLAYGROUND_ROUTE_TREE,
+      {pathname: "/ui/parameter/missing"},
+      {basePath: "/ui"},
+    )).toEqual({kind: "not-found"})
+    expect(resolvePlaygroundRouteTree(
+      NODE_PLAYGROUND_ROUTE_TREE,
       {pathname: "/ui/socket/missing"},
       {basePath: "/ui"},
     )).toEqual({kind: "not-found"})
     expect(nodePlaygroundWorkbenchStoryRoute("")).toBe("socket/boolean/input")
     expect(nodePlaygroundWorkbenchStoryRoute("node-editor")).toBe("node-editor/scene/default")
+    expect(nodePlaygroundWorkbenchStoryRoute("parameter")).toBe("parameter/composition/field")
+    expect(nodePlaygroundWorkbenchStoryRoute("parameter/composition")).toBe("parameter/composition/field")
+    expect(nodePlaygroundWorkbenchStoryRoute("parameter/connection")).toBe("parameter/connection/unconnected")
     expect(nodePlaygroundWorkbenchStoryRoute("socket")).toBe("socket/boolean/input")
     expect(nodePlaygroundWorkbenchStoryRoute("socket/boolean")).toBe("socket/boolean/input")
     expect(nodePlaygroundWorkbenchStoryRoute("socket/boolean/output")).toBe("socket/boolean/output")
     expect(nodePlaygroundGroup("node-editor/scene/default")).toBe("editor")
+    expect(nodePlaygroundGroup("parameter/composition/field")).toBe("parameter")
     expect(nodePlaygroundGroup("socket/boolean/input")).toBe("socket")
     expect(nodePlaygroundGroup("comparison/blender/default")).toBe("comparison")
+    expect(nodePlaygroundSections("parameter").map(({id}) => id)).toEqual(["composition", "connection"])
+    expect(nodePlaygroundDockItems("parameter/composition").map(({id}) => id)).toEqual(["field", "left", "right", "both"])
+    expect(nodePlaygroundDockItems("parameter/connection").map(({id}) => id)).toEqual(["unconnected", "connected"])
     expect(nodePlaygroundSections("socket").map(({id}) => id)).toEqual([...BLENDER_SOCKET_KINDS])
     expect(nodePlaygroundSections("socket").map(({label}) => label)).toEqual(
       BLENDER_SOCKET_KINDS.map((kind) => BLENDER_SOCKET_PRESETS[kind].label),
@@ -119,6 +149,8 @@ describe("Blender-like Node component playground", () => {
   test("loads lazy source modules for the remaining production Node components", async () => {
     const frame = await NODE_COMPONENT_STORIES.load("frame/nested/default")
     expect(frame.source(frame.defaultArgs)).toContain('from "@nodes/ui/node-editor"')
+    const parameter = await NODE_COMPONENT_STORIES.load("parameter/composition/field")
+    expect(parameter.source(parameter.defaultArgs)).toContain('from "@nodes/ui/parameter"')
     const link = await NODE_COMPONENT_STORIES.load("link/orthogonal/selected")
     expect(link.source(link.defaultArgs)).toContain('from "@nodes/ui/link-curve"')
     const comparison = await NODE_COMPONENT_STORIES.load("comparison/blender/default")

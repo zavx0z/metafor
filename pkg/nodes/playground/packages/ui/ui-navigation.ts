@@ -23,13 +23,14 @@ export const NODE_PLAYGROUND_ROUTES = Object.freeze([
 
 export type NodePlaygroundStoryRoute = NodeComponentStoryRoute | NodeSocketStoryRoute
 export type NodePlaygroundRoute = string
-export type NodePlaygroundGroup = "overview" | "editor" | "socket" | "comparison"
+export type NodePlaygroundGroup = "overview" | "editor" | "parameter" | "socket" | "comparison"
+type NodePlaygroundCatalogGroup = "editor" | "socket" | "comparison"
 
 const NODE_PLAYGROUND_GROUP_LABELS = Object.freeze({
   editor: "Редактор",
   socket: "Сокеты",
   comparison: "Сравнение",
-} satisfies Readonly<Record<Exclude<NodePlaygroundGroup, "overview">, string>>)
+} satisfies Readonly<Record<NodePlaygroundCatalogGroup, string>>)
 
 /** Canonical package route hierarchy: root overview, prefix overviews and leaves. */
 export const NODE_PLAYGROUND_ROUTE_TREE = definePlaygroundRouteTree({
@@ -40,6 +41,7 @@ export const NODE_PLAYGROUND_FALLBACK_ROUTE = NODE_SOCKET_STORIES.fallback as No
 const COMPONENT_ROUTES = Object.freeze({
   "node-editor": "node-editor",
   frame: "frame",
+  parameter: "parameter",
   link: "link",
   socket: "socket",
   comparison: "comparison",
@@ -56,6 +58,12 @@ export const NODE_PLAYGROUND_CATALOG: readonly PlaygroundNavigationItem<NodePlay
     id: "frame",
     label: "Frame",
     route: COMPONENT_ROUTES.frame,
+    group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
+  },
+  {
+    id: "parameter",
+    label: "Parameter",
+    route: COMPONENT_ROUTES.parameter,
     group: {id: "editor", label: NODE_PLAYGROUND_GROUP_LABELS.editor},
   },
   {
@@ -86,6 +94,7 @@ const STORY_INDEX = Object.freeze([
 export function nodePlaygroundGroup(route: NodePlaygroundRoute): NodePlaygroundGroup {
   const componentId = nodePlaygroundComponentId(route)
   if (componentId === null) return "overview"
+  if (componentId === "parameter") return "parameter"
   if (componentId === "socket") return "socket"
   if (componentId === "comparison") return "comparison"
   return "editor"
@@ -176,6 +185,10 @@ export function isNodeEditorStoryRoute(route: NodePlaygroundRoute): route is Nod
 
 export function isNodeFrameStoryRoute(route: NodePlaygroundRoute): route is NodeComponentStoryRoute {
   return isNodeComponentStoryRoute(route) && nodePlaygroundStoryIndex(route).componentId === "frame"
+}
+
+export function isNodeParameterStoryRoute(route: NodePlaygroundRoute): route is NodeComponentStoryRoute {
+  return isNodeComponentStoryRoute(route) && nodePlaygroundStoryIndex(route).componentId === "parameter"
 }
 
 export function isNodeLinkStoryRoute(route: NodePlaygroundRoute): route is NodeComponentStoryRoute {

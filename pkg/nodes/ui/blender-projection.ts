@@ -33,10 +33,10 @@ import {
   type BlenderNode,
   type BlenderNodeMeasurement,
   type BlenderNodePlan,
-  type BlenderParameter,
   type BlenderSocket,
   type BlenderSocketKind,
 } from "./blender-node.ts"
+import type {Parameter as UiParameter} from "./parameter.ts"
 
 export type BlenderParameterPresentation = NodeJsonObject & Readonly<{
   label: string
@@ -276,7 +276,7 @@ function blenderNode(
     ...(metadata.category === undefined ? {} : {category: metadata.category}),
     ...(metadata.headerColor === undefined ? {} : {headerColor: metadata.headerColor as never}),
     ...(metadata.collapsed === undefined ? {} : {collapsed: metadata.collapsed}),
-    parameters: Object.freeze((node.parameters ?? []).map((parameter): BlenderParameter => {
+    parameters: Object.freeze((node.parameters ?? []).map((parameter): UiParameter => {
       const presentation = parameter.presentation
       return Object.freeze({
         id: parameter.id,
@@ -493,7 +493,12 @@ function translatePlan(
       image: plan.preview.image === null ? null : {...rect(plan.preview.image), src: plan.preview.image.src},
     },
     fields: plan.fields.map((entry) => ({...entry, rect: rect(entry.rect), editorRect: rect(entry.editorRect)})),
-    parameters: plan.parameters.map((entry) => ({...entry, rect: rect(entry.rect)})),
+    parameters: plan.parameters.map((entry) => ({
+      ...entry,
+      rect: rect(entry.rect),
+      labelRect: rect(entry.labelRect),
+      editorRect: rect(entry.editorRect),
+    })),
     sockets,
   }
 }

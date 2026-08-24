@@ -1,13 +1,14 @@
 {
   "name": "@nodes/ui",
   "version": "0.0.1",
-  "description": "Blender-like NodeTree, Node, Socket and Link WebGPU components.",
+  "description": "Blender-like NodeTree, Frame, Node, Parameter, Socket and Link WebGPU components.",
   "type": "module",
   "private": true,
   "main": "index.ts",
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./parameter": "./parameter.ts",
     "./node-editor": "./node-editor.ts",
     "./blender-node": "./blender-node.ts",
     "./blender-projection": "./blender-projection.ts",

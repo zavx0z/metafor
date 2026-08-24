@@ -21,6 +21,9 @@ describe("central Nodes package route manifest", () => {
       expect(tree.find("")).toMatchObject({kind: "overview", path: ""})
       expect(tree.leaves.length).toBeGreaterThan(0)
     }
+    expect(nodesPackageRouteTree("ui").find("parameter")).toMatchObject({kind: "overview"})
+    expect(nodesPackageRouteTree("ui").find("parameter/composition")).toMatchObject({kind: "overview"})
+    expect(nodesPackageRouteTree("ui").find("parameter/composition/field")).toMatchObject({kind: "leaf"})
     expect(nodesPackageRouteTree("ui").find("socket")).toMatchObject({kind: "overview"})
     expect(nodesPackageRouteTree("ui").find("socket/boolean")).toMatchObject({kind: "overview"})
     expect(nodesPackageRouteTree("ui").find("socket/boolean/input")).toMatchObject({kind: "leaf"})
@@ -42,6 +45,22 @@ describe("central Nodes package route manifest", () => {
       node: {kind: "leaf"},
       redirect: false,
     })
+    expect(resolveNodesPackageRoute("/ui/parameter/")?.resolution).toMatchObject({
+      kind: "match",
+      node: {kind: "overview", path: "parameter"},
+      redirect: false,
+    })
+    expect(resolveNodesPackageRoute("/ui/parameter/connection/")?.resolution).toMatchObject({
+      kind: "match",
+      node: {kind: "overview", path: "parameter/connection"},
+      redirect: false,
+    })
+    expect(resolveNodesPackageRoute("/ui/parameter/connection/connected")?.resolution).toMatchObject({
+      kind: "match",
+      node: {kind: "leaf", path: "parameter/connection/connected"},
+      redirect: false,
+    })
+    expect(resolveNodesPackageRoute("/ui/parameter/missing")?.resolution).toEqual({kind: "not-found"})
     expect(resolveNodesPackageRoute("/ui/socket/unknown")?.resolution).toEqual({kind: "not-found"})
     expect(resolveNodesPackageRoute("/unknown")).toBeNull()
   })

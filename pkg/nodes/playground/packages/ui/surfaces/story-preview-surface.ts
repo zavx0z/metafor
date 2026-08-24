@@ -36,7 +36,9 @@ export class NodeStoryPreviewSurface extends UiSurface {
     const index = this.#index
     drawPlaygroundPreviewChrome(this, this.rectW, this.rectH, index === null ? {} : {
       title: index.title,
-      description: "Рабочий Socket, параметры и TypeScript используют одно состояние сценария.",
+      description: index.componentId === "parameter"
+        ? "Рабочие Parameter, Field, Socket и TypeScript используют одно состояние сценария."
+        : "Рабочий Socket, параметры и TypeScript используют одно состояние сценария.",
     })
     if (index === null || this.#module === null) return
     this.#module.render(this, this.#args, {x: 0, y: 0, w: this.rectW, h: this.rectH})

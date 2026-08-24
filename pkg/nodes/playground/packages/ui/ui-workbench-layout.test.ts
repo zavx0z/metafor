@@ -5,9 +5,13 @@ import {nodePlaygroundWorkbenchStoryRoute} from "./ui-navigation.ts"
 describe("Node playground on shared @ui/playground shell", () => {
   test("preserves preview, dock and source panel on package and component overviews", () => {
     const root = planNodeComponentPlaygroundFrames(1920, 1080, nodePlaygroundWorkbenchStoryRoute(""))
+    const parameter = planNodeComponentPlaygroundFrames(1920, 1080, nodePlaygroundWorkbenchStoryRoute("parameter"))
     const socket = planNodeComponentPlaygroundFrames(1920, 1080, nodePlaygroundWorkbenchStoryRoute("socket"))
     const editor = planNodeComponentPlaygroundFrames(1920, 1080, nodePlaygroundWorkbenchStoryRoute("node-editor"))
     expect(root.storyPreview).toEqual(socket.storyPreview)
+    expect(parameter.storyPreview).toEqual(socket.storyPreview)
+    expect(parameter.story.visible).not.toBeFalse()
+    expect(parameter.dock.visible).not.toBeFalse()
     expect(root.story.visible).not.toBeFalse()
     expect(root.dock.visible).not.toBeFalse()
     expect(editor.editor.visible).not.toBeFalse()
@@ -32,6 +36,17 @@ describe("Node playground on shared @ui/playground shell", () => {
     expect(sockets.story).toEqual({x: 1477, y: 3, w: 440, h: 1074})
     expect(sockets.sockets.visible).toBeFalse()
     expect(sockets.editor.visible).toBeFalse()
+  })
+
+  test("uses the production story preview for Parameter on the same five-panel shell", () => {
+    const parameter = planNodeComponentPlaygroundFrames(1920, 1080, "parameter/composition/left")
+    expect(parameter.catalog).toEqual({x: 3, y: 3, w: 210, h: 1074})
+    expect(parameter.section).toEqual({x: 214, y: 3, w: 160, h: 1074})
+    expect(parameter.storyPreview).toEqual({x: 375, y: 3, w: 1101, h: 1049})
+    expect(parameter.dock).toEqual({x: 375, y: 1053, w: 1101, h: 24})
+    expect(parameter.story).toEqual({x: 1477, y: 3, w: 440, h: 1074})
+    expect(parameter.editor.visible).toBeFalse()
+    expect(parameter.reference.visible).toBeFalse()
   })
 
   test("keeps equal preview slots for the legacy Blender comparison", () => {

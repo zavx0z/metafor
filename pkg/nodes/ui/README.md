@@ -22,7 +22,8 @@ const editor = new NodeEditor<BlenderNode, BlenderSocket, BlenderLink, BlenderFr
 
 `NodeEditor` получает готовую projection либо отдельный `PositionedNodeTree`,
 управляет fit, pan/zoom и selection и вызывает независимые `NodeRenderer`,
-`SocketRenderer` и `LinkRenderer`. Exact `node-editor` не загружает solver.
+`ParameterRenderer`, `SocketRenderer` и `LinkRenderer`. Exact `node-editor` не
+загружает solver.
 Отдельный `blender-projection` связывает живой root `NodeTree`, числовой
 `@nodes/layout` и Blender renderer. `NodeCanvas` предоставляет ту же renderer
 boundary без пользовательского редактирования.
@@ -35,7 +36,7 @@ children за пределами direct Frame.
 `blender-node` предоставляет стандартный Node renderer с одним typed local
 plan и одной materialization, 19 Socket presets,
 8 Socket shapes и Link renderer. Это сменяемый preset: consumer может передать
-собственные typed Node/Socket/Link renderer-ы без изменения editor.
+собственные typed Node/Parameter/Socket/Link renderer-ы без изменения editor.
 
 `blender-projection` измеряет каждую изменившуюся Node один раз, переиспользует
 layout при value-only изменениях Parameter и передаёт готовые plans через
@@ -45,9 +46,17 @@ layout при value-only изменениях Parameter и передаёт го
 `Field` из `@ui/components`, что и обычные панели вне Node Editor.
 
 Parameter владеет одним `Field`; Socket ссылается на него через `parameterId`.
-Одна Parameter row может иметь отдельный Socket слева, справа или оба endpoint
-одновременно. `direction` не выводится из стороны. Component boundary принимает
-только resolved `left/right`; выбор стороны остаётся у layout policy.
+Один Parameter может иметь отдельный Socket слева, справа или оба endpoint
+одновременно. Node делегирует его ровно одному `ParameterRenderer`, не дублируя
+label, Field, value или callback. Публичный API использует только имена
+`Parameter`, `ParameterPlan`, `ParameterRenderer` и
+`ParameterRendererContext`; row и slot остаются приватными деталями planner.
+`direction` не выводится из стороны. Component boundary принимает только
+resolved `left/right`; выбор стороны остаётся у layout policy.
+
+Exact Parameter API импортируется через `@nodes/ui/parameter`. Его first-class
+renderer не добавляет отдельный selection kind: selection NodeEditor по-прежнему
+различает только Frame, Node и Link.
 
 ## Flexbox-закон
 
@@ -69,10 +78,11 @@ pkg/nodes/playground/.agents/skills/nodes-dev/scripts/nodes-dev.sh ensure "$PWD"
 ```
 
 Центральная page `/ui/*` использует public `@ui/playground` и разделяет nested
-story routes `node-editor/*`, `socket/*` и `comparison/blender`. Одновременно виден только
-выбранный Node Editor либо Socket catalog; comparison показывает maintained
-Blender reference и одну representative live Node. Standalone universal fields
-принадлежат `@ui/components` и не входят в этот каталог.
+story routes `node-editor/*`, `parameter/*`, `socket/*` и
+`comparison/blender`. `/ui/parameter/` является каноническим overview
+Parameter; comparison показывает maintained Blender reference и одну
+representative live Node. Standalone universal fields принадлежат
+`@ui/components` и не входят в этот каталог.
 
 На mobile breakpoint остаётся только активный preview. NodeEditor поддерживает
 single-touch pan и two-touch pinch; overview LOD скрывает только детали controls,

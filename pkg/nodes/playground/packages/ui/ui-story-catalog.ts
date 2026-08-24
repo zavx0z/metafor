@@ -41,6 +41,7 @@ export type NodeSocketStoryRoute = `socket/${NodeSocketKind}/${NodeSocketDirecti
 export const NODE_COMPONENT_IDS = Object.freeze([
   "node-editor",
   "frame",
+  "parameter",
   "link",
   "comparison",
 ] as const)
@@ -68,8 +69,16 @@ export type NodeEditorStoryRoute =
   | "node-editor/collapsed/default"
   | "node-editor/collapsed/selected"
   | "node-editor/popup/select-open"
+export type NodeParameterStoryRoute =
+  | "parameter/composition/field"
+  | "parameter/composition/left"
+  | "parameter/composition/right"
+  | "parameter/composition/both"
+  | "parameter/connection/unconnected"
+  | "parameter/connection/connected"
 export type NodeComponentStoryRoute =
   | NodeEditorStoryRoute
+  | NodeParameterStoryRoute
   | "frame/nested/default"
   | "link/orthogonal/selected"
   | "comparison/blender/default"
@@ -145,6 +154,13 @@ const loadNodeComponentStory = (
   if (component === "link") await import("@nodes/ui/link-curve")
   const {createNodeComponentStory} = await import("./stories/node-components.ts")
   return createNodeComponentStory(component, state)
+}
+
+const loadParameterStory = (
+  variant: "field" | "left" | "right" | "both" | "unconnected" | "connected",
+) => async (): Promise<PlaygroundStoryModule> => {
+  const {createParameterStory} = await import("./stories/parameter.ts")
+  return createParameterStory(variant)
 }
 
 export const NODE_SOCKET_STORIES = definePlaygroundStories({
@@ -424,6 +440,65 @@ export const NODE_COMPONENT_STORIES = definePlaygroundStories({
           id: "nested",
           label: "Вложенный Frame",
           variants: [{id: "default", label: "Выбран", title: "Frame · Вложенность", load: loadNodeComponentStory("frame")}],
+        }],
+      },
+      {
+        id: "parameter",
+        label: "Parameter",
+        apiName: "Parameter",
+        tags: ["parameter", "field", "socket", "link"],
+        sections: [{
+          id: "composition",
+          label: "Состав",
+          variants: [
+            {
+              id: "field",
+              label: "Только Field",
+              title: "Parameter · Field без Socket",
+              tags: ["parameter", "field"],
+              load: loadParameterStory("field"),
+            },
+            {
+              id: "left",
+              label: "Socket слева",
+              title: "Parameter · Socket слева",
+              tags: ["parameter", "socket", "left"],
+              load: loadParameterStory("left"),
+            },
+            {
+              id: "right",
+              label: "Socket справа",
+              title: "Parameter · Socket справа",
+              tags: ["parameter", "socket", "right"],
+              load: loadParameterStory("right"),
+            },
+            {
+              id: "both",
+              label: "Два Socket",
+              title: "Parameter · Socket с двух сторон",
+              tags: ["parameter", "socket", "left", "right"],
+              load: loadParameterStory("both"),
+            },
+          ],
+        }, {
+          id: "connection",
+          label: "Связь",
+          variants: [
+            {
+              id: "unconnected",
+              label: "Без Link",
+              title: "Parameter · Без Link",
+              tags: ["parameter", "link", "unconnected"],
+              load: loadParameterStory("unconnected"),
+            },
+            {
+              id: "connected",
+              label: "С Link",
+              title: "Parameter · С Link",
+              tags: ["parameter", "link", "connected"],
+              load: loadParameterStory("connected"),
+            },
+          ],
         }],
       },
       {

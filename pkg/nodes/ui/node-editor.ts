@@ -9,15 +9,19 @@ import {
   type UiTouchPoint,
   type UiSurfaceOpts,
 } from "@ui/elements"
+import type {Parameter, ParameterRenderer} from "./parameter.ts"
+
+export type {
+  Parameter,
+  ParameterPlan,
+  ParameterRenderer,
+  ParameterRendererContext,
+} from "./parameter.ts"
 
 export type NodePoint = Readonly<{x: number; y: number}>
 export type NodeRect = Readonly<{x: number; y: number; w: number; h: number}>
 export type NodeCanvasTransform = Readonly<{x: number; y: number; scale: number}>
 export type NodeCanvasOverlayState = Readonly<{overlays: boolean; previews: boolean}>
-
-export type Parameter = Readonly<{
-  id: string
-}>
 
 /** Minimal Blender-like component identity; domain data is carried by TNode. */
 export type Node = Readonly<{
@@ -134,6 +138,7 @@ export type NodeRendererContext<
 > = NodeRendererPlanContext<TNode, TSocket> & Readonly<{
   host: UiSurface
   plan: TPlan
+  parameterRenderer: ParameterRenderer
 }>
 
 export type SocketRendererContext<TSocket extends Socket> = Readonly<{
@@ -183,6 +188,7 @@ export type NodeEditorRenderers<
 > = Readonly<{
   frame: FrameRenderer<TFrame>
   node: NodeRenderer<TNode, TSocket, TNodePlan>
+  parameter: ParameterRenderer
   socket: SocketRenderer<TSocket>
   link: LinkRenderer<TLink>
 }>
@@ -731,7 +737,12 @@ export class NodeCanvas<
             () => this.select({kind: "node", id: entry.node.id}),
             {key: `node-editor:node:${entry.node.id}`},
           )
-          this.#renderers.node.render({host: this, ...presentationContext, plan})
+          this.#renderers.node.render({
+            host: this,
+            ...presentationContext,
+            plan,
+            parameterRenderer: this.#renderers.parameter,
+          })
           for (const socket of presentation.sockets) this.#renderers.socket.render({
             host: this,
             entry: socket,

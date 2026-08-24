@@ -44,19 +44,17 @@ describe("Flexbox-oriented Node component composition", () => {
       ],
     }
     const plan = planBlenderNode(node, {x: 20, y: 30, w: 240, h: 220})
-    expect(plan.fields).toHaveLength(2)
+    expect(plan.fields).toHaveLength(1)
     expect(plan.parameters).toHaveLength(1)
     expect(plan.sockets).toHaveLength(3)
-    for (let index = 1; index < plan.fields.length; index += 1) {
-      const previous = plan.fields[index - 1]!.rect
-      const current = plan.fields[index]!.rect
-      expect(previous.y + previous.h).toBeLessThan(current.y)
-    }
+    const property = plan.fields[0]!.rect
+    const parameter = plan.parameters[0]!
+    expect(property.y + property.h).toBeLessThan(parameter.rect.y)
+    expect(parameter.parameter.field.id).toBe("factor-value")
     const input = plan.sockets.find(({socket}) => socket.id === "factor-left")!
     const output = plan.sockets.find(({socket}) => socket.id === "factor-right")!
-    const inputField = plan.fields.find(({field}) => field.id === "factor-value")!.rect
     expect(input.center.x).toBe(20)
-    expect(input.center.y).toBe(inputField.y + inputField.h / 2)
+    expect(input.center.y).toBe(parameter.labelRect.y + parameter.labelRect.h / 2)
     expect(output.center.x).toBe(260)
     expect(output.center.y).toBe(input.center.y)
   })

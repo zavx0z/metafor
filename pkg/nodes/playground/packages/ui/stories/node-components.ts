@@ -28,6 +28,7 @@ type NodeComponentStoryArgs = PlaygroundStoryArgs & Readonly<{
 const COMPONENT_LABELS: Readonly<Record<NodeComponentId, string>> = Object.freeze({
   "node-editor": "Редактор нод",
   frame: "Frame",
+  parameter: "Parameter",
   link: "Link",
   comparison: "Сравнение с Blender",
 })

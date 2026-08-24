@@ -120,7 +120,7 @@ describe("live NodeTree Blender projection", () => {
       plans: 3,
       reusedPlans: 1,
     })
-    const field = second.nodePlans.get("source")?.fields[0]?.field
+    const field = second.nodePlans.get("source")?.parameters[0]?.parameter.field
     expect(field?.kind).toBe("number")
     if (field?.kind !== "number") throw new Error("Projected number Field is missing")
     expect(field.value).toBe(2)
@@ -152,7 +152,7 @@ describe("live NodeTree Blender projection", () => {
     release?.()
 
     await expect(pending).rejects.toBeInstanceOf(StaleNodeTreeProjectionError)
-    const field = produced?.nodePlans.get("source")?.fields[0]?.field
+    const field = produced?.nodePlans.get("source")?.parameters[0]?.parameter.field
     expect(field?.kind).toBe("number")
     if (field?.kind !== "number") throw new Error("Captured number Field is missing")
     expect(field.value).toBe(1)

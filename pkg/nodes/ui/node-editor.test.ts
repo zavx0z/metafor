@@ -39,6 +39,8 @@ type TestSocket = Socket & Readonly<{socketType: string}>
 type TestLink = Link & Readonly<{label: string}>
 type TestFrame = Frame & Readonly<{label: string}>
 
+const noopParameterRenderer = Object.freeze({render() {}})
+
 const tree: PositionedNodeTree<TestNode, TestSocket, TestLink, TestFrame> = {
   bounds: {x: 0, y: 0, w: 460, h: 280},
   frames: [{frame: {id: "frame", label: "Frame"}, rect: {x: 0, y: 0, w: 460, h: 280}}],
@@ -221,6 +223,7 @@ describe("generic Blender-like Node Editor contracts", () => {
           })
         },
       },
+      parameter: noopParameterRenderer,
       socket: {
         render({host, entry}) {
           calls.socketEntries.push(entry)
@@ -362,6 +365,7 @@ describe("generic Blender-like Node Editor contracts", () => {
     }
     const blender = createBlenderNodeRenderers()
     let actualPlans = 0
+    let actualParameterRenders = 0
     const canvas = new NodeCanvas<BlenderNode, BlenderSocket, BlenderLink, BlenderFrame, BlenderNodePlan>({
       renderers: {
         ...blender,
@@ -372,6 +376,12 @@ describe("generic Blender-like Node Editor contracts", () => {
             return blender.node.plan(context)
           },
         },
+        parameter: {
+          render(context) {
+            actualParameterRenders += 1
+            blender.parameter.render(context)
+          },
+        },
       },
       toolbar: false,
     })
@@ -379,18 +389,21 @@ describe("generic Blender-like Node Editor contracts", () => {
     const fontBytes = await Bun.file(new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url)).arrayBuffer()
     canvas.setRect({x: 0, y: 0, w: 640, h: 360}, 0.001, new TrueTypeFont(fontBytes))
     expect(actualPlans).toBe(1)
+    expect(actualParameterRenders).toBe(1)
     expect(canvas.diagnostics).toEqual({localLayoutPlans: 1, materializations: 1, transformOnlyFrames: 0})
 
     canvas.setCanvasTransform({x: 40, y: 30, scale: 0.5})
     canvas.setCanvasTransform({x: 80, y: 60, scale: 1.25})
     canvas.flushPendingRender()
     expect(actualPlans).toBe(1)
+    expect(actualParameterRenders).toBe(1)
     expect(canvas.diagnostics).toEqual({localLayoutPlans: 1, materializations: 1, transformOnlyFrames: 2})
 
     const nextNode = {...node, title: "Diagnostic 2"}
     canvas.setTree({...diagnosticTree, revision: 2, nodes: [positionBlenderNode(nextNode, rect)]})
     canvas.flushPendingRender()
     expect(actualPlans).toBe(2)
+    expect(actualParameterRenders).toBe(2)
     expect(canvas.diagnostics).toEqual({localLayoutPlans: 2, materializations: 2, transformOnlyFrames: 2})
     canvas.dispose()
   })
@@ -419,6 +432,7 @@ describe("generic Blender-like Node Editor contracts", () => {
           })
         },
       },
+      parameter: noopParameterRenderer,
       socket: {
         render({host, entry}) {
           host.drawRoundedRect(entry.center.x - 4, entry.center.y - 4, 8, 8, {
@@ -554,6 +568,7 @@ describe("generic Blender-like Node Editor contracts", () => {
           renderedRects.push(entry.rect)
         },
       },
+      parameter: noopParameterRenderer,
       socket: {render({entry}) { renderedSocketCenters.push(entry.center) }},
       link: {render() {}},
     }
@@ -608,6 +623,7 @@ describe("generic Blender-like Node Editor contracts", () => {
           })
         },
       },
+      parameter: noopParameterRenderer,
       socket: {render() {}},
       link: {render() {}},
     }
@@ -668,6 +684,7 @@ describe("generic Blender-like Node Editor contracts", () => {
         },
         render() {},
       },
+      parameter: noopParameterRenderer,
       socket: {
         render({entry, nodeId}) {
           socketCenters.push({nodeId, socketId: entry.socket.id, ...entry.center})
@@ -731,6 +748,7 @@ describe("generic Blender-like Node Editor contracts", () => {
           host.wheel(plan.rect.x + 20, plan.rect.y + 20, 40, 20, () => { wheelActions += 1 }, "node-control-wheel")
         },
       },
+      parameter: noopParameterRenderer,
       socket: {render() {}},
       link: {render() {}},
     }
@@ -814,6 +832,7 @@ describe("generic Blender-like Node Editor contracts", () => {
           states.set(entry.node.id, history)
         },
       },
+      parameter: noopParameterRenderer,
       socket: {render() {}},
       link: {render() {}},
     }
@@ -869,6 +888,7 @@ describe("generic Blender-like Node Editor contracts", () => {
     const renderers = {
       frame: {renderBackground() {}, renderForeground() {}},
       node: {plan() {}, render() {}},
+      parameter: noopParameterRenderer,
       socket: {render() {}},
       link: {render() {}},
     }
@@ -918,12 +938,20 @@ describe("generic Blender-like Node Editor contracts", () => {
     })).toThrow("Unknown Node Frame")
   })
 
-  test("allows one Parameter row to own distinct left and right Sockets", () => {
+  test("allows one Parameter to own distinct left and right Sockets", () => {
     const parameterTree: PositionedNodeTree = {
       bounds: tree.bounds,
       frames: tree.frames,
       nodes: [{
-        node: {id: "parameter-node", frameId: "frame", parameters: [{id: "value"}]},
+        node: {
+          id: "parameter-node",
+          frameId: "frame",
+          parameters: [{
+            id: "value",
+            label: "Value",
+            field: {id: "value-field", label: "Value", kind: "number", value: 0},
+          }],
+        },
         rect: {x: 100, y: 80, w: 200, h: 100},
         sockets: [
           {socket: {id: "value-left", parameterId: "value", direction: "input"}, side: "left", center: {x: 100, y: 130}},

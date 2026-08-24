@@ -66,6 +66,7 @@ const productionExports = Object.freeze({
   }),
   nodeUi: Object.freeze({
     ".": "./index.ts",
+    "./parameter": "./parameter.ts",
     "./node-editor": "./node-editor.ts",
     "./blender-node": "./blender-node.ts",
     "./blender-projection": "./blender-projection.ts",
@@ -124,13 +125,13 @@ describe("production UI delivery baseline", () => {
     const nodeUi = await readManifest(packageRoots.nodeUi)
     expect(nodeUi.dependencies).toEqual({
       "@metafor/engine": "workspace:*",
+      "@nodes/core": "workspace:*",
       "@nodes/layout": "workspace:*",
       "@ui/components": "workspace:*",
       "@ui/elements": "workspace:*",
-      nodes: "workspace:*",
     })
     expect(nodeUi.dependencies).not.toHaveProperty("@ui/playground")
-    expect(nodeUi.devDependencies).toHaveProperty("@ui/playground", "workspace:*")
+    expect(nodeUi.devDependencies).toBeUndefined()
   })
 
   test("keeps every manifest export on an existing production source", async () => {
@@ -160,6 +161,7 @@ describe("production UI delivery baseline", () => {
       "exact-components-collection-input.fixture.ts",
       "exact-components-path-input.fixture.ts",
       "exact-node-editor.fixture.ts",
+      "exact-node-parameter.fixture.ts",
       "exact-node-projection.fixture.ts",
       "root-api.fixture.ts",
     ]) {
@@ -174,6 +176,18 @@ describe("production UI delivery baseline", () => {
       expect(build.success, `${fixture}: ${build.logs.map(({message}) => message).join("\n")}`).toBeTrue()
       expect(build.outputs.some(({path}) => path.endsWith(".js")), fixture).toBeTrue()
     }
+  })
+
+  test("keeps the exact Parameter leaf on the shared Field without NodeEditor or layout", async () => {
+    const fixture = join(uiRoot, "delivery/fixtures/exact-node-parameter.fixture.ts")
+    const graph = (await outputSources(await buildBrowser([fixture], false)))
+      .map(({source}) => source)
+      .join("\n")
+    expect(graph).toContain("blenderParameterRenderer")
+    expect(graph).toContain("function Field")
+    expect(graph).not.toContain("class NodeEditor")
+    expect(graph).not.toContain("function layoutFixed")
+    expect(graph).not.toContain("@ui/playground")
   })
 
   test("keeps the exact NumberInput leaf independent from Node and playground symbols", async () => {

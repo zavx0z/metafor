@@ -36,7 +36,7 @@ export function planNodeComponentPlaygroundFrames(
   const story = compact ? hidden() : shell.info
   const group = nodePlaygroundGroup(route)
   if (group === "editor") editor = shell.preview
-  else if (group === "socket") {
+  else if (group === "parameter" || group === "socket") {
     storyPreview = shell.preview
   }
   else flexRowCss({

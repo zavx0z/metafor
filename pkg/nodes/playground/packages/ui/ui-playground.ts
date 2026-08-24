@@ -38,6 +38,7 @@ import {
   isNodeEditorStoryRoute,
   isNodeFrameStoryRoute,
   isNodeLinkStoryRoute,
+  isNodeParameterStoryRoute,
   loadNodePlaygroundStory,
   nodePlaygroundCatalog,
   nodePlaygroundCatalogRoute,
@@ -147,7 +148,9 @@ try {
         }
       }
       storyArgs = nextArgs
-      if (isNodeSocketStoryRoute(workbenchStoryRoute)) storyPreview.setArgs(storyArgs)
+      if (isNodeParameterStoryRoute(workbenchStoryRoute) || isNodeSocketStoryRoute(workbenchStoryRoute)) {
+        storyPreview.setArgs(storyArgs)
+      }
       applyProductionStoryState(workbenchStoryRoute)
       storyPanel.setOptions(storyPanelOptions())
       publishStoryState()
@@ -246,7 +249,9 @@ try {
     workbenchStoryRoute = storyRoute
     storyModule = loaded
     storyArgs = Object.freeze({...loaded.defaultArgs})
-    if (isNodeSocketStoryRoute(storyRoute)) storyPreview.setStory(index, loaded, storyArgs)
+    if (isNodeParameterStoryRoute(storyRoute) || isNodeSocketStoryRoute(storyRoute)) {
+      storyPreview.setStory(index, loaded, storyArgs)
+    }
     applyProductionStoryState(storyRoute)
     storyPanel.setOptions(storyPanelOptions())
     publishStoryState()
@@ -331,6 +336,8 @@ try {
     document.documentElement.dataset.nodePreviewsVisible = storyArgs["previews-visible"] === false ? "false" : "true"
     document.documentElement.dataset.nodePreviewBuffer = String(storyArgs["preview-buffer"] ?? "")
     document.documentElement.dataset.nodePreviewFlags = JSON.stringify(previewEnabledByNode)
+    document.documentElement.dataset.nodeParameterSections = isNodeParameterStoryRoute(route) ? String(nodePlaygroundSections(route).length) : ""
+    document.documentElement.dataset.nodeParameterVariants = isNodeParameterStoryRoute(route) ? String(nodePlaygroundDockItems(route).length) : ""
     document.documentElement.dataset.nodeSocketSections = isNodeSocketStoryRoute(route) ? String(nodePlaygroundSections(route).length) : ""
     document.documentElement.dataset.nodeSocketVariants = isNodeSocketStoryRoute(route) ? String(nodePlaygroundDockItems(route).length) : ""
   }
@@ -396,7 +403,7 @@ try {
     document.documentElement.dataset.nodePreviewsVisible = storyArgs["previews-visible"] === false ? "false" : "true"
     document.documentElement.dataset.nodePreviewBuffer = String(storyArgs["preview-buffer"] ?? "")
     document.documentElement.dataset.nodePreviewFlags = JSON.stringify(previewEnabledByNode)
-    if (isNodeSocketStoryRoute(route)) return
+    if (isNodeParameterStoryRoute(route) || isNodeSocketStoryRoute(route)) return
     if (isNodeEditorStoryRoute(route)) {
       applyNodeEditorStoryState(storyArgs, {
         select: (selection) => editor.select(selection),

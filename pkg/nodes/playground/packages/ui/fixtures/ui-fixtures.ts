@@ -6,10 +6,10 @@ import {
   type BlenderFrame,
   type BlenderLink,
   type BlenderNode,
-  type BlenderParameter,
   type BlenderSocket,
   type BlenderSocketKind,
 } from "@nodes/ui/blender-node"
+import type {Parameter} from "@nodes/ui/parameter"
 import type {PositionedNode, PositionedNodeTree} from "@nodes/ui/node-editor"
 
 export const SOCKET_CATALOG = BLENDER_SOCKET_KINDS.map((kind, index): BlenderSocket => ({
@@ -35,7 +35,7 @@ export function createNoiseComparisonTree(): PositionedNodeTree<BlenderNode, Ble
     ]},
     {id: "normalize", label: "Normalize", kind: "boolean", value: true},
   ], [
-    {id: "vector-value", label: "Vector"},
+    parameter({id: "vector-value", label: "Vector", kind: "vector", value: [0, 0, 0]}),
     parameter({id: "scale", label: "Scale", kind: "number", presentation: "slider", value: 5, min: 0, max: 10, step: 0.1}),
     parameter({id: "detail", label: "Detail", kind: "number", presentation: "slider", value: 2, min: 0, max: 15, step: 0.1}),
     parameter({id: "roughness", label: "Roughness", kind: "number", presentation: "slider", value: 0.5, min: 0, max: 1, step: 0.01}),
@@ -295,7 +295,7 @@ function blenderNode(
   title: string,
   category: string,
   properties: readonly FieldDefinition[],
-  parameters: readonly BlenderParameter[],
+  parameters: readonly Parameter[],
   sockets: readonly BlenderSocket[],
   attachToCatalogFrame = true,
 ): BlenderNode {
@@ -322,7 +322,7 @@ function categoryHeaderColor(category: string): Readonly<{r: number; g: number; 
   return {r: 0.18, g: 0.45, b: 0.48, a: 1}
 }
 
-function parameter(field: FieldDefinition): BlenderParameter {
+function parameter(field: FieldDefinition): Parameter {
   return {id: field.id, label: field.label, field}
 }
 
