@@ -49,6 +49,11 @@ operation. `ensure`, `start` and `restart` may remain foreground owners of the
 exact Bun child, so retain their long-lived PTY. Foreign listeners are never
 adopted or stopped.
 
+For an explicitly isolated request that must not inspect the real browser, run
+only tests, typechecks and an ephemeral HTTP hub. `UI_DEV_TEST_MODE` isolates
+the lifecycle port but does not isolate CDP: do not call `ui-browser.ts` unless
+`UI_DEV_CDP_PORT` names a separately owned test browser.
+
 After any applicable source change, finish a stable source checkpoint, restart
 the one affected running selector, and explicitly reload every route required
 for evidence. Route-only navigation on a fresh process may reuse the same

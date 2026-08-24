@@ -37,6 +37,11 @@ healthy exact process is reused. A stopped contour is started only by
 `ensure/start/restart` in a retained long-lived PTY. A foreign listener is
 reported and preserved.
 
+`UI_DEV_TEST_MODE=1 UI_DEV_TEST_PORT=<ephemeral>` isolates only lifecycle HTTP
+state. It does not redirect CDP: without an explicitly separate
+`UI_DEV_CDP_PORT`, browser commands still inspect port `9222`. Therefore a
+no-real-browser audit uses hub/tests/typechecks only.
+
 The UI hub is no-HMR. After a stable checkpoint:
 
 | Changed scope | Running selector that must restart |
