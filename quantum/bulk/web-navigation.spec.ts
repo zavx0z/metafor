@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Ray, Vector3 } from "@metafor/engine"
+import { Ray, Vector3 } from "@engine/core"
 import {
   getBulkPickTargetKey,
   resolveBulkClickTarget,

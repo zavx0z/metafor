@@ -15,8 +15,8 @@
     "build:server": "bun build ./server/index.ts --conditions=internal:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
   },
   "dependencies": {
-    "@metafor/engine": "workspace:*",
-    "@ui/elements": "workspace:*",
-    "@ui/hud": "workspace:*"
+    "@engine/core": "link:@engine/core",
+    "@layout/core": "link:@layout/core",
+    "@ui/hud": "link:@ui/hud"
   }
 }

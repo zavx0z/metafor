@@ -1,8 +1,0 @@
-export { Color } from "./Color"
-export { Frustum } from "./Frustum"
-export { Matrix4 } from "./Matrix4"
-export { Plane } from "./Plane"
-export { Quaternion } from "./Quaternion"
-export { Ray } from "./Ray"
-export { Sphere } from "./Sphere"
-export { Vector3 } from "./Vector3"

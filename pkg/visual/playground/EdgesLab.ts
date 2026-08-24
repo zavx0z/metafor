@@ -12,7 +12,7 @@ import {
   SphereGeometry,
   Vector3,
   ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 import {
   EDGE_EXAMPLE_SCHEMA,

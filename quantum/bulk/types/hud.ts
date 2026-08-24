@@ -1,12 +1,11 @@
-import type { Renderer } from "@metafor/engine"
+import type { Renderer } from "@engine/core"
 import type {
-  UiSurface,
   UiSurfaceLayoutFn,
   UiSurfaceLayerOpts,
   UiSurfaceNode,
   UiSurfaceRect,
-  VirtualInput,
-} from "@ui/elements"
+} from "@layout/core/runtime"
+import type {VirtualInput} from "@layout/core/virtual-input"
 import type {
   BulkViewportController,
 } from "./viewport.ts"

@@ -66,8 +66,8 @@ const server = Bun.serve<RpcSocketData>({
       new URL("../../static/manifest.json", import.meta.url),
       {type: "application/manifest+json"},
     ),
-    "/assets/fonts/JetBrainsMono-Bold.ttf": Bun.file(
-      new URL("../../../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url),
+    "/assets/fonts/jetbrains-mono-bold.ttf": Bun.file(
+      new URL(import.meta.resolve("@engine/core/fonts/jetbrains-mono-bold.ttf")),
     ),
     "/assets/*": async (request: Request) => {
       const asset = new URL(request.url).pathname.slice("/assets/".length)

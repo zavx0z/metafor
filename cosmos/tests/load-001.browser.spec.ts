@@ -761,7 +761,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(missingScript.status).toBe(404)
     expect(missingScript.type ?? "").not.toContain("text/html")
 
-    const runtimeFont = "/assets/fonts/JetBrainsMono-Bold.ttf"
+    const runtimeFont = "/assets/fonts/jetbrains-mono-bold.ttf"
     const onlineFont = await page.evaluate(async (path) => {
       const response = await fetch(path)
       return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}

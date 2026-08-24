@@ -1,4 +1,4 @@
-import { Ray, Vector3 } from "@metafor/engine"
+import { Ray, Vector3 } from "@engine/core"
 import type {BulkOrbitalParticleKind} from "@metafor/types/bulk/manifest"
 import type {
   BulkClientPoint,

@@ -10,7 +10,7 @@ import {
   Space,
   SphereGeometry,
   ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
 import {
   distributeOnPseudoSphere,
   layoutFieldsInPseudoCircle as resolvePseudoCircleLayout,

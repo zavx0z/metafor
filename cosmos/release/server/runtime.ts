@@ -1,4 +1,4 @@
-import {dirname, join} from "node:path"
+import {join} from "node:path"
 import {
   currentServerProcessIdentity,
   serverProcessReady,
@@ -16,7 +16,6 @@ import {
 } from "./rpc"
 import {cosmosRoot} from "./shared/paths"
 
-const repositoryRoot = dirname(cosmosRoot)
 const staticRoot = join(cosmosRoot, "static")
 const assetsRoot = join(cosmosRoot, "assets")
 const indexHtml = join(staticRoot, "index.html")
@@ -34,8 +33,8 @@ export async function startReleaseServer(
       "/manifest.webmanifest": Bun.file(join(staticRoot, "manifest.json"), {
         type: "application/manifest+json",
       }),
-      "/assets/fonts/JetBrainsMono-Bold.ttf": Bun.file(
-        join(repositoryRoot, "pkg/engine/static/JetBrainsMono-Bold.ttf"),
+      "/assets/fonts/jetbrains-mono-bold.ttf": Bun.file(
+        new URL(import.meta.resolve("@engine/core/fonts/jetbrains-mono-bold.ttf")),
       ),
       "/assets/*": async (request: Request) => {
         const asset = new URL(request.url).pathname.slice("/assets/".length)

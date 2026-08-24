@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {Color, ThinFilmMaterial} from "@metafor/engine"
+import {Color, ThinFilmMaterial} from "@engine/core"
 import type {
   StateGraphLayoutEdge,
   StateGraphLayoutNode,

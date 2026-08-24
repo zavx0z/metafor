@@ -4,11 +4,11 @@ import type {
 	BulkViewportWithHud,
 } from "@bulk/types/hud"
 import type {
-	UiSurface,
-	UiSurfaceLayerOpts,
 	UiSurfaceLayoutFn,
+	UiSurfaceLayerOpts,
 	UiSurfaceNode,
-} from "@ui/elements"
+} from "@layout/core/runtime"
+import type {UiSurface} from "@layout/core/surface"
 import {
 	BulkCausalTimeModel,
 	bulkTimeCountersVisible,

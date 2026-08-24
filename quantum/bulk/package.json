@@ -21,10 +21,11 @@
     "@bulk/gravity": "workspace:*",
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
-    "@metafor/engine": "workspace:*",
+    "@engine/core": "link:@engine/core",
+    "@layout/core": "link:@layout/core",
     "@metafor/visual": "workspace:*",
-    "@ui/components": "workspace:*",
-    "@ui/hud": "workspace:*",
-    "@ui/elements": "workspace:*"
+    "@ui/components": "link:@ui/components",
+    "@ui/hud": "link:@ui/hud",
+    "@ui/elements": "link:@ui/elements"
   }
 }

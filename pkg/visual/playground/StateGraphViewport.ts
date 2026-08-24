@@ -17,7 +17,7 @@ import {
   TrueTypeFont,
   Vector3,
   ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
 import {
   createQuantumFilmMaterial,
   createQuantumSphereMaterial,
@@ -667,7 +667,7 @@ export const createStateGraphViewport = async ({
   await renderer.init(canvas)
   renderer.setPixelRatio(window.devicePixelRatio || 1)
   renderer.setSize(width, height)
-  const font = await TrueTypeFont.fromUrl("/engine-static/JetBrainsMono-Bold.ttf")
+  const font = await TrueTypeFont.fromUrl("/engine-static/jetbrains-mono-bold.ttf")
   const space = new Space()
   space.background = BACKGROUND.clone()
   const nodeById = new Map(layout.nodes.map((node) => [node.id, node] as const))

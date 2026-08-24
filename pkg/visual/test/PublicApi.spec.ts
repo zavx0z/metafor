@@ -57,7 +57,7 @@ describe("@metafor/visual production surface", () => {
       expect(entry.default.startsWith("./src/")).toBe(true)
       expect(entry.types).toBe(entry.default)
     }
-    expect(manifest.dependencies).not.toHaveProperty("@metafor/engine")
+    expect(manifest.dependencies).not.toHaveProperty("@engine/core")
     expect(manifest.files.toSorted()).toEqual([
       "CONTRACT.md",
       "README.md",
@@ -96,7 +96,7 @@ describe("@metafor/visual production surface", () => {
       if (file.endsWith(".spec.ts")) continue
       const source = await Bun.file(new URL(file, root)).text()
       expect(source).not.toMatch(/from\s+["'][^"']*playground/)
-      expect(source).not.toMatch(/from\s+["']@metafor\/engine["']/)
+      expect(source).not.toMatch(/from\s+["']@engine\/core["']/)
     }
   })
 

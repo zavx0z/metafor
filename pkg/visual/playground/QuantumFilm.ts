@@ -1,4 +1,4 @@
-import {Color, ThinFilmMaterial} from "@metafor/engine"
+import {Color, ThinFilmMaterial} from "@engine/core"
 
 export type QuantumFilmOptions = Readonly<{
   glowIntensity?: number

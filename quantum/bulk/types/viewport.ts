@@ -1,4 +1,4 @@
-import type { Color, Mesh, Object3D, Text, TextMaterial, ThinFilmMaterial, Vector3 } from "@metafor/engine"
+import type { Color, Mesh, Object3D, Text, TextMaterial, ThinFilmMaterial, Vector3 } from "@engine/core"
 import type {
   BulkReadyRenderDarkParticle,
   BulkReadyRenderFieldParticle,

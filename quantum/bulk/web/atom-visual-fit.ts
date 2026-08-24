@@ -1,4 +1,4 @@
-import {BufferGeometry, Object3D, Vector3} from "@metafor/engine"
+import {BufferGeometry, Object3D, Vector3} from "@engine/core"
 
 export type OwnedAtomFitGeometry = Readonly<{
 	atomId: number

@@ -1,4 +1,4 @@
-import type { BufferGeometry } from "@metafor/engine"
+import type { BufferGeometry } from "@engine/core"
 import type { BendTextAroundEquatorOptions } from "@bulk/types/text"
 
 /**

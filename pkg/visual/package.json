@@ -42,6 +42,6 @@
     "@bulk/types": "workspace:*"
   },
   "devDependencies": {
-    "@metafor/engine": "workspace:*"
+    "@engine/core": "link:@engine/core"
   }
 }

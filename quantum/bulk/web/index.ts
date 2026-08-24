@@ -96,24 +96,24 @@ import {
 	Raycaster,
 	Vector3,
 	ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
+import {HUD} from "@layout/core/hud"
+import type {
+	UiRuntime,
+	UiSurfaceLayoutFn,
+	UiSurfaceLayerOpts,
+	UiSurfaceNode,
+	UiSurfaceRect,
+} from "@layout/core/runtime"
+import {UiSurface, Z} from "@layout/core/surface"
 import {
-	HUD,
-	UiSurface,
-	VirtualInput,
-	Z,
-	drawIconCentered,
 	handleActiveInputKey,
 	insertActiveInputText,
 	surfaceHasActiveInput,
-	uiIcons,
-	type VirtualInputSoftKeyboardMode,
-	type UiRuntime,
-	type UiSurfaceLayoutFn,
-	type UiSurfaceLayerOpts,
-	type UiSurfaceNode,
-	type UiSurfaceRect,
-} from "@ui/elements"
+} from "@layout/core/text-input"
+import {VirtualInput, type VirtualInputSoftKeyboardMode} from "@layout/core/virtual-input"
+import {drawIconCentered} from "@ui/elements/icon"
+import {uiIcons} from "@ui/elements/icons"
 import {
 	getBulkPickTargetKey,
 	isBulkSpherePickTarget,
@@ -1302,7 +1302,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	renderer.setPixelRatio(window.devicePixelRatio || 1)
 	renderer.setSize(options.width, options.height)
 	activeRenderSettings = normalizeBulkRenderSettings(activeRenderSettings)
-	const uiFont = await TrueTypeFont.fromUrl("/engine-static/JetBrainsMono-Bold.ttf")
+	const uiFont = await TrueTypeFont.fromUrl("/engine-static/jetbrains-mono-bold.ttf")
 	const labelFont = uiFont
 	const viewportConfig = getViewportConfig()
 	const raycaster = new Raycaster()

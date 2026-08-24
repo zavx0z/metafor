@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "@metafor/engine": "workspace:*",
-    "@ui/elements": "workspace:*"
+    "@engine/core": "link:@engine/core",
+    "@layout/core": "link:@layout/core"
   }
 }

@@ -5,7 +5,7 @@ import {
   Space,
   TorusGeometry,
   ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
 import {createPageAnnotationLayer} from "./AnnotationLayer.ts"
 import type {FieldsV2Source} from "./FieldsV2Lab.ts"
 import {createQuantumFilmMaterial} from "./QuantumFilm.ts"

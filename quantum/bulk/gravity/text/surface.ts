@@ -1,4 +1,4 @@
-import { Text } from "@metafor/engine"
+import { Text } from "@engine/core"
 import type { CreateSurfaceLabelOptions, FontMetrics, SurfaceLabel, TextExtents } from "@bulk/types/text"
 import { getFontMetrics } from "./font-metrics"
 import { resolveTextExtents } from "./extents"

@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {Color} from "@metafor/engine"
+import {Color} from "@engine/core"
 import {
   FORM_SKIN_GEOMETRY,
   FORM_SKINS,

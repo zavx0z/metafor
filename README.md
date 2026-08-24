@@ -96,8 +96,12 @@ Matrix рождается последней, получает от Boundary о�
 Установка:
 
 ```bash
-bun install
+bun install --frozen-lockfile
 ```
+
+Перед установкой внутренние package identities регистрируются через Bun links
+из соседних репозиториев Engine, Layout, UI и Node; точная последовательность
+находится в [руководстве разработки](docs/DEVELOPMENT.md#связанные-репозитории).
 
 Ядро запускается без встроенной Meta. Внешний физический Cluster хранит Galaxy-
 владельцев и их Atom-репозитории:
@@ -148,10 +152,14 @@ bun run typecheck:expect-errors
 
 ## Активная граница репозитория
 
-В рабочем дереве остаются только MetaFor, его домены, DSL/Matter/template,
-WebGPU engine, Bulk, reusable UI и нейтральные runtime fixtures. Прежние product
-interfaces — Interpreter, Voice, Android, Browser Agent, PTY и Tauri — удалены из
-активной ветки. Их история сохранена в:
+В рабочем дереве остаются MetaFor, его домены, DSL/Matter/template, Bulk,
+product-owned Visual и нейтральные runtime fixtures. Переиспользуемые
+[Engine](https://github.com/zavx0z/engine),
+[Layout](https://github.com/zavx0z/layout), [UI](https://github.com/zavx0z/ui)
+и [Node](https://github.com/zavx0z/node) развиваются как отдельная открытая
+инфраструктура, построенная для MetaFor и подключённая точными Bun links.
+Прежние product interfaces — Interpreter, Voice, Android, Browser Agent, PTY и
+Tauri — удалены из активной ветки. Их история сохранена в:
 
 ```text
 archive/pre-core-split-2026-07-11

@@ -1716,7 +1716,7 @@ describe("Energy process protocol", () => {
     const root = await mkdtemp(join(tmpdir(), "metafor-energy-tool-"))
     const mass: Record<string, unknown> = {filesystemRoot: root}
     const process = processEntry("ready", {
-      src: new URL("../fixture/tools/filesystem.read.ts", import.meta.url).href,
+      src: new URL("../../fixture/tools/filesystem.read.ts", import.meta.url).href,
       readFields: [[2, "path"]],
     })
     const harness = createHarness(

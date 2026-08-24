@@ -20,8 +20,8 @@ const server = Bun.serve({
   development: {hmr: false},
   routes: {
     "/": index,
-    "/engine-static/JetBrainsMono-Bold.ttf": file(
-      new URL("../../engine/static/JetBrainsMono-Bold.ttf", import.meta.url),
+    "/engine-static/jetbrains-mono-bold.ttf": file(
+      new URL(import.meta.resolve("@engine/core/fonts/jetbrains-mono-bold.ttf")),
     ),
   },
   async fetch(request) {

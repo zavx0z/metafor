@@ -14,12 +14,12 @@ Initial evaluation требует принадлежащий приложени�
 @packageDocumentation
 */
 
-import {GridHelper} from "@metafor/engine"
-import {UiRuntime} from "@ui/elements"
+import {GridHelper} from "@engine/core"
+import {UiRuntime} from "@layout/core/runtime"
 import {DisplayDockSurface} from "./display-dock.ts"
 
 const VISUAL_CANVAS_ID = "visual-canvas"
-const VISUAL_FONT_URL = "/assets/fonts/JetBrainsMono-Bold.ttf"
+const VISUAL_FONT_URL = "/assets/fonts/jetbrains-mono-bold.ttf"
 const VISUAL_DISPLAY_ID = "main"
 const VISUAL_DISPLAY_CENTER_MM = {x: 0, y: 0, z: 900} as const
 

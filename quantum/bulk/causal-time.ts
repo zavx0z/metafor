@@ -2,8 +2,8 @@ import type {
   BulkTimeFrame,
   BulkTimeFrameResolution,
 } from "@bulk/types/hud"
-import type {UiSurfaceRect} from "@ui/elements"
-import type {HudTimelineDocument, HudTimelineMarker} from "@ui/hud"
+import type {UiSurfaceRect} from "@layout/core/runtime"
+import type {HudTimelineDocument, HudTimelineMarker} from "@ui/hud/timeline"
 
 export const BULK_TIME_TRACKS = ["Force", "Mass", "Boundary"] as const
 

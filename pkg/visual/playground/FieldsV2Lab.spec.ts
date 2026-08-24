@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {Color} from "@metafor/engine"
+import {Color} from "@engine/core"
 import type {BulkObserverSnapshot} from "@bulk/types/initial"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {visualFieldParticleColor} from "../src/SemanticVisual.ts"

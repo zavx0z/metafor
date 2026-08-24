@@ -2,6 +2,46 @@
 
 ## Установка
 
+### Связанные репозитории
+
+Engine, Layout, UI и Node являются соседними публичными репозиториями,
+построенными для [MetaFor](https://github.com/zavx0z/metafor). Их internal
+package identities не публикуются в npm: Bun links сохраняют одного реального
+владельца каждого module и не создают re-export либо TypeScript alias.
+
+Репозитории располагаются рядом:
+
+```text
+repozitarium/
+├── engine/
+├── layout/
+├── ui/
+├── node/
+└── metafor/
+```
+
+После клонирования links регистрируются снизу вверх:
+
+```bash
+cd ../engine
+bun install --frozen-lockfile
+cd packages/core && bun link
+
+cd ../../../layout
+bun install --frozen-lockfile
+cd packages/core && bun link
+
+cd ../../../ui
+bun install --frozen-lockfile
+for package in elements components hud storybook; do (cd "packages/$package" && bun link); done
+
+cd ../node
+bun install --frozen-lockfile
+for package in core editor layout worker ui storybook; do (cd "packages/$package" && bun link); done
+
+cd ../metafor
+```
+
 Из корня репозитория:
 
 ```bash

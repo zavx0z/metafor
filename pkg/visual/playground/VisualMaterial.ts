@@ -2,7 +2,7 @@ import {
   Color,
   LineGlowMaterial,
   type ThinFilmMaterial,
-} from "@metafor/engine"
+} from "@engine/core"
 import {
   createQuantumFilmMaterial,
   createQuantumSphereMaterial,

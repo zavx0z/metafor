@@ -16,7 +16,7 @@ import {
   TorusGeometry,
   TrueTypeFont,
   ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
 import {
   createQuantumFilmMaterial,
   createQuantumSphereMaterial,
@@ -495,7 +495,7 @@ export const createFormSkinLab = async (
   const space = new Space()
   const textOverlay = new Space()
   const fieldsFont = await TrueTypeFont.fromUrl(
-    "/engine-static/JetBrainsMono-Bold.ttf",
+    "/engine-static/jetbrains-mono-bold.ttf",
   )
   space.background = new Color(0.008, 0.019, 0.032)
   const viewPoint = new ViewPoint({

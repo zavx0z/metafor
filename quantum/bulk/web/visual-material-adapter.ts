@@ -2,7 +2,7 @@ import {
   Color,
   LineGlowMaterial,
   ThinFilmMaterial,
-} from "@metafor/engine"
+} from "@engine/core"
 import type {
   VisualLineMaterial,
   VisualQuantumMaterial,

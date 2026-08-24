@@ -1,5 +1,0 @@
-export * from "./PlaneGeometry"
-export * from "./TexturedPlaneGeometry"
-export * from "./SphereGeometry"
-export * from "./TorusGeometry"
-export * from "./BoxGeometry"

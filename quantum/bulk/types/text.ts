@@ -1,4 +1,4 @@
-import type { BufferGeometry, Text, TextMaterial, TrueTypeFont } from "@metafor/engine"
+import type { BufferGeometry, Text, TextMaterial, TrueTypeFont } from "@engine/core"
 
 export interface FontMetrics {
   unitsPerEm: number

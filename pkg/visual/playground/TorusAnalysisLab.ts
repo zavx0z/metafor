@@ -8,7 +8,7 @@ import {
   Renderer,
   Space,
   ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
 import {
   DARK_TORUS_MESH_DETAIL,
   resolveSelfSimilarTorusForm,

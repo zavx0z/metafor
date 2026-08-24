@@ -8,7 +8,7 @@ const startupResources = [
 ]
 
 const runtimeAssets = new Set([
-  "/assets/fonts/JetBrainsMono-Bold.ttf",
+  "/assets/fonts/jetbrains-mono-bold.ttf",
 ])
 
 /** Создаёт принадлежащую release browser cache policy поверх startup primitives. */

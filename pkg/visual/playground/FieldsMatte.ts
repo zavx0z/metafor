@@ -2,7 +2,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
-} from "@metafor/engine"
+} from "@engine/core"
 
 export const FIELDS_MATTE_DEFAULT_OPACITY = 0.55
 export const FIELDS_MATTE_TEXT_COLOR = 0x000000

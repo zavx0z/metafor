@@ -44,7 +44,10 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(main).toContain('const {runtime} = await import("@internal/visual")')
   expect(main).toContain('console.debug("[@cosmos/release:main]", "Visual runtime подключён", {')
   expect(main).toContain("runtime: Object.keys(runtime)")
-  expect(mainPackage.dependencies).toEqual({"@internal/visual": "workspace:^0.1.10"})
+  expect(mainPackage.dependencies).toEqual({
+    "@engine/core": "link:@engine/core",
+    "@internal/visual": "workspace:^0.1.10",
+  })
   expect(visualPackage.name).toBe("@internal/visual")
   expect(visualPackage.exports?.["."]).toEqual({
     "internal:main": "./main/index.ts",
@@ -55,11 +58,12 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualPackage.scripts?.["build:main"]).toBe(
     "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --drop console.debug --outfile=dist/main.js",
   )
-  expect(visualPackage.dependencies?.["@ui/elements"]).toBe("workspace:*")
-  expect(visualPackage.dependencies?.["@metafor/engine"]).toBe("workspace:*")
-  expect(visualPackage.dependencies?.["@ui/hud"]).toBe("workspace:*")
-  expect(visual).toContain('import {UiRuntime} from "@ui/elements"')
-  expect(visual).toContain('import {GridHelper} from "@metafor/engine"')
+  expect(visualPackage.dependencies).not.toHaveProperty("@ui/elements")
+  expect(visualPackage.dependencies?.["@engine/core"]).toBe("link:@engine/core")
+  expect(visualPackage.dependencies?.["@layout/core"]).toBe("link:@layout/core")
+  expect(visualPackage.dependencies?.["@ui/hud"]).toBe("link:@ui/hud")
+  expect(visual).toContain('import {UiRuntime} from "@layout/core/runtime"')
+  expect(visual).toContain('import {GridHelper} from "@engine/core"')
   expect(visual).toContain('import {DisplayDockSurface} from "./display-dock.ts"')
   expect(visual).toContain("export const runtime = await UiRuntime.create(canvas")
   expect(visual).toContain(
@@ -87,6 +91,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visual).toContain('runtime.setDisplayMode("far")')
   expect(visual).toContain("runtime.resizeDisplay(VISUAL_DISPLAY_ID")
   expect(displayDock).toContain('import {HudReturnDock, type HudRect} from "@ui/hud"')
+  expect(displayDock).toContain('import {UiSurface} from "@layout/core/surface"')
   expect(displayDock).toContain("export class DisplayDockSurface extends UiSurface")
   expect(displayDock).toContain("containsPointer(localX: number, localY: number)")
   expect(displayDock).toContain("HudReturnDock(this")
@@ -99,8 +104,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   )
   expect(packageBuild).toContain("packageArtifactPath(location.root, build)")
 
-  expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
-  expect(server).toContain('join(repositoryRoot, "pkg/engine/static/JetBrainsMono-Bold.ttf")')
+  expect(server).toContain('"/assets/fonts/jetbrains-mono-bold.ttf"')
+  expect(server).toContain('import.meta.resolve("@engine/core/fonts/jetbrains-mono-bold.ttf")')
   expect(startupMain).toContain('import("@cosmos/release")')
   expect(startupMain).not.toContain("UiRuntime")
 })

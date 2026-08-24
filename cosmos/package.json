@@ -17,6 +17,7 @@
     "@internal/visual": "workspace:^0.1.14"
   },
   "devDependencies": {
+    "@engine/core": "link:@engine/core",
     "puppeteer-core": "25.4.0"
   }
 }

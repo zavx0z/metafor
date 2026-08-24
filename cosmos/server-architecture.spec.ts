@@ -11,7 +11,7 @@ const rpcServerPath = fileURLToPath(new URL("./release/server/rpc/index.ts", imp
 const routes = [
   '"/"',
   '"/manifest.webmanifest"',
-  '"/assets/fonts/JetBrainsMono-Bold.ttf"',
+  '"/assets/fonts/jetbrains-mono-bold.ttf"',
   '"/assets/*"',
   '"/@cosmos/:module"',
   '"/@internal/:module"',

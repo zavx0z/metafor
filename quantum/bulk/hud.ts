@@ -3,12 +3,14 @@ import type {
 	BulkHudOptions,
 	BulkTimeFrame,
 } from "@bulk/types/hud"
-import {palette, radii, UiSurface, uiIcons, type Tone, type UiSurfaceRect} from "@ui/elements"
-import {Button, StatusChip, type ButtonVariant} from "@ui/components"
-import {
-	HudSideTab,
-	HudTimelinePanel,
-} from "@ui/hud"
+import type {UiSurfaceRect} from "@layout/core/runtime"
+import {UiSurface} from "@layout/core/surface"
+import {StatusChip} from "@ui/components/badge"
+import {Button, type ButtonVariant} from "@ui/components/button"
+import {uiIcons} from "@ui/elements/icons"
+import {palette, radii, type Tone} from "@ui/elements/theme"
+import {HudSideTab} from "@ui/hud"
+import {HudTimelinePanel} from "@ui/hud/timeline"
 import {
 	buildBulkCausalTimeline,
 	bulkTimeControlDockRect,

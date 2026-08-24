@@ -15,7 +15,7 @@ import {
   TrueTypeFont,
   Vector3,
   ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
 import type {
   VisualParticleForm,
   VisualScene,
@@ -830,7 +830,7 @@ export const createVisualSceneViewport = async ({
   const labelFontSize = fit.radius * LABEL_FONT_SIZE_TO_SCENE_RADIUS
   if (showLabels && plan.labels.length > 0) {
     const font = await TrueTypeFont.fromUrl(
-      "/engine-static/JetBrainsMono-Bold.ttf",
+      "/engine-static/jetbrains-mono-bold.ttf",
     )
     labels.push(...plan.labels.map((label) =>
       addLabel(space, font, label, labelFontSize)

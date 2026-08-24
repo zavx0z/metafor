@@ -4,7 +4,7 @@ import {
   SphereGeometry,
   TorusGeometry,
   Vector3,
-} from "@metafor/engine"
+} from "@engine/core"
 import {resolveOwnedAtomVisualFitBounds} from "./atom-visual-fit.ts"
 
 describe("owning Atom visual fit", () => {

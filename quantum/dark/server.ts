@@ -478,8 +478,8 @@ export const server = Bun.serve<DarkSocketData>({
         return upgraded ? undefined : new Response("WebSocket upgrade failed", {status: 426})
       },
     },
-    "/engine-static/JetBrainsMono-Bold.ttf": file(
-      new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf", import.meta.url),
+    "/engine-static/jetbrains-mono-bold.ttf": file(
+      new URL(import.meta.resolve("@engine/core/fonts/jetbrains-mono-bold.ttf")),
     ),
   },
   websocket: {

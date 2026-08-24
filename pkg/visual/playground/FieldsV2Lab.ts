@@ -17,7 +17,7 @@ import {
   TorusGeometry,
   TrueTypeFont,
   ViewPoint,
-} from "@metafor/engine"
+} from "@engine/core"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {
   visualDarkParticleColor,
@@ -444,7 +444,7 @@ export const createFieldsV2Lab = async (
     stencil: Float32Array
   }>> = []
   const font = await TrueTypeFont.fromUrl(
-    "/engine-static/JetBrainsMono-Bold.ttf",
+    "/engine-static/jetbrains-mono-bold.ttf",
   )
   let ringWidth = FIELDS_V2_RING_WIDTH
   const initialPlacements = layoutFieldsV2Rings(

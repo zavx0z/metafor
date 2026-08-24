@@ -1,5 +1,0 @@
-export * from "./AnimationAction"
-export * from "./AnimationClip"
-export * from "./AnimationMixer"
-export * from "./KeyframeTrack"
-export * from "./Skeleton"

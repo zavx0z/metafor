@@ -1,5 +1,0 @@
-[loader]
-".wgsl" = "text"
-
-[serve.static]
-plugins = ["../../../scripts/wgsl-text-plugin.ts"]

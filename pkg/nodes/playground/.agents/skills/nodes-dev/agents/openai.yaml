@@ -1,4 +1,0 @@
-interface:
-  display_name: "Nodes Development"
-  short_description: "Develop the centralized Nodes playground"
-  default_prompt: "Use $nodes-dev to run and verify the centralized Nodes catalog and its exact package routes."

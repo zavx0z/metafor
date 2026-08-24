@@ -39,18 +39,18 @@
   локальные Force handlers и принадлежащая `pkg/visual` геометрия.
 * [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
   один полный Bulk scene snapshot.
-* [Engine](../pkg/engine/CONTRACT.md) — координаты и единицы сцены, правила
-  обычных и скелетных mesh и материалы renderer.
-* [UI elements](../pkg/ui/elements/REQUIREMENTS.md) — обязательный Flex-закон
-  всей UI-композиции и граница низкоуровневого drawing.
-* [UI components](../pkg/ui/components/REQUIREMENTS.md) — универсальные
-  WebGPU-поля и составные controls, пригодные внутри node editor и вне него.
-* [Production delivery UI](../pkg/ui/DELIVERY.md) — независимые ESM subpath
-  imports, один product-owned `UiRuntime` и shared Engine/Elements code без
-  дублирования между динамически загружаемыми modules.
-* [UI playground](../pkg/ui/playground/REQUIREMENTS.md) — общий typed route
-  tree, historical five-panel FlexBox shell и единый no-HMR каталог package
-  pages без consumer semantics в общей инфраструктуре.
+* [Engine](https://github.com/zavx0z/engine/blob/main/packages/core/contract.md) —
+  координаты и единицы сцены, обычные и скелетные mesh и материалы renderer.
+* [Layout](https://github.com/zavx0z/layout/blob/main/ARCHITECTURE.md) —
+  `UiRuntime`, `UiSurface`, HUD, пространственные Displays, input и FlexBox.
+* [UI elements](https://github.com/zavx0z/ui/blob/main/packages/elements/requirements.md) —
+  визуальные primitives, controlled editing, theme и icons поверх Layout.
+* [UI components](https://github.com/zavx0z/ui/blob/main/packages/components/requirements.md) —
+  универсальные WebGPU-поля и составные controls, пригодные внутри node editor и вне него.
+* [Production delivery UI](https://github.com/zavx0z/ui/blob/main/docs/delivery.md) —
+  независимые ESM subpath imports и одна module identity каждого связанного package.
+* [UI Storybook](https://github.com/zavx0z/ui/blob/main/packages/storybook/requirements.md) —
+  typed route tree, пятизонный FlexBox workbench и единый no-HMR каталог package pages.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
@@ -64,24 +64,24 @@
   пространству `@internal/*` (далее — internal-пакеты), а [готовая визуальная
   среда Cosmos](../cosmos/internal/visual/README.md#визуальная-среда-main) —
   `@internal/visual` (далее — visual).
-* [Node system](../pkg/nodes/README.md) — живой runtime-граф `@nodes/core`
+* [Node system](https://github.com/zavx0z/node/blob/main/README.md) — живой runtime-граф `@nodes/core`
   `NodeTree → Frame / Node → Parameter → Socket → Link`, Parameter-store,
   производные view-проекции и отдельно сохранённое layout-ядро
   `@nodes/layout` (далее — layout).
   Node Editor и его
   FlexBox/view законы
-  принадлежат [`@nodes/ui`](../pkg/nodes/ui/REQUIREMENTS.md) (далее — node UI),
+  принадлежат [`@nodes/ui`](https://github.com/zavx0z/node/blob/main/packages/ui/requirements.md) (далее — node UI),
   runtime/snapshot/projection граница —
-  [`@nodes/core`](../pkg/nodes/core/REQUIREMENTS.md),
+  [`@nodes/core`](https://github.com/zavx0z/node/blob/main/packages/core/requirements.md),
   universal authoring-команды —
-  [`@nodes/editor`](../pkg/nodes/editor/REQUIREMENTS.md),
+  [`@nodes/editor`](https://github.com/zavx0z/node/blob/main/packages/editor/requirements.md),
   единый dev-каталог всех package pages —
-  [`@nodes/playground`](../pkg/nodes/playground/REQUIREMENTS.md),
+  [`@nodes/storybook`](https://github.com/zavx0z/node/blob/main/packages/storybook/requirements.md),
   а алгоритмические законы
-  разделены на [общие](../pkg/nodes/layout/requirements/COMMON.md),
-  [adaptive side-selection](../pkg/nodes/layout/requirements/ADAPTIVE.md),
-  [`RIGHT`](../pkg/nodes/layout/requirements/RIGHT.md) и
-  [`DOWN`](../pkg/nodes/layout/requirements/DOWN.md).
+  разделены на [общие](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/common.md),
+  [adaptive side-selection](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/adaptive.md),
+  [`RIGHT`](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/right.md) и
+  [`DOWN`](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/down.md).
 * [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
 * [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в

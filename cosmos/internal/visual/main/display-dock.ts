@@ -1,5 +1,5 @@
 import {HudReturnDock, type HudRect} from "@ui/hud"
-import {UiSurface} from "@ui/elements"
+import {UiSurface} from "@layout/core/surface"
 
 const DOCK_KEY = "main-display-dock"
 const DOCK_BRIDGE_KEY = "main-display-dock-bridge"

@@ -17,6 +17,7 @@
     "build:server": "bun build ./server/index.ts --conditions=cosmos:server --conditions=internal:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
   },
   "dependencies": {
+    "@engine/core": "link:@engine/core",
     "@internal/visual": "workspace:^0.1.10"
   },
   "devDependencies": {

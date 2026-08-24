@@ -1,4 +1,4 @@
-import type { TrueTypeFont } from "@metafor/engine"
+import type { TrueTypeFont } from "@engine/core"
 import type { FontMetrics } from "@bulk/types/text"
 
 /** Извлекает метрики шрифта из загруженного {@link TrueTypeFont}. */
