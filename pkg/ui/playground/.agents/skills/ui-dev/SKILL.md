@@ -68,24 +68,28 @@ bun "$SKILL/scripts/ui-browser.ts" reload "$PWD" ui \
 bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" ui \
   --route /components/button/basic/contained --target-id "$target_id" \
   --output /tmp/ui-components.png
+bun "$SKILL/scripts/ui-browser.ts" page "$PWD" ui \
+  --route /hud/ --target-id "$target_id" --output /tmp/ui-hud.png
 ```
 
 Run `targets` first. Open `/` only when the origin has no target; multiple
 targets are explicit ambiguity. Route operations navigate the existing target
 in place and never focus an OS window. DOM routes reject canvas/touch/profile
-actions. The helper validates the requested route against the running server,
+actions. `page` captures the complete rendered viewport of any DOM, SVG or
+WebGPU page without browser chrome or focus changes. The helper validates the requested route against the running server,
 rejects noncanonical redirects and unknown paths, and selects the page-owned
 canvas descriptor.
 
 Automated browser operations are background-only. They never call
-`Page.bringToFront`, focus/activate/window endpoints, AI macOS or screenshot
+`Page.bringToFront`, focus/activate/window endpoints, AI macOS or OS screenshot
 services. Exact canvas evidence decodes the target canvas PNG and rejects
 starting or idle black pixels. Emulation is cleared before handoff.
 
 ## Evidence boundary
 
 Tests and typechecks prove contracts. DOM/console proves one exact route and
-target. Canvas PNG proves pixels, not browser chrome. Synthetic interaction,
+target. Page PNG proves the rendered viewport; Canvas PNG proves exact canvas
+pixels. Neither includes browser chrome. Synthetic interaction,
 mobile emulation, profiling and external GPU capture do not become physical
 device proof or owner acceptance.
 

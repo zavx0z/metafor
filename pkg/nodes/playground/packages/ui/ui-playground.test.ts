@@ -18,6 +18,7 @@ import {
   nodePlaygroundDockItems,
   nodePlaygroundGroup,
   nodePlaygroundSections,
+  nodePlaygroundWorkbenchStoryRoute,
 } from "./ui-navigation.ts"
 import {
   NODE_COMPONENT_STORIES,
@@ -100,6 +101,11 @@ describe("Blender-like Node component playground", () => {
       {pathname: "/ui/socket/missing"},
       {basePath: "/ui"},
     )).toEqual({kind: "not-found"})
+    expect(nodePlaygroundWorkbenchStoryRoute("")).toBe("socket/boolean/input")
+    expect(nodePlaygroundWorkbenchStoryRoute("node-editor")).toBe("node-editor/scene/default")
+    expect(nodePlaygroundWorkbenchStoryRoute("socket")).toBe("socket/boolean/input")
+    expect(nodePlaygroundWorkbenchStoryRoute("socket/boolean")).toBe("socket/boolean/input")
+    expect(nodePlaygroundWorkbenchStoryRoute("socket/boolean/output")).toBe("socket/boolean/output")
     expect(nodePlaygroundGroup("node-editor/scene/default")).toBe("editor")
     expect(nodePlaygroundGroup("socket/boolean/input")).toBe("socket")
     expect(nodePlaygroundGroup("comparison/blender/default")).toBe("comparison")
@@ -498,11 +504,12 @@ describe("Blender-like Node component playground", () => {
     })
     expect(client).toContain("new PlaygroundRouteTreeRouter(NODE_PLAYGROUND_ROUTE_TREE, {")
     expect(client).toContain("basePath: NODE_UI_PLAYGROUND_BASE_PATH")
-    expect(client).toContain("new PlaygroundOverviewSurface<NodePlaygroundRoute>")
+    expect(client).toContain("nodePlaygroundWorkbenchStoryRoute(route)")
+    expect(client).not.toContain("PlaygroundOverviewSurface")
     expect(client).not.toContain("nodePlaygroundHash")
     expect(client).not.toContain("window.location.hash")
     const applyRoute = client.slice(client.indexOf("const applyRoute"), client.indexOf("router.subscribe((node)"))
-    expect(applyRoute).toContain("runtime.relayout()")
+    expect(applyRoute).toContain("renderPlaygroundFrame()")
     expect(applyRoute).not.toContain("runtime.handleResize()")
     expect(client).toContain("runtime.handleResize()\n  await applyRoute(currentRoute())")
     expect(client).toContain("new PlaygroundStoryPanelSurface(storyPanelOptions())")

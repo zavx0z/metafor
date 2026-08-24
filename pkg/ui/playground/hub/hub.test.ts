@@ -2,7 +2,10 @@ import {describe, expect, test} from "bun:test"
 import {join} from "node:path"
 import {fileURLToPath} from "node:url"
 import {startPlaygroundHubServer} from "@ui/playground/server"
+import {COMPONENT_STORIES} from "../../components/playground/stories.ts"
+import {ELEMENT_STORIES} from "../../elements/playground/stories.ts"
 import {UI_PACKAGE_CATALOG} from "./catalog/package-catalog.ts"
+import {mountedStoryRepresentativeRoute} from "./mounted-story-page.ts"
 import {
   createUiPlaygroundPages,
   uiPlaygroundPageFiles,
@@ -12,6 +15,17 @@ const hubRoot = fileURLToPath(new URL(".", import.meta.url))
 const playgroundRoot = fileURLToPath(new URL("..", import.meta.url))
 
 describe("central UI playground hub", () => {
+  test("keeps overview pathname separate from the representative Workbench story", () => {
+    expect(mountedStoryRepresentativeRoute(ELEMENT_STORIES, "")).toBe("div/basic/background")
+    expect(mountedStoryRepresentativeRoute(ELEMENT_STORIES, "div")).toBe("div/basic/background")
+    expect(mountedStoryRepresentativeRoute(ELEMENT_STORIES, "div/scroll")).toBe("div/scroll/vertical")
+    expect(mountedStoryRepresentativeRoute(ELEMENT_STORIES, "div/scroll/horizontal")).toBe("div/scroll/horizontal")
+    expect(mountedStoryRepresentativeRoute(COMPONENT_STORIES, "")).toBe("button/basic/contained")
+    expect(mountedStoryRepresentativeRoute(COMPONENT_STORIES, "button")).toBe("button/basic/contained")
+    expect(mountedStoryRepresentativeRoute(COMPONENT_STORIES, "button/icon")).toBe("button/icon/svg")
+    expect(() => mountedStoryRepresentativeRoute(COMPONENT_STORIES, "missing")).toThrow("Unknown mounted playground route")
+  })
+
   test("catalogs every UI package without inventing a HUD visual stand", async () => {
     expect(UI_PACKAGE_CATALOG.map(({id, routePrefix, defaultRoute, presentation}) => ({
       id,
@@ -52,22 +66,25 @@ describe("central UI playground hub", () => {
     expect(uiPlaygroundPageFiles("hud").body.kind).toBe("html")
   })
 
-  test("mounts existing package entries through the shared route-tree overview contract", async () => {
+  test("keeps the existing Workbench mounted on overview and leaf routes", async () => {
     const elements = await Bun.file(join(playgroundRoot, "../elements/playground/entry.ts")).text()
     const components = await Bun.file(join(playgroundRoot, "../components/playground/entry.ts")).text()
     const fixture = await Bun.file(join(playgroundRoot, "fixture/entry.ts")).text()
     const mounted = await Bun.file(join(hubRoot, "mounted-story-page.ts")).text()
 
     expect(elements).toContain('const ELEMENTS_MOUNT_PATH = "/elements"')
-    expect(elements).toContain("createMountedStoryRoute<ElementsStoryRoute>")
-    expect(elements).toContain("mountStoryOverview(runtime, canvas, ELEMENT_STORIES")
+    expect(elements).toContain("createMountedStoryRouter<ElementsStoryRoute>")
+    expect(elements).toContain("runtime.addSurface(preview")
+    expect(elements).toContain("runtime.addSurface(storyPanel")
     expect(components).toContain('const COMPONENTS_MOUNT_PATH = "/components"')
-    expect(components).toContain("createMountedStoryRoute<ComponentsStoryRoute>")
-    expect(components).toContain("mountStoryOverview(runtime, canvas, COMPONENT_STORIES")
+    expect(components).toContain("createMountedStoryRouter<ComponentsStoryRoute>")
+    expect(components).toContain("runtime.addSurface(preview")
+    expect(components).toContain("runtime.addSurface(storyPanel")
     expect(fixture).toContain('const PLAYGROUND_MOUNT_PATH = "/playground"')
     expect(fixture).toContain("new PlaygroundRouteTreeRouter(pageRouteTree")
     expect(mounted).toContain("new PlaygroundRouteTreeRouter(routeTree, {basePath})")
-    expect(mounted).toContain("new PlaygroundOverviewSurface")
+    expect(mounted).toContain("representativeDetailRoute")
+    expect(mounted).not.toContain("PlaygroundOverviewSurface")
   })
 
   test("serves canonical package overviews, exact leaves and isolated page assets on one origin", async () => {

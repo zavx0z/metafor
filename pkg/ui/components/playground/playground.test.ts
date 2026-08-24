@@ -146,6 +146,14 @@ describe("@ui/components package-owned Workbench stories", () => {
       "Полоса прокрутки",
       "Уведомления",
     ])
+    expect(catalog.map(({route}) => route)).toEqual(catalog.map(({id}) => id))
+    expect(componentSectionItems("button/basic/contained").map(({route}) => route)).toEqual([
+      "button/basic",
+      "button/icon",
+      "button/icon-label",
+      "button/sizes",
+      "button/color",
+    ])
     expect(componentSectionItems("field/number/input").map(({id}) => id)).toEqual([...FIELD_KINDS])
     expect(componentVariantItems("field/number/input").map(({id}) => id)).toEqual(["input", "slider"])
     expect(componentVariantItems("button/color/error").map(({id}) => id)).toEqual([

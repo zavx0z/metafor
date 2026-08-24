@@ -23,7 +23,7 @@ describe("@nodes/core centralized playground", () => {
     expect(scenario.changes.map(({kind}) => kind)).toEqual(["parameter", "topology", "topology"])
   })
 
-  test("keeps package overview separate from the lazy live detail", async () => {
+  test("keeps the live detail visible on package overview and exact leaf", async () => {
     const entry = await Bun.file(join(playgroundRoot, "core-playground.ts")).text()
     const detail = await Bun.file(join(playgroundRoot, "core-detail.ts")).text()
     const body = await Bun.file(join(playgroundRoot, "core-playground-body.html")).text()
@@ -31,8 +31,8 @@ describe("@nodes/core centralized playground", () => {
     expect(entry).toContain('await import("./core-detail.ts")')
     expect(entry).not.toContain("createCoreRuntimeScenario")
     expect(detail).toContain("createCoreRuntimeScenario")
-    expect(body).toContain('id="core-overview" hidden')
-    expect(body).toContain('id="core-detail" hidden')
-    expect(body).toContain('id="core-detail-link"')
+    expect(body).not.toContain('id="core-overview"')
+    expect(body).toContain('id="core-detail"')
+    expect(body).not.toContain('id="core-detail" hidden')
   })
 })

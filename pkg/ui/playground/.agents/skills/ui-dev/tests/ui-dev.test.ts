@@ -109,6 +109,8 @@ describe("central ui-dev registry", () => {
     expect(source).toContain("await validateRegistryRoute(config.targetUrl)")
     expect(source).toContain('document.querySelector("[data-playground-home]")')
     expect(source).toContain('canvas.toDataURL("image/png")')
+    expect(source).toContain('"Page.captureScreenshot"')
+    expect(source).toContain('action === "page"')
     expect(source).toContain("nativeMetricsRestored")
     expect(source).toContain('config.canvas.capability === "none"')
     expect(source).toContain("this playground has no canvas")

@@ -4,7 +4,6 @@ import {
   PlaygroundBackdropSurface,
   PlaygroundDockSurface,
   PlaygroundNavigationSurface,
-  PlaygroundOverviewSurface,
   PlaygroundRouteTreeRouter,
   PlaygroundStoryPanelSurface,
   type PlaygroundStoryArgs,
@@ -45,15 +44,13 @@ import {
   nodePlaygroundDockTitle,
   nodePlaygroundDockItems,
   nodePlaygroundGroup,
-  nodePlaygroundIsOverview,
-  nodePlaygroundOverviewDescription,
-  nodePlaygroundOverviewItems,
-  nodePlaygroundOverviewTitle,
   nodePlaygroundSectionRoute,
   nodePlaygroundSectionTitle,
   nodePlaygroundSections,
   nodePlaygroundStoryIndex,
+  nodePlaygroundWorkbenchStoryRoute,
   type NodePlaygroundRoute,
+  type NodePlaygroundStoryRoute,
 } from "./ui-navigation.ts"
 import {
   NODE_SOCKET_KINDS,
@@ -96,6 +93,7 @@ try {
   let previewEnabledByNode: Readonly<Record<string, boolean>> = Object.freeze({})
   let storyModule: PlaygroundStoryModule | null = null
   let storyArgs: PlaygroundStoryArgs = Object.freeze({})
+  let workbenchStoryRoute: NodePlaygroundStoryRoute = nodePlaygroundWorkbenchStoryRoute(currentRoute())
   let storyPanelMode: PlaygroundStoryPanelMode = "controls"
   let storyRevision = 0
   let collapsedCatalogGroups = new Set<string>()
@@ -109,21 +107,15 @@ try {
     onGroupToggle: handleCatalogGroupToggle,
   })
   const sections = new PlaygroundNavigationSurface<NodePlaygroundRoute>({
-    title: nodePlaygroundSectionTitle(currentRoute()),
-    items: nodePlaygroundSections(currentRoute()),
-    route: nodePlaygroundSectionRoute(currentRoute()) ?? currentRoute(),
+    title: nodePlaygroundSectionTitle(workbenchStoryRoute),
+    items: nodePlaygroundSections(workbenchStoryRoute),
+    route: nodePlaygroundSectionRoute(currentRoute()) ?? "",
     onNavigate: navigate,
   })
   const dock = new PlaygroundDockSurface<NodePlaygroundRoute>({
-    title: nodePlaygroundDockTitle(currentRoute()),
-    items: nodePlaygroundDockItems(currentRoute()),
-    route: currentRoute(),
-    onNavigate: navigate,
-  })
-  const overview = new PlaygroundOverviewSurface<NodePlaygroundRoute>({
-    title: nodePlaygroundOverviewTitle(currentRoute()),
-    description: nodePlaygroundOverviewDescription(currentRoute()),
-    items: nodePlaygroundOverviewItems(currentRoute()),
+    title: nodePlaygroundDockTitle(workbenchStoryRoute),
+    items: nodePlaygroundDockItems(workbenchStoryRoute),
+    route: router.current.kind === "leaf" ? currentRoute() : "",
     onNavigate: navigate,
   })
   const storyPreview = new NodeStoryPreviewSurface()
@@ -146,17 +138,17 @@ try {
     onControlChange(key, value) {
       if (storyModule === null) return
       const nextArgs = Object.freeze({...storyArgs, [key]: value})
-      if (isNodeEditorStoryRoute(currentRoute()) && (key === "target" || key === "selected")) {
+      if (isNodeEditorStoryRoute(workbenchStoryRoute) && (key === "target" || key === "selected")) {
         const state = nodeEditorStoryState(nextArgs)
         const nextRoute = nodeEditorStoryRoute(state.target, state.selected)
-        if (nextRoute !== currentRoute()) {
+        if (nextRoute !== workbenchStoryRoute) {
           navigate(nextRoute)
           return
         }
       }
       storyArgs = nextArgs
-      if (isNodeSocketStoryRoute(currentRoute())) storyPreview.setArgs(storyArgs)
-      applyProductionStoryState(currentRoute())
+      if (isNodeSocketStoryRoute(workbenchStoryRoute)) storyPreview.setArgs(storyArgs)
+      applyProductionStoryState(workbenchStoryRoute)
       storyPanel.setOptions(storyPanelOptions())
       publishStoryState()
     },
@@ -201,14 +193,13 @@ try {
   editor.setTree(tree)
 
   const frames = (w: number, h: number) => {
-    const planned = planNodeComponentPlaygroundFrames(w, h, currentRoute())
+    const planned = planNodeComponentPlaygroundFrames(w, h, workbenchStoryRoute)
     if (!preparingReference || planned.reference.visible !== false) return planned
     return {...planned, reference: {x: 0, y: 0, w: 1, h: 1}}
   }
   runtime.addSurface(backdrop, ({w, h}) => frames(w, h).backdrop)
   runtime.addSurface(catalog, ({w, h}) => frames(w, h).catalog)
   runtime.addSurface(sections, ({w, h}) => frames(w, h).section)
-  runtime.addSurface(overview, ({w, h}) => frames(w, h).overview)
   runtime.addSurface(editor, ({w, h}) => frames(w, h).editor)
   runtime.addSurface(storyPreview, ({w, h}) => frames(w, h).storyPreview)
   runtime.addSurface(reference, ({w, h}) => frames(w, h).reference)
@@ -221,7 +212,10 @@ try {
 
   const applyRoute = async (route: NodePlaygroundRoute): Promise<void> => {
     const revision = ++storyRevision
-    const sectionItems = nodePlaygroundSections(route)
+    const storyRoute = nodePlaygroundWorkbenchStoryRoute(route)
+    const routeNode = NODE_PLAYGROUND_ROUTE_TREE.find(route)
+    if (routeNode === undefined) throw new Error(`Unknown Node playground route: ${route}`)
+    const sectionItems = nodePlaygroundSections(storyRoute)
     catalog.setOptions({
       title: "Компоненты нод",
       items: nodePlaygroundCatalog(route, collapsedCatalogGroups),
@@ -230,44 +224,30 @@ try {
       onGroupToggle: handleCatalogGroupToggle,
     })
     sections.setOptions({
-      title: nodePlaygroundSectionTitle(route),
+      title: nodePlaygroundSectionTitle(storyRoute),
       items: sectionItems,
-      route: nodePlaygroundSectionRoute(route) ?? route,
+      route: nodePlaygroundSectionRoute(route) ?? "",
       onNavigate: navigate,
     })
     dock.setOptions({
-      title: nodePlaygroundDockTitle(route),
-      items: nodePlaygroundDockItems(route),
-      route,
+      title: nodePlaygroundDockTitle(storyRoute),
+      items: nodePlaygroundDockItems(storyRoute),
+      route: routeNode.kind === "leaf" ? route : "",
       onNavigate: navigate,
     })
-    overview.setOptions({
-      title: nodePlaygroundOverviewTitle(route),
-      description: nodePlaygroundOverviewDescription(route),
-      items: nodePlaygroundOverviewItems(route),
-      onNavigate: navigate,
-    })
-    const group = nodePlaygroundGroup(route)
+    const group = nodePlaygroundGroup(storyRoute)
     document.documentElement.dataset.nodePlaygroundRoute = route
-    document.documentElement.dataset.nodePlaygroundRouteKind = nodePlaygroundIsOverview(route) ? "overview" : "story"
+    document.documentElement.dataset.nodePlaygroundRouteKind = routeNode.kind
     document.documentElement.dataset.nodePlaygroundGroup = group
     document.documentElement.dataset.comparison = group === "comparison" ? "blender-reference-live-editor" : ""
-    runtime.relayout()
-    retainedObserver?.publishAfterFrame()
-    if (nodePlaygroundIsOverview(route)) {
-      storyModule = null
-      storyArgs = Object.freeze({})
-      publishStoryState()
-      renderPlaygroundFrame()
-      return
-    }
-    const index = nodePlaygroundStoryIndex(route)
-    const loaded = await loadNodePlaygroundStory(route)
+    const index = nodePlaygroundStoryIndex(storyRoute)
+    const loaded = await loadNodePlaygroundStory(storyRoute)
     if (revision !== storyRevision || currentRoute() !== route) return
+    workbenchStoryRoute = storyRoute
     storyModule = loaded
     storyArgs = Object.freeze({...loaded.defaultArgs})
-    if (isNodeSocketStoryRoute(route)) storyPreview.setStory(index, loaded, storyArgs)
-    applyProductionStoryState(route)
+    if (isNodeSocketStoryRoute(storyRoute)) storyPreview.setStory(index, loaded, storyArgs)
+    applyProductionStoryState(storyRoute)
     storyPanel.setOptions(storyPanelOptions())
     publishStoryState()
     renderPlaygroundFrame()
@@ -328,7 +308,9 @@ try {
   }
 
   function publishStoryState(): void {
-    const route = currentRoute()
+    const navigationRoute = currentRoute()
+    const route = workbenchStoryRoute
+    document.documentElement.dataset.nodePlaygroundRoute = navigationRoute
     document.documentElement.dataset.nodeStoryRoute = route
     document.documentElement.dataset.nodeStorySource = storyModule !== null
       ? storyModule.source(storyArgs)
@@ -381,7 +363,7 @@ try {
         previewEnabledByNode,
         previewBuffer: (storyArgs["preview-buffer"] ?? "primary") as "primary" | "alternate" | "missing" | "zero",
         onPreviewToggle(nodeId: string, enabled: boolean) {
-          if (currentRoute() !== route) return
+          if (workbenchStoryRoute !== route) return
           previewEnabledByNode = Object.freeze({...previewEnabledByNode, [nodeId]: enabled})
           if (nodeId === "scalar") storyArgs = Object.freeze({...storyArgs, "preview-enabled": enabled})
           applyProductionStoryState(route)
@@ -397,13 +379,13 @@ try {
       nodeFieldActions = Object.freeze([])
     }
     editor.setTree(bindNodeFieldValueState(baseTree, nodeFieldValues, (nodeId, fieldId, value) => {
-      if (currentRoute() !== route) return
+      if (workbenchStoryRoute !== route) return
       nodeFieldValues = updateNodeFieldValueState(nodeFieldValues, nodeId, fieldId, value)
       applyProductionStoryState(route)
       publishStoryState()
       retainedObserver?.publishAfterFrame()
     }, (action) => {
-      if (currentRoute() !== route) return
+      if (workbenchStoryRoute !== route) return
       nodeFieldActions = Object.freeze([...nodeFieldActions, action].slice(-32))
       publishStoryState()
     }))

@@ -20,8 +20,9 @@ import {
 } from "./stories.ts"
 import {ElementsStoryPreviewSurface} from "./story-preview.ts"
 import {
-  createMountedStoryRoute,
-  mountStoryOverview,
+  createMountedStoryRouter,
+  mountedStoryComponentPath,
+  mountedStorySectionPath,
 } from "../../playground/hub/mounted-story-page.ts"
 
 const ELEMENTS_MOUNT_PATH = "/elements"
@@ -50,16 +51,8 @@ async function startElementsPlayground(): Promise<void> {
     })
     runtime.handleResize()
 
-    const mounted = createMountedStoryRoute<ElementsStoryRoute>(ELEMENT_STORIES, ELEMENTS_MOUNT_PATH)
-    if (mounted.kind === "overview") {
-      mountStoryOverview(runtime, canvas, ELEMENT_STORIES, mounted, "Элементы UI")
-      document.documentElement.dataset.elementsPlaygroundRoute = mounted.node.path
-      document.documentElement.dataset.elementsPlaygroundPage = "overview"
-      document.documentElement.dataset.elementsPlayground = "ready"
-      document.documentElement.dataset.uiPlayground = "ready"
-      return
-    }
-    const router = mounted.router
+    const router = createMountedStoryRouter<ElementsStoryRoute>(ELEMENT_STORIES, ELEMENTS_MOUNT_PATH)
+    document.documentElement.dataset.elementsPlaygroundPage = "workbench"
 
     let storyRoute = router.current as ElementsStoryRoute
     let storyIndex = elementStoryIndex(storyRoute)
@@ -71,28 +64,28 @@ async function startElementsPlayground(): Promise<void> {
     let controlChanges = 0
     let storyRevision = 0
 
-    const navigate = (route: ElementsStoryRoute): void => router.go(route)
+    const navigate = (path: string): void => { router.go(path) }
     const backdrop = new PlaygroundBackdropSurface()
-    const catalog = new PlaygroundNavigationSurface<ElementsStoryRoute>({
+    const catalog = new PlaygroundNavigationSurface<string>({
       title: "Элементы UI",
       items: elementCatalogItems(collapsedCatalogGroups),
-      route: storyRoute,
+      route: mountedStoryComponentPath(router.path),
       onNavigate: navigate,
       query: catalogQuery,
       searchPlaceholder: "Элемент, API, тег…",
       onQueryChange: handleCatalogQuery,
       onGroupToggle: handleCatalogGroupToggle,
     })
-    const sections = new PlaygroundNavigationSurface<ElementsStoryRoute>({
+    const sections = new PlaygroundNavigationSurface<string>({
       title: storyIndex.componentLabel,
       items: elementSectionItems(storyRoute),
-      route: storyRoute,
+      route: mountedStorySectionPath(router.path),
       onNavigate: navigate,
     })
-    const dock = new PlaygroundDockSurface<ElementsStoryRoute>({
+    const dock = new PlaygroundDockSurface<string>({
       title: "Варианты",
       items: elementVariantItems(storyRoute),
-      route: storyRoute,
+      route: router.node.kind === "leaf" ? router.path : "",
       onNavigate: navigate,
     })
     const preview = new ElementsStoryPreviewSurface()
@@ -137,7 +130,8 @@ async function startElementsPlayground(): Promise<void> {
     runtime.addSurface(storyPanel, ({w, h}) => frames(w, h).info)
 
     const snapshot = (): Readonly<Record<string, unknown>> => Object.freeze({
-      route: storyRoute,
+      route: router.path,
+      storyRoute,
       story: storyIndex,
       args: storyArgs,
       source: storyModule.source(storyArgs),
@@ -152,7 +146,9 @@ async function startElementsPlayground(): Promise<void> {
     const publish = (): Readonly<Record<string, unknown>> => {
       for (const surface of [catalog, sections, dock, storyPanel, preview]) surface.flushPendingRender()
       const current = snapshot()
-      document.documentElement.dataset.elementsPlaygroundRoute = storyRoute
+      document.documentElement.dataset.elementsPlaygroundRoute = router.path
+      document.documentElement.dataset.elementsPlaygroundRouteKind = router.node.kind
+      document.documentElement.dataset.elementsStoryRoute = storyRoute
       document.documentElement.dataset.elementsStorySource = storyModule.source(storyArgs)
       document.documentElement.dataset.elementsStoryArgs = JSON.stringify(storyArgs)
       document.documentElement.dataset.elementsStorySections = String(elementSectionItems(storyRoute).length)
@@ -179,25 +175,30 @@ async function startElementsPlayground(): Promise<void> {
       storyModule = nextModule
       storyArgs = Object.freeze({...storyModule.defaultArgs})
       controlChanges = 0
-      catalog.setOptions(catalogOptions(route))
+      catalog.setOptions(catalogOptions())
       sections.setOptions({
         title: storyIndex.componentLabel,
         items: elementSectionItems(route),
-        route,
+        route: mountedStorySectionPath(router.path),
         onNavigate: navigate,
       })
-      dock.setOptions({title: "Варианты", items: elementVariantItems(route), route, onNavigate: navigate})
+      dock.setOptions({
+        title: "Варианты",
+        items: elementVariantItems(route),
+        route: router.node.kind === "leaf" ? router.path : "",
+        onNavigate: navigate,
+      })
       preview.setStory(storyIndex, storyModule, storyArgs)
       storyPanel.setOptions(storyPanelOptions())
       runtime.relayout()
       return publish()
     }
 
-    function catalogOptions(route: ElementsStoryRoute) {
+    function catalogOptions() {
       return {
         title: "Элементы UI",
         items: elementCatalogItems(collapsedCatalogGroups),
-        route,
+        route: mountedStoryComponentPath(router.path),
         onNavigate: navigate,
         query: catalogQuery,
         searchPlaceholder: "Элемент, API, тег…",
@@ -208,7 +209,7 @@ async function startElementsPlayground(): Promise<void> {
 
     function handleCatalogQuery(query: string): void {
       catalogQuery = query
-      catalog.setOptions(catalogOptions(storyRoute))
+      catalog.setOptions(catalogOptions())
       publish()
     }
 
@@ -216,7 +217,7 @@ async function startElementsPlayground(): Promise<void> {
       collapsedCatalogGroups = new Set(collapsedCatalogGroups)
       if (collapsed) collapsedCatalogGroups.add(groupId)
       else collapsedCatalogGroups.delete(groupId)
-      catalog.setOptions(catalogOptions(storyRoute))
+      catalog.setOptions(catalogOptions())
       publish()
     }
 

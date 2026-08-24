@@ -3,7 +3,6 @@ import type {FieldDefinition} from "@ui/components"
 import {
   PlaygroundBackdropSurface,
   PlaygroundNavigationSurface,
-  PlaygroundOverviewSurface,
   PlaygroundRouteTreeRouter,
   PlaygroundStoryPanelSurface,
   type PlaygroundNavigationItem,
@@ -165,17 +164,6 @@ try {
     route: currentRoute(),
     onNavigate: (next) => navigate(next),
   })
-  const overview = new PlaygroundOverviewSurface<string>({
-    title: "Пакет @nodes/editor",
-    description: "Выберите сценарий универсального редактирования NodeTree.",
-    items: [{
-      id: item.id,
-      label: item.label,
-      description: "NodeTreeEditor → NodeTree → projection → NodeEditor",
-      route: item.route,
-    }],
-    onNavigate: navigate,
-  })
   const editor = new NodeEditor({
     renderers: createBlenderNodeRenderers(),
     title: "NODETREE · UNIVERSAL EDITOR",
@@ -227,26 +215,12 @@ try {
   storyPanel = new PlaygroundStoryPanelSurface(panelOptions())
 
   const shell = planEditorWorkbench
-  const hidden = () => ({x: 0, y: 0, w: 0, h: 0, visible: false as const})
-  const overviewFrame = (w: number, h: number) => {
-    const frames = shell(w, h)
-    if (route.current.kind !== "overview") return hidden()
-    const right = frames.info.visible === false ? frames.preview.x + frames.preview.w : frames.info.x + frames.info.w
-    const bottom = frames.dock.visible === false ? frames.preview.y + frames.preview.h : frames.dock.y + frames.dock.h
-    return {
-      x: frames.preview.x,
-      y: frames.preview.y,
-      w: Math.max(1, right - frames.preview.x),
-      h: Math.max(1, bottom - frames.preview.y),
-    }
-  }
   runtime.addSurface(backdrop, ({w, h}) => ({x: 0, y: 0, w, h}))
   runtime.addSurface(catalog, ({w, h}) => shell(w, h).catalog)
   runtime.addSurface(sections, ({w, h}) => shell(w, h).section)
-  runtime.addSurface(overview, ({w, h}) => overviewFrame(w, h))
-  runtime.addSurface(editor, ({w, h}) => route.current.kind === "leaf" ? shell(w, h).preview : hidden())
-  runtime.addSurface(editorDock, ({w, h}) => route.current.kind === "leaf" ? shell(w, h).dock : hidden())
-  runtime.addSurface(storyPanel, ({w, h}) => route.current.kind === "leaf" ? shell(w, h).info : hidden())
+  runtime.addSurface(editor, ({w, h}) => shell(w, h).preview)
+  runtime.addSurface(editorDock, ({w, h}) => shell(w, h).dock)
+  runtime.addSurface(storyPanel, ({w, h}) => shell(w, h).info)
 
   const observerSnapshot = (): Readonly<Record<string, unknown>> => Object.freeze({
     route: currentRoute(),
@@ -712,14 +686,8 @@ try {
       route: node.path,
       onNavigate: navigate,
     })
-    runtime.relayout()
-    publish()
-    if (node.kind === "leaf") void scheduleProjection()
-    else {
-      runtime.space.updateWorldMatrix()
-      runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
-      document.documentElement.dataset.nodesPlayground = "ready"
-    }
+    if (latestProjection === null || author.layoutDirty) void scheduleProjection()
+    else renderWorkbench()
   })
   globalThis.__nodeEditorPlaygroundObserver = Object.freeze({
     snapshot: observerSnapshot,
@@ -738,21 +706,11 @@ try {
   })
   new ResizeObserver(() => {
     runtime.handleResize()
-    if (route.current.kind === "overview") {
-      runtime.space.updateWorldMatrix()
-      runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
-    } else if (author.layoutDirty) renderWorkbench()
+    if (author.layoutDirty) renderWorkbench()
     else void scheduleProjection()
   }).observe(canvas)
 
-  if (route.current.kind === "leaf") await applyProjection()
-  else {
-    runtime.relayout()
-    runtime.space.updateWorldMatrix()
-    runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
-    publish()
-    document.documentElement.dataset.nodesPlayground = "ready"
-  }
+  await applyProjection()
 } catch (error) {
   publishError(error)
 }

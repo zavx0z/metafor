@@ -490,7 +490,7 @@ export function componentStoryIndex(route: ComponentsStoryRoute): PlaygroundStor
 
 export function componentCatalogItems(
   collapsedGroups: ReadonlySet<string>,
-): readonly PlaygroundNavigationItem<ComponentsStoryRoute>[] {
+): readonly PlaygroundNavigationItem<string>[] {
   const firstByComponent = new Map<string, PlaygroundStoryIndexItem>()
   for (const story of COMPONENT_STORIES.index) {
     if (!firstByComponent.has(story.componentId)) firstByComponent.set(story.componentId, story)
@@ -498,7 +498,7 @@ export function componentCatalogItems(
   return [...firstByComponent.values()].map((story) => ({
     id: story.componentId,
     label: story.componentLabel,
-    route: story.route,
+    route: story.componentId,
     group: {
       id: story.groupId,
       label: story.groupLabel,
@@ -510,7 +510,7 @@ export function componentCatalogItems(
 
 export function componentSectionItems(
   route: ComponentsStoryRoute,
-): readonly PlaygroundNavigationItem<ComponentsStoryRoute>[] {
+): readonly PlaygroundNavigationItem<string>[] {
   const selected = componentStoryIndex(route)
   const firstBySection = new Map<string, PlaygroundStoryIndexItem>()
   for (const story of COMPONENT_STORIES.index) {
@@ -521,7 +521,7 @@ export function componentSectionItems(
   return [...firstBySection.values()].map((story) => ({
     id: story.sectionId,
     label: story.sectionLabel,
-    route: story.route,
+    route: `${story.componentId}/${story.sectionId}`,
   }))
 }
 

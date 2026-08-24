@@ -1,7 +1,6 @@
 import {
   definePlaygroundRouteTree,
   type PlaygroundNavigationItem,
-  type PlaygroundOverviewItem,
   type PlaygroundStoryIndexItem,
 } from "@ui/playground"
 import {
@@ -36,6 +35,7 @@ const NODE_PLAYGROUND_GROUP_LABELS = Object.freeze({
 export const NODE_PLAYGROUND_ROUTE_TREE = definePlaygroundRouteTree({
   leaves: NODE_PLAYGROUND_ROUTES,
 })
+export const NODE_PLAYGROUND_FALLBACK_ROUTE = NODE_SOCKET_STORIES.fallback as NodeSocketStoryRoute
 
 const COMPONENT_ROUTES = Object.freeze({
   "node-editor": "node-editor",
@@ -147,47 +147,15 @@ export function nodePlaygroundDockTitle(route: NodePlaygroundRoute): string {
   return nodePlaygroundComponentId(route) === "socket" ? "Направление" : "Варианты"
 }
 
-export function nodePlaygroundIsOverview(route: NodePlaygroundRoute): boolean {
-  return NODE_PLAYGROUND_ROUTE_TREE.find(route)?.kind === "overview"
-}
-
-export function nodePlaygroundOverviewItems(
-  route: NodePlaygroundRoute,
-): readonly PlaygroundOverviewItem<NodePlaygroundRoute>[] {
+export function nodePlaygroundWorkbenchStoryRoute(route: NodePlaygroundRoute): NodePlaygroundStoryRoute {
   const node = NODE_PLAYGROUND_ROUTE_TREE.find(route)
-  if (node?.kind !== "overview") return Object.freeze([])
-  if (node.path === "") {
-    return Object.freeze(NODE_PLAYGROUND_CATALOG.map((item) => {
-      const description = componentStoryIndex(item.id)?.apiName
-      return Object.freeze({
-        id: item.id,
-        label: item.label,
-        ...(description === undefined ? {} : {description}),
-        route: item.route,
-      })
-    }))
-  }
-  return Object.freeze(NODE_PLAYGROUND_ROUTE_TREE.children(node.path).map((child) => {
-    const description = child.kind === "leaf" ? nodePlaygroundStoryIndex(child.path).title : undefined
-    return Object.freeze({
-      id: child.segment,
-      label: nodePlaygroundRouteLabel(child.path),
-      ...(description === undefined ? {} : {description}),
-      route: child.path,
-    })
-  }))
-}
-
-export function nodePlaygroundOverviewTitle(route: NodePlaygroundRoute): string {
-  if (route === "") return "Компоненты @nodes/ui"
-  return nodePlaygroundRouteLabel(route)
-}
-
-export function nodePlaygroundOverviewDescription(route: NodePlaygroundRoute): string {
-  const depth = routeSegments(route).length
-  if (depth === 0) return "Выберите компонент, чтобы открыть его разделы."
-  if (depth === 1) return "Выберите раздел компонента."
-  return "Выберите конкретный пример."
+  if (node === undefined) throw new Error(`Unknown Node playground route: ${route}`)
+  if (node.kind === "leaf") return node.path as NodePlaygroundStoryRoute
+  const prefix = node.path.length === 0 ? "" : `${node.path}/`
+  if (NODE_PLAYGROUND_FALLBACK_ROUTE.startsWith(prefix)) return NODE_PLAYGROUND_FALLBACK_ROUTE
+  const descendant = NODE_PLAYGROUND_ROUTE_TREE.leaves.find((leaf) => leaf.startsWith(prefix))
+  if (descendant === undefined) throw new Error(`Node playground overview has no detail descendant: ${route}`)
+  return descendant as NodePlaygroundStoryRoute
 }
 
 export async function loadNodePlaygroundStory(route: NodePlaygroundRoute) {
@@ -234,10 +202,6 @@ function nodePlaygroundRouteLabel(route: NodePlaygroundRoute): string {
 
 function firstStoryUnder(route: NodePlaygroundRoute): PlaygroundStoryIndexItem | undefined {
   return STORY_INDEX.find((story) => story.route === route || story.route.startsWith(`${route}/`))
-}
-
-function componentStoryIndex(componentId: string): PlaygroundStoryIndexItem | undefined {
-  return STORY_INDEX.find((story) => story.componentId === componentId)
 }
 
 function routeSegments(route: NodePlaygroundRoute): readonly string[] {

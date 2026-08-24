@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
-import {isAbsolute, join, resolve} from "node:path"
+import {mkdir, rename, unlink} from "node:fs/promises"
+import {basename, dirname, isAbsolute, join, resolve} from "node:path"
 import {
   CanvasEvidenceRejected,
   acceptCanvasEvidence,
@@ -97,10 +98,10 @@ type ConsoleEntry = Readonly<{
 }>
 
 const [action, checkoutInput, selectorOrUrl, ...optionArgs] = Bun.argv.slice(2)
-const actions = new Set(["targets", "target", "open", "close", "reload", "dom", "console", "canvas", "viewports", "touch", "profile", "interact"])
+const actions = new Set(["targets", "target", "open", "close", "reload", "dom", "console", "page", "canvas", "viewports", "touch", "profile", "interact"])
 
 if (!actions.has(action) || !checkoutInput || !selectorOrUrl) {
-  fail("usage: ui-browser.ts {targets|target|open|close|reload|dom|console|canvas|viewports|touch|profile|interact} <checkout> <selector|exact-url> [options]")
+  fail("usage: ui-browser.ts {targets|target|open|close|reload|dom|console|page|canvas|viewports|touch|profile|interact} <checkout> <selector|exact-url> [options]")
 }
 
 const checkout = resolve(checkoutInput)
@@ -168,6 +169,11 @@ else await withPage(target, async (cdp) => {
     collector.stop()
     if (consoleErrors(collector.entries).length > 0) process.exitCode = 1
     output({action, ...targetResult(config, target), durationMs: options.durationMs, entries: collector.entries})
+  } else if (action === "page") {
+    await waitReady(cdp, config.ready)
+    const destination = options.output ?? fail("page requires --output <png>")
+    const capture = await capturePage(cdp, destination)
+    output({action, ...targetResult(config, target), capture})
   } else if (action === "canvas") {
     await waitReady(cdp, config.ready)
     const destination = options.output ?? fail("canvas requires --output <png>")
@@ -575,6 +581,36 @@ async function readDom(cdp: CdpConnection, canvasSelector: string): Promise<Json
         : null,
     }
   })()`)
+}
+
+async function capturePage(cdp: CdpConnection, destination: string): Promise<JsonObject> {
+  const response = await cdp.send<{data?: string}>("Page.captureScreenshot", {
+    format: "png",
+    fromSurface: true,
+    captureBeyondViewport: false,
+  })
+  if (typeof response.data !== "string" || response.data.length === 0) {
+    throw new Error("Page.captureScreenshot returned no PNG data")
+  }
+  const bytes = Buffer.from(response.data, "base64")
+  if (bytes.length < 8 || bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) {
+    throw new Error("Page.captureScreenshot returned an invalid PNG")
+  }
+  const absolute = resolve(destination)
+  await mkdir(dirname(absolute), {recursive: true})
+  const temporary = join(dirname(absolute), `.${basename(absolute)}.${process.pid}.${Date.now()}.tmp`)
+  try {
+    await Bun.write(temporary, bytes)
+    await rename(temporary, absolute)
+  } catch (error) {
+    try {
+      await unlink(temporary)
+    } catch {
+      // The temporary file was never created or was already moved.
+    }
+    throw error
+  }
+  return Object.freeze({kind: "exact-page-png", written: true, path: absolute, bytes: bytes.length})
 }
 
 async function readCanvasSnapshot(cdp: CdpConnection, selector: string): Promise<RawCanvasSnapshot> {

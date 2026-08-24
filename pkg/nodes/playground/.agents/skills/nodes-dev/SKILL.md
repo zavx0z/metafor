@@ -73,7 +73,8 @@ current task. Never focus a window or close an unknown target.
 Catalog, core, layout and layout-worker accept DOM/console evidence. Canvas,
 touch, viewports, profile and interaction actions fail closed on those routes.
 Editor and UI additionally require an exact non-black canvas. Layout requires
-the ready marker and a real `#svg-view svg`.
+the ready marker and a real `#svg-view svg`. Use the shared background `page`
+action when visual inspection of a complete DOM/SVG/WebGPU viewport is required.
 
 Tests and typechecks prove package contracts. Browser evidence proves only the
 exact centralized route; it does not prove Hamiltonian integration, GPU timing

@@ -5,7 +5,6 @@ import {
   PlaygroundBackdropSurface,
   PlaygroundDockSurface,
   PlaygroundNavigationSurface,
-  PlaygroundOverviewSurface,
   PlaygroundRouteTreeRouter,
   PlaygroundStoryPanelSurface,
   definePlaygroundRouteTree,
@@ -27,6 +26,8 @@ const PLAYGROUND_MOUNT_PATH = "/playground"
 
 type PageRouteReader = Readonly<{
   readonly current: PageRoute
+  readonly path: string
+  readonly kind: "overview" | "leaf"
   subscribe(listener: () => void): () => void
 }>
 
@@ -139,31 +140,8 @@ async function startWorkbench(): Promise<void> {
     })
     runtime.handleResize()
     const mountedRouter = new PlaygroundRouteTreeRouter(pageRouteTree, {basePath: PLAYGROUND_MOUNT_PATH})
-    if (mountedRouter.current.kind === "overview") {
-      const backdrop = new PlaygroundBackdropSurface()
-      const overview = new PlaygroundOverviewSurface<string>({
-        title: "Инфраструктура Workbench",
-        description: "Выберите существующую диагностическую страницу общей playground-инфраструктуры.",
-        items: [
-          {id: "overview", label: "Обзор", route: "overview"},
-          {id: "details", label: "Детали", route: "details"},
-        ],
-        onNavigate(path) {
-          if (!mountedRouter.go(path)) throw new Error(`Unknown playground fixture route: ${path}`)
-          window.location.reload()
-        },
-      })
-      runtime.addSurface(backdrop, ({w, h}) => ({x: 0, y: 0, w, h}))
-      runtime.addSurface(overview, ({w, h}) => ({x: 3, y: 3, w: Math.max(1, w - 6), h: Math.max(1, h - 6)}))
-      new ResizeObserver(() => runtime.handleResize()).observe(canvas)
-      runtime.handleResize()
-      document.documentElement.dataset.playgroundRoute = ""
-      document.documentElement.dataset.playgroundPage = "overview"
-      document.documentElement.dataset.playgroundReady = "ready"
-      document.documentElement.dataset.uiPlayground = "ready"
-      return
-    }
     const pageRouter = mountedPageRouter(mountedRouter)
+    document.documentElement.dataset.playgroundPage = "workbench"
     let storyRoute = storyRegistry.fallback
     let storyIndex = requireStory(storyRoute)
     let storyModule = await storyRegistry.load(storyRoute)
@@ -237,7 +215,8 @@ async function startWorkbench(): Promise<void> {
     runtime.addSurface(storyPanel, ({w, h}) => frames(w, h).info)
 
     const snapshot = (): Readonly<Record<string, unknown>> => Object.freeze({
-      pageRoute: pageRouter.current,
+      pageRoute: pageRouter.path,
+      pageDetailRoute: pageRouter.current,
       storyRoute,
       args,
       source: storyModule.source(args),
@@ -251,7 +230,9 @@ async function startWorkbench(): Promise<void> {
     const publish = (): Readonly<Record<string, unknown>> => {
       for (const surface of [catalog, sections, dock, storyPanel, preview]) surface.flushPendingRender()
       const current = snapshot()
-      document.documentElement.dataset.playgroundRoute = pageRouter.current
+      document.documentElement.dataset.playgroundRoute = pageRouter.path
+      document.documentElement.dataset.playgroundRouteKind = pageRouter.kind
+      document.documentElement.dataset.playgroundDetailRoute = pageRouter.current
       document.documentElement.dataset.playgroundStoryRoute = storyRoute
       document.documentElement.dataset.playgroundRetained = JSON.stringify(current)
       return current
@@ -379,17 +360,16 @@ function mountedPageRouter(router: PlaygroundRouteTreeRouter<PageRoute>): PageRo
   return Object.freeze({
     get current(): PageRoute {
       const current = router.current
-      if (current.kind !== "leaf") throw new Error(`Playground fixture route is not a leaf: ${current.path}`)
-      return current.path
+      return current.kind === "leaf" ? current.path : "overview"
+    },
+    get path(): string {
+      return router.current.path
+    },
+    get kind(): "overview" | "leaf" {
+      return router.current.kind
     },
     subscribe(listener): () => void {
-      return router.subscribe((node) => {
-        if (node.kind !== "leaf") {
-          window.location.reload()
-          return
-        }
-        listener()
-      })
+      return router.subscribe(() => { listener() })
     },
   })
 }

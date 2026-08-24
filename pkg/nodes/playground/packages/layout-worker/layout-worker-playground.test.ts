@@ -26,7 +26,7 @@ describe("@nodes/layout-worker centralized playground", () => {
     if (adaptive.type === "layout-result") expect(adaptive.diagnostics.attemptedCandidates).toBeGreaterThan(0)
   })
 
-  test("keeps overview separate from the lazy protocol detail", async () => {
+  test("keeps the protocol detail visible on package overview and exact leaf", async () => {
     const entry = await Bun.file(join(playgroundRoot, "layout-worker-playground.ts")).text()
     const detail = await Bun.file(join(playgroundRoot, "layout-worker-detail.ts")).text()
     const body = await Bun.file(join(playgroundRoot, "layout-worker-playground-body.html")).text()
@@ -34,7 +34,8 @@ describe("@nodes/layout-worker centralized playground", () => {
     expect(entry).toContain('await import("./layout-worker-detail.ts")')
     expect(entry).not.toContain("runFixedLayoutWorkerRequest")
     expect(detail).toContain("runFixedLayoutWorkerRequest")
-    expect(body).toContain('id="layout-worker-overview" hidden')
-    expect(body).toContain('id="layout-worker-detail" hidden')
+    expect(body).not.toContain('id="layout-worker-overview"')
+    expect(body).toContain('id="layout-worker-detail"')
+    expect(body).not.toContain('id="layout-worker-detail" hidden')
   })
 })

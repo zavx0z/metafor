@@ -65,6 +65,8 @@ bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" ui \
 bun "$SKILL/scripts/ui-browser.ts" canvas "$PWD" ui \
   --route /components/button/basic/contained --output /tmp/components.png
 bun "$SKILL/scripts/ui-browser.ts" dom "$PWD" ui --route /hud/
+bun "$SKILL/scripts/ui-browser.ts" page "$PWD" ui \
+  --route /hud/ --output /tmp/ui-hud.png
 ```
 
 Every overview has trailing `/`; every exact leaf does not. The helper performs
@@ -74,8 +76,9 @@ origin target is navigated in place. Multiple targets are explicit ambiguity;
 close only a duplicate proven to belong to the current task.
 
 Each nested page must expose `data-playground-home` with `href="/"`. Verify the
-link in DOM and, for one WebGPU package page, use a background interaction plan
-only when click behavior itself is in scope.
+link in DOM and use `page` when the full composition, SVG or DOM overlay needs
+visual inspection. Use a background interaction plan only when click behavior
+itself is in scope.
 
 ## Interaction and viewport evidence
 

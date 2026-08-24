@@ -79,6 +79,11 @@ describe("@ui/elements package-owned Workbench stories", () => {
       "Стили",
       "События",
     ])
+    expect(catalog.map(({route}) => route)).toEqual(catalog.map(({id}) => id))
+    expect(elementSectionItems("div/basic/background").map(({route}) => route)).toEqual([
+      "div/basic",
+      "div/scroll",
+    ])
     expect(elementSectionItems("div/scroll/vertical").map(({id}) => id)).toEqual(["basic", "scroll"])
     expect(elementSectionItems("css/border/rounded").map(({id}) => id)).toEqual(["padding", "flex", "border", "color", "typography"])
     expect(elementVariantItems("div/basic/padding").map(({id}) => id)).toEqual(["background", "border", "padding", "z-index"])

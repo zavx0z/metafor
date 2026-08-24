@@ -6,7 +6,7 @@ const root = fileURLToPath(new URL(".", import.meta.url))
 
 describe("@ui/playground package boundary", () => {
   test("contains no consumer or product vocabulary", async () => {
-    const files = ["index.ts", "router.ts", "route-tree.ts", "layout.ts", "overview.ts", "surfaces.ts", "theme.ts", "server.ts"]
+    const files = ["index.ts", "router.ts", "route-tree.ts", "layout.ts", "surfaces.ts", "theme.ts", "server.ts"]
     const source = (await Promise.all(files.map((path) => Bun.file(join(root, path)).text()))).join("\n")
     for (const forbidden of ["NodeEditor", "NodeCanvas", "Blender", "Socket", "Parameter", "Hamiltonian", "Bulk"]) {
       expect(source).not.toContain(forbidden)

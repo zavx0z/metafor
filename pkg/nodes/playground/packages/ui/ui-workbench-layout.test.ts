@@ -1,15 +1,18 @@
 import {describe, expect, test} from "bun:test"
 import {planNodeComponentPlaygroundFrames} from "./ui-workbench-layout.ts"
+import {nodePlaygroundWorkbenchStoryRoute} from "./ui-navigation.ts"
 
 describe("Node playground on shared @ui/playground shell", () => {
-  test("uses the combined detail area for a package or prefix overview", () => {
-    const root = planNodeComponentPlaygroundFrames(1920, 1080, "")
-    const socket = planNodeComponentPlaygroundFrames(1920, 1080, "socket")
-    expect(root.overview).toEqual(socket.overview)
-    expect(root.overview.w).toBeGreaterThan(root.storyPreview.w)
-    expect(root.editor.visible).toBeFalse()
-    expect(root.story.visible).toBeFalse()
-    expect(root.dock.visible).toBeFalse()
+  test("preserves preview, dock and source panel on package and component overviews", () => {
+    const root = planNodeComponentPlaygroundFrames(1920, 1080, nodePlaygroundWorkbenchStoryRoute(""))
+    const socket = planNodeComponentPlaygroundFrames(1920, 1080, nodePlaygroundWorkbenchStoryRoute("socket"))
+    const editor = planNodeComponentPlaygroundFrames(1920, 1080, nodePlaygroundWorkbenchStoryRoute("node-editor"))
+    expect(root.storyPreview).toEqual(socket.storyPreview)
+    expect(root.story.visible).not.toBeFalse()
+    expect(root.dock.visible).not.toBeFalse()
+    expect(editor.editor.visible).not.toBeFalse()
+    expect(editor.story.visible).not.toBeFalse()
+    expect(editor.dock.visible).not.toBeFalse()
   })
 
   test("gives editor the full-viewport desktop preview region", () => {

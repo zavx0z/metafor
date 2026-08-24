@@ -87,7 +87,7 @@ describe("dev-only nodes layout playground", () => {
     expect(detail).toContain('document.documentElement.dataset.nodesLayoutPlayground = "error"')
   })
 
-  test("keeps package overview separate from the lazy SVG detail", async () => {
+  test("keeps the SVG detail visible on package overview and exact leaf", async () => {
     const entry = await Bun.file(join(playgroundRoot, "layout-playground.ts")).text()
     const detail = await Bun.file(join(playgroundRoot, "layout-detail.ts")).text()
     const body = await Bun.file(join(playgroundRoot, "layout-playground-body.html")).text()
@@ -95,9 +95,9 @@ describe("dev-only nodes layout playground", () => {
     expect(entry).toContain('await import("./layout-detail.ts")')
     expect(entry).not.toContain("runPlaygroundLayout")
     expect(detail).toContain("runPlaygroundLayout")
-    expect(body).toContain('id="layout-overview"')
+    expect(body).not.toContain('id="layout-overview"')
     expect(body).toContain('id="layout-detail"')
-    expect(body).toContain('id="layout-detail-link"')
+    expect(body).not.toContain('id="layout-detail" class="layout-playground" lang="ru" aria-label="Стенд раскладки нод" hidden')
   })
 
   test("runs the public fixed policy against frozen RIGHT and DOWN inputs", () => {

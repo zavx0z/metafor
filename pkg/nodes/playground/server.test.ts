@@ -26,10 +26,10 @@ describe("parent nodes playground server", () => {
       expect(catalogHtml).toContain('id="nodes-package-catalog"')
 
       const overviewCases = [
-        ["/core/", "@nodes/core", 'id="core-overview"', "core"],
+        ["/core/", "@nodes/core", 'id="core-snapshot"', "core"],
         ["/editor/", "@nodes/editor", 'id="nodes-playground-canvas"', "editor"],
-        ["/layout/", "@nodes/layout", 'id="layout-overview"', "layout"],
-        ["/layout-worker/", "@nodes/layout-worker", 'id="layout-worker-overview"', "layout-worker"],
+        ["/layout/", "@nodes/layout", 'id="svg-view"', "layout"],
+        ["/layout-worker/", "@nodes/layout-worker", 'id="worker-request"', "layout-worker"],
         ["/ui/", "@nodes/ui", 'id="nodes-playground-canvas"', "ui"],
       ] as const
       const leafCases = [
