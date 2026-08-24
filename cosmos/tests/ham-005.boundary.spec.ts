@@ -29,7 +29,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     }>,
     Bun.file(join(cosmos, "internal/visual/bunfig.toml")).text(),
     Bun.file(join(cosmos, "release/server/package/manifest.ts")).text(),
-    Bun.file(join(cosmos, "server.ts")).text(),
+    Bun.file(join(cosmos, "release/server/runtime.ts")).text(),
     Bun.file(join(cosmos, "startup/main/index.ts")).text(),
   ])
 
@@ -100,7 +100,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(packageBuild).toContain("packageArtifactPath(location.root, build)")
 
   expect(server).toContain('"/assets/fonts/JetBrainsMono-Bold.ttf"')
-  expect(server).toContain('new URL("../pkg/engine/static/JetBrainsMono-Bold.ttf"')
+  expect(server).toContain('join(repositoryRoot, "pkg/engine/static/JetBrainsMono-Bold.ttf")')
   expect(startupMain).toContain('import("@cosmos/release")')
   expect(startupMain).not.toContain("UiRuntime")
 })

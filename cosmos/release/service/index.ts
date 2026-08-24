@@ -6,3 +6,9 @@ export type {
   ReleaseLoader,
   ReleaseRuntime,
 } from "./runtime/contract"
+export type {
+  ActivePackage,
+  PackageExecutor,
+  PackageExit,
+  VerifiedArtifact,
+} from "../shared/execution"

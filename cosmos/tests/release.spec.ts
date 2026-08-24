@@ -1,4 +1,5 @@
 import {expect, setDefaultTimeout, test} from "bun:test"
+import {resolve} from "node:path"
 import {brotliDecompressSync} from "node:zlib"
 import {
   acceptsBrotli,
@@ -33,8 +34,15 @@ import {
   parseBrowserPackageUrl,
 } from "../shared/package/url"
 import {cachedPackageIdentity} from "../release/service/cache/current"
+import {resolveCosmosRoot} from "../release/server/shared/paths"
 
 setDefaultTimeout(30_000)
+
+test("server release uses the startup-provided Cosmos root after artifact relocation", () => {
+  expect(resolveCosmosRoot("file:///wrong/release/dist/versions/1.2.3/server.js", {
+    COSMOS_ROOT: "/tmp/metafor-cosmos",
+  })).toBe(resolve("/tmp/metafor-cosmos"))
+})
 
 test("package state comes from root caret dependencies", async () => {
   const packages = await releasedPackages()

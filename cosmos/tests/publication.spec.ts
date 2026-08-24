@@ -16,7 +16,7 @@ const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
 test("root intent write precedes build and child writes in the host transaction", async () => {
   const source = await Bun.file(new URL("../release/server/release/publication.ts", import.meta.url)).text()
-  const server = await Bun.file(new URL("../server.ts", import.meta.url)).text()
+  const server = await Bun.file(new URL("../release/server/runtime.ts", import.meta.url)).text()
   const rootWrite = source.indexOf("await writeRootVersions(")
   const build = source.indexOf("const results = await buildPlans(plans)", rootWrite)
   const children = source.indexOf("await writeChildVersions(plans)", build)

@@ -12,6 +12,7 @@ import {
   packageOwners,
 } from "../release/server"
 import type {PackageEnvironment} from "../shared/package/environment"
+import {artifactIntegrity} from "../shared/package/integrity"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
@@ -21,7 +22,7 @@ const packages = {
     path: "startup",
     name: "@cosmos/startup",
     scope: "cosmos",
-    environments: ["main", "service"],
+    environments: ["main", "service", "server"],
   },
   release: {
     path: "release",
@@ -44,10 +45,13 @@ test("every Cosmos package owns direct env entrypoints and one typecheck", async
     scripts?: Record<string, string>
   }
   expect(root.scripts?.dev).toBe(
-    "NODE_ENV=development bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
+    "env -u COSMOS_RELEASE_INSPECT NODE_ENV=development bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
+  )
+  expect(root.scripts?.["dev:debug"]).toBe(
+    "test -n \"$COSMOS_RELEASE_INSPECT\" && NODE_ENV=development bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
   )
   expect(root.scripts?.start).toBe(
-    "bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
+    "env -u COSMOS_RELEASE_INSPECT bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
   )
   expect(root.scripts?.build).toBe(
     "NODE_ENV=production bun --conditions=cosmos:server --conditions=internal:server build.ts",
@@ -238,6 +242,16 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
     expect(releaseService).toContain(contract)
   }
 
+  for (const contract of [
+    "ActivePackage",
+    "PackageExecutor",
+    "PackageExit",
+    "VerifiedArtifact",
+  ]) {
+    expect(releaseServer).toContain(contract)
+    expect(releaseService).toContain(contract)
+  }
+
   const directory = await mkdtemp(join(tmpdir(), "metafor-upd-003-release-env-"))
   try {
     const service = await typecheckPackageEnvironment(
@@ -245,16 +259,24 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
       "cosmos:service",
       `
         import type {
+          ActivePackage,
+          PackageExecutor,
+          PackageExit,
           ReleaseDependencies,
           ReleaseFactory,
           ReleaseLoader,
           ReleaseRuntime,
+          VerifiedArtifact,
         } from "@cosmos/release"
         export type RuntimeContracts = [
+          ActivePackage<unknown>,
+          PackageExecutor<unknown, unknown, unknown, unknown>,
+          PackageExit,
           ReleaseDependencies,
           ReleaseFactory,
           ReleaseLoader,
           ReleaseRuntime,
+          VerifiedArtifact<unknown, unknown>,
         ]
       `,
       ["serviceworker"],
@@ -265,6 +287,18 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
       directory,
       "cosmos:server",
       `
+        import type {
+          ActivePackage,
+          PackageExecutor,
+          PackageExit,
+          VerifiedArtifact,
+        } from "@cosmos/release"
+        export type SharedRuntimeContracts = [
+          ActivePackage<unknown>,
+          PackageExecutor<unknown, unknown, unknown, unknown>,
+          PackageExit,
+          VerifiedArtifact<unknown, unknown>,
+        ]
         // @ts-expect-error service-only contract is not public in env server
         import type {ReleaseDependencies} from "@cosmos/release"
         // @ts-expect-error service-only contract is not public in env server
@@ -340,11 +374,14 @@ test("development keeps debug and source maps while production drops both", asyn
     expect(development.sources.startupMain).toContain("страница готова к работе")
     expect(development.sources.releaseMain).toContain("[@cosmos/release:main]")
     expect(development.sources.internalVisual).toContain("[@internal/visual:main]")
+    expect(development.releaseServer).toContain("Bun.serve")
+    expect(development.releaseServer).toContain("process.send")
     for (const artifact of Object.values(development.sources))
       expect(artifact).not.toContain("sourceMappingURL=data:application/json")
     expect(development.sourceMaps.every(Boolean)).toBeTrue()
 
     const production = await build("production")
+    expect(production.releaseServer).toContain("Bun.serve")
     for (const artifact of Object.values(production.sources)) {
       expect(artifact).not.toContain("console.debug")
       expect(artifact).not.toContain("sourceMappingURL=")
@@ -358,11 +395,77 @@ test("development keeps debug and source maps while production drops both", asyn
   }
 }, 30_000)
 
+test("current startup version converges with every exact environment artifact", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "metafor-startup-convergence-"))
+  const manifest = await Bun.file(join(cosmos, "startup/package.json")).json() as {
+    version: string
+  }
+  const environments = ["main", "service", "server"] as const
+
+  try {
+    const staged = Object.fromEntries(environments.map((env) => [
+      env,
+      join(directory, `${env}.js`),
+    ])) as Record<(typeof environments)[number], string>
+    const child = Bun.spawn([
+      Bun.which("bun") ?? "bun",
+      "--conditions=cosmos:server",
+      "--conditions=internal:server",
+      "-e",
+      `import {buildPackage} from "@cosmos/release"; const artifacts = ${JSON.stringify(staged)}; console.log(JSON.stringify(await Promise.all(${JSON.stringify(environments)}.map((env) => buildPackage("@cosmos/startup", {env, artifact: artifacts[env]})))))`,
+    ], {
+      cwd: cosmos,
+      env: {...process.env, NODE_ENV: "development"},
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+    const resultLine = stdout.trim().split("\n").at(-1)
+    if (exitCode !== 0 || !resultLine)
+      throw new Error(`Current startup build failed: ${stderr || stdout}`)
+    const results = JSON.parse(resultLine) as Array<{
+      env: PackageEnvironment
+      success: boolean
+      exitCode: number | null
+    }>
+    expect(results.map(({env, success, exitCode: buildExitCode}) => ({
+      env,
+      success,
+      exitCode: buildExitCode,
+    }))).toEqual([
+      {env: "main", success: true, exitCode: 0},
+      {env: "service", success: true, exitCode: 0},
+      {env: "server", success: true, exitCode: 0},
+    ])
+
+    for (const env of environments) {
+      const exact = join(cosmos, "startup/dist/versions", manifest.version, `${env}.js`)
+      for (const [current, versioned] of [
+        [staged[env], exact],
+        [`${staged[env]}.map`, `${exact}.map`],
+      ] as const) {
+        const artifact = Bun.file(versioned)
+        if (!await artifact.exists()) throw new Error(`Exact startup artifact is missing: ${versioned}`)
+        expect(await artifactIntegrity(await artifact.arrayBuffer())).toEqual(
+          await artifactIntegrity(await Bun.file(current).arrayBuffer()),
+        )
+      }
+    }
+  } finally {
+    await rm(directory, {recursive: true, force: true})
+  }
+}, 30_000)
+
 async function build(mode: "development" | "production") {
   const directory = await mkdtemp(join(tmpdir(), `metafor-build-profile-${mode}-`))
   const artifacts = {
     startupMain: join(directory, "startup-main.js"),
     startupService: join(directory, "startup-service.js"),
+    startupServer: join(directory, "startup-server.js"),
     releaseMain: join(directory, "release-main.js"),
     releaseService: join(directory, "release-service.js"),
     releaseServer: join(directory, "release-server.js"),
@@ -374,7 +477,7 @@ async function build(mode: "development" | "production") {
     "--conditions=cosmos:server",
     "--conditions=internal:server",
     "-e",
-    `import {buildPackage} from "@cosmos/release"; const artifacts = ${JSON.stringify(artifacts)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",artifact:artifacts.internalVisual}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
+    `import {buildPackage} from "@cosmos/release"; const artifacts = ${JSON.stringify(artifacts)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/startup", {env:"server",artifact:artifacts.startupServer}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",artifact:artifacts.internalVisual}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
   ], {
     cwd: cosmos,
     env: {...process.env, NODE_ENV: mode},
@@ -399,6 +502,7 @@ async function build(mode: "development" | "production") {
       .toEqual([
         {env: "main", success: true, exitCode: 0},
         {env: "service", success: true, exitCode: 0},
+        {env: "server", success: true, exitCode: 0},
         {env: "main", success: true, exitCode: 0},
         {env: "service", success: true, exitCode: 0},
         {env: "server", success: true, exitCode: 0},
@@ -406,6 +510,7 @@ async function build(mode: "development" | "production") {
         {env: "server", success: true, exitCode: 0},
       ])
     return {
+      releaseServer: await Bun.file(artifacts.releaseServer).text(),
       sources: {
         internalVisual: await Bun.file(artifacts.internalVisual).text(),
         releaseMain: await Bun.file(artifacts.releaseMain).text(),

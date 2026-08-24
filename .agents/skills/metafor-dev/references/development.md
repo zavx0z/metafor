@@ -25,6 +25,19 @@ console.debug("[@cosmos/release:service:update]", "новая сборка за�
 `bun run build` собирает production artifacts: они также минифицированы, но
 `console.debug` вместе с аргументами удалён, а source map отсутствует.
 
+Для server breakpoints dispatcher использует `restart-debug`, который запускает
+`bun run dev:debug`. Startup остаётся обычным supervisor, а exact release child
+получает выбранный dispatcher адрес `--inspect=127.0.0.1:<port>`: по умолчанию
+`6499`, override — `METAFOR_DEV_BUN_INSPECT_PORT=<port>` при запуске нового
+debug tree. `status` читает actual address из exact release child и считает
+Inspector готовым только когда единственный listener PID совпадает с этим
+child. Поэтому routes, publication и WebSocket отлаживаются в process, которому
+они принадлежат. Подключаться нужно к WebKit Inspector URL из видимого
+терминала. Debug mode не включает watch/HMR и не создаёт второй Cosmos process
+tree. Обычные `dev` и `start` удаляют унаследованный
+`COSMOS_RELEASE_INSPECT`; после проверки `restart` возвращает обычный
+development mode на том же origin и browser target.
+
 ## Матрица diagnostics
 
 Development diagnostics описывают причинный lifecycle, а не каждую выполненную
@@ -40,6 +53,7 @@ RPC, runtime и cache владельцах одновременно. Успеш�
 | Story | Причинные границы |
 |---|---|
 | startup release runtime | bootstrap → artifact из cache/network → inert runtime подготовлен → release запущен → runtime активирован; failure содержит request и error |
+| server startup release process | exact artifact проверен → один release child активирован → IPC ready; missing/invalid artifact и unexpected exit дают явную ошибку без restart |
 | server build/publication | запрос → root intent → один package typecheck → env builds → publish или root restore → один signal |
 | server publication recovery | найден root intent → недостающие artifacts восстановлены → child manifests сошлись; failure содержит packages и error |
 | browser artifact delivery | package/env/version доставлен либо точный status отказа |
@@ -102,13 +116,17 @@ environment flags только ради тестирования. После suc
   атомарной публикацией, routes, `/code` и server-реализацией RPC; его artifact
   не загружается browser.
 * `@cosmos/startup` — один фиксированный package с env `main` и
-  `service`. В обычной разработке его не менять и через endpoint
+  `service`, а также env `server` для тонкого process supervisor. В обычной
+  разработке его browser parts не менять через endpoint
   обновления не передавать. Он объявляет dependency на
   `@cosmos/release`; public loader/dependencies/runtime types принадлежат
   release, а startup предоставляет реализацию через type-only bare import.
   Startup синхронно регистрирует `install`, `activate`, `fetch`, `message`,
   сразу запускает release и только связывает browser event с текущим runtime.
-  Cache policy, transaction, RPC и self-update startup не принадлежат.
+  Server startup проверяет exact release artifact, запускает его через
+  `Bun.spawn`, ждёт IPC `ready` и наблюдает exit без restart/rollback. Только
+  release child создаёт `Bun.serve`. Cache policy, transaction, RPC и
+  self-update startup не принадлежат.
 
 Имя модуля брать только из поля `name` его `package.json`.
 Сменяемый package также объявляет точную `version`. Cache owner не записывать в

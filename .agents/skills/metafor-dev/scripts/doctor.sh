@@ -43,11 +43,33 @@ fi
 
 if [[ -x $script_dir/metafor-dev.sh \
   && -x $script_dir/terminal-runner.sh \
+  && -f $script_dir/inspector.sh \
   && -f $script_dir/chrome-target.ts \
   && -f $script_dir/package-sizes.ts ]]; then
   ok "metafor-dev lifecycle scripts"
 else
   fail "metafor-dev lifecycle scripts are not executable"
+fi
+
+if regression_output=$("$script_dir/metafor-dev-process-tree.test.sh" 2>&1); then
+  ok "metafor-dev managed parent regressions"
+else
+  fail "metafor-dev managed parent regressions"
+  printf '%s\n' "$regression_output"
+fi
+
+if inspector_regression_output=$("$script_dir/metafor-dev-inspector.test.sh" 2>&1); then
+  ok "metafor-dev Inspector regressions"
+else
+  fail "metafor-dev Inspector regressions"
+  printf '%s\n' "$inspector_regression_output"
+fi
+
+if runner_regression_output=$("$script_dir/terminal-runner-preload.test.sh" 2>&1); then
+  ok "metafor-dev terminal runner preload regression"
+else
+  fail "metafor-dev terminal runner preload regression"
+  printf '%s\n' "$runner_regression_output"
 fi
 
 if [[ -f $inspector/claude-plugin/server/index.js && -f $inspector/extensions/chrome/webgpu_inspector.js ]]; then

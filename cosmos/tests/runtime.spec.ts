@@ -1,9 +1,15 @@
 import {expect, test} from "bun:test"
 import type {
+  ActivePackage,
+  PackageExit,
   ReleaseFactory,
   ReleaseLoader,
   ReleaseRuntime,
 } from "../release/service"
+import {
+  browserFunctionArtifact,
+  createBrowserFunctionExecutor,
+} from "../startup/service/executor"
 import {
   createReleaseHost,
   registerReleaseListeners,
@@ -72,6 +78,53 @@ test("startup passes one frozen dependency object and prepare stays inert", asyn
     await host.activate(candidate)
   })
   expect(calls).toEqual(["candidate:start"])
+})
+
+test("browser Function adapter implements the common package lifecycle", async () => {
+  const calls: string[] = []
+  const candidate = runtime("adapter", calls)
+  const releaseLoader = loader([() => candidate])
+  const executor = createBrowserFunctionExecutor(releaseLoader.run)
+  const artifact = await browserFunctionArtifact(new Response("fixture release", {
+    headers: {
+      "X-Package-Env": "service",
+      "X-Package-Name": "@cosmos/release",
+      "X-Package-SHA256": "a".repeat(64),
+      "X-Package-Size": "15",
+      "X-Package-Version": "1.2.3",
+    },
+  }))
+  const context = Object.freeze({
+    loader: Object.freeze(releaseLoader),
+    runtime: Object.freeze({
+      prepare: async () => candidate,
+      activate: async () => {},
+    }),
+  })
+
+  expect(artifact.identity).toEqual({
+    env: "service",
+    name: "@cosmos/release",
+    sha256: "a".repeat(64),
+    size: 15,
+    version: "1.2.3",
+  })
+  const prepared = await executor.prepare(artifact, context)
+  expect(prepared).toBe(candidate)
+  expect(calls).toEqual([])
+
+  const active: ActivePackage<ReleaseRuntime> = await executor.activate(prepared)
+  expect(active.runtime).toBe(candidate)
+  expect(calls).toEqual(["adapter:start"])
+
+  let settled = false
+  void active.finished.then(() => { settled = true })
+  await Promise.resolve()
+  expect(settled).toBeFalse()
+
+  await executor.destroy(active)
+  expect(await active.finished).toEqual({reason: "destroyed"} satisfies PackageExit)
+  expect(calls).toEqual(["adapter:start", "adapter:destroy"])
 })
 
 test("startup registers browser listeners synchronously and extends dispatched events", async () => {

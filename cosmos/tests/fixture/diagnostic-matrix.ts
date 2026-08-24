@@ -22,6 +22,23 @@ const checkpoint = (
 
 export const diagnosticStories: DiagnosticStory[] = [
   {
+    id: "server-startup-release-process",
+    checkpoints: [
+      checkpoint("debug", "[@cosmos/startup:server]", "release process активирован", [
+        "env", "name", "pid", "version",
+      ]),
+      checkpoint("error", "[@cosmos/startup:server]", "release process не запущен", ["error"]),
+      checkpoint("error", "[@cosmos/startup:server]", "release process завершился с ошибкой", [
+        "error", "pid", "version",
+      ]),
+    ],
+    proofs: [
+      {file: "server-startup.spec.ts", test: "server startup activates one exact release process and destroys it explicitly"},
+      {file: "server-startup.spec.ts", test: "server startup reports an unavailable exact release without fallback"},
+      {file: "server-startup.spec.ts", test: "server startup observes one failed release process without restart"},
+    ],
+  },
+  {
     id: "startup-release-runtime",
     checkpoints: [
       checkpoint("debug", "[@cosmos/startup:service]", "bootstrap release начат", ["request"]),

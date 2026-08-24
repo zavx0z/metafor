@@ -1,4 +1,13 @@
 /** Public API env `server` package `@cosmos/release`. */
+import {runReleaseServer, startReleaseServer} from "./runtime"
+
+export type {
+  ActivePackage,
+  PackageExecutor,
+  PackageExit,
+  VerifiedArtifact,
+} from "../shared/execution"
+export {runReleaseServer, startReleaseServer}
 export {
   buildablePackage,
   buildPackage,
@@ -88,3 +97,7 @@ export {
 export {notifyRelease, publishRelease} from "./release/update"
 export type {ReleaseNotification} from "./release/update"
 export {nextPackageVersion} from "./package/version"
+
+if (import.meta.main) {
+  await runReleaseServer()
+}

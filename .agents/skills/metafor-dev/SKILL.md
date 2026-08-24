@@ -1,6 +1,6 @@
 ---
 name: metafor-dev
-description: Develop and verify MetaFor locally through one persistent visible iTerm session, one Cosmos process, and one dedicated CDP Chrome. Use for MetaFor or Cosmos implementation, server lifecycle, browser functional checks, console inspection, visual verification, WebGPU profiling, or GPU capture. Preserve user-started processes and never use the retired multi-port runtime:universe or launchd contour.
+description: Develop and verify MetaFor locally through one persistent visible iTerm session, one Cosmos startup-owned process tree, and one dedicated CDP Chrome. Use for MetaFor or Cosmos implementation, server lifecycle, browser functional checks, console inspection, visual verification, WebGPU profiling, or GPU capture. Preserve user-started processes and never use the retired multi-port runtime:universe or launchd contour.
 ---
 
 # MetaFor development
@@ -11,17 +11,21 @@ of starting Cosmos, iTerm, or CDP Chrome directly:
 ```bash
 scripts/metafor-dev.sh status <checkout>
 scripts/metafor-dev.sh start <checkout>
+scripts/metafor-dev.sh start-debug <checkout>
 scripts/metafor-dev.sh focus <checkout>
 scripts/metafor-dev.sh logs <checkout>
 scripts/metafor-dev.sh restart <checkout>
+scripts/metafor-dev.sh restart-debug <checkout>
 scripts/metafor-dev.sh clear-site-data <checkout>
 scripts/metafor-dev.sh sizes <checkout>
 scripts/metafor-dev.sh stop <checkout>
 ```
 
 The dispatcher owns one iTerm session marked for the exact checkout, runs
-`bun run dev` from `cosmos/`, and preserves the window after the process
-stops. It also owns one Chrome CDP process on port 9222 with a stable profile.
+`bun run dev` from `cosmos/`, and preserves the window after the startup-owned
+process tree stops. Server startup launches one exact release child; only that
+child owns `Bun.serve`. The dispatcher also owns one Chrome CDP process on port
+9222 with a stable profile.
 
 ## Lifecycle
 
@@ -41,6 +45,17 @@ stops. It also owns one Chrome CDP process on port 9222 with a stable profile.
    owner needs the window brought forward.
 6. Use `restart` or `stop` only when required by the requested work. Leave the
    iTerm window and CDP Chrome running between Codex tasks.
+
+`start-debug` and `restart-debug` preserve the same process tree and browser
+target, but startup launches the exact release child with Bun Inspector on
+`127.0.0.1:6499` by default. Select another loopback port for a new debug tree
+with `METAFOR_DEV_BUN_INSPECT_PORT=<port>`. A reused debug tree must have the
+same actual release-child address or requires `restart-debug`. `status` derives
+the actual address from that exact child and reports ready only when the sole
+listener PID is the same child. Attach through the `debug.bun.sh` URL printed
+in the visible terminal. Normal `start`/`restart` and package `dev`/`start`
+commands remove inherited Inspector configuration. Do not mix normal and debug
+parents or start a second Cosmos to obtain a debugger.
 
 Do not use `runtime:universe`, ports 4000-4005, `launchd`, HMR, another Chrome
 profile, or a second CDP port for this contour.

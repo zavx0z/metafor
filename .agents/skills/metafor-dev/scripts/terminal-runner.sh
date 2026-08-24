@@ -2,16 +2,32 @@
 set -u
 export LC_ALL=C LANG=C
 
-repo=${1:?usage: terminal-runner.sh checkout}
-cosmos="$repo/cosmos"
+main() {
+  local script_dir repo mode inspect_address cosmos script exit_code
+  script_dir=$(cd "$(dirname "$0")" && pwd)
+  source "$script_dir/inspector.sh"
+  repo=${1:?usage: terminal-runner.sh checkout}
+  mode=${2:-normal}
+  inspect_address=${3:-}
+  cosmos="$repo/cosmos"
 
-cd "$cosmos" || exit 1
-printf '\033]0;%s\007' "MetaFor Dev - Cosmos"
-printf 'MetaFor Dev\ncheckout: %s\ncommand: bun run dev\n\n' "$repo"
+  configure_terminal_inspector_environment "$mode" "$inspect_address" || exit 1
+  case "$mode" in
+    normal) script=dev ;;
+    debug) script=dev:debug ;;
+    *) printf 'Unknown MetaFor development mode: %s\n' "$mode" >&2; exit 1 ;;
+  esac
 
-exit_code=0
-bun run dev || exit_code=$?
+  cd "$cosmos" || exit 1
+  printf '\033]0;%s\007' "MetaFor Dev - Cosmos"
+  printf 'MetaFor Dev\ncheckout: %s\ncommand: bun run %s\n\n' "$repo" "$script"
 
-printf '\nCosmos stopped with exit code %s\n' "$exit_code"
-printf 'This iTerm session stays open for metafor-dev restart and log inspection.\n'
-exec /bin/zsh -l
+  exit_code=0
+  bun run "$script" || exit_code=$?
+
+  printf '\nCosmos stopped with exit code %s\n' "$exit_code"
+  printf 'This iTerm session stays open for metafor-dev restart and log inspection.\n'
+  exec /bin/zsh -l
+}
+
+main "$@"

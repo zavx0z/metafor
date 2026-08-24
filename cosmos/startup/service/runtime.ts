@@ -1,9 +1,13 @@
 import type {
+  ActivePackage,
   ReleaseDependencies,
-  ReleaseFactory,
   ReleaseLoader,
   ReleaseRuntime,
 } from "@cosmos/release"
+import {
+  browserFunctionArtifact,
+  createBrowserFunctionExecutor,
+} from "./executor"
 
 /** Синхронная browser-event поверхность неизменяемого startup. */
 export interface StartupEventScope {
@@ -35,7 +39,7 @@ export function createReleaseHost(
   source: Request,
   loader: ReleaseLoader,
 ): ReleaseHost {
-  let active: ReleaseRuntime | null = null
+  let active: ActivePackage<ReleaseRuntime> | null = null
   let booting: Promise<void> | null = null
   const inFlight = new Map<ReleaseRuntime, Set<Promise<unknown>>>()
   const loaderApi = Object.freeze({
@@ -44,6 +48,7 @@ export function createReleaseHost(
     read: loader.read,
     run: loader.run,
   })
+  const executor = createBrowserFunctionExecutor(loaderApi.run)
   let dependencies!: ReleaseDependencies
 
   const prepare = async (request = source) => {
@@ -73,40 +78,29 @@ export function createReleaseHost(
     if (!response) throw new Error("Cached release service is missing")
 
     loaderApi.verify(response)
-    const module = {exports: {}} as {exports: {default?: ReleaseFactory}}
-    loaderApi.run(await response.text(), {module})
-    const factory = module.exports.default
-    if (typeof factory !== "function") throw new Error("Release service factory is missing")
-    const candidate = await factory(dependencies)
-    assertRuntime(candidate)
+    const artifact = await browserFunctionArtifact(response)
+    const candidate = await executor.prepare(artifact, dependencies)
     console.debug("[@cosmos/startup:service]", "release runtime подготовлен", {
-      env: response.headers.get("X-Package-Env"),
-      name: response.headers.get("X-Package-Name"),
+      env: artifact.identity.env,
+      name: artifact.identity.name,
       request: request.url,
-      version: response.headers.get("X-Package-Version"),
+      version: artifact.identity.version,
     })
     return candidate
   }
 
   const activate = async (candidate: ReleaseRuntime) => {
-    assertRuntime(candidate)
     const previous = active
+    const next = await executor.activate(candidate)
 
-    try {
-      await candidate.start()
-    } catch (error) {
-      await candidate.destroy().catch(() => {})
-      throw error
-    }
-
-    active = candidate
-    if (previous && previous !== candidate) {
-      await drain(previous)
-      await previous.destroy()
-      inFlight.delete(previous)
+    active = next
+    if (previous && previous.runtime !== candidate) {
+      await drain(previous.runtime)
+      await executor.destroy(previous)
+      inFlight.delete(previous.runtime)
     }
     console.debug("[@cosmos/startup:service]", "release runtime активирован", {
-      replaced: previous !== null && previous !== candidate,
+      replaced: previous !== null && previous.runtime !== candidate,
     })
   }
 
@@ -138,14 +132,14 @@ export function createReleaseHost(
   const fetchEvent = async (event: FetchEvent) => {
     await boot()
     if (!active) throw new Error("Release service is not active")
-    const runtime = active
+    const runtime = active.runtime
     return await track(runtime, runtime.fetch(event))
   }
 
   const messageEvent = async (event: ExtendableMessageEvent) => {
     await boot()
     if (!active) throw new Error("Release service is not active")
-    const runtime = active
+    const runtime = active.runtime
     await track(runtime, runtime.message(event))
   }
 
@@ -200,17 +194,6 @@ export function registerReleaseListeners(scope: StartupEventScope, host: Release
   scope.addEventListener("message", (event) => {
     event.waitUntil(host.message(event))
   })
-}
-
-function assertRuntime(runtime: unknown): asserts runtime is ReleaseRuntime {
-  if (
-    typeof runtime !== "object"
-    || runtime === null
-    || typeof (runtime as ReleaseRuntime).start !== "function"
-    || typeof (runtime as ReleaseRuntime).fetch !== "function"
-    || typeof (runtime as ReleaseRuntime).message !== "function"
-    || typeof (runtime as ReleaseRuntime).destroy !== "function"
-  ) throw new Error("Release service returned an invalid runtime")
 }
 
 function errorMessage(error: unknown) {

@@ -41,15 +41,15 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(startupService).toContain("host.boot()")
   expect(startupRuntime).toContain("event.respondWith(operation)")
   expect(startupRuntime).toContain("event.waitUntil(operation)")
-  expect(startupRuntime).toContain("await drain(previous)")
-  expect(startupRuntime).toContain("await previous.destroy()")
+  expect(startupRuntime).toContain("await drain(previous.runtime)")
+  expect(startupRuntime).toContain("await executor.destroy(previous)")
 
   const startupPackage = await Bun.file(join(cosmos, "startup/package.json")).json() as {
     artifact?: unknown
     dependencies?: Record<string, string>
   }
   expect(startupPackage.artifact).toBeUndefined()
-  expect(startupPackage.dependencies?.["@cosmos/release"]).toBe("workspace:^0.1.3")
+  expect(startupPackage.dependencies?.["@cosmos/release"]).toBe("workspace:^0.1.14")
   expect(packageBuild).toContain('"Service-Worker-Allowed": "/"')
   expect(packageBuild).toContain('"Content-Security-Policy": "script-src \'unsafe-eval\'"')
 
@@ -106,7 +106,7 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
 test("UPD-002 exposes the development update path through owner-scoped diagnostics", async () => {
   const [server, delivery, update, build, rpcServer, rpcService, releaseService, updateLoader, startupMain] =
     await Promise.all([
-      Bun.file(join(cosmos, "server.ts")).text(),
+      Bun.file(join(cosmos, "release/server/runtime.ts")).text(),
       Bun.file(join(cosmos, "release/server/http/delivery.ts")).text(),
       Bun.file(join(cosmos, "release/server/release/update.ts")).text(),
       Bun.file(join(cosmos, "release/server/package/build.ts")).text(),
@@ -118,7 +118,7 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
     ])
 
   expect(server).toContain("GET: getRelease")
-  expect(server).toMatch(/POST: \(request: Request, server: Bun\.Server<RpcSocketData>\) => publishRelease\(request/)
+  expect(server).toMatch(/POST: \(request: Request, current: Bun\.Server<RpcSocketData>\) => publishRelease\(request/)
   expect(server).toContain("open: openRpc")
   expect(server).toContain("message: messageRpc")
   expect(server).toContain("close: closeRpc")

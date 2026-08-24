@@ -1,7 +1,8 @@
 # `@cosmos/startup`
 
-`@cosmos/startup` — минимальная неизменяемая browser-оболочка Cosmos, которая
-создаёт устойчивую границу между платформой и сменяемым `@cosmos/release`.
+`@cosmos/startup` — минимальная неизменяемая оболочка Cosmos, которая создаёт
+устойчивую границу между browser либо server platform и сменяемым
+`@cosmos/release`.
 
 `startup` не владеет политикой выпуска, составом пакетов или предметным
 состоянием MetaFor. Его задача — получить release runtime, запустить кандидата,
@@ -9,11 +10,12 @@
 
 ## Среды
 
-Пакет имеет две browser-среды:
+Пакет имеет две browser-среды и одну server-среду:
 
 ```text
 cosmos:main     -> ./main/index.ts
 cosmos:service  -> ./service/index.ts
+cosmos:server   -> ./server/index.ts
 ```
 
 ### `main`
@@ -25,6 +27,15 @@ cosmos:service  -> ./service/index.ts
 3. загружает `@cosmos/release` для Window.
 
 На этом ответственность `startup/main` заканчивается.
+
+### `server`
+
+`server` читает последнюю завершённую version package release, проверяет exact
+`server.js` по package/env/version/SHA-256/size и запускает его отдельным Bun
+process через общий package executor. Release child сам создаёт единственный
+`Bun.serve` и напрямую владеет HTTP/WebSocket surface. Startup ждёт IPC
+`ready`, наблюдает process exit и при ошибке не выполняет автоматический restart
+или rollback.
 
 ### `service`
 
@@ -45,14 +56,18 @@ cosmos:service  -> ./service/index.ts
 
 ## Зависимость
 
-`startup` зависит только от публичного service-контракта `@cosmos/release`:
+Browser Service Worker и server adapters `startup` зависят от общего
+публичного execution-контракта `@cosmos/release`:
 
 ```text
-startup
-   |
-   v
-ReleaseLoader + ReleaseRuntime contracts
+browser/server adapter
+  -> VerifiedArtifact + PackageExecutor
+  -> ActivePackage + PackageExit
 ```
+
+Только Service Worker adapter дополнительно зависит от browser-specific
+service runtime contracts `ReleaseLoader`, `ReleaseDependencies`,
+`ReleaseFactory` и `ReleaseRuntime`.
 
 Физическая политика cache, RPC, обновления и публикации принадлежит `release`.
 `startup` не импортирует `@internal/*` и не знает состав Quantum.

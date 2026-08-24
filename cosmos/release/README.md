@@ -41,6 +41,10 @@ Manifest screenshots, icons и favicon не сохраняются Worker: onlin
 
 ### `server`
 
+Server artifact запускается startup отдельным Bun-процессом и сам создаёт
+единственный HTTP/WebSocket server Cosmos. После IPC `ready` startup только
+наблюдает process lifecycle; routes и transport остаются внутри release.
+
 Серверная часть владеет техническим release lifecycle:
 
 - разрешением package manifests и environments;
