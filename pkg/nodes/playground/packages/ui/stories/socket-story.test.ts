@@ -43,6 +43,6 @@ describe("Node Socket package-owned story boundary", () => {
     expect(client).toContain("storyPreview.setStory(index, loaded, storyArgs)")
     expect(client).not.toContain("PlaygroundInfoSurface")
     expect(client).not.toContain("new SocketCatalogSurface")
-    expect(layout).toContain("const story = shell.info")
+    expect(layout).toContain("const story = compact ? hidden() : shell.info")
   })
 })
