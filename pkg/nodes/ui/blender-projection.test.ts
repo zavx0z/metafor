@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {TrueTypeFont} from "@metafor/engine"
-import {NodeTree} from "@nodes/core/node-tree"
+import {NodeTree, StaleNodeTreeProjectionError} from "@nodes/core/node-tree"
 import {Parameter, type NodeJsonValue} from "@nodes/core/parameter"
 import {
   createBlenderNodeTreeProjector,
@@ -8,6 +8,7 @@ import {
   type BlenderLinkMetadata,
   type BlenderNodeMetadata,
   type BlenderParameterPresentation,
+  type BlenderNodeTreeProjection,
   type BlenderRuntimeParameter,
   type BlenderRuntimeTree,
   type BlenderSocketMetadata,
@@ -126,6 +127,75 @@ describe("live NodeTree Blender projection", () => {
     field.onChange?.(3)
     expect(source.value).toBe(3)
     expect(tree.revision).toBe(2)
+  })
+
+  test("reads captured Parameter fields while binding edits to the live Store", async () => {
+    const {tree, source} = createTree()
+    const blender = createBlenderNodeTreeProjector()
+    type Input = Parameters<typeof blender.project>[0]
+    let release: (() => void) | undefined
+    let produced: BlenderNodeTreeProjection | undefined
+    const delayed = {
+      async project(input: Input): Promise<BlenderNodeTreeProjection> {
+        await new Promise<void>((resolve) => { release = resolve })
+        produced = await blender.project(input)
+        return produced
+      },
+    }
+
+    const pending = tree.project(delayed, {
+      cacheKey: "blender:captured-parameter",
+      context: {viewport: {width: 900, height: 600}},
+    })
+    await Promise.resolve()
+    source.set(2)
+    release?.()
+
+    await expect(pending).rejects.toBeInstanceOf(StaleNodeTreeProjectionError)
+    const field = produced?.nodePlans.get("source")?.fields[0]?.field
+    expect(field?.kind).toBe("number")
+    if (field?.kind !== "number") throw new Error("Captured number Field is missing")
+    expect(field.value).toBe(1)
+    field.onChange?.(3)
+    expect(source.value).toBe(3)
+  })
+
+  test("projects an added Parameter from the committed topology generation", async () => {
+    const {tree, source} = createTree()
+    const projector = createBlenderNodeTreeProjector()
+    const request = {
+      cacheKey: "blender:topology",
+      context: {viewport: {width: 900, height: 600}},
+    }
+    const first = await tree.project(projector, request)
+    const gain = parameter("gain", "Gain", 0.5)
+    const current = tree.definition()
+
+    tree.reconcile({
+      expectedRevision: 0,
+      definition: {
+        ...current,
+        nodes: current.nodes.map((node) => node.id === "source" ? {
+          ...node,
+          parameters: [...(node.parameters ?? []), gain],
+        } : node),
+      },
+    })
+    const second = await tree.project(projector, request)
+
+    expect(second.revision).toBe(1)
+    expect(second.topologyRevision).toBe(1)
+    expect(second.snapshot.nodes.find(({id}) => id === "source")?.parameters.map(({id}) => id))
+      .toEqual(["value", "gain"])
+    expect(second.tree.nodes.find(({node}) => node.id === "source")?.node.parameters?.map(({id}) => id))
+      .toEqual(["value", "gain"])
+    expect(second.diagnostics.measurements).toBe(first.diagnostics.measurements + 1)
+    expect(second.diagnostics.reusedMeasurements).toBe(first.diagnostics.reusedMeasurements + 1)
+    expect(second.diagnostics.layouts).toBe(first.diagnostics.layouts + 1)
+    expect(second.diagnostics.plans).toBe(first.diagnostics.plans + 1)
+    expect(second.diagnostics.reusedPlans).toBe(first.diagnostics.reusedPlans + 1)
+    expect(tree.parameter("source", "value")).toBe(source)
+    expect(tree.parameter("source", "gain")).toBe(gain)
   })
 
   test("lets NodeEditor materialize supplied plans without local replanning", async () => {

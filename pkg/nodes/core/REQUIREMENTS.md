@@ -18,9 +18,9 @@ contracts — [`@nodes/ui`](../ui/REQUIREMENTS.md).
 5. ID Frame и Node уникальны во всём дереве; Parameter и Socket уникальны внутри
    owning Node; Link уникален в дереве. Неизвестные ссылки, циклические Frame и
    несовместимые endpoints отклоняются до проекции.
-6. Первая runtime-версия получает topology в конструкторе. Значения Parameter
-   живые; structural mutation получает отдельный публичный договор, а не
-   неявное изменение внутренних массивов.
+6. Topology является живой, но не изменяется через выданные массивы. Одно
+   структурное изменение проходит через атомарный reconcile конечного
+   состояния.
 
 ## Parameter как Store
 
@@ -46,6 +46,36 @@ contracts — [`@nodes/ui`](../ui/REQUIREMENTS.md).
 4. Один `NodeTree` может одновременно обслуживать несколько независимых view.
    Selection, pan, zoom, hover, viewport и overlay state не являются состоянием
    графа.
+
+## Живая topology и authoring document
+
+1. `definition()` возвращает текущую runtime-структуру с живыми Parameter, а
+   `document()` — отдельный JSON-compatible authoring document без методов и
+   вычисляемых revisions.
+2. Authoring document адресует Frame, Node, Parameter, Socket и Link по
+   устойчивым ID через `byId`; явные `order` сохраняют порядок отображения.
+   Entity paths не зависят от позиции сущности в массивном snapshot.
+3. `reconcile({expectedRevision, definition})` сначала целиком копирует и
+   проверяет конечную структуру и только затем одним commit заменяет topology.
+4. Устаревшая revision, невалидное конечное состояние и ошибка подготовки не
+   меняют runtime, revisions, subscriptions или projection cache.
+5. Одно фактическое structural изменение увеличивает `revision` и
+   `topologyRevision` ровно на один и публикует ровно одно topology-событие.
+   Полный no-op не создаёт revision или событие.
+6. Сохранившийся `(nodeId, parameterId)` сохраняет exact Parameter object.
+   Подмена его другим Store отклоняется. Добавленный Parameter подписывается,
+   удалённый отписывается и после удаления остаётся самостоятельным Store у
+   внешнего владельца.
+7. Ошибки listeners сообщаются после commit и не откатывают уже принятое
+   состояние; каждый listener всё равно получает возможность увидеть целый
+   результат.
+8. Exact `@nodes/core/json-patch` применяет `add | remove | replace | test` к
+   отдельной JSON-копии и возвращает только полностью применённый результат.
+   Pointer parsing не проходит через prototype chain, а операции, path depth и
+   array indexes имеют конечные проверяемые границы.
+9. Projector получает согласованный generation view точной revision. Изменение
+   живого дерева во время асинхронной работы не подменяет topology, с которой
+   был начат расчёт; устаревший итог по-прежнему отклоняется.
 
 ## Projection
 

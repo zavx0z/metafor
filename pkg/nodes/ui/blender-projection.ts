@@ -3,8 +3,10 @@ import type {LayoutResult} from "@nodes/layout/types"
 import type {FieldDefinition} from "@ui/components"
 import {
   type Link as RuntimeLink,
-  type Node as RuntimeNode,
   type NodeTree,
+  type NodeTreeGenerationNode,
+  type NodeTreeGenerationParameter,
+  type NodeTreeGenerationView,
   type NodeTreeSnapshot,
   type Frame as RuntimeFrame,
   type Socket as RuntimeSocket,
@@ -79,6 +81,13 @@ export type BlenderRuntimeTree = NodeTree<
   BlenderSocketMetadata,
   BlenderLinkMetadata
 >
+export type BlenderRuntimeGeneration = NodeTreeGenerationView<
+  BlenderRuntimeParameter,
+  BlenderFrameMetadata,
+  BlenderNodeMetadata,
+  BlenderSocketMetadata,
+  BlenderLinkMetadata
+>
 
 export type BlenderProjectionContext = Readonly<{
   viewport: Readonly<{width: number; height: number}>
@@ -134,11 +143,16 @@ export type BlenderNodeTreeProjection = NodeEditorProjection<
   cache: ProjectionCache
 }>
 
-type RuntimeNodeEntry = RuntimeNode<BlenderRuntimeParameter, BlenderNodeMetadata, BlenderSocketMetadata>
+type RuntimeNodeEntry = NodeTreeGenerationNode<
+  BlenderRuntimeParameter,
+  BlenderNodeMetadata,
+  BlenderSocketMetadata
+>
+type RuntimeParameterEntry = NodeTreeGenerationParameter<BlenderRuntimeParameter>
 
 /** Creates the fixed-policy Blender projection used by the parent runtime. */
 export function createBlenderNodeTreeProjector(): NodeTreeProjector<
-  BlenderRuntimeTree,
+  BlenderRuntimeGeneration,
   ReturnType<BlenderRuntimeTree["snapshot"]>,
   BlenderProjectionContext,
   BlenderNodeTreeProjection
@@ -154,7 +168,7 @@ export function createBlenderNodeTreeProjector(): NodeTreeProjector<
 }
 
 function projectBlenderNodeTree(
-  tree: BlenderRuntimeTree,
+  tree: BlenderRuntimeGeneration,
   snapshot: ReturnType<BlenderRuntimeTree["snapshot"]>,
   context: BlenderProjectionContext,
   previous: BlenderNodeTreeProjection | undefined,
@@ -298,7 +312,7 @@ function blenderSocket(
 }
 
 function layoutGraph(
-  tree: BlenderRuntimeTree,
+  tree: BlenderRuntimeGeneration,
   viewNodes: ReadonlyMap<string, BlenderNode>,
   plans: ReadonlyMap<string, BlenderNodePlan>,
   viewport: Readonly<{width: number; height: number}>,
@@ -345,7 +359,7 @@ function layoutGraph(
 }
 
 function positionedTree(
-  tree: BlenderRuntimeTree,
+  tree: BlenderRuntimeGeneration,
   viewNodes: ReadonlyMap<string, BlenderNode>,
   localPlans: ReadonlyMap<string, BlenderNodePlan>,
   layout: LayoutResult,
@@ -420,12 +434,12 @@ function blenderLink(link: RuntimeLink<BlenderLinkMetadata>): BlenderLink {
   })
 }
 
-function bindField(template: NodeJsonObject, parameter: BlenderRuntimeParameter): FieldDefinition {
+function bindField(template: NodeJsonObject, parameter: RuntimeParameterEntry): FieldDefinition {
   const field = template as unknown as FieldDefinition
   if (typeof field.id !== "string" || typeof field.label !== "string" || typeof field.kind !== "string") {
     throw new Error(`Invalid Field presentation: ${parameter.id}`)
   }
-  const set = (value: NodeJsonValue): void => { parameterSet(parameter, value) }
+  const set = (value: NodeJsonValue): void => { parameterSet(parameter.store, value) }
   if (field.kind === "text") return {...field, value: parameter.value as string, onChange: set}
   if (field.kind === "number") return {...field, value: parameter.value as number, onChange: set}
   if (field.kind === "integer") return {...field, value: parameter.value as number, onChange: set}
@@ -511,7 +525,7 @@ function connectedSocketIdsByNode(
   return new Map([...mutable].map(([id, values]) => [id, new Set(values)]))
 }
 
-function fixedSocketSides(tree: BlenderRuntimeTree): ReadonlyMap<string, "left" | "right"> {
+function fixedSocketSides(tree: BlenderRuntimeGeneration): ReadonlyMap<string, "left" | "right"> {
   const socketByEndpoint = new Map<string, RuntimeSocket<BlenderSocketMetadata>>()
   for (const node of tree.nodes) {
     for (const socket of node.sockets ?? []) socketByEndpoint.set(endpointId(node.id, socket.id), socket)

@@ -8,6 +8,7 @@
   "types": "index.ts",
   "exports": {
     ".": "./index.ts",
+    "./json-patch": "./json-patch.ts",
     "./parameter": "./parameter.ts",
     "./node-tree": "./node-tree.ts",
     "./projection-types": "./projection-types.ts"
