@@ -187,6 +187,8 @@ FlexBox единолично вычисляет local child slots, а child то
    и controls; package не копирует общий shell и не передаёт ему Elements
    vocabulary. Mount `/elements/` и каждый route prefix открывают overview
    непосредственных детей и оканчиваются `/`, а полный detail pathname — нет.
+   Overview сохраняет полный five-panel Workbench и использует первый detail
+   descendant для preview/source вместо отдельной generic catalog Surface.
 2. Catalog явно разделяет primitives, layout, style и events. Вторая панель
    выбирает реальные sections одного Element, dock — его variants, а справа
    постоянно видны exact TypeScript/copy и controls/events. Статический Info и

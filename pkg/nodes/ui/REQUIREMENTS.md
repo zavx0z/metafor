@@ -155,7 +155,9 @@ solver-free; explicit `blender-projection` адаптирует живой root 
    selector `nodes`, а package identity задаёт mount `/ui/`. Выбор Component
    сначала открывает его overview: `/ui/socket/` показывает все Socket types,
    `/ui/socket/boolean/` — все варианты Boolean, и только
-   `/ui/socket/boolean/input` загружает detail story. Catalog выбирает
+   `/ui/socket/boolean/input` задаёт exact detail story. Prefix overview не
+   скрывает прежний Workbench: для preview/source он использует первый detail
+   descendant, сохраняя catalog, sections, dock и code panel. Catalog выбирает
    NodeEditor, Socket и comparison. Для
    выбранного Socket вторая панель перечисляет все concrete Socket type presets,
    center показывает один production detail preview, dock — независимые

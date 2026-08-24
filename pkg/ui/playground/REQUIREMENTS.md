@@ -9,11 +9,15 @@ Components либо consumer.
 1. Pathname является иерархией каталогов. Mount пакета открывается как
    `/package/`, каждый непустой префикс story route является самостоятельным
    overview (`/package/component/`, затем `/package/component/section/`), а
-   только полный путь открывает detail story. Overview показывает всех
-   непосредственных детей текущего уровня; выбор ребёнка углубляет тот же
-   pathname на один уровень. Общая typed declaration строит root, все префиксы
-   и leaves из одних package-owned descriptors; consumer не выбирает hash/path
-   mode или параллельную схему адресов.
+   только полный путь фиксирует exact detail story в pathname. Overview показывает всех
+   непосредственных детей текущего уровня в существующих catalog/sections/dock
+   regions; выбор ребёнка углубляет тот же pathname на один уровень. Overview
+   не заменяет historical five-panel Workbench отдельной пустой страницей:
+   preview, source, controls и events остаются на месте и используют
+   детерминированный первый detail descendant текущего префикса. Общая typed
+   declaration строит root, все префиксы и leaves из одних package-owned
+   descriptors; consumer не выбирает hash/path mode или параллельную схему
+   адресов.
 2. Общий shell состоит из catalog, sections, preview, dock и info. Он является
    desktop-only рабочей средой, сохраняет historical five-panel geometry и
    занимает весь доступный canvas с небольшим внешним отступом; искусственный

@@ -38,7 +38,9 @@ control нельзя опустить в Elements только ради повт
    component/section/variant stories, lazy exact production imports, preview,
    source и controls; package не копирует общий shell. Mount `/components/` и
    каждый route prefix открывают overview непосредственных детей и оканчиваются
-   `/`, а полный detail pathname — нет.
+   `/`, а полный detail pathname — нет. Overview сохраняет полный five-panel
+   Workbench и использует первый detail descendant для preview/source вместо
+   отдельной generic catalog Surface.
 2. Consumer preview владеет одним устойчивым retained root. Каждый независимо
    изменяемый controlled Field материализуется под устойчивым parent с ключом
    его `id`; изменение одного value не перестраивает shell или соседние Fields.

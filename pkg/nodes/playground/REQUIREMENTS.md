@@ -42,7 +42,10 @@
    все Socket types, `/ui/socket/boolean/` — его направления, а
    `/ui/socket/boolean/input` — один detail story. Тот же переход
    `package → component → section → detail` действует для всех package pages;
-   leaf не подставляется при выборе более высокого уровня.
+   leaf не подставляется в pathname при выборе более высокого уровня. Внутри
+   Node UI overview сохраняет прежний five-panel Workbench и отображает первый
+   detail descendant как preview/source state; отдельная generic overview
+   Surface не заменяет NodeEditor, Socket preview или code panel.
 
 ## Структура модулей
 
