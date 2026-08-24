@@ -62,8 +62,10 @@ flowchart LR
 нормализует все многострочные внутрикодовые комментарии Cosmos без изменения
 их смысла. После ненужной materialization `DOC-002.2` владелец отделил
 documentation-only diff от executable package change. Текущий диагностический
-срез `DOC-002.3` находит все rules/tests, которые могут снова вызвать build,
-version, restart или test suites только из-за документации.
+срез `DOC-002.3` подтвердил rules, startup convergence и cold recovery как
+полную причинную цепочку. Текущий `DOC-002.4` закрепляет documentation-only
+lifecycle у постоянных владельцев; затем `.5/.6` сохранят executable
+fail-closed без зависимости от текста TSDoc map.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
