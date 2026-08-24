@@ -75,6 +75,9 @@ Environment отвечает только на вопрос, где исполн
 package. Он не определяет namespace package, его предметную роль или способ
 доставки всего выпуска.
 
+Точный [контракт сред выполнения](shared/package/environment.ts) владеет полным
+списком, browser/Bun subsets, guards и подробной внутрикодовой TSDoc.
+
 | Environment | Platform | Место исполнения |
 | --- | --- | --- |
 | `main` | Browser | Главный context страницы `Window` |
