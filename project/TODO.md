@@ -63,9 +63,10 @@ flowchart LR
 их смысла. После ненужной materialization `DOC-002.2` владелец отделил
 documentation-only diff от executable package change. Текущий диагностический
 срез `DOC-002.3` подтвердил rules, startup convergence и cold recovery как
-полную причинную цепочку. Текущий `DOC-002.4` закрепляет documentation-only
-lifecycle у постоянных владельцев; затем `.5/.6` сохранят executable
-fail-closed без зависимости от текста TSDoc map.
+полную причинную цепочку. `DOC-002.4` закрепил documentation-only lifecycle у
+постоянных владельцев commit-ом `2a1e77e25`. Независимые текущие
+срезы `.5/.6` сохраняют startup/recovery executable fail-closed без зависимости
+от текста TSDoc map.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
