@@ -21,7 +21,6 @@ flowchart LR
     AUD012["AUD-012 · завершение Renderer"]
     AUD013["AUD-013 · серверные проверки"]
     AUD014["AUD-014 · корневой пакет"]
-    DOC002["DOC-002 · единый формат TSDoc"]
     MF411["MF-411 · что делает Hamiltonian"]
     MF414["MF-414 · где работают домены"]
     MF421["MF-421 · деактивация невидимого monitor display"]
@@ -57,19 +56,6 @@ flowchart LR
 ```
 
 ## P1 — ближайшая работа
-
-[`DOC-002 — Привести TSDoc Cosmos к единому Markdown-формату`](tasks/DOC-002.md)
-нормализует все многострочные внутрикодовые комментарии Cosmos без изменения
-их смысла. После ненужной materialization `DOC-002.2` владелец отделил
-documentation-only diff от executable package change. Текущий диагностический
-срез `DOC-002.3` подтвердил rules, startup convergence и cold recovery как
-полную причинную цепочку. `DOC-002.4` закрепил documentation-only lifecycle у
-постоянных владельцев commit-ом `2a1e77e25`. Независимые текущие
-срезы `.5/.6` сохранили startup/recovery executable fail-closed commit-ом
-`cb853c0bc`, а `.7` опубликовал только действительно изменившийся release
-`0.1.18` commit-ом `59e1f5394`. Задача находится в `REVIEW` и ждёт независимой
-закрывающей проверки; текущая `.8` исправляет единственный review blocker —
-exact-string проверку совместимого startup dependency range.
 
 Текущая визуальная работа ведётся в `MF-424 — Визуально довести Hamiltonian
 вместе с владельцем`. Подзадачи `MF-424.1` и `MF-424.3` приняты: серверная
@@ -326,7 +312,6 @@ correction без fixture offset.
 
 | ID     | Состояние   | Зависимости | Карточка                   |
 | ------ | ----------- | ----------- | -------------------------- |
-| DOC-002 | REVIEW      | нет        | [Открыть](tasks/DOC-002.md) |
 | MF-424 | IN_PROGRESS | нет         | [Открыть](tasks/MF-424.md) |
 | HAM-006 | WAITING    | MF-424      | [Открыть](tasks/HAM-006.md) |
 | MF-425 | IN_PROGRESS | нет         | [Открыть](tasks/MF-425.md) |
