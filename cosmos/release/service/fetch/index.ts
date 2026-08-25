@@ -11,6 +11,10 @@ const runtimeAssets = new Set([
   "/assets/fonts/jetbrains-mono-bold.ttf",
 ])
 
+const retiredRuntimeAssets = [
+  "/assets/fonts/JetBrainsMono-Bold.ttf",
+]
+
 /** Создаёт принадлежащую release browser cache policy поверх startup primitives. */
 export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
   /** Возвращает cached response либо network fallback для browser request. */
@@ -47,6 +51,7 @@ export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
       if (!response.ok) throw new Error(`Startup ${request.url} returned ${response.status}`)
       await cache.put(request, response)
     }))
+    await Promise.all(retiredRuntimeAssets.map((resource) => cache.delete(resource, {ignoreVary: true})))
   }
 
   return Object.freeze({cacheFirst, cacheStartup})

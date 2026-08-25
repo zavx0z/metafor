@@ -105,6 +105,10 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(mainPackage.scripts?.["build:main"]).toBe(
     "bun build ./main/index.ts --conditions=cosmos:main --conditions=internal:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/main.js",
   )
+  expect(main).toContain('const DEFAULT_FONT_META_NAME = "engine-default-font"')
+  expect(main).toContain('declaration.content = "/assets/fonts/jetbrains-mono-bold.ttf"')
+  expect(main.indexOf("document.head.append(declaration)"))
+    .toBeLessThan(main.indexOf('import("@internal/visual")'))
   expect(packageBuild).toContain("packageArtifactPath(location.root, build)")
 
   expect(server).toContain('"/assets/fonts/jetbrains-mono-bold.ttf"')
