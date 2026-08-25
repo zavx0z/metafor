@@ -26,6 +26,7 @@ export {packageBuildCommand} from "./package/command"
 export {acceptsBrotli} from "./package/response"
 export {
   browserPackageSourceMapUrl,
+  canonicalExecutableSource,
   externalizeSourceMap,
   parseBrowserPackageSourceMapUrl,
   sourceMapArtifact,

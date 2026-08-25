@@ -9,7 +9,9 @@ inline source map внутри package-owned build и затем выносит 
 companion. Server связывает JavaScript и map заголовком `SourceMap`; Worker не
 сохраняет map в Cache Storage. При поддержке browser server передаёт JavaScript
 и map через Brotli, но SHA-256 и size продолжают описывать распакованные
-canonical bytes. Временные diagnostics писать через `console.debug`; не помещать в
+canonical bytes. Случайный Bun `debugId` удаляется и из JavaScript, и из map до
+вычисления identity, поэтому повторная сборка тех же source не конфликтует с
+immutable artifact. Временные diagnostics писать через `console.debug`; не помещать в
 его аргументы обязательную рабочую логику. Первым аргументом передавать
 постоянный scope владельца в квадратных скобках, вторым — короткое событие,
 третьим — структурированные данные, например:

@@ -7,6 +7,7 @@ import {fileURLToPath} from "node:url"
 import {parseSync} from "oxc-parser"
 import {
   buildablePackage,
+  canonicalExecutableSource,
   packageBuildCommand,
   packageEnvironmentExports,
   packageOwners,
@@ -453,6 +454,8 @@ test("development keeps debug and source maps while production drops both", asyn
     expect(development.releaseServer).toContain("process.send")
     for (const artifact of Object.values(development.sources))
       expect(artifact).not.toContain("sourceMappingURL=data:application/json")
+    for (const artifact of Object.values(development.sources))
+      expect(artifact).not.toContain("//# debugId=")
     expect(development.sourceMaps.every(Boolean)).toBeTrue()
 
     const production = await build("production")
@@ -527,7 +530,8 @@ test("current startup version keeps exact executable bytes and non-empty develop
       const exactExecutable = Bun.file(exactExecutablePath)
       if (!await exactExecutable.exists())
         throw new Error(`Exact startup executable is missing: ${exactExecutablePath}`)
-      expect(await exactExecutable.bytes()).toEqual(await Bun.file(staged[env]).bytes())
+      expect(canonicalExecutableSource(await exactExecutable.text()))
+        .toBe(canonicalExecutableSource(await Bun.file(staged[env]).text()))
 
       const exactMapPath = `${exactExecutablePath}.map`
       const exactMap = Bun.file(exactMapPath)

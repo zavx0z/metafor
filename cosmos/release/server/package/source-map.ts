@@ -12,6 +12,14 @@ export function sourceMapArtifact(artifact: string) {
   return `${artifact}.map`
 }
 
+/** Удаляет несемантический случайный Bun debug identity из executable bytes. */
+export function canonicalExecutableSource(source: string) {
+  const executable = source.trimEnd()
+    .replace(/(?:^|\n)\/\/# debugId=[0-9A-Fa-f]+\s*$/, "")
+    .trimEnd()
+  return `${executable}\n`
+}
+
 /** Выносит Bun inline map из package-owned outfile в отдельный companion. */
 export async function externalizeSourceMap(artifact: string) {
   const source = await Bun.file(artifact).text()
@@ -21,12 +29,15 @@ export async function externalizeSourceMap(artifact: string) {
 
   const encoded = source.slice(markerIndex + marker.length).trim()
   const sourceMap = Buffer.from(encoded, "base64")
-  const parsed = JSON.parse(sourceMap.toString("utf8")) as {version?: unknown}
+  const parsed = JSON.parse(sourceMap.toString("utf8")) as Record<string, unknown>
   if (parsed.version !== 3) throw new Error(`Source map has unsupported version: ${artifact}`)
+  delete parsed.debugId
+
+  const canonicalSourceMap = Buffer.from(JSON.stringify(parsed))
 
   await Promise.all([
-    Bun.write(artifact, `${source.slice(0, markerIndex).trimEnd()}\n`),
-    Bun.write(sourceMapArtifact(artifact), sourceMap),
+    Bun.write(artifact, canonicalExecutableSource(source.slice(0, markerIndex))),
+    Bun.write(sourceMapArtifact(artifact), canonicalSourceMap),
   ])
 }
 
