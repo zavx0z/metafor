@@ -25,6 +25,16 @@ Visual объявляет свои платформенные части по
 Наблюдаемый результат — пользователь получает готовую поверхность Cosmos, в
 которой может появляться принадлежащее другим владельцам содержимое.
 
+Когда visual размещает несколько UI либо display regions, authoritative child
+slots и retained transform/clip chain принадлежат
+[контракту `@layout/core` (далее — Layout)](https://github.com/zavx0z/layout/blob/main/packages/core/requirements.md#semantic-child-slots),
+а их semantic composition —
+[закону UI-композиции](https://github.com/zavx0z/ui/blob/main/ARCHITECTURE.md#ui-composition-law).
+Layout остаётся единственным владельцем этой механики. visual является
+consumer одного `UiRuntime` и consumer-owned retained parents;
+function-based UI components не создают собственный runtime, parent или scene
+graph.
+
 ## Граница ответственности
 
 Visual владеет созданием визуальной среды и её отображением. Смысл

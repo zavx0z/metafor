@@ -258,6 +258,14 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   fullscreen, Force impulses, causal timeline с отдельным control dock и
   capture остаются Bulk-owned поведением и не заменяются вместе с
   layout/visual law.
+- Для принадлежащих Bulk меню, HUD, navigation и timeline immediate parent
+  выделяет semantic child slots по
+  [законам `LAYOUT-SLOT-001` и `LAYOUT-FLEX-001`](https://github.com/zavx0z/layout/blob/main/packages/core/requirements.md#semantic-child-slots).
+  [Закон UI-композиции](https://github.com/zavx0z/ui/blob/main/ARCHITECTURE.md#ui-composition-law)
+  связывает эти slots с consumer-owned retained parent; Bulk не вычисляет
+  sibling offsets и не создаёт второй component graph. Renderer, picking и
+  primitive scene geometry внутри уже выделенного slot остаются Bulk-owned
+  визуальной геометрией, а не UI child layout.
 - Canvas, viewport, `Space`, `Renderer`, `ViewPoint`, GPU resources и их
   lifecycle принадлежат Bulk. Shared `Space` может содержать невизуальные
   слои, поэтому `../../pkg/visual` не создаёт и не владеет ни всем `Space`, ни Engine
