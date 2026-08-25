@@ -4,15 +4,17 @@
 
 ### Связанные репозитории
 
-Engine, Layout, UI и Node являются соседними публичными репозиториями,
-построенными для [MetaFor](https://github.com/zavx0z/metafor). Их internal
-package identities не публикуются в npm: Bun links сохраняют одного реального
-владельца каждого module и не создают re-export либо TypeScript alias.
+Template, Engine, Layout, UI и Node являются соседними публичными репозиториями,
+построенными для [MetaFor](https://github.com/zavx0z/metafor). Локальные Bun
+links подключают точный checkout реального владельца без re-export либо
+TypeScript alias; internal identities Engine, Layout, UI и Node отдельно не
+публикуются в npm.
 
 Репозитории располагаются рядом:
 
 ```text
 repozitarium/
+├── template/
 ├── engine/
 ├── layout/
 ├── ui/
@@ -23,6 +25,11 @@ repozitarium/
 После клонирования links регистрируются снизу вверх:
 
 ```bash
+cd ../template
+bun install --frozen-lockfile
+bun run build
+bun link
+
 cd ../engine
 bun install --frozen-lockfile
 cd packages/core && bun link

@@ -20,9 +20,9 @@ import {
   type MetaAddress,
   type Graph,
 } from "@metafor/types/metafor/graph"
-import {readBoundaryGraphProjectionForRoot} from "../../boundary/graph.ts"
+import {readBoundaryGraphProjectionForRoot} from "../../boundary/graph/runtime.ts"
 import {open as openBoundary} from "boundary/sqlite"
-import {readDarkDeclarationProjection} from "../graph.ts"
+import {readDarkDeclarationProjection} from "../graph/declaration.ts"
 import {DarkForceHistory} from "../force/history.ts"
 import {
   CheckpointGitRepository,
@@ -35,7 +35,7 @@ import {
 import {
   canonicalizeGraph,
   diffGraph,
-} from "./projection.ts"
+} from "../graph/checkpoint.ts"
 import {initializeCheckpointControlBaseline} from "./control.ts"
 
 export const LOCAL_CHECKPOINT_LIMITS_V1: CheckpointRepositoryLimits = {

@@ -462,7 +462,7 @@ export class DetachedBoundaryDissolveCandidateStaging {
             "before",
           )
           if (
-            !validateGraph(graph) ||
+            !validateGraph(graph).ok ||
             graph.root !== proposal.request.source ||
             sha256(JSON.stringify(graph)) !== receipt.graphSha256
           ) {
@@ -488,7 +488,7 @@ export class DetachedBoundaryDissolveCandidateStaging {
           "before",
         )
         if (
-          !validateGraph(graph) ||
+          !validateGraph(graph).ok ||
           graph.root !== proposal.request.source
         ) {
           throw new BoundaryDissolveCandidateStageError(
@@ -613,7 +613,7 @@ export class DetachedBoundaryDissolveCandidateStaging {
         "before",
       )
       if (
-        !validateGraph(graph) ||
+        !validateGraph(graph).ok ||
         graph.root !== proposal.request.source ||
         sha256(JSON.stringify(graph)) !== receipt.graphSha256
       ) {

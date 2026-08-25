@@ -1,13 +1,15 @@
-import { parse } from "@metafor/template"
+import {parse, type Node} from "@zavx0z/template"
 import type { Fields } from "@metafor/types/metafor/fields"
 import type { MatterDeclaration, MatterFields, MatterSchema, TopologyBasis } from "@metafor/types/metafor/matter"
 import type { Energy, Mass } from "@metafor/types/metafor/schema"
 import type { MatterBindingValue, MatterChild, MatterParticle } from "@metafor/types/metafor/matter"
-import type { NodeType } from "@metafor/template/types/node/index"
-import type { NodeCondition } from "@metafor/template/types/node/condition"
-import type { NodeLogical } from "@metafor/template/types/node/logical"
-import type { NodeMap } from "@metafor/template/types/node/map"
-import type { NodeMeta } from "@metafor/template/types/node/meta"
+import {resolveMatterFuzzySources, validateMatterSchema} from "shared/metafor/matter"
+
+type NodeCondition = Extract<Node, {type: "cond"}>
+type NodeLogical = Extract<Node, {type: "log"}>
+type NodeMap = Extract<Node, {type: "map"}>
+type NodeMeta = Extract<Node, {type: "meta"}>
+type NodeMetaSource = NonNullable<NodeMeta["src"]>
 
 const HUB_ADDRESS_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/
 const EXECUTABLE_BINDING_RE = /=>|\bfunction\b|\bnew\s+|(?:\b[$A-Z_a-z][$\w]*|\]|\))\s*(?:\?\.)?\s*\(/
@@ -177,7 +179,7 @@ const validateRuntimeBinding = (
   }
 }
 
-const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: MatterFields, location: string): void => {
+const validateDynamicSrc = (src: Exclude<NodeMetaSource, string>, fields: MatterFields, location: string): void => {
   if (!src.data) {
     throw new Error(`Matter violation at "${location}": dynamic src must have data expression.`)
   }
@@ -189,7 +191,7 @@ const validateDynamicSrc = (src: Exclude<NodeMeta["src"], string>, fields: Matte
   }
 
   validateBasisList(paths[0]!, fields, location, ["enum"], "dynamic src")
-  resolveMetaBranchSrcs(fields, {src}).forEach((resolved, index) => {
+  resolveMatterFuzzySources(src, fields).forEach((resolved, index) => {
     validateStaticSrc(resolved, `${location}[${index}]`)
   })
 }
@@ -201,6 +203,9 @@ const validateMetaNode = (node: NodeMeta, fields: MatterFields, location: string
     )
   }
 
+  if (node.src === undefined) {
+    throw new Error(`Matter violation at "${location}.src": <meta-for> requires src.`)
+  }
   if (typeof node.src === "string") {
     validateStaticSrc(node.src, `${location}.src`)
   } else {
@@ -210,7 +215,7 @@ const validateMetaNode = (node: NodeMeta, fields: MatterFields, location: string
   validateRuntimeBinding(node.energy, "energy", `${location}.energy`)
 }
 
-const validateNode = (node: NodeType, fields: MatterFields, location: string): void => {
+const validateNode = (node: Node, fields: MatterFields, location: string): void => {
   switch (node.type) {
     case "meta":
       validateMetaNode(node, fields, location)
@@ -241,9 +246,12 @@ const validateNode = (node: NodeType, fields: MatterFields, location: string): v
   }
 }
 
-const normalizeMatterNode = (node: NodeType): NodeType => {
+const normalizeMatterNode = (node: Node): Node => {
   switch (node.type) {
     case "meta":
+      if (node.src === undefined) {
+        throw new Error("Matter normalization requires validated <meta-for> src")
+      }
       return {
         ...node,
         src: normalizeMatterBinding(node.src),
@@ -275,28 +283,7 @@ const normalizeMatterNode = (node: NodeType): NodeType => {
   }
 }
 
-const createContinuationSrc = (expr: string | undefined, value: string | number): string => {
-  if (!expr) return String(value)
-
-  const escaped = expr.replaceAll("\\", "\\\\").replaceAll("`", "\\`")
-  return String(new Function("_", `return \`${escaped}\``)([value]))
-}
-
-const resolveMetaBranchSrcs = (fields: MatterFields, node: { src: string | { data?: string | string[]; expr?: string } }): string[] => {
-  if (typeof node.src === "string") return [node.src]
-
-  const source = node.src
-  const paths = source.data !== undefined ? (Array.isArray(source.data) ? source.data : [source.data]) : []
-  const firstKey = paths[0]
-  if (!firstKey || firstKey.startsWith("/") || firstKey.startsWith("[") || firstKey.startsWith(".")) return []
-
-  const field = fields[firstKey]
-  if (!field || field.type !== "enum") return []
-
-  return (field.values ?? []).map((variant) => createContinuationSrc(source.expr, variant))
-}
-
-const childRelations = (fields: MatterFields, children: NodeType[] | undefined): MatterChild[] | undefined => {
+const childRelations = (fields: MatterFields, children: Node[] | undefined): MatterChild[] | undefined => {
   if (!Array.isArray(children) || children.length === 0) return
 
   const relations = children.flatMap((child) => projectMatterNode(fields, child))
@@ -305,14 +292,17 @@ const childRelations = (fields: MatterFields, children: NodeType[] | undefined):
     : undefined
 }
 
-const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle[] => {
+const projectMatterNode = (fields: MatterFields, node: Node): MatterParticle[] => {
   if (node.type === "meta") {
+    if (node.src === undefined) {
+      throw new Error("Matter projection requires validated <meta-for> src")
+    }
     const metaNode = node as {
       src: string | { data?: string | string[]; expr?: string }
       fields?: MatterBindingValue
       mass?: MatterBindingValue
       energy?: MatterBindingValue
-      child?: NodeType[]
+      child?: Node[]
     }
     const children = childRelations(fields, metaNode.child)
 
@@ -334,7 +324,7 @@ const projectMatterNode = (fields: MatterFields, node: NodeType): MatterParticle
         kind: "fuzzy",
         fuzzyKind: "dynamic-meta",
         predicateBinding: metaNode.src,
-        children: resolveMetaBranchSrcs(fields, metaNode).map((src): MatterChild => ({
+        children: resolveMatterFuzzySources(metaNode.src, fields).map((src): MatterChild => ({
           edgeSlot: "branch",
           particle: {
             kind: "wimp",
@@ -406,11 +396,13 @@ export const parseMatter = <
   metaName?: string,
 ): MatterSchema => {
   const nodes = parse(matter).map(normalizeMatterNode)
-  validateMatter(nodes, fields, metaName)
-  return nodes.flatMap((node) => projectMatterNode(fields, node))
+  validateMatterSyntax(nodes, fields, metaName)
+  const schema = nodes.flatMap((node) => projectMatterNode(fields, node))
+  validateMatterSchema(schema, fields, {label: metaName ? `${metaName}.matter` : "matter"})
+  return schema
 }
 
-export function validateMatter(matter: NodeType[] | undefined, fields: MatterFields, metaName?: string): void {
+const validateMatterSyntax = (matter: Node[] | undefined, fields: MatterFields, metaName?: string): void => {
   if (!matter) return
 
   matter.forEach((node, index) => {

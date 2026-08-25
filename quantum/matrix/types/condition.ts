@@ -1,15 +1,15 @@
 /**
- * Канонические типы условий после разбора публичного языка Matrix.
- *
- * Числовые коды являются общим протоколом CPU и WebGPU. Публичные имена
- * операторов разбираются до этого уровня и не попадают в исполнитель как
- * неизвестные строки.
- *
- * @see [Сквозной путь Graph → Boundary → Matrix](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/conditions.integration.spec.ts)
- * @see [Равенство условий CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/tests/weak.conditions.test.ts)
- *
- * @packageDocumentation
- */
+Канонические типы условий после разбора публичного языка Matrix.
+
+Числовые коды являются общим протоколом CPU и WebGPU. Публичные имена
+операторов разбираются до этого уровня и не попадают в исполнитель как
+неизвестные строки.
+
+@see [Сквозной путь Graph → Boundary → Matrix](https://github.com/zavx0z/metafor/blob/main/quantum/tests/graph/matrix-conditions.integration.spec.ts)
+@see [Равенство условий CPU и WebGPU](https://github.com/zavx0z/metafor/blob/main/quantum/matrix/weak/tests/weak.conditions.test.ts)
+
+@packageDocumentation
+*/
 
 /** Числовой код канонической проверки, общий для TypeScript и WGSL. */
 export type MatrixConditionOperator =

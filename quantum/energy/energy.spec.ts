@@ -16,7 +16,7 @@ import type {
 } from "shared/protocol/force/execution"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
-import {EnergyCatalogStore} from "./catalog.ts"
+import {EnergyCatalogStore} from "./graph/catalog.ts"
 import {resolveActionImportSpecifier, startEnergyProtocol} from "./energy.ts"
 
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}

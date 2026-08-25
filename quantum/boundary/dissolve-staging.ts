@@ -279,7 +279,7 @@ export class IsolatedBoundaryDissolveStaging {
         const plan = await planBoundaryDissolve(boundary, proposal.request, hooks.massEvidence)
         const firstPlanDigest = planSha256(plan)
         const graph = await hooks.readGraph(proposal.request.source, "before")
-        if (!validateGraph(graph) || graph.root !== proposal.request.source) {
+        if (!validateGraph(graph).ok || graph.root !== proposal.request.source) {
           throw new BoundaryDissolveStagingError(
             "graph_invalid",
             `Dissolve staging requires a valid ${proposal.request.source} Graph document`,

@@ -16,7 +16,7 @@ import {
   ORACLE_RPC_VERSION,
   type OracleRpcMessage,
 } from "shared/protocol/oracle/rpc"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "./graph.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "./graph/declaration.ts"
 import {DARK_FORCE_HISTORY_READ_METHOD} from "shared/protocol/metafor/observation"
 import {
   META_FIELD_VALUE_APPLY_METHOD,

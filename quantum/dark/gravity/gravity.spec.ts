@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import type {Fields} from "@metafor/types/metafor/fields"
-import type {NodeMeta} from "@metafor/template/types/node/meta"
+import type {Node} from "@zavx0z/template"
 import { resolveContinuationSources } from "./gravity.ts"
+
+type NodeMeta = Extract<Node, {type: "meta"}>
 
 describe("resolveContinuationSources", () => {
   test("динамический `src` по необязательному `enum` раскрывается только по значениям `enum` без ветви `null`", () => {

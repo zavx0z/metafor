@@ -9,7 +9,7 @@ import {
   consumePreparedMatrixBirth,
 } from "../matrix/birth.ts"
 import {applyIncrementalMatrixProjection} from "../matrix/incremental.ts"
-import {applyMatrixProjectionParticle} from "../matrix/projection.ts"
+import {applyMatrixProjectionParticle} from "../matrix/graph/projection.ts"
 import {matrix$} from "../matrix/store.ts"
 import {prepareIncrementalMatrixFixture} from "../matrix/tests/shared/fixtures.ts"
 import {weak$} from "../matrix/weak/index.ts"

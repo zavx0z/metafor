@@ -109,7 +109,7 @@ describe("Matter source patch", () => {
         particle,
         to: placement(ROOT, locator(ROOT, {edgeSlot: "root", position: 0}), "child", 0),
       }),
-      [snapshot(ROOT, [parentParticle])],
+      [snapshot(ROOT, [parentParticle], {items: {type: "array"}})],
     )
 
     expect(plan.sourceEdits[0]!.afterSource).toContain("value[\"items\"].map")
@@ -155,7 +155,7 @@ describe("Matter source patch", () => {
         from: locator(ROOT, {edgeSlot: "root", position: 0}),
         to: placement(ROOT, locator(ROOT, {edgeSlot: "root", position: 1}), "child", 0),
       }),
-      [snapshot(ROOT, [particle, parentParticle])],
+      [snapshot(ROOT, [particle, parentParticle], {items: {type: "array"}})],
     )
 
     expect((plan.particle.parts[0]!.value as any).treePatch.after[0].entries).toEqual([
@@ -212,6 +212,19 @@ describe("Matter source patch", () => {
       }),
       [snapshot(ROOT, [], fields)],
     )).toThrow(MatterPatchError)
+  })
+
+  test("applies the shared topology law to RPC-authored Matter", () => {
+    const particle: MetaMatterParticle = {
+      kind: "axion",
+      predicateBinding: {data: "title"},
+      children: [{edgeSlot: "child", particle: {kind: "wimp", src: CHILD}}],
+    }
+
+    expect(() => planMetaMatterPatch(
+      request({operation: "add", particle, to: placement(ROOT, null, "root", 0)}),
+      [snapshot(ROOT, [], {title: {type: "string"}})],
+    )).toThrow('Axion predicate uses field "title" of type "string". Only state may drive topology in matter.')
   })
 
   test("rejects a stale particle and a move into its own subtree", () => {

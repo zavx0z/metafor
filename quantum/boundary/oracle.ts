@@ -9,7 +9,7 @@ import {
 } from "shared/protocol/boundary/runtime"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import type {DomainHealth} from "shared/protocol/oracle/health"
-import {readBoundaryGraphProjection} from "./graph.ts"
+import {readBoundaryGraphProjection} from "./graph/runtime.ts"
 import type {BoundaryDatabase} from "./sqlite.ts"
 import {BoundaryRuntimeRpcService} from "./runtime-rpc.ts"
 

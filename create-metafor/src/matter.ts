@@ -9,6 +9,7 @@ import type {
 import type {MetaAddress, MetaMatterBinding, MetaMatterParticle} from "@metafor/types/metafor/graph"
 import type {MatterFields, MatterParticle} from "@metafor/types/metafor/matter"
 import type {ForceMessageInput} from "shared/protocol/force/message"
+import {validateMatterSchema} from "shared/metafor/matter"
 
 export type MatterPatchErrorCode =
   | "parent_missing"
@@ -421,39 +422,14 @@ const rewriteMatter = (source: string, tree: MutableTree): string => {
   return after
 }
 
-const resolvedFuzzySources = (particle: MetaMatterParticle, fields: MatterFields): string[] => {
-  if (particle.kind !== "fuzzy" || typeof particle.predicateBinding === "string") return []
-  const data = particle.predicateBinding.data
-  const paths = data === undefined ? [] : Array.isArray(data) ? data : [data]
-  if (paths.length !== 1) return []
-  const field = fields[paths[0]!]
-  if (!field || field.type !== "enum") return []
-  const expression = particle.predicateBinding.expr
-  return (field.values ?? []).map((value) => {
-    if (!expression) return String(value)
-    const resolved = expression === "_[0]"
-      ? String(value)
-      : expression.replaceAll("${_[0]}", String(value))
-    return resolved.includes("${") || /_\[\d+]/.test(resolved) ? "" : resolved
-  })
-}
-
-const validateFuzzy = (tree: MutableTree, fields: MatterFields, address: MetaAddress): void => {
-  const pending = [...tree]
-  while (pending.length > 0) {
-    const particle = pending.shift()!
-    if (particle.kind === "fuzzy") {
-      const actual = particle.children?.map(({particle: branch}) => branch.kind === "wimp" ? branch.src : "") ?? []
-      const expected = resolvedFuzzySources(particle, fields)
-      if (expected.length === 0 || !isDeepStrictEqual(actual, expected)) {
-        throw new MatterPatchError(
-          "invalid_matter_composition",
-          `${address} Fuzzy branches do not match its enum source binding`,
-        )
-      }
-      fuzzyBranch(particle)
-    }
-    for (const child of particle.children ?? []) pending.push(child.particle)
+const validateNormalizedMatter = (tree: MutableTree, fields: MatterFields, address: MetaAddress): void => {
+  try {
+    validateMatterSchema(tree as MatterParticle[], fields, {label: `${address}.matter`})
+  } catch (error) {
+    throw new MatterPatchError(
+      "invalid_matter_composition",
+      error instanceof Error ? error.message : String(error),
+    )
   }
 }
 
@@ -522,7 +498,7 @@ export const planMetaMatterPatch = (
   }
 
   for (const address of addresses) {
-    validateFuzzy(afterTrees.get(address)!, parent(parents, address).fields ?? {}, address)
+    validateNormalizedMatter(afterTrees.get(address)!, parent(parents, address).fields ?? {}, address)
   }
   const after = addresses.map((address) => mappedTreeVersion(address, afterTrees.get(address)!, previous))
     .sort((left, right) => left.wimp.localeCompare(right.wimp))

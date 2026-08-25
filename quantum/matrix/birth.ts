@@ -15,7 +15,7 @@ import {gravity$} from "@matrix/gravity/store.ts"
 import {strong$} from "@matrix/strong"
 import {weak$, weakInit} from "@matrix/weak"
 import {matrix$} from "./store.ts"
-import {hydrateMatrixProjection} from "./projection.ts"
+import {hydrateMatrixProjection} from "./graph/projection.ts"
 import {prepareMatrixData} from "./prepare.ts"
 
 type JsonRecord = Record<string, unknown>

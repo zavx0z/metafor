@@ -21,7 +21,7 @@ import {
   type ReactionExecutionSignal,
   type ReactionResultProposal,
 } from "shared/protocol/force/reaction"
-import {EnergyCatalogStore} from "./catalog.ts"
+import {EnergyCatalogStore} from "./graph/catalog.ts"
 import {createFilesystemEnergyMassStore} from "./mass.ts"
 import {executeReaction} from "./reaction.ts"
 

@@ -4,8 +4,8 @@ import {
   DARK_DECLARATION_PROJECTION_METHOD,
   readDarkDeclarationProjection,
   type DarkGraphTemplate,
-} from "./graph.ts"
-import {GraphOracle} from "./oracle/graph.ts"
+} from "./graph/declaration.ts"
+import {GraphOracle} from "./graph/oracle.ts"
 import type {DarkForceTimeControl} from "./time-control.ts"
 import {
   META_CAPABILITIES_READ_METHOD,

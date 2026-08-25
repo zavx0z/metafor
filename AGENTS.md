@@ -143,6 +143,10 @@
   использовать `$cosmos-development` из
   `cosmos/.agents/skills/cosmos-development`. Он добавляет только предметные
   правила Cosmos поверх общей documentation reference `$metafor-dev`.
+- Для сущности, представленной независимыми проекциями нескольких Quantum-доменов,
+  использовать `$quantum-dev` из `quantum/.agents/skills/quantum-dev`. Domain-owned
+  implementations остаются слабосвязанными, а их общие проверки и лаборатория
+  располагаются только на уровне Quantum.
 - Для разработки, проверок и Storybook соседнего Engine использовать
   `$engine-dev` из `../engine/.agents/skills/engine-dev`. Engine не получает
   product-, UI- или Nodes-семантику через интеграционную задачу.

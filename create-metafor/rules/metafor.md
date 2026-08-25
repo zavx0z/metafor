@@ -1067,7 +1067,8 @@ return { group: group as "start" }
 **Правила:**
 
 - Matter описывает только иерархию атомов, а не локальную HTML-разметку
-- Теги `<meta-for>` самозакрывающиеся: `<meta-for src="..." />`
+- Листовой `<meta-for>` самозакрывается. `<meta-for>` с дочерним Matter содержит
+  их между открывающим и закрывающим тегами в авторском порядке
 - Поля передаются через атрибут `fields={{ ... }}`
 - Точная прямая передача ordinary scalar Field, например
   `fields=${{ path: value.screenshotPath }}`, создаёт shared canonical Value:
@@ -1101,7 +1102,7 @@ return { group: group as "start" }
 - Если fields === null, ничего не рендерится
 - Ошибки отображаются через отдельный атом
 - В сериализованном matter допустимы только topology-узлы: `meta`, `log`, `cond`, `map`
-- `&&` и тернарный `? :` допустимы только если их basis — `state` или `enum`
+- `&&` и тернарный `? :` допустимы только если их basis — `state`
 - `map()` в matter допустим только по `array`-полю topology
 - Динамический `src` допустим только если он зависит от одного статического `enum`-поля
 - После вычисления каждый вариант `src` обязан по-прежнему содержать ровно
@@ -1141,9 +1142,6 @@ return { group: group as "start" }
     ? html`<meta-for src="zavx0z/project-spinner" />`
     : html`<meta-for src="zavx0z/project-content" />`}
   <meta-for src="owner/project-${value.mode}" />
-  ${value.mode === "card"
-    ? html`<meta-for src="zavx0z/project-card" />`
-    : html`<meta-for src="zavx0z/project-table" />`}
 `)
 
 // ❌ Нельзя: boolean не является topology basis
@@ -1159,6 +1157,13 @@ return { group: group as "start" }
 // ❌ Нельзя: optional enum не нужно проверять через truthy/null guard
 .matter(({ value, html }) => html`
   ${value.mode && html`<meta-for src="owner/project-${value.mode}" />`}
+`)
+
+// ❌ Нельзя: enum не создаёт conditional branch
+.matter(({ value, html }) => html`
+  ${value.mode === "card"
+    ? html`<meta-for src="owner/project-card" />`
+    : html`<meta-for src="owner/project-table" />`}
 `)
 
 // ❌ Нельзя: HTML belongs to Bulk, not matter
@@ -1382,16 +1387,14 @@ WIMP `src` не равен npm-имени. Например, source `owner/proje
 соответствует npm-имени `@owner/project-start`; оба выводятся только из owner и
 repository.
 
-Если выбор репозитория зависит от topology, basis должен быть только `state` или `enum`.
+State выбирает conditional Matter branch. Enum выбирает репозиторий только
+прямым dynamic `src`, без отдельной conditional branch.
 
 ```typescript
 .matter(({ value, html }) => html`
-  ${value.operation === "start" && html`
-    <meta-for src="owner/project-start" fields=${{ command: value.command, args: value.args }} />
-  `}
-  ${value.operation === "work" && html`
-    <meta-for src="owner/project-work" fields=${{ command: value.command, args: value.args }} />
-  `}
+  <meta-for
+    src="owner/project-${value.operation}"
+    fields=${{ command: value.command, args: value.args }} />
 `)
 .bulk()
 ```

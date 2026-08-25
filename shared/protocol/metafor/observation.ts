@@ -6,7 +6,7 @@ import {
   type MetaAddress,
   type ValidationIssue,
   type ValidationResult,
-} from "./graph.ts"
+} from "@metafor/types/metafor/graph"
 import type {SourcedParticle} from "shared/protocol/force/particle"
 import {isProcessExecutionId, type ProcessExecutionId} from "shared/protocol/force/execution"
 

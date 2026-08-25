@@ -5,7 +5,7 @@ import {
 } from "shared/protocol/boundary/initial"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import type {DomainHealth} from "shared/protocol/oracle/health"
-import {EnergyCatalogStore} from "./catalog.ts"
+import {EnergyCatalogStore} from "./graph/catalog.ts"
 import {
   createFilesystemEnergyMassStore,
   EnergyMassCatalog,

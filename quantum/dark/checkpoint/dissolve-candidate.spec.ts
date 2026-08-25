@@ -22,9 +22,9 @@ import {
 import {BOUNDARY_GRAPH_PROJECTION_METHOD} from "shared/protocol/boundary/runtime"
 import type {BulkRootPromotionReceipt} from "@metafor/types/bulk/manifest"
 import type {Particle} from "shared/protocol/force/particle"
-import {assembleGraphForRoot} from "../oracle/graph.ts"
-import {DARK_DECLARATION_PROJECTION_METHOD} from "../graph.ts"
-import {readBoundaryGraphProjectionForRoot} from "../../boundary/graph.ts"
+import {assembleGraphForRoot} from "../graph/oracle.ts"
+import {DARK_DECLARATION_PROJECTION_METHOD} from "../graph/declaration.ts"
+import {readBoundaryGraphProjectionForRoot} from "../../boundary/graph/runtime.ts"
 import {
   DetachedBoundaryDissolveCandidateStaging,
 } from "../../boundary/dissolve-candidate-staging.ts"

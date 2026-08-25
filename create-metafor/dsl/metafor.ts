@@ -1,81 +1,33 @@
 /**
- * MetaFor - фреймворк для создания атома конечного автомата
- *
- * MetaFor предоставляет декларативный способ создания web-компонентов с конечным автоматом.
- * Каждый компонент имеет типизированный контекст, состояния, процессы, реакции и представление.
- *
- * ## Архитектура
- *
- * **Атомы MetaFor имеют полную изоляцию с независимой реализацией**
- * - Все взаимодействия между атомами происходят через патчи в сообщениях
- * - Используйте систему сообщений и реакций для связи между компонентами
- *
- * ## Новые возможности
- *
- * ### Позиционные пути (Path)
- * - Каждый атом имеет уникальный позиционный путь в VDOM (например, "0/1/2")
- * - Пути генерируются автоматически через `Fields`
- * - Доступны в `Self` объекте: `{ meta, atom, path }`
- *
- * ### Расширенные фильтры реакций
- * - Доступ к параметрам в функции `filter`: `filter(({ self, value }) => ...)`
- * - Декларативные условия фильтрации с поддержкой сложных условий
- * - Фильтрация по meta, atom, path, op, value, timestamp
- *
- * ### Иерархия атомов
- * - `Fields` для управления позиционными путями
- * - Автоматическая генерация корневых путей
- * - Управление иерархией VDOM
- *
- * ### Шаблонизация
- * - Использует `@metafor/template` для рендеринга
- * - Поддержка JavaScript выражений в template literals
- * - Типобезопасный template API
- *
- * @example
- * ```typescript
- * export default MetaFor("user-profile")
- *   .fields((field) => ({
- *     mode: field.enum("summary", "details").required("summary"),
- *     userId: field.number.required(0),
- *   }))
- *   .superposition({
- *     idle: { loaded: { mode: { null: false } } },
- *     loaded: null,
- *   })
- *   .mass((mass) => ({users: mass.json()}))
- *   .energy<{socket: WebSocket}>()
- *   .processes((process) => [
- *     process("loading")
- *       .action(async ({ energy, field, mass, self, signal, value }) => {
- *         const mod = await import("./actions/loadUser.ts")
- *         return mod.default({ energy, field, mass, self, signal, value })
- *       })
- *       .success(({ update }) => update({ mode: "details" }))
- *   ])
- *   .reactions((reaction) => [
- *     [
- *       ["idle"],
- *       reaction()
- *         .filter(({ self, value }) => ({
- *           meta: "user",
- *           atom: self.atom.split("/")[1] || "",
- *           value: { gt: 0 }
- *         }))
- *         .equal(({ update }) => update({ mode: "details" }))
- *     ]
- *   ])
- *   .matter(({ state, value, html }) => html`
- *     ${state === "idle" && html`<meta-for src="demo/user-spinner" />`}
- *     ${value.mode === "summary"
- *       ? html`<meta-for src="demo/user-summary" fields=${{ userId: value.userId }} />`
- *       : html`<meta-for src="demo/user-details" fields=${{ userId: value.userId }} />`}
- *   `)
- *   .bulk()
- * ```
- *
- * @packageDocumentation
- */
+Строгий builder сериализуемой MetaDSL.
+
+Вызовы builder сохраняют обязательный порядок деклараций. Matter использует
+browser-safe parser `@zavx0z/template`, затем проецирует допустимый XML-like
+синтаксис в `MatterSchema`. State-условия создают Axion, dynamic enum `src`
+создаёт Fuzzy, а `map()` по array Field создаёт Macho.
+
+@example
+```typescript
+export default MetaFor("user-profile")
+  .fields((field) => ({
+    mode: field.enum("summary", "details").required("summary"),
+    userId: field.number.required(0),
+  }))
+  .superposition({idle: null})
+  .mass(() => ({}))
+  .energy()
+  .processes()
+  .reactions()
+  .matter(({value, html}) => html`
+    <meta-for
+      src="demo/user-${value.mode}"
+      fields=${{userId: value.userId}} />
+  `)
+  .bulk()
+```
+
+@packageDocumentation
+*/
 import { fieldSchema } from "./fields.ts"
 import type { Fields, Field } from "@metafor/types/metafor/fields"
 import { parseMatter } from "./matter.ts"

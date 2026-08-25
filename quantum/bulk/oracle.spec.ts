@@ -18,7 +18,7 @@ import {
 import {FORCE_CHECKPOINT_QUIESCE_METHOD} from "shared/transport/force/checkpoint"
 import type {ForceMessage} from "shared/protocol/force/message"
 import {BulkOracle} from "./oracle.ts"
-import {prepareBulkGraphCut} from "./graph.ts"
+import {prepareBulkGraphCut} from "./graph/projection.ts"
 import {composeBulkStoreTestOracleScene} from "./store-test-oracle.ts"
 
 const INFERENCE = parseMetaAddress("zavx0z/inference")!

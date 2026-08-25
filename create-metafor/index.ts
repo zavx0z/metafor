@@ -1,5 +1,4 @@
 export {MetaFor} from "./dsl/metafor.ts"
-export {validateMatter} from "./dsl/matter.ts"
 export {createMetaforSqliteFixture} from "./fixture/index.ts"
 export {
   MetaCreatePatchError,

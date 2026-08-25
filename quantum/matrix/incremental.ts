@@ -27,7 +27,7 @@ import {matrix$} from "./store.ts"
 import {
   type MatrixProjectionChange,
   readMatrixProjectionFragment,
-} from "./projection.ts"
+} from "./graph/projection.ts"
 
 type Graph = {
   states: MatrixStateRecord[]

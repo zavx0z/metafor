@@ -299,7 +299,7 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
   ])
 
   expect(rootPackage.scripts?.typecheck).toBe(
-    "bun run --filter @metafor/dsl typecheck && bun run --filter @metafor/template typecheck && bun run --filter @internal/supervisor typecheck && bun run --filter @cosmos/startup typecheck && bun run --filter @cosmos/release typecheck && bun run --filter @internal/visual typecheck && tsc --project cosmos/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
+    "bun run --filter @metafor/dsl typecheck && bun run --filter @internal/supervisor typecheck && bun run --filter @cosmos/startup typecheck && bun run --filter @cosmos/release typecheck && bun run --filter @internal/visual typecheck && tsc --project cosmos/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
   )
   expect(rootConfig).toContain('"cosmos/release/**/*"')
   expect(rootConfig).toContain('"cosmos/startup/**/*"')

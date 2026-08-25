@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {parseMetaAddress} from "./graph.ts"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {
   ENERGY_MASS_RESULT_MAX_BYTES,
   parseMetaRuntimeAtomPointer,

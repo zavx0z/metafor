@@ -19,7 +19,7 @@ import {tmpdir} from "node:os"
 import {basename, dirname, extname, join, relative, resolve, sep} from "node:path"
 import {
   canonicalizeGraph,
-} from "./projection.ts"
+} from "../graph/checkpoint.ts"
 import {
   publishCurrentOfflineCheckpoint,
   type CurrentOfflineCheckpointPublication,

@@ -12,8 +12,9 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@metafor/template": "workspace:*",
-    "@metafor/types": "workspace:*"
+    "@metafor/types": "workspace:*",
+    "@zavx0z/template": "link:@zavx0z/template",
+    "shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

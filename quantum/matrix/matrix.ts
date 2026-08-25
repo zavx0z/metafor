@@ -32,7 +32,7 @@ import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/fo
 import type {Particle} from "shared/protocol/force/particle"
 import {Force} from "shared/transport/force"
 import {consumePreparedMatrixBirth, consumePreparedMatrixProcessRestarts} from "./birth.ts"
-import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./projection.ts"
+import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./graph/projection.ts"
 import {
   applyIncrementalMatrixProjection,
   initializeIncrementalMatrixIndexes,

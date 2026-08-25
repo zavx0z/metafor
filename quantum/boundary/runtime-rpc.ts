@@ -11,7 +11,7 @@ import {
 import type {JsonValue} from "@metafor/types/metafor/graph"
 import type {BoundaryProcessExecutionProjection} from "shared/protocol/boundary/runtime"
 import type {BoundaryDatabase} from "./sqlite.ts"
-import {resolveBoundaryRuntimeAtom} from "./graph.ts"
+import {resolveBoundaryRuntimeAtom} from "./graph/runtime.ts"
 
 const invalid = (issues: Array<{path: string; code: string; message: string}>): Error =>
   new Error(issues.map(({path, code, message}) => `${path || "/"} [${code}] ${message}`).join("; "))

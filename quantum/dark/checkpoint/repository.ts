@@ -21,7 +21,7 @@ import type {Graph} from "@metafor/types/metafor/graph"
 import {
   applyGraphPatch,
   canonicalizeGraph,
-} from "./projection.ts"
+} from "../graph/checkpoint.ts"
 
 export interface CheckpointRepositoryLimits {
   maxBlobBytes: number

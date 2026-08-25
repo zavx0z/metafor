@@ -32,7 +32,7 @@ import {
   prepareBulkInitialVisual,
   type BulkInitialScene,
 } from "./visual-initial.ts"
-import {projectBulkGraph} from "./graph.ts"
+import {projectBulkGraph} from "./graph/projection.ts"
 import {assertBulkVisualProjectionBoundary} from "./web/visual-projection.ts"
 
 const fixture = () => {

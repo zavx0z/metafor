@@ -99,7 +99,7 @@ export const executeDetachedBoundaryDissolveCandidate = async (
     "planned",
   )
   if (
-    !validateGraph(postGraph) ||
+    !validateGraph(postGraph).ok ||
     postGraph.root !== exact.receipt.target ||
     postGraph.template[exact.receipt.source] !== undefined ||
     postGraph.runtime.roots.length !== 1 ||

@@ -152,9 +152,9 @@ bun run typecheck:expect-errors
 
 ## Активная граница репозитория
 
-В рабочем дереве остаются MetaFor, его домены, DSL/Matter/template, Bulk,
+В рабочем дереве остаются MetaFor, его домены, DSL/Matter, Bulk,
 product-owned Visual и нейтральные runtime fixtures. Переиспользуемые
-[Engine](https://github.com/zavx0z/engine),
+[Template](https://github.com/zavx0z/template), [Engine](https://github.com/zavx0z/engine),
 [Layout](https://github.com/zavx0z/layout), [UI](https://github.com/zavx0z/ui)
 и [Node](https://github.com/zavx0z/node) развиваются как отдельная открытая
 инфраструктура, построенная для MetaFor и подключённая точными Bun links.

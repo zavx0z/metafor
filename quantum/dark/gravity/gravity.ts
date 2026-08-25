@@ -1,5 +1,7 @@
 import type {Fields} from "@metafor/types/metafor/fields"
-import type {NodeMeta} from "@metafor/template/types/node/meta"
+import type {Node} from "@zavx0z/template"
+
+type NodeMeta = Extract<Node, {type: "meta"}>
 
 const getFieldValues = (path: string, fields?: Fields): Array<string | number> => {
   if (!fields) return []
@@ -7,12 +9,12 @@ const getFieldValues = (path: string, fields?: Fields): Array<string | number> =
   return [...(fields[path]?.values ?? [])]
 }
 
-const createContinuationSrc = (node: NodeMeta, value: string | number): string => {
-  if (typeof node.src !== "object") return node.src
+type DynamicMetaSource = Exclude<NonNullable<NodeMeta["src"]>, string>
 
-  if (!("expr" in node.src) || node.src.expr === undefined) return String(value)
+const createContinuationSrc = (src: DynamicMetaSource, value: string | number): string => {
+  if (!("expr" in src) || src.expr === undefined) return String(value)
 
-  const expr = node.src.expr.replaceAll("\\", "\\\\").replaceAll("`", "\\`")
+  const expr = src.expr.replaceAll("\\", "\\\\").replaceAll("`", "\\`")
   return String(new Function("_", `return \`${expr}\``)([value]))
 }
 
@@ -24,10 +26,11 @@ const createContinuationSrc = (node: NodeMeta, value: string | number): string =
  * но не управляет traversal, frontier или parent wiring.
  */
 export const resolveContinuationSources = (node: NodeMeta, fields?: Fields): string[] => {
-  if (typeof node.src !== "object") return []
+  const src = node.src
+  if (typeof src !== "object") return []
 
-  const paths = Array.isArray(node.src.data) ? node.src.data : [node.src.data]
+  const paths = Array.isArray(src.data) ? src.data : [src.data]
   const values = getFieldValues(paths[0]!, fields)
 
-  return values.map((value) => createContinuationSrc(node, value))
+  return values.map((value) => createContinuationSrc(src, value))
 }

@@ -5,7 +5,7 @@ import {parseSync} from "oxc-parser"
 // Remove entries as offline checkpoint tooling leaves Dark. This allowlist must
 // become empty and must never grow.
 const LEGACY_CHECKPOINT_BOUNDARY_IMPORTS = Object.freeze([
-  "checkpoint/capture.ts -> ../../boundary/graph.ts",
+  "checkpoint/capture.ts -> ../../boundary/graph/runtime.ts",
   "checkpoint/capture.ts -> boundary/sqlite",
   "checkpoint/dissolve-candidate.ts -> ../../boundary/dissolve-candidate-staging.ts",
   "checkpoint/dissolve-candidate.ts -> ../../boundary/dissolve-mass-evidence.ts",

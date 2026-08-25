@@ -7,7 +7,7 @@ import {
   type EnergyMassResultReadReceipt,
 } from "shared/protocol/metafor/observation"
 import type {JsonValue} from "@metafor/types/metafor/graph"
-import type {EnergyCatalogStore} from "../catalog.ts"
+import type {EnergyCatalogStore} from "../graph/catalog.ts"
 import type {EnergyMassCatalog, EnergyMassGate} from "../mass.ts"
 
 type FrontierReader = () => Promise<DarkForceHistoryReadReceipt>

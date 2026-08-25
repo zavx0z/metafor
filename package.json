@@ -37,8 +37,7 @@
     "pkg/visual",
     "fixture",
     "create-metafor",
-    "create-metafor/dsl",
-    "create-metafor/template"
+    "create-metafor/dsl"
   ],
   "devDependencies": {
     "@nodes/storybook": "link:@nodes/storybook",
@@ -73,11 +72,12 @@
     "runtime:universe:logs": "METAFOR_LOG_IMPULSES=full bun cosmos/internal/supervisor/universe.ts",
     "nodes:storybook": "bun run --cwd node_modules/@nodes/storybook storybook",
     "ui:storybook": "bun run --cwd node_modules/@ui/storybook storybook",
+    "quantum:storybook": "bun quantum/storybook/server.ts",
     "visual:playground": "bun pkg/visual/playground/server.ts",
     "boundary:backup": "bun quantum/boundary/backup.ts",
     "checkpoint:capture": "bun quantum/dark/checkpoint/cli.ts",
     "test": "FORCE_ADDRESS=ws://127.0.0.1:1 FORCE_RECONNECT=0 bun test --path-ignore-patterns='cluster/**'",
-    "typecheck": "bun run --filter @metafor/dsl typecheck && bun run --filter @metafor/template typecheck && bun run --filter @internal/supervisor typecheck && bun run --filter @cosmos/startup typecheck && bun run --filter @cosmos/release typecheck && bun run --filter @internal/visual typecheck && tsc --project cosmos/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
+    "typecheck": "bun run --filter @metafor/dsl typecheck && bun run --filter @internal/supervisor typecheck && bun run --filter @cosmos/startup typecheck && bun run --filter @cosmos/release typecheck && bun run --filter @internal/visual typecheck && tsc --project cosmos/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
     "typecheck:expect-errors": "bun run --filter @metafor/dsl typecheck:expect-errors",
     "check": "bun run typecheck && bun run typecheck:expect-errors && bun run test",
     "build": "bun run build:prod && bun run build:dev",

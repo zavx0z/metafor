@@ -13,7 +13,7 @@ import {sourceForceMessage, unsourceForceMessage} from "shared/protocol/force/me
 import type {Particle} from "shared/protocol/force/particle"
 import type {ProcessExecutionGrant, ProcessResultProposal} from "shared/protocol/force/execution"
 import {open, type BoundaryDatabase} from "boundary/sqlite"
-import {readBoundaryGraphProjection} from "../../boundary/graph.ts"
+import {readBoundaryGraphProjection} from "../../boundary/graph/runtime.ts"
 import {BoundaryRuntimeRpcService} from "../../boundary/runtime-rpc.ts"
 import {DarkForceHistory} from "../force/history.ts"
 import {ForceLifecycle} from "../force/lifecycle.ts"

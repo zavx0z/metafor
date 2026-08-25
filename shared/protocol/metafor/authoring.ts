@@ -7,7 +7,7 @@ import {
   type MetaMatterParticle,
   type ValidationIssue,
   type ValidationResult,
-} from "./graph.ts"
+} from "@metafor/types/metafor/graph"
 
 export const META_AUTHORING_CONTRACT_VERSION = 1 as const
 

@@ -4,7 +4,7 @@ import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import type {DarkForceHistoryReadReceipt} from "shared/protocol/metafor/observation"
-import {EnergyCatalogStore} from "../catalog.ts"
+import {EnergyCatalogStore} from "../graph/catalog.ts"
 import {EnergyMassCatalog, EnergyMassGate} from "../mass.ts"
 import {EnergyMassResultReadService} from "./mass-result.ts"
 

@@ -21,7 +21,7 @@ Energy исполняет Process/Reaction и владеет локальным�
 
 ## Точки реализации
 
-* `catalog.ts` — Atom/WIMP/Process/continuation projection и индексы;
+* `graph/catalog.ts` — Atom/WIMP/Process/continuation projection и индексы;
 * `energy.ts` — Photon/Z/W, Process execution, binding, rebuild и Atom cleanup;
 * `reaction.ts` — Reaction execution;
 * `mass.ts` — filesystem catalog, атомарная запись и gated Mass handles;

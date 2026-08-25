@@ -1,8 +1,8 @@
 # Shared infrastructure
 
 `shared` — нижний infrastructure package, общий для runtime domains и
-центрального Force. Он разделяет неизменный wire protocol и физические
-environment-specific transports.
+центрального Force. Он разделяет неизменные междоменные законы, wire protocol и
+физические environment-specific transports.
 
 ## Public exports
 
@@ -16,12 +16,15 @@ environment-specific transports.
   contract;
 - `shared/transport/force/log` — общий logger физического Force-канала;
 - `shared/protocol/force/*` — единый Particle wire contract;
-- `shared/protocol/oracle/rpc` — единый transport-neutral RPC envelope.
+- `shared/protocol/oracle/rpc` — единый transport-neutral RPC envelope;
+- `shared/metafor/matter` — единая проверка нормализованной Matter topology до
+  доменного исполнения или сохранения.
 
 `OracleChannel` не является RPC client или provider: он только доставляет
 сообщения одной identity. `OracleRpcPeer` коррелирует исходящие вызовы и вызывает
 локальные handlers; `OracleRouter` принадлежит Dark Oracle.
 
 Protocol никогда не ветвится по среде. Server и web обязаны кодировать один и
-тот же контракт. `shared` не владеет relay laws, lifecycle Oracle, domain Store
-или предметными payload Boundary/Matrix.
+тот же контракт. Общий Matter law проверяет готовую семантическую структуру, но
+не владеет DSL-синтаксисом, relay laws, lifecycle Oracle, domain Store или
+предметными payload Boundary/Matrix.

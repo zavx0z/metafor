@@ -57,4 +57,12 @@ describe("shared package public API", () => {
     expect(Object.keys(force).sort()).toEqual(["sourceForceMessage", "unsourceForceMessage"])
     expect(oracle.ORACLE_RPC_VERSION).toBe(1)
   })
+
+  test("exports the environment-independent normalized Matter law", async () => {
+    const matter = await import("shared/metafor/matter")
+
+    expect(Object.keys(matter)).toEqual(["resolveMatterFuzzySources", "validateMatterSchema"])
+    expect(matter.resolveMatterFuzzySources).toBeFunction()
+    expect(matter.validateMatterSchema).toBeFunction()
+  })
 })

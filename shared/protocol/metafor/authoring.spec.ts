@@ -1,5 +1,5 @@
 import {describe, expect, test} from "bun:test"
-import {parseMetaAddress, type MetaAddress} from "./graph.ts"
+import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import {
   META_AUTHORING_CONTRACT_VERSION,
   META_CREATE_CAPABILITY,

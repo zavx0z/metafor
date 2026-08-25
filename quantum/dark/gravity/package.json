@@ -5,6 +5,6 @@
   "private": true,
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "@metafor/template": "workspace:*"
+    "@zavx0z/template": "link:@zavx0z/template"
   }
 }

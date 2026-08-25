@@ -7,7 +7,7 @@ import {canonicalMetaSource, loadMeta} from "./load.ts"
 import {
   loadMetaDeclarationGraph,
   type MetaLoader,
-} from "./graph.ts"
+} from "./graph/declaration.ts"
 
 type DeclarationEntity = {
   key: string

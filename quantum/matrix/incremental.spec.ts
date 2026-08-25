@@ -6,7 +6,7 @@ import {strong$} from "@matrix/strong"
 import {StepMode, weak$, weakHeapUpdate, weakRunStep, weakStructuralUpdate} from "@matrix/weak"
 import {installTestGpuDevice} from "./weak/tests/shared/gpu.ts"
 import {applyIncrementalMatrixProjection} from "./incremental.ts"
-import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./projection.ts"
+import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./graph/projection.ts"
 import {matrix$} from "./store.ts"
 import {prepareIncrementalMatrixFixture} from "./tests/shared/fixtures.ts"
 

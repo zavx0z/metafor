@@ -1,13 +1,25 @@
 /**
- * Schema marker of the single public Graph contract. JSON is only its wire
- * serialization and does not name a second domain format.
- */
+Единый публичный read-only Graph мира MetaFor.
+
+Модуль владеет wire-формой, нейтральными адресами и закрытой validation. Он не
+владеет каноническим миром, причинной history или доменными способами собрать
+`template` и `runtime`.
+
+@packageDocumentation
+*/
+
+/** Schema marker единственного публичного Graph-контракта. */
 export const GRAPH_SCHEMA = "metafor/graph" as const
+/** Dark Oracle method, возвращающий полный текущий Graph без client-selected root. */
 export const READ_GRAPH_METHOD = "readGraph" as const
 
+/** JSON leaf, допустимый в Graph после закрытой validation. */
 export type JsonPrimitive = null | boolean | number | string
+/** Ациклическое JSON-compatible значение без runtime objects и `undefined`. */
 export type JsonValue = JsonPrimitive | JsonValue[] | {[key: string]: JsonValue}
+/** RFC 6901-compatible pointer внутри одного Graph document. */
 export type JsonPointer = "" | `/${string}`
+/** Внутридокументная ссылка, не являющаяся постоянной identity сущности. */
 export type DocumentPointer = `#${JsonPointer}`
 
 declare const MetaAddressBrand: unique symbol
@@ -42,18 +54,22 @@ type MetaRequiredIdentifiedField<Kind extends string, Default> =
     id?: true
   }
 
+/** Optional string Field без provenance и текущего runtime value. */
 export type MetaStringField =
   | MetaOptionalField<"string", string>
   | MetaRequiredIdentifiedField<"string", string>
 
+/** Optional либо required Field с конечным числом. */
 export type MetaNumberField =
   | MetaOptionalField<"number", number>
   | MetaRequiredIdentifiedField<"number", number>
 
+/** Optional либо required boolean Field. */
 export type MetaBooleanField =
   | MetaOptionalField<"boolean", boolean>
   | MetaRequiredIdentifiedField<"boolean", boolean>
 
+/** Числовой массив, чья интерпретация элементов остаётся metadata декларации. */
 export type MetaArrayField =
   MetaFieldBase & {
     type: "array"
@@ -64,6 +80,7 @@ export type MetaArrayField =
     | {required: true; default: number[]}
   )
 
+/** Enum, в котором порядок variants задаёт ordinal mapping. */
 export type MetaEnumField =
   MetaFieldBase & {
     type: "enum"
@@ -73,6 +90,7 @@ export type MetaEnumField =
     | {required: true; default: string; id?: true}
   )
 
+/** Закрытый набор Field declarations внутри `Graph.template`. */
 export type MetaField =
   | MetaStringField
   | MetaNumberField
@@ -80,16 +98,19 @@ export type MetaField =
   | MetaArrayField
   | MetaEnumField
 
+/** Сериализуемый RegExp descriptor; исполняемый `RegExp` не входит в Graph. */
 export interface MetaRegExp {
   source: string
   flags: string
 }
 
+/** Язык Conditions для boolean Field. */
 export type MetaBooleanCondition =
   | boolean
   | null
   | {null?: boolean; eq?: boolean; notEq?: boolean; logicalEq?: boolean}
 
+/** Язык Conditions для string Field. */
 export type MetaStringCondition =
   | string
   | null
@@ -111,6 +132,7 @@ export type MetaStringCondition =
       notIn?: string[]
     }
 
+/** Язык Conditions для Field с конечным числом. */
 export type MetaNumberCondition =
   | number
   | null
@@ -131,6 +153,7 @@ export type MetaNumberCondition =
       notIn?: number[]
     }
 
+/** Числовой predicate, применяемый `every` или `some` к элементам массива. */
 export interface MetaArrayItemCondition {
   gt?: number
   gte?: number
@@ -139,6 +162,7 @@ export interface MetaArrayItemCondition {
   eq?: number
 }
 
+/** Язык Conditions для Field с числовым массивом. */
 export type MetaArrayCondition =
   | number[]
   | null
@@ -152,6 +176,7 @@ export type MetaArrayCondition =
       isEmpty?: boolean
     }
 
+/** Язык Conditions для enum Field и его объявленных variants. */
 export type MetaEnumCondition =
   | string
   | null
@@ -163,6 +188,7 @@ export type MetaEnumCondition =
       notOneOf?: string[]
     }
 
+/** Condition union, проверяемый по типу referenced Field declaration. */
 export type MetaCondition =
   | MetaBooleanCondition
   | MetaStringCondition
@@ -170,14 +196,18 @@ export type MetaCondition =
   | MetaArrayCondition
   | MetaEnumCondition
 
+/** Конъюнкция Conditions, адресованных semantic Field key. */
 export type MetaConditionWave = {[field: string]: MetaCondition}
+/** Ordered mapping целевых States; первый подходящий Transition имеет приоритет. */
 export type MetaTransitions = {[targetState: string]: MetaConditionWave}
 
+/** Один объявленный State и его исходящие Transitions. */
 export interface MetaState {
   name: string
   transitions: MetaTransitions | null
 }
 
+/** Metadata одного Mass key без bytes и filesystem path. */
 export interface MetaMass {
   key: string
   format: "json" | "binary"
@@ -185,6 +215,7 @@ export interface MetaMass {
   description?: string
 }
 
+/** Environments, в которых может исполняться action одного Process. */
 export type MetaExecutionEnv =
   | "browser"
   | "node"
@@ -192,6 +223,7 @@ export type MetaExecutionEnv =
   | "server"
   | "any"
 
+/** Сериализуемая action reference; исполняемая функция остаётся в authored source. */
 export interface MetaActionDescriptor {
   src: string
   importSpecifier?: string
@@ -199,12 +231,14 @@ export interface MetaActionDescriptor {
   read?: string[]
 }
 
+/** Сериализуемая handler reference с объявленным доступом к Fields. */
 export interface MetaHandlerDescriptor {
   src: string
   read?: string[]
   write?: string[]
 }
 
+/** Process descriptor, начинающий action после входа в owning State. */
 export interface MetaActionProcessDescriptor {
   type: "action"
   label?: string
@@ -215,6 +249,7 @@ export interface MetaActionProcessDescriptor {
   error?: MetaHandlerDescriptor
 }
 
+/** Teardown descriptor при retirement Atom, а не обычный State Process. */
 export interface MetaFinallyProcessDescriptor {
   type: "finally"
   label?: string
@@ -223,11 +258,13 @@ export interface MetaFinallyProcessDescriptor {
   before: MetaActionDescriptor
 }
 
+/** WIMP-local Process key и его закрытый сериализуемый descriptor. */
 export interface MetaProcess {
   key: string
   declaration: MetaActionProcessDescriptor | MetaFinallyProcessDescriptor
 }
 
+/** WIMP-local Reaction с явными read/write sets и active States. */
 export interface MetaReaction {
   key: string
   label: string
@@ -239,6 +276,7 @@ export interface MetaReaction {
   states: string[]
 }
 
+/** Direct Mass binding всего source либо явного key mapping. */
 export type MetaMatterDirectMass =
   | {kind: "whole"}
   | {
@@ -246,6 +284,7 @@ export type MetaMatterDirectMass =
       entries: Array<{target: string; source: string}>
     }
 
+/** Сериализуемый Matter binding; runtime values и handles остаются вне Graph. */
 export type MetaMatterBinding =
   | string
   | {
@@ -254,26 +293,31 @@ export type MetaMatterBinding =
       directMass?: MetaMatterDirectMass
     }
 
+/** Дочерний occurrence, создаваемый WIMP Matter declaration. */
 export interface MetaMatterWimpChild {
   edgeSlot: "child"
   particle: MetaMatterParticle
 }
 
+/** Dynamic Meta branch, выбранный одним Fuzzy controller. */
 export interface MetaMatterFuzzyChild {
   edgeSlot: "branch"
   particle: MetaMatterWimp
 }
 
+/** Ребёнок одной semantic branch Axion controller. */
 export interface MetaMatterAxionChild {
   edgeSlot: "then" | "else" | "child"
   particle: MetaMatterParticle
 }
 
+/** Повторяемая child declaration Macho collection controller. */
 export interface MetaMatterMachoChild {
   edgeSlot: "child"
   particle: MetaMatterParticle
 }
 
+/** Matter declaration, создающая Atom из referenced WIMP template. */
 export interface MetaMatterWimp {
   kind: "wimp"
   src: MetaAddress
@@ -283,6 +327,7 @@ export interface MetaMatterWimp {
   children?: MetaMatterWimpChild[]
 }
 
+/** Dynamic-Meta controller с нулём либо одной выбранной runtime branch. */
 export interface MetaMatterFuzzy {
   kind: "fuzzy"
   fuzzyKind: "dynamic-meta"
@@ -290,24 +335,33 @@ export interface MetaMatterFuzzy {
   children?: MetaMatterFuzzyChild[]
 }
 
+/** Условный controller, проецирующий ровно одну допустимую branch sequence. */
 export interface MetaMatterAxion {
   kind: "axion"
   predicateBinding: MetaMatterBinding
   children?: MetaMatterAxionChild[]
 }
 
+/** Collection controller с нулём или несколькими ordered repetitions. */
 export interface MetaMatterMacho {
   kind: "macho"
   collectionBinding: MetaMatterBinding
   children?: MetaMatterMachoChild[]
 }
 
+/** Закрытый набор Matter declarations внутри `Graph.template`. */
 export type MetaMatterParticle =
   | MetaMatterWimp
   | MetaMatterFuzzy
   | MetaMatterAxion
   | MetaMatterMacho
 
+/**
+Полная нормализованная декларация одного WIMP.
+
+Порядок Fields, States, Processes, Reactions и Matter сохраняется только там,
+где он участвует в identity, materialization или причинном выборе.
+*/
 export interface MetaTemplate {
   name: string
   desc?: string
@@ -320,6 +374,13 @@ export interface MetaTemplate {
   bulk?: {view: string}
 }
 
+/**
+Один текущий Atom occurrence, рождённый из WIMP template.
+
+`declaration` указывает текущее место рождения внутри этого Graph snapshot и не
+заменяет постоянную Atom identity. Отсутствующий Field key означает отсутствие
+проецируемого текущего значения; default остаётся в `template`.
+*/
 export interface RuntimeAtom {
   kind: "atom"
   declaration: DocumentPointer
@@ -329,6 +390,7 @@ export interface RuntimeAtom {
   children?: RuntimeNode[]
 }
 
+/** Текущий structural controller occurrence, а не runtime WIMP. */
 export interface RuntimeTopology {
   kind: "topology"
   declaration: DocumentPointer
@@ -336,17 +398,17 @@ export interface RuntimeTopology {
   children?: RuntimeNode[]
 }
 
+/** Runtime occurrence, допустимый во вложенном текущем дереве Graph. */
 export type RuntimeNode = RuntimeAtom | RuntimeTopology
 
 /**
- * The single public Graph assembled on demand by Dark Oracle from the Dark
- * declaration projection and the current Boundary projection. JSON is only
- * the transport serialization of this Graph, not its domain name or a second
- * public format. Graph is never authored or canonical storage. A downstream
- * domain such as Bulk may retain a validated Graph as its local current read
- * model, but must refresh it through `readGraph`, not assemble a competing
- * Graph.
- */
+Единственный публичный Graph, собираемый Dark Oracle из независимых Dark и
+Boundary projections.
+
+Graph является производным read-only snapshot: его не авторят, не сохраняют
+как канонический мир и не используют вместо Force history. JSON является
+только wire-сериализацией этого контракта.
+*/
 export interface Graph {
   schema: typeof GRAPH_SCHEMA
   root: MetaAddress
@@ -356,12 +418,14 @@ export interface Graph {
   }
 }
 
+/** Одна точная проблема закрытой Graph validation по JSON Pointer. */
 export interface ValidationIssue {
   path: JsonPointer
   code: string
   message: string
 }
 
+/** Fail-closed результат validation без исключения и без частичного Graph. */
 export type ValidationResult<T> =
   | {ok: true; value: T}
   | {ok: false; issues: ValidationIssue[]}
@@ -410,7 +474,12 @@ const isMetaAddress = (value: unknown): value is MetaAddress => {
   return segments.length === 2 && segments.every((segment) => ADDRESS_SEGMENT.test(segment))
 }
 
-/** Validates and brands a canonical public Meta address. */
+/**
+Проверяет и брендирует безопасный публичный Meta address.
+
+@param value - Ожидаемый адрес `<owner>/<repository>` без дополнительных сегментов.
+@returns Брендированный адрес либо `null` без нормализации входа.
+*/
 export const parseMetaAddress = (value: string): MetaAddress | null =>
   isMetaAddress(value) ? value : null
 
@@ -1516,9 +1585,17 @@ class Validator {
   }
 }
 
+/**
+Проверяет полный Graph как закрытые JSON-данные и все declaration/runtime связи.
+
+Функция возвращает discriminated result и не является boolean type guard.
+
+@returns Валидированный исходный Graph либо полный список обнаруженных issues.
+*/
 export const validateGraph = (input: unknown): ValidationResult<Graph> =>
   new Validator().validate(input)
 
+/** Стабильная object surface для consumer, внедряющего Graph validator. */
 export const graphValidators: GraphValidators = {
   graph: validateGraph,
 }

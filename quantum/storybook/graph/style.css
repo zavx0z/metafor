@@ -1,0 +1,24 @@
+:root {
+  color-scheme: dark;
+  background: #181a1f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #181a1f;
+}
+
+#quantum-storybook-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}

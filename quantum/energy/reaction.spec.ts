@@ -7,7 +7,7 @@ import {
   type ReactionExecutionSignal,
   type ReactionResultProposal,
 } from "shared/protocol/force/reaction"
-import {EnergyCatalogStore} from "./catalog.ts"
+import {EnergyCatalogStore} from "./graph/catalog.ts"
 import {startEnergyProtocol} from "./energy.ts"
 import {executeReaction, matchesCondition} from "./reaction.ts"
 

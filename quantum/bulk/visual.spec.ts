@@ -14,7 +14,7 @@ import {visualLayoutBuiltScenes} from "@metafor/visual/payload"
 import type {Particle} from "shared/protocol/force/particle"
 import snapshotJson from "./fixture/oracle-snapshot.json"
 import {prepareBulkInitialVisual, type BulkInitialScene} from "./visual-initial.ts"
-import {projectBulkGraph} from "./graph.ts"
+import {projectBulkGraph} from "./graph/projection.ts"
 import {
   BulkVisualSceneLifecycle,
   BulkReadyVisualSceneLifecycle,

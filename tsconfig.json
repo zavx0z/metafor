@@ -45,7 +45,6 @@
     "*/dist/**/*",
     "*/node_modules/**/*",
     "create-metafor/dsl/**/*",
-    "create-metafor/template/**/*",
     "cosmos/release/**/*",
     "cosmos/startup/**/*",
     "cosmos/internal/visual/**/*",

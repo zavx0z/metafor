@@ -98,18 +98,12 @@
       "name": "@metafor/dsl",
       "version": "0.4.0",
       "dependencies": {
-        "@metafor/template": "workspace:*",
         "@metafor/types": "workspace:*",
+        "@zavx0z/template": "link:@zavx0z/template",
+        "shared": "workspace:*",
       },
       "devDependencies": {
         "typescript": "^7.0.2",
-      },
-    },
-    "create-metafor/template": {
-      "name": "@metafor/template",
-      "version": "2.6.2",
-      "dependencies": {
-        "@metafor/types": "workspace:*",
       },
     },
     "fixture": {
@@ -238,8 +232,8 @@
     "quantum/dark/gravity": {
       "name": "@dark/gravity",
       "dependencies": {
-        "@metafor/template": "workspace:*",
         "@metafor/types": "workspace:*",
+        "@zavx0z/template": "link:@zavx0z/template",
       },
     },
     "quantum/dark/types": {
@@ -364,8 +358,6 @@
 
     "@metafor/dsl": ["@metafor/dsl@workspace:create-metafor/dsl"],
 
-    "@metafor/template": ["@metafor/template@workspace:create-metafor/template"],
-
     "@metafor/types": ["@metafor/types@workspace:types"],
 
     "@metafor/visual": ["@metafor/visual@workspace:pkg/visual"],
@@ -483,6 +475,8 @@
     "@ui/storybook": ["@ui/storybook@link:@ui/storybook", {}],
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
+
+    "@zavx0z/template": ["@zavx0z/template@link:@zavx0z/template", {}],
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 

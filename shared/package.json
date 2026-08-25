@@ -31,6 +31,7 @@
     "./protocol/bulk/browser": "./protocol/bulk/browser.ts",
     "./protocol/bulk/capture": "./protocol/bulk/capture.ts",
     "./protocol/bulk/store": "./protocol/bulk/store.ts",
+    "./metafor/matter": "./metafor/matter.ts",
     "./protocol/metafor/authoring": "./protocol/metafor/authoring.ts",
     "./protocol/metafor/observation": "./protocol/metafor/observation.ts"
   },
