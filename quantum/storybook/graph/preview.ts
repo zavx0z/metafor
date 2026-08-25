@@ -1,12 +1,11 @@
-import {type Object3D} from "@engine/core"
 import {UiSurface} from "@layout/core/surface"
 import {clearReadOnlyTextParticipants} from "@ui/elements/input"
-import {drawStorybookPreviewChrome} from "@ui/storybook/surfaces"
+import {drawStorybookPreviewChrome} from "@zavx0z/storybook/workbench"
 import type {
   StorybookStoryArgs,
   StorybookStoryIndexItem,
   StorybookStoryModule,
-} from "@ui/storybook/stories"
+} from "@zavx0z/storybook/stories"
 
 export type GraphStoryPreviewDiagnostics = Readonly<{
   route: string
@@ -16,7 +15,7 @@ export type GraphStoryPreviewDiagnostics = Readonly<{
 
 /** Consumer-owned preview Surface, исполняющая выбранный Graph story module. */
 export class GraphStoryPreviewSurface extends UiSurface {
-  readonly #previewParent: Object3D
+  readonly #previewParent = this.createRetainedParent()
   #story: StorybookStoryIndexItem | null = null
   #module: StorybookStoryModule | null = null
   #args: StorybookStoryArgs = Object.freeze({})
@@ -33,7 +32,6 @@ export class GraphStoryPreviewSurface extends UiSurface {
   constructor() {
     super({bgColor: null, borderColor: null})
     this.node.name = "GraphStoryPreviewSurface"
-    this.#previewParent = this.createRetainedParent()
     this.#previewParent.name = "GraphStoryPreviewSurface.preview"
   }
 
@@ -75,7 +73,7 @@ export class GraphStoryPreviewSurface extends UiSurface {
     this.materializeRetainedParent(this.#previewParent, () => {
       drawStorybookPreviewChrome(this, this.rectW, this.rectH, {
         title: story.title,
-        description: "Реальные доменные проекции, fixture и controls используют один typed story.",
+        description: "Реальные доменные проекции, набор данных и элементы управления используют один типизированный сценарий.",
       })
       module.render(this, this.#args, {x: 0, y: 0, w: this.rectW, h: this.rectH})
     })

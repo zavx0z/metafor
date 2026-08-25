@@ -33,6 +33,16 @@ SKILL=quantum/.agents/skills/quantum-dev
 поэтому их нужно сохранять в долгоживущем PTY. Skill владеет одним no-HMR
 Storybook process на `http://127.0.0.1:4019` и проверяет страницу `/graph/`.
 
+Локальный static artifact собирается отдельно и не меняет живой process:
+
+```bash
+bun run quantum:storybook:build
+```
+
+Сборка принадлежит только локальной лаборатории и записывается в
+`quantum/storybook/dist`. Она не создаёт Pages, deployment или workflow и не
+является разрешением на их запуск.
+
 Listener, который не совпал с сохранёнными PID, process start, cwd и command,
 считается foreign: skill не принимает, не останавливает и не заменяет его.
 `QUANTUM_DEV_TEST_MODE=1` вместе с `QUANTUM_DEV_TEST_PORT` разрешает только
@@ -86,20 +96,25 @@ Storybook.
 Предмет лаборатории разделяется явно:
 
 ```text
-quantum/storybook/<entity>/
-├── page.ts              mount одной страницы
-├── entry.ts             composition готового Workbench
-├── stories.ts           единый typed catalog
-├── preview.ts           consumer-owned preview Surface
-├── fixtures/            воспроизводимые входы экспериментов
-├── state/               только UI-состояние лаборатории
-└── stories/             lazy source/controls/render modules
+quantum/storybook/
+├── app.ts               один typed Quantum Storybook application
+├── server.ts            один no-HMR local process
+├── build.ts             local-only static delivery
+└── <entity>/
+    ├── entry.ts         composition готового Workbench
+    ├── stories.ts       единый typed catalog
+    ├── preview.ts       consumer-owned preview Surface
+    ├── fixtures/        воспроизводимые входы экспериментов
+    ├── state/           только UI-состояние лаборатории
+    └── stories/         lazy source/controls/render modules
 ```
 
-Для server, routes и workbench Storybook напрямую использовать `@ui/storybook`
-из репозитория `zavx0z/ui`. Не копировать эту инфраструктуру в Quantum. Все
-обращённые к человеку строки Storybook пишутся по-русски; точные API names,
-JSON keys, routes, import specifiers и код сохраняют исходное написание.
+Для typed app, server, static build, routes, stories и workbench напрямую
+использовать точные public subpaths `@zavx0z/storybook/*`. Не импортировать
+корневой package, не создавать facade и не копировать общую инфраструктуру в
+Quantum. Все обращённые к человеку строки Storybook пишутся по-русски; точные
+API names, JSON keys, routes, import specifiers и код сохраняют исходное
+написание.
 
 Consumer использует `defineStorybookStories`, `planStorybookShell`, готовые
 navigation/dock/info surfaces и pathname router. Не создавать параллельные

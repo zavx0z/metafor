@@ -2,8 +2,8 @@ import {
   defineStorybookStories,
   type StorybookStoryIndexItem,
   type StorybookStoryModule,
-} from "@ui/storybook/stories"
-import type {StorybookNavigationItem} from "@ui/storybook/surfaces"
+} from "@zavx0z/storybook/stories"
+import type {StorybookNavigationItem} from "@zavx0z/storybook/workbench"
 
 export type GraphStoryRoute =
   | "document/current/complete"
@@ -87,8 +87,22 @@ export const GRAPH_STORIES = defineStorybookStories({
       }],
     },
   ],
-  fallback: {component: "document", section: "current", variant: "complete"},
+  representative: {component: "document", section: "current", variant: "complete"},
 })
+
+/** Выбирает сценарий представления только для зарегистрированного листа или обзора. */
+export function graphStorybookPresentationRoute(path: string): GraphStoryRoute {
+  const node = GRAPH_STORIES.routeTree.find(path)
+  if (node === undefined) throw new Error(`Неизвестный путь лаборатории Graph: ${path}`)
+  if (node.kind === "leaf") return node.path as GraphStoryRoute
+  const prefix = node.path.length === 0 ? "" : `${node.path}/`
+  if (GRAPH_STORIES.representative.startsWith(prefix)) {
+    return GRAPH_STORIES.representative as GraphStoryRoute
+  }
+  const route = GRAPH_STORIES.routeTree.leaves.find((candidate) => candidate.startsWith(prefix))
+  if (route === undefined) throw new Error(`Обзор не содержит сценарий Graph: ${node.path}`)
+  return route as GraphStoryRoute
+}
 
 export function graphStoryIndex(route: GraphStoryRoute): StorybookStoryIndexItem {
   const story = GRAPH_STORIES.find(route)

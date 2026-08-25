@@ -2,8 +2,8 @@ import type {
   StorybookStoryArgs,
   StorybookStoryIndexItem,
   StorybookStoryModule,
-} from "@ui/storybook/stories"
-import type {StorybookStoryPanelMode} from "@ui/storybook/surfaces"
+} from "@zavx0z/storybook/stories"
+import type {StorybookStoryPanelMode} from "@zavx0z/storybook/workbench"
 import {
   GRAPH_STORIES,
   graphStoryIndex,
@@ -67,7 +67,13 @@ export class GraphLabState {
   async select(route: GraphStoryRoute): Promise<boolean> {
     const revision = ++this.#loadRevision
     const story = graphStoryIndex(route)
-    const module = await GRAPH_STORIES.load(route)
+    let module: StorybookStoryModule
+    try {
+      module = await GRAPH_STORIES.load(route)
+    } catch (error) {
+      if (revision !== this.#loadRevision) return false
+      throw error
+    }
     if (revision !== this.#loadRevision) return false
     this.#route = route
     this.#story = story
@@ -75,6 +81,11 @@ export class GraphLabState {
     this.#args = Object.freeze({...module.defaultArgs})
     this.#changes = 0
     return true
+  }
+
+  /** Cancels any pending lazy selection while preserving the last committed story. */
+  invalidateSelection(): void {
+    this.#loadRevision += 1
   }
 
   setControl(key: string, value: unknown): void {

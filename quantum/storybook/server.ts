@@ -1,16 +1,14 @@
-import {fileURLToPath} from "node:url"
-import {startStorybookHubServer} from "@ui/storybook/server"
-import {createGraphStorybookPage} from "./graph/page.ts"
+import {startStorybookHubServer} from "@zavx0z/storybook/server"
+import {
+  createQuantumStorybookApp,
+  quantumStorybookStaticFiles,
+} from "./app.ts"
 
 const server = startStorybookHubServer({
-  pages: [createGraphStorybookPage()],
+  app: createQuantumStorybookApp(),
   hostname: Bun.env.QUANTUM_STORYBOOK_HOST ?? "127.0.0.1",
   port: Number(Bun.env.QUANTUM_STORYBOOK_PORT ?? 4019),
-  staticFiles: {
-    "/fonts/jetbrains-mono-bold.ttf": fileURLToPath(
-      import.meta.resolve("@engine/core/fonts/jetbrains-mono-bold.ttf"),
-    ),
-  },
+  staticFiles: quantumStorybookStaticFiles(),
 })
 
 console.log(`[Лаборатория Quantum] ${new URL("/graph/", server.url)}`)

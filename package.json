@@ -42,6 +42,8 @@
   "devDependencies": {
     "@nodes/storybook": "link:@nodes/storybook",
     "@ui/storybook": "link:@ui/storybook",
+    "@zavx0z/highlighter": "link:@zavx0z/highlighter",
+    "@zavx0z/storybook": "link:@zavx0z/storybook",
     "@types/bun": "^1.4.0",
     "@types/node": "^25.5.0",
     "@webgpu/types": "^0.1.68",
@@ -73,6 +75,7 @@
     "nodes:storybook": "bun run --cwd node_modules/@nodes/storybook storybook",
     "ui:storybook": "bun run --cwd node_modules/@ui/storybook storybook",
     "quantum:storybook": "bun quantum/storybook/server.ts",
+    "quantum:storybook:build": "bun quantum/storybook/build.ts",
     "visual:playground": "bun pkg/visual/playground/server.ts",
     "boundary:backup": "bun quantum/boundary/backup.ts",
     "checkpoint:capture": "bun quantum/dark/checkpoint/cli.ts",

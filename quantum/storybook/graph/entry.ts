@@ -4,23 +4,31 @@ import {
   StorybookDockSurface,
   StorybookNavigationSurface,
   StorybookStoryPanelSurface,
+  planStorybookShell,
+  type StorybookResponsivePolicy,
   type StorybookStoryPanelOptions,
-} from "@ui/storybook/surfaces"
-import {StorybookRouteTreeRouter} from "@ui/storybook/router"
-import type {StorybookRouteTreeNode} from "@ui/storybook/route-tree"
-import {planStorybookShell} from "@ui/storybook/layout"
-import {storybookPublicPath} from "@ui/storybook/environment"
+} from "@zavx0z/storybook/workbench"
+import {
+  StorybookRouteTreeRouter,
+  type StorybookRouteTreeNode,
+} from "@zavx0z/storybook/route-tree"
+import {storybookPublicPath} from "@zavx0z/storybook/environment"
 import {GraphStoryPreviewSurface} from "./preview.ts"
 import {
   GRAPH_STORIES,
   graphCatalogItems,
   graphSectionItems,
+  graphStorybookPresentationRoute,
   graphVariantItems,
   type GraphStoryRoute,
 } from "./stories.ts"
 import {GraphLabState} from "./state/lab-state.ts"
 
-const GRAPH_MOUNT_PATH = storybookPublicPath("/graph")
+const GRAPH_MOUNT_PATH = storybookPublicPath("quantum", "/")
+const GRAPH_STORYBOOK_RESPONSIVE: StorybookResponsivePolicy = Object.freeze({
+  compactBelow: null,
+  compactPanels: Object.freeze([]),
+})
 
 export type GraphStorybookObserver = Readonly<{
   snapshot(): Readonly<Record<string, unknown>>
@@ -46,8 +54,9 @@ async function startGraphStorybook(): Promise<void> {
     const router = new StorybookRouteTreeRouter(GRAPH_STORIES.routeTree, {
       basePath: GRAPH_MOUNT_PATH,
     })
-    const initialRoute = representativeRoute(router.current)
-    const state = await GraphLabState.create(initialRoute)
+    const initial = await loadStableGraphLabState(router)
+    const initialNode = initial.node
+    const state = initial.state
     let catalogQuery = ""
     let collapsedCatalogGroups = new Set<string>()
 
@@ -71,10 +80,10 @@ async function startGraphStorybook(): Promise<void> {
       route: sectionPath(router.current.path),
       onNavigate: navigate,
     })
-    const dock = new StorybookDockSurface<GraphStoryRoute>({
+    const dock = new StorybookDockSurface<string>({
       title: "Варианты",
       items: graphVariantItems(state.route),
-      route: router.current.kind === "leaf" ? state.route : GRAPH_STORIES.fallback as GraphStoryRoute,
+      route: router.current.kind === "leaf" ? state.route : "",
       onNavigate: navigate,
     })
     const preview = new GraphStoryPreviewSurface()
@@ -113,13 +122,16 @@ async function startGraphStorybook(): Promise<void> {
     })
     storyPanel = new StorybookStoryPanelSurface(panelOptions())
 
-    const frames = (w: number, h: number) => planStorybookShell(w, h)
+    const frames = (w: number, h: number) => planStorybookShell(w, h, {
+      responsive: GRAPH_STORYBOOK_RESPONSIVE,
+    })
     runtime.addSurface(backdrop, ({w, h}) => ({x: 0, y: 0, w, h}))
     runtime.addSurface(catalog, ({w, h}) => frames(w, h).catalog)
     runtime.addSurface(sections, ({w, h}) => frames(w, h).section)
     runtime.addSurface(preview, ({w, h}) => frames(w, h).preview)
     runtime.addSurface(dock, ({w, h}) => frames(w, h).dock)
     runtime.addSurface(storyPanel, ({w, h}) => frames(w, h).info)
+    let presentedFrames = 0
 
     const snapshot = (): Readonly<Record<string, unknown>> => Object.freeze({
       path: router.current.path,
@@ -130,21 +142,29 @@ async function startGraphStorybook(): Promise<void> {
       dock: dock.diagnostics,
       preview: preview.diagnostics,
       panel: storyPanel.diagnostics,
+      presentedFrames,
     })
 
     const publish = (): Readonly<Record<string, unknown>> => {
       for (const surface of [catalog, sections, dock, preview, storyPanel]) surface.flushPendingRender()
+      runtime.space.updateWorldMatrix()
+      runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
+      presentedFrames += 1
       const current = snapshot()
       document.documentElement.dataset.quantumStorybookPath = router.current.path
       document.documentElement.dataset.quantumStorybookRouteKind = router.current.kind
       document.documentElement.dataset.quantumStorybookRoute = state.route
+      document.documentElement.dataset.quantumStorybookFrames = String(presentedFrames)
       document.documentElement.dataset.quantumStorybookState = JSON.stringify(current)
       return current
     }
 
     const applyNode = async (node: StorybookRouteTreeNode<string>): Promise<void> => {
-      const route = representativeRoute(node)
+      document.documentElement.dataset.quantumStorybook = "starting"
+      state.invalidateSelection()
+      const route = graphStorybookPresentationRoute(node.path)
       if (route !== state.route && !await state.select(route)) return
+      if (router.current !== node) return
       catalog.setOptions(catalogOptions())
       sections.setOptions({
         title: state.story.componentLabel,
@@ -155,13 +175,14 @@ async function startGraphStorybook(): Promise<void> {
       dock.setOptions({
         title: "Варианты",
         items: graphVariantItems(state.route),
-        route: node.kind === "leaf" ? state.route : GRAPH_STORIES.fallback as GraphStoryRoute,
+        route: node.kind === "leaf" ? state.route : "",
         onNavigate: navigate,
       })
       preview.setStory(state.story, state.module, state.args)
       storyPanel.setOptions(panelOptions())
       runtime.relayout()
       publish()
+      document.documentElement.dataset.quantumStorybook = "ready"
     }
 
     function catalogOptions() {
@@ -213,7 +234,12 @@ async function startGraphStorybook(): Promise<void> {
       publish()
     }).observe(canvas)
     runtime.handleResize()
+    if (router.current !== initialNode) {
+      await applyNode(router.current)
+      return
+    }
     publish()
+    if (router.current !== initialNode) return
     document.documentElement.dataset.quantumStorybook = "ready"
   } catch (error) {
     publishGraphStorybookError(error)
@@ -221,13 +247,18 @@ async function startGraphStorybook(): Promise<void> {
   }
 }
 
-function representativeRoute(node: StorybookRouteTreeNode<string>): GraphStoryRoute {
-  if (node.kind === "leaf") return node.path as GraphStoryRoute
-  const prefix = node.path.length === 0 ? "" : `${node.path}/`
-  if (GRAPH_STORIES.fallback.startsWith(prefix)) return GRAPH_STORIES.fallback as GraphStoryRoute
-  const route = GRAPH_STORIES.routeTree.leaves.find((candidate) => candidate.startsWith(prefix))
-  if (route === undefined) throw new Error(`Overview не содержит Graph story: ${node.path}`)
-  return route as GraphStoryRoute
+async function loadStableGraphLabState(
+  router: StorybookRouteTreeRouter<string>,
+): Promise<Readonly<{
+  node: StorybookRouteTreeNode<string>
+  state: GraphLabState
+}>> {
+  while (true) {
+    const node = router.current
+    const route = graphStorybookPresentationRoute(node.path)
+    const state = await GraphLabState.create(route)
+    if (router.current === node) return Object.freeze({node, state})
+  }
 }
 
 function componentPath(path: string): string {

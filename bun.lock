@@ -24,6 +24,8 @@
         "@types/node": "^25.5.0",
         "@ui/storybook": "link:@ui/storybook",
         "@webgpu/types": "^0.1.68",
+        "@zavx0z/highlighter": "link:@zavx0z/highlighter",
+        "@zavx0z/storybook": "link:@zavx0z/storybook",
         "bun-webgpu": "^0.1.6",
         "oxc-parser": "^0.146.0",
         "typescript": "^7.0.2",
@@ -475,6 +477,10 @@
     "@ui/storybook": ["@ui/storybook@link:@ui/storybook", {}],
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
+
+    "@zavx0z/highlighter": ["@zavx0z/highlighter@link:@zavx0z/highlighter", {}],
+
+    "@zavx0z/storybook": ["@zavx0z/storybook@link:@zavx0z/storybook", {}],
 
     "@zavx0z/template": ["@zavx0z/template@link:@zavx0z/template", {}],
 

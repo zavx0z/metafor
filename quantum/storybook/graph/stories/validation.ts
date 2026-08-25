@@ -2,7 +2,7 @@ import {
   defineStorybookStoryModule,
   type StorybookStoryArgs,
   type StorybookStoryModule,
-} from "@ui/storybook/stories"
+} from "@zavx0z/storybook/stories"
 import {validationGraphFixture} from "../fixtures/graph.ts"
 import {renderGraphJson} from "./render-json.ts"
 

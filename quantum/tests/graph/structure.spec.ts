@@ -25,12 +25,15 @@ describe("Quantum Graph weak coupling", () => {
     }
   })
 
-  test("uses zavx0z/ui Storybook directly and does not import Nodes", () => {
+  test("uses the exact shared Storybook subpaths and does not import UI Storybook or Nodes", () => {
     const root = join(quantumRoot, "storybook", "graph")
     const sources = typescriptFiles(root).map((path) => readFileSync(path, "utf8")).join("\n")
-    expect(sources).toContain('from "@ui/storybook/')
+    expect(sources).toContain('from "@zavx0z/storybook/stories"')
+    expect(sources).toContain('from "@zavx0z/storybook/workbench"')
+    expect(sources).toContain('from "@zavx0z/storybook/route-tree"')
+    expect(sources).toContain('from "@zavx0z/storybook/environment"')
+    expect(sources).not.toContain('from "@ui/storybook/')
     expect(sources).not.toContain('from "@nodes/')
-    expect(existsSync(join(root, "page.ts"))).toBe(true)
     expect(existsSync(join(root, "stories.ts"))).toBe(true)
     expect(existsSync(join(root, "fixtures", "graph.ts"))).toBe(true)
     expect(existsSync(join(root, "state", "lab-state.ts"))).toBe(true)
@@ -40,8 +43,19 @@ describe("Quantum Graph weak coupling", () => {
     expect(readFileSync(join(root, "stories.ts"), "utf8")).toContain("defineStorybookStories")
     const entry = readFileSync(join(root, "entry.ts"), "utf8")
     expect(entry).toContain("planStorybookShell")
+    expect(entry).toContain('storybookPublicPath("quantum", "/")')
+    expect(entry).toContain("compactBelow: null")
+    expect(entry).toContain('route: router.current.kind === "leaf" ? state.route : ""')
+    expect(entry).toContain("loadStableGraphLabState")
+    expect(entry).toContain("state.invalidateSelection()")
+    expect(entry).toContain("if (router.current !== node) return")
+    expect(entry).toContain("runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)")
+    expect(entry).toContain("dataset.quantumStorybookFrames = String(presentedFrames)")
     expect(entry).toContain("StorybookNavigationSurface")
     expect(entry).toContain("StorybookStoryPanelSurface")
+    const preview = readFileSync(join(root, "preview.ts"), "utf8")
+    expect(preview).toContain("набор данных и элементы управления используют один типизированный сценарий")
+    expect(preview).not.toContain("fixture и controls")
   })
 })
 

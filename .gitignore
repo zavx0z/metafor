@@ -3,6 +3,7 @@ tmp
 tests/tmp
 dist
 dist-test
+/quantum/storybook/dist/
 __snapshots__
 .idea
 .DS_Store
