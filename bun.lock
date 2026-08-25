@@ -22,7 +22,6 @@
         "@nodes/storybook": "link:@nodes/storybook",
         "@types/bun": "^1.4.0",
         "@types/node": "^25.5.0",
-        "@ui/storybook": "link:@ui/storybook",
         "@webgpu/types": "^0.1.68",
         "@zavx0z/highlighter": "link:@zavx0z/highlighter",
         "@zavx0z/storybook": "link:@zavx0z/storybook",
@@ -53,7 +52,7 @@
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.14",
+      "version": "0.1.16",
       "dependencies": {
         "@engine/core": "link:@engine/core",
         "@layout/core": "link:@layout/core",
@@ -62,7 +61,7 @@
     },
     "cosmos/release": {
       "name": "@cosmos/release",
-      "version": "0.1.18",
+      "version": "0.1.20",
       "dependencies": {
         "@engine/core": "link:@engine/core",
         "@internal/visual": "workspace:^0.1.10",
@@ -473,8 +472,6 @@
     "@ui/elements": ["@ui/elements@link:@ui/elements", {}],
 
     "@ui/hud": ["@ui/hud@link:@ui/hud", {}],
-
-    "@ui/storybook": ["@ui/storybook@link:@ui/storybook", {}],
 
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 
