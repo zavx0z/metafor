@@ -143,17 +143,23 @@
   использовать `$cosmos-development` из
   `cosmos/.agents/skills/cosmos-development`. Он добавляет только предметные
   правила Cosmos поверх общей documentation reference `$metafor-dev`.
+- Для разработки, проверок и Storybook соседнего Engine использовать
+  `$engine-dev` из `../engine/.agents/skills/engine-dev`. Engine не получает
+  product-, UI- или Nodes-семантику через интеграционную задачу.
+- Для разработки, проверок и Storybook соседнего Layout использовать
+  `$layout-dev` из `../layout/.agents/skills/layout-dev`. Визуальные controls и
+  product composition остаются у UI и MetaFor.
 - Все package pages семейства Nodes принадлежат единому dev-каталогу
   `@nodes/storybook`: один process/origin, главная `/` и exact routes
   `/core/*`, `/editor/*`, `/layout/*`, `/worker/*`, `/ui/*`. Для их
   lifecycle и browser-проверки использовать skill `$nodes-dev` из соседнего
-  репозитория `../node/packages/storybook/.agents/skills/nodes-dev`. Lifecycle-команды не выбирают
+  репозитория `../node/.agents/skills/nodes-dev`. Lifecycle-команды не выбирают
   package: package задаётся только `--route`, а DOM/SVG и WebGPU capabilities
   определяются fail-closed по центральному catalog manifest.
 - Для разработки, lifecycle, browser-проверки и профилирования единого каталога
   package pages `@ui/elements`, `@ui/components`, `@ui/storybook` и `@ui/hud`
   использовать skill `$ui-dev` из соседнего репозитория
-  `../ui/packages/storybook/.agents/skills/ui-dev`. Он владеет единым UI catalog и exact target
+  `../ui/.agents/skills/ui-dev`. Он владеет единым UI catalog и exact target
   только в границах selector `ui`; команды и договор dispatcher здесь не
   дублировать.
 - Browser evidence в этих package-contours получать только через встроенный
