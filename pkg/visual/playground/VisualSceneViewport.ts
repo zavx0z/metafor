@@ -12,10 +12,11 @@ import {
   Text,
   TextMaterial,
   TorusGeometry,
-  TrueTypeFont,
+  type TrueTypeFont,
   Vector3,
   ViewPoint,
 } from "@engine/core"
+import {loadSharedFont} from "@engine/core/default-font"
 import type {
   VisualParticleForm,
   VisualScene,
@@ -829,7 +830,7 @@ export const createVisualSceneViewport = async ({
   const labels: LabelTracker[] = []
   const labelFontSize = fit.radius * LABEL_FONT_SIZE_TO_SCENE_RADIUS
   if (showLabels && plan.labels.length > 0) {
-    const font = await TrueTypeFont.fromUrl(
+    const font = await loadSharedFont(
       "/engine-static/jetbrains-mono-bold.ttf",
     )
     labels.push(...plan.labels.map((label) =>

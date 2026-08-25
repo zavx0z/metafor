@@ -35,6 +35,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
 
   expect(html.match(/<canvas\b/g)).toHaveLength(1)
   expect(html).toContain('<canvas id="visual-canvas"></canvas>')
+  expect(html).toContain('<meta name="engine-default-font" content="/assets/fonts/jetbrains-mono-bold.ttf">')
   expect(html).toContain("#visual-canvas")
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
   expect(html).toContain('src="/@cosmos/startup?env=main"')
@@ -66,6 +67,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visual).toContain('import {GridHelper} from "@engine/core"')
   expect(visual).toContain('import {DisplayDockSurface} from "./display-dock.ts"')
   expect(visual).toContain("export const runtime = await UiRuntime.create(canvas")
+  expect(visual).not.toContain("fontUrl:")
+  expect(visual).not.toContain("VISUAL_FONT_URL")
   expect(visual).toContain(
     'console.debug("[@internal/visual:main]", "основное visual-окружение создано", {',
   )

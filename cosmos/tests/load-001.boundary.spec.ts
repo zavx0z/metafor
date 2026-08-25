@@ -24,6 +24,7 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
 
   expect(html.match(/<script\b[^>]*\bsrc=/g)).toHaveLength(1)
   expect(html).toContain('src="/@cosmos/startup?env=main"')
+  expect(html).toContain('<meta name="engine-default-font" content="/assets/fonts/jetbrains-mono-bold.ttf">')
   expect(html).toContain('"@cosmos/release": "/@cosmos/release?env=main"')
   expect(html).toContain('"@internal/visual": "/@internal/visual?env=main"')
   expect(html).not.toContain('"@release/":')

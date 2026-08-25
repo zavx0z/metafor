@@ -3,8 +3,10 @@ Browser entrypoint готовой визуальной среды Cosmos.
 
 Initial evaluation требует принадлежащий приложению canvas, создаёт один
 `UiRuntime`, основное пространство, display и HUD-навигацию, затем удерживает
-размер display согласованным с canvas. Отсутствующий canvas завершает запуск
-до экспорта готового runtime.
+размер display согласованным с canvas. HTML composition root объявляет
+Engine-owned default font URL; runtime загружает его лениво и не хранит второй
+font path. Отсутствующий canvas либо font declaration завершает запуск до
+экспорта готового runtime.
 
 Пользовательский [закон визуальной среды](../README.md#визуальная-среда-main)
 отделяет эту инфраструктуру от смысла показываемых Quantum/metafor данных.
@@ -19,7 +21,6 @@ import {UiRuntime} from "@layout/core/runtime"
 import {DisplayDockSurface} from "./display-dock.ts"
 
 const VISUAL_CANVAS_ID = "visual-canvas"
-const VISUAL_FONT_URL = "/assets/fonts/jetbrains-mono-bold.ttf"
 const VISUAL_DISPLAY_ID = "main"
 const VISUAL_DISPLAY_CENTER_MM = {x: 0, y: 0, z: 900} as const
 
@@ -33,7 +34,6 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 
 /** Готовый shared visual runtime после обязательной initial materialization. */
 export const runtime = await UiRuntime.create(canvas, {
-  fontUrl: VISUAL_FONT_URL,
   virtualDisplay: {
     initial: "far",
     grid: false,

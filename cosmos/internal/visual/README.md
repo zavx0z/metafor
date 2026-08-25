@@ -15,6 +15,8 @@ Visual объявляет свои платформенные части по
 Когда release запускает browser-часть visual:
 
 1. visual получает предоставленную приложением область отображения;
+1. `UiRuntime` лениво получает общий default font по URL, который один раз
+   объявляет HTML composition root; custom font полностью обходит этот request;
 1. создаёт общее визуальное пространство Cosmos;
 1. подготавливает основной display и навигацию;
 1. согласует display с доступной областью Window;
@@ -28,6 +30,10 @@ Visual объявляет свои платформенные части по
 Visual владеет созданием визуальной среды и её отображением. Смысл
 наблюдаемых сущностей, причинные переходы и canonical состояние принадлежат
 соответствующим Quantum-доменам и загруженным metafor-пакетам.
+
+Binary default font принадлежит Engine. Visual не хранит его копию и не
+передаёт font path отдельным surfaces или UI packages; release server только
+публикует выбранный composition URL и сохраняет его в runtime offline cache.
 
 Точные side effects, public exports и ошибки запуска принадлежат внутрикодовой
 TSDoc visual entrypoints.

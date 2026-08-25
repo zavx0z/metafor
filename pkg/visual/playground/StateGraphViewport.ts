@@ -14,10 +14,11 @@ import {
   Text,
   TextMaterial,
   TorusGeometry,
-  TrueTypeFont,
+  type TrueTypeFont,
   Vector3,
   ViewPoint,
 } from "@engine/core"
+import {loadSharedFont} from "@engine/core/default-font"
 import {
   createQuantumFilmMaterial,
   createQuantumSphereMaterial,
@@ -667,7 +668,7 @@ export const createStateGraphViewport = async ({
   await renderer.init(canvas)
   renderer.setPixelRatio(window.devicePixelRatio || 1)
   renderer.setSize(width, height)
-  const font = await TrueTypeFont.fromUrl("/engine-static/jetbrains-mono-bold.ttf")
+  const font = await loadSharedFont("/engine-static/jetbrains-mono-bold.ttf")
   const space = new Space()
   space.background = BACKGROUND.clone()
   const nodeById = new Map(layout.nodes.map((node) => [node.id, node] as const))

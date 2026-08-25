@@ -92,11 +92,12 @@ import {
 	Text,
 	TextMaterial,
 	TorusGeometry,
-	TrueTypeFont,
+	type TrueTypeFont,
 	Raycaster,
 	Vector3,
 	ViewPoint,
 } from "@engine/core"
+import {loadSharedFont} from "@engine/core/default-font"
 import {HUD} from "@layout/core/hud"
 import type {
 	UiRuntime,
@@ -1302,7 +1303,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	renderer.setPixelRatio(window.devicePixelRatio || 1)
 	renderer.setSize(options.width, options.height)
 	activeRenderSettings = normalizeBulkRenderSettings(activeRenderSettings)
-	const uiFont = await TrueTypeFont.fromUrl("/engine-static/jetbrains-mono-bold.ttf")
+	const uiFont = await loadSharedFont("/engine-static/jetbrains-mono-bold.ttf")
 	const labelFont = uiFont
 	const viewportConfig = getViewportConfig()
 	const raycaster = new Raycaster()

@@ -15,9 +15,10 @@ import {
   Text,
   TextMaterial,
   TorusGeometry,
-  TrueTypeFont,
+  type TrueTypeFont,
   ViewPoint,
 } from "@engine/core"
+import {loadSharedFont} from "@engine/core/default-font"
 import {BulkVisualSceneLifecycle} from "bulk/visual"
 import {
   visualDarkParticleColor,
@@ -443,7 +444,7 @@ export const createFieldsV2Lab = async (
     cover: Float32Array
     stencil: Float32Array
   }>> = []
-  const font = await TrueTypeFont.fromUrl(
+  const font = await loadSharedFont(
     "/engine-static/jetbrains-mono-bold.ttf",
   )
   let ringWidth = FIELDS_V2_RING_WIDTH

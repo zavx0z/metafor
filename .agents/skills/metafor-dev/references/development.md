@@ -247,9 +247,11 @@ package в правила кэширования не добавлять. Пос
 содержит ровно одну exact entry на `(package, env)` и не содержит stable либо
 state entries.
 
-Из обычных `/assets/*` Worker сохраняет только требуемый runtime font
-`/assets/fonts/JetBrainsMono-Bold.ttf`. PWA screenshots, manifest icons и
-favicon не входят в offline contract и не занимают Cache Storage.
+Из обычных `/assets/*` Worker сохраняет только объявленный HTML composition
+root runtime font `/assets/fonts/jetbrains-mono-bold.ttf`. Inert meta ничего не
+загружает: первый `UiRuntime` без custom font получает URL лениво через Engine,
+а custom font полностью обходит default request. PWA screenshots, manifest
+icons и favicon не входят в offline contract и не занимают Cache Storage.
 
 Во время обновления на origin существует не более одного технического Cache
 Storage с точным именем `transaction`. Его первой entry всегда становится

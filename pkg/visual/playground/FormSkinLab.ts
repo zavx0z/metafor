@@ -14,9 +14,10 @@ import {
   Text,
   TextMaterial,
   TorusGeometry,
-  TrueTypeFont,
+  type TrueTypeFont,
   ViewPoint,
 } from "@engine/core"
+import {loadSharedFont} from "@engine/core/default-font"
 import {
   createQuantumFilmMaterial,
   createQuantumSphereMaterial,
@@ -494,7 +495,7 @@ export const createFormSkinLab = async (
   await renderer.init(elements.canvas)
   const space = new Space()
   const textOverlay = new Space()
-  const fieldsFont = await TrueTypeFont.fromUrl(
+  const fieldsFont = await loadSharedFont(
     "/engine-static/jetbrains-mono-bold.ttf",
   )
   space.background = new Color(0.008, 0.019, 0.032)
