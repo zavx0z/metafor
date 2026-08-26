@@ -8,7 +8,8 @@ import {UiSurface} from "@layout/core/surface"
 import {StatusChip} from "@ui/components/badge"
 import {Button, type ButtonVariant} from "@ui/components/button"
 import {uiIcons} from "@ui/elements/icons"
-import {palette, radii, type Tone} from "@ui/elements/theme"
+import {uiShapeMetrics} from "@ui/elements/shape"
+import {palette, type Tone} from "@ui/elements/theme"
 import {HudSideTab} from "@ui/hud"
 import {HudTimelinePanel} from "@ui/hud/timeline"
 import {
@@ -410,7 +411,7 @@ class BulkTimeControlDock extends UiSurface {
 		super({
 			bgColor: palette.bgToolbar,
 			borderColor: null,
-			borderRadiusPx: radii.pane,
+			borderRadiusPx: uiShapeMetrics.panelRadius,
 		})
 		this.node.name = "BulkTimeControlDock"
 		this.model.subscribe(() => this.requestRender())
