@@ -116,6 +116,19 @@
         "typescript": "^7.0.2",
       },
     },
+    "pkg/node-tree": {
+      "name": "@metafor/node-tree",
+      "version": "0.0.1",
+      "dependencies": {
+        "@metafor/types": "workspace:*",
+        "@nodes/core": "link:@nodes/core",
+      },
+      "devDependencies": {
+        "@nodes/ui": "link:@nodes/ui",
+        "@types/bun": "^1.4.0",
+        "typescript": "^7.0.2",
+      },
+    },
     "pkg/visual": {
       "name": "@metafor/visual",
       "version": "0.0.1",
@@ -307,6 +320,10 @@
       "dependencies": {
         "@engine/core": "link:@engine/core",
         "@layout/core": "link:@layout/core",
+        "@metafor/node-tree": "workspace:*",
+        "@nodes/core": "link:@nodes/core",
+        "@nodes/layout": "link:@nodes/layout",
+        "@nodes/ui": "link:@nodes/ui",
         "@ui/components": "link:@ui/components",
         "@ui/elements": "link:@ui/elements",
         "@zavx0z/highlighter": "link:@zavx0z/highlighter",
@@ -375,6 +392,8 @@
     "@metafor/cosmos": ["@metafor/cosmos@workspace:cosmos"],
 
     "@metafor/dsl": ["@metafor/dsl@workspace:create-metafor/dsl"],
+
+    "@metafor/node-tree": ["@metafor/node-tree@workspace:pkg/node-tree"],
 
     "@metafor/types": ["@metafor/types@workspace:types"],
 

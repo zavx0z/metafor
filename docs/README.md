@@ -55,8 +55,9 @@
   browser evidence и static manifest для owner-owned Storybook packages.
   [UI Storybook](https://github.com/zavx0z/ui/blob/main/packages/storybook/requirements.md)
   сохраняет собственные catalog pages, routes и acceptance, а
-  `@quantum/storybook` (далее — Quantum Storybook) — Graph laboratory и её
-  package-owned page/stories/preview/fixtures/state.
+  `@quantum/storybook` (далее — Quantum Storybook) — Graph laboratory, её
+  package-owned page/stories/preview/fixtures/state и lazy-представление
+  производной NodeTree через настоящий Node Editor.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.

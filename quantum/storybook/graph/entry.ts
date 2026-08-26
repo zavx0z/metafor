@@ -15,6 +15,11 @@ import {
 import {storybookPublicPath} from "@zavx0z/storybook/environment"
 import {GraphStoryPreviewSurface} from "./preview.ts"
 import {
+  isGraphNodeTreeStoryModule,
+  type GraphNodeTreeStoryModule,
+  type GraphNodeTreeStoryPreview,
+} from "./stories/node-tree-story.ts"
+import {
   GRAPH_STORIES,
   graphCatalogItems,
   graphSectionItems,
@@ -43,6 +48,7 @@ declare global {
 async function startGraphStorybook(): Promise<void> {
   const canvas = document.getElementById("quantum-storybook-canvas")
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error("Canvas лаборатории Graph не найден")
+  const storyCanvas = canvas
   document.documentElement.dataset.quantumStorybook = "starting"
   document.documentElement.dataset.quantumStorybookPage = "graph"
   try {
@@ -88,6 +94,8 @@ async function startGraphStorybook(): Promise<void> {
     })
     const preview = new GraphStoryPreviewSurface()
     preview.setStory(state.story, state.module, state.args)
+    let nodeTreePreview: GraphNodeTreeStoryPreview | null = null
+    let nodeTreeActive = false
     let storyPanel: StorybookStoryPanelSurface
 
     const panelOptions = (): StorybookStoryPanelOptions => ({
@@ -107,7 +115,8 @@ async function startGraphStorybook(): Promise<void> {
       },
       onControlChange(key, value) {
         state.setControl(key, value)
-        preview.setArgs(state.args)
+        if (nodeTreeActive) void presentNodeTreeStory().then(publish).catch(publishGraphStorybookError)
+        else preview.setArgs(state.args)
         storyPanel.setOptions(panelOptions())
         publish()
       },
@@ -128,7 +137,10 @@ async function startGraphStorybook(): Promise<void> {
     runtime.addSurface(backdrop, ({w, h}) => ({x: 0, y: 0, w, h}))
     runtime.addSurface(catalog, ({w, h}) => frames(w, h).catalog)
     runtime.addSurface(sections, ({w, h}) => frames(w, h).section)
-    runtime.addSurface(preview, ({w, h}) => frames(w, h).preview)
+    runtime.addSurface(preview, ({w, h}) => ({
+      ...frames(w, h).preview,
+      visible: !nodeTreeActive,
+    }))
     runtime.addSurface(dock, ({w, h}) => frames(w, h).dock)
     runtime.addSurface(storyPanel, ({w, h}) => frames(w, h).info)
     let presentedFrames = 0
@@ -141,12 +153,14 @@ async function startGraphStorybook(): Promise<void> {
       sections: sections.diagnostics,
       dock: dock.diagnostics,
       preview: preview.diagnostics,
+      nodeTree: nodeTreePreview?.snapshot() ?? null,
       panel: storyPanel.diagnostics,
       presentedFrames,
     })
 
     const publish = (): Readonly<Record<string, unknown>> => {
       for (const surface of [catalog, sections, dock, preview, storyPanel]) surface.flushPendingRender()
+      nodeTreePreview?.surface.flushPendingRender?.()
       runtime.space.updateWorldMatrix()
       runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)
       presentedFrames += 1
@@ -178,7 +192,12 @@ async function startGraphStorybook(): Promise<void> {
         route: node.kind === "leaf" ? state.route : "",
         onNavigate: navigate,
       })
-      preview.setStory(state.story, state.module, state.args)
+      if (isGraphNodeTreeStoryModule(state.module)) await activateNodeTreeStory(state.module)
+      else activateStandardStory()
+      if (router.current !== node) return
+      if (!nodeTreeActive) preview.setStory(state.story, state.module, state.args)
+      if (nodeTreeActive) await presentNodeTreeStory()
+      if (router.current !== node) return
       storyPanel.setOptions(panelOptions())
       runtime.relayout()
       publish()
@@ -212,6 +231,34 @@ async function startGraphStorybook(): Promise<void> {
       publish()
     }
 
+    async function activateNodeTreeStory(module: GraphNodeTreeStoryModule): Promise<void> {
+      if (nodeTreePreview === null) {
+        nodeTreePreview = await module.createPreview()
+        runtime.addSurface(nodeTreePreview.surface, ({w, h}) => ({
+          ...frames(w, h).preview,
+          visible: nodeTreeActive,
+        }))
+      }
+      nodeTreeActive = true
+    }
+
+    function activateStandardStory(): void {
+      nodeTreeActive = false
+    }
+
+    async function presentNodeTreeStory(): Promise<void> {
+      if (!nodeTreeActive || nodeTreePreview === null) return
+      const frame = frames(
+        storyCanvas.clientWidth || storyCanvas.width,
+        storyCanvas.clientHeight || storyCanvas.height,
+      ).preview
+      const snapshot = await nodeTreePreview.present({
+        width: Math.max(1, frame.w),
+        height: Math.max(1, frame.h),
+      }, state.args)
+      document.documentElement.dataset.quantumStorybookNodeTree = JSON.stringify(snapshot)
+    }
+
     router.subscribe((node) => {
       void applyNode(node).catch(publishGraphStorybookError)
     })
@@ -224,16 +271,21 @@ async function startGraphStorybook(): Promise<void> {
       },
       setControl(key, value) {
         state.setControl(key, value)
-        preview.setArgs(state.args)
+        if (nodeTreeActive) void presentNodeTreeStory().then(publish).catch(publishGraphStorybookError)
+        else preview.setArgs(state.args)
         storyPanel.setOptions(panelOptions())
         return publish()
       },
     })
     new ResizeObserver(() => {
       runtime.handleResize()
-      publish()
+      void presentNodeTreeStory().then(publish).catch(publishGraphStorybookError)
     }).observe(canvas)
     runtime.handleResize()
+    if (isGraphNodeTreeStoryModule(state.module)) await activateNodeTreeStory(state.module)
+    else activateStandardStory()
+    if (nodeTreeActive) await presentNodeTreeStory()
+    runtime.relayout()
     if (router.current !== initialNode) {
       await applyNode(router.current)
       return

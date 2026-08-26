@@ -77,6 +77,7 @@ describe("Quantum Graph Storybook laboratory", () => {
     expect(graphStorybookPresentationRoute("")).toBe("document/current/complete")
     expect(graphStorybookPresentationRoute("validation")).toBe("validation/contract/closed")
     expect(graphStorybookPresentationRoute("reaction")).toBe("reaction/dependencies/complete")
+    expect(graphStorybookPresentationRoute("node-tree")).toBe("node-tree/projection/live")
     expect(graphStorybookPresentationRoute("identity/same-meta")).toBe("identity/same-meta/reorder")
     expect(() => graphStorybookPresentationRoute("validation/unknown")).toThrow(
       "Неизвестный путь лаборатории Graph",

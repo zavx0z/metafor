@@ -59,6 +59,7 @@ describe("Quantum Graph Storybook delivery", () => {
     expect(overview?.headers.get("location")).toBe("/graph/")
     expect((await page.routeResponse("/graph/document/current/complete"))?.status).toBe(200)
     expect((await page.routeResponse("/graph/reaction/dependencies/complete"))?.status).toBe(200)
+    expect((await page.routeResponse("/graph/node-tree/projection/live"))?.status).toBe(200)
     expect((await page.routeResponse("/graph/unknown"))?.status).toBe(404)
   })
 
@@ -81,6 +82,7 @@ describe("Quantum Graph Storybook delivery", () => {
     expect(source).toContain("quantumStorybook")
     expect(source).toContain("StorybookBackdropSurface")
     expect(source).toContain("GraphLabState")
+    expect(source).toContain("isGraphNodeTreeStoryModule")
     expect(source).toContain("waitForStorybookFrameBoundary")
     expect(page.diagnostics.builds).toBe(1)
   })
@@ -100,6 +102,7 @@ describe("Quantum Graph Storybook delivery", () => {
     try {
       expect((await fetch(new URL("/graph/", server.url))).status).toBe(200)
       expect((await fetch(new URL("/graph/document/current/complete", server.url))).status).toBe(200)
+      expect((await fetch(new URL("/graph/node-tree/projection/live", server.url))).status).toBe(200)
       expect((await fetch(new URL("/graph/unknown", server.url))).status).toBe(404)
       expect((await fetch(new URL("/graph/fonts/jetbrains-mono-bold.ttf", server.url))).status).toBe(200)
     } finally {
@@ -115,6 +118,10 @@ describe("Quantum Graph Storybook delivery", () => {
     const dependencyNames = [
       "@engine/core",
       "@layout/core",
+      "@metafor/node-tree",
+      "@nodes/core",
+      "@nodes/layout",
+      "@nodes/ui",
       "@ui/workspace",
       "@zavx0z/highlighter",
       "@zavx0z/storybook",
@@ -154,17 +161,33 @@ describe("Quantum Graph Storybook delivery", () => {
     expect(manifest.assets.some(({path}) => path === "/graph/fonts/jetbrains-mono-bold.ttf")).toBe(true)
     expect(manifest.assets.every(({bytes, sha256}) => bytes >= 0 && /^[0-9a-f]{64}$/.test(sha256))).toBe(true)
 
+    const builtEntry = await readFile(join(
+      outputRoot,
+      manifest.pages[0]!.entry.replace(/^\/graph\//u, ""),
+    ), "utf8")
+    const lazyChunks = await Promise.all(manifest.pages[0]!.chunks.map(async (path) =>
+      await readFile(join(outputRoot, path.replace(/^\/graph\//u, "")), "utf8")))
+    expect(builtEntry).not.toContain("createGraphNodeTree(input)")
+    expect(lazyChunks.some((source) => source.includes("createGraphNodeTree"))).toBe(true)
+
     const recovery = await readFile(join(outputRoot, "404.html"), "utf8")
     expect(recovery).toContain("/graph/document/current/complete")
+    expect(recovery).toContain("/graph/node-tree/projection/live")
     expect(recovery).not.toContain("/graph/unknown")
   })
 
   test("keeps server and local build on direct shared delivery imports", async () => {
     const serverSource = await readFile(join(import.meta.dir, "../../storybook/server.ts"), "utf8")
     const buildSource = await readFile(join(import.meta.dir, "../../storybook/build.ts"), "utf8")
+    const storiesSource = await readFile(join(import.meta.dir, "../../storybook/graph/stories.ts"), "utf8")
     const storybookPackage = JSON.parse(
       await readFile(join(import.meta.dir, "../../storybook/package.json"), "utf8"),
-    ) as {name?: string; private?: boolean; scripts?: Record<string, string>}
+    ) as {
+      name?: string
+      private?: boolean
+      scripts?: Record<string, string>
+      dependencies?: Record<string, string>
+    }
 
     expect(serverSource).toContain('from "@zavx0z/storybook/server"')
     expect(serverSource).toContain("startStorybookPackageServer({")
@@ -173,9 +196,15 @@ describe("Quantum Graph Storybook delivery", () => {
     expect(serverSource).not.toContain('from "@ui/storybook/server"')
     expect(buildSource).toContain('from "@zavx0z/storybook/build"')
     expect(buildSource).toContain('join(import.meta.dir, "dist")')
+    expect(storiesSource).toContain('await import("./stories/node-tree.ts")')
+    expect(storiesSource).not.toContain('from "./stories/node-tree.ts"')
     for (const dependency of [
       "@engine/core/default-font",
       "@layout/core/runtime",
+      "@metafor/node-tree/graph",
+      "@nodes/core/node-tree",
+      "@nodes/layout/types",
+      "@nodes/ui/node-editor",
       "@ui/elements/primitives",
       "@zavx0z/highlighter",
       "@zavx0z/storybook/app",
@@ -188,5 +217,11 @@ describe("Quantum Graph Storybook delivery", () => {
     })
     expect(storybookPackage.scripts?.storybook).toBe("bun server.ts")
     expect(storybookPackage.scripts?.check).toBe("bun run typecheck && bun run test && bun run build")
+    expect(storybookPackage.dependencies).toMatchObject({
+      "@metafor/node-tree": "workspace:*",
+      "@nodes/core": "link:@nodes/core",
+      "@nodes/layout": "link:@nodes/layout",
+      "@nodes/ui": "link:@nodes/ui",
+    })
   })
 })

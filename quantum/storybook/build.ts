@@ -30,6 +30,10 @@ async function dependencyIdentities(): Promise<readonly StorybookDependencyIdent
   const inputs = [
     ["@engine/core", import.meta.resolve("@engine/core/default-font")],
     ["@layout/core", import.meta.resolve("@layout/core/runtime")],
+    ["@metafor/node-tree", import.meta.resolve("@metafor/node-tree/graph")],
+    ["@nodes/core", import.meta.resolve("@nodes/core/node-tree")],
+    ["@nodes/layout", import.meta.resolve("@nodes/layout/types")],
+    ["@nodes/ui", import.meta.resolve("@nodes/ui/node-editor")],
     ["@ui/workspace", import.meta.resolve("@ui/elements/primitives")],
     ["@zavx0z/highlighter", import.meta.resolve("@zavx0z/highlighter")],
     ["@zavx0z/storybook", import.meta.resolve("@zavx0z/storybook/app")],

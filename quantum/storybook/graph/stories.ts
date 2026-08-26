@@ -9,6 +9,7 @@ export type GraphStoryRoute =
   | "document/current/complete"
   | "reaction/dependencies/complete"
   | "validation/contract/closed"
+  | "node-tree/projection/live"
   | "identity/same-meta/reorder"
 
 const loadCurrentStory = async (): Promise<StorybookStoryModule> => {
@@ -29,6 +30,11 @@ const loadReactionStory = async (): Promise<StorybookStoryModule> => {
 const loadIdentityStory = async (): Promise<StorybookStoryModule> => {
   const {createIdentityGraphStory} = await import("./stories/identity.ts")
   return createIdentityGraphStory()
+}
+
+const loadNodeTreeStory = async (): Promise<StorybookStoryModule> => {
+  const {createGraphNodeTreeStory} = await import("./stories/node-tree.ts")
+  return createGraphNodeTreeStory()
 }
 
 /** Единый typed catalog Graph laboratory: route, source, controls и preview. */
@@ -91,22 +97,40 @@ export const GRAPH_STORIES = defineStorybookStories({
     {
       id: "experiments",
       label: "Эксперименты",
-      components: [{
-        id: "identity",
-        label: "Идентичность",
-        apiName: "MetaRuntimeAtomLocator",
-        tags: ["identity", "path", "same-meta", "reorder"],
-        sections: [{
-          id: "same-meta",
-          label: "Одинаковая Meta",
-          variants: [{
-            id: "reorder",
-            label: "Вставка соседа",
-            title: "Graph · Путь после вставки",
-            load: loadIdentityStory,
+      components: [
+        {
+          id: "node-tree",
+          label: "NodeTree",
+          apiName: "createGraphNodeTree",
+          tags: ["node-tree", "projection", "node-editor", "live", "adapter"],
+          sections: [{
+            id: "projection",
+            label: "Проекция",
+            variants: [{
+              id: "live",
+              label: "Живой Graph",
+              title: "Graph · NodeTree projection",
+              load: loadNodeTreeStory,
+            }],
           }],
-        }],
-      }],
+        },
+        {
+          id: "identity",
+          label: "Идентичность",
+          apiName: "MetaRuntimeAtomLocator",
+          tags: ["identity", "path", "same-meta", "reorder"],
+          sections: [{
+            id: "same-meta",
+            label: "Одинаковая Meta",
+            variants: [{
+              id: "reorder",
+              label: "Вставка соседа",
+              title: "Graph · Путь после вставки",
+              load: loadIdentityStory,
+            }],
+          }],
+        },
+      ],
     },
   ],
   representative: {component: "document", section: "current", variant: "complete"},

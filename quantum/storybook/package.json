@@ -6,13 +6,17 @@
   "scripts": {
     "storybook": "bun server.ts",
     "build": "bun build.ts",
-    "test": "bun test ../tests/graph/storybook.spec.ts",
+    "test": "bun test ../tests/graph/storybook.spec.ts ../tests/graph/node-tree-presentation.spec.ts",
     "typecheck": "tsc --noEmit --pretty false",
     "check": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "@engine/core": "link:@engine/core",
     "@layout/core": "link:@layout/core",
+    "@metafor/node-tree": "workspace:*",
+    "@nodes/core": "link:@nodes/core",
+    "@nodes/layout": "link:@nodes/layout",
+    "@nodes/ui": "link:@nodes/ui",
     "@ui/components": "link:@ui/components",
     "@ui/elements": "link:@ui/elements",
     "@zavx0z/highlighter": "link:@zavx0z/highlighter",
