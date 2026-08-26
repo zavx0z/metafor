@@ -2,6 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {MetaFor} from "@metafor/dsl"
 import {
   GRAPH_SCHEMA,
+  READ_GRAPH_DELTA_METHOD,
   READ_GRAPH_METHOD,
   type MetaAddress,
   type MetaField,
@@ -343,6 +344,7 @@ describe("Graph public contract", () => {
     const root = input.template[ROOT]!
 
     expect(READ_GRAPH_METHOD).toBe("readGraph")
+    expect(READ_GRAPH_DELTA_METHOD).toBe("readGraphDelta")
     expect(params).toEqual({})
     expect(result).toEqual({ok: true, value: input})
     expect(root.superposition.map(({name}) => name)).toEqual(["idle", "ready"])

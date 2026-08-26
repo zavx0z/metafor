@@ -2,6 +2,9 @@ import type {MetaAuthoringCauseV1, MetaForceAcceptanceIdentity} from "./authorin
 import {
   parseMetaAddress,
   type AtomRef,
+  type Graph,
+  type GraphDelta,
+  type GraphDigest,
   type JsonPointer,
   type JsonValue,
   type MetaAddress,
@@ -25,6 +28,66 @@ export type MetaCausalFrontier = {
   throughSequence: number
   retroactiveComplete: false
 }
+
+/**
+Exact identity of one complete Graph assembled while the applied-through
+frontier is held. The digest addresses canonical Graph bytes, not Force history.
+*/
+export type MetaGraphSnapshotIdentity = {
+  root: MetaAddress
+  frontier: MetaCausalFrontier
+  digest: GraphDigest
+}
+
+/**
+Requests the first coherent snapshot or a delta from a previously issued base.
+
+The server may forget a base because its snapshot cache is disposable. Such a
+miss returns another exact full snapshot instead of an inferred delta.
+*/
+export type ReadGraphDeltaRequest = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  base: MetaGraphSnapshotIdentity | null
+}
+
+export type ReadGraphDeltaSnapshotReceipt = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  resolution: "exact"
+  kind: "snapshot"
+  reason: "initial" | "resync"
+  snapshot: {
+    identity: MetaGraphSnapshotIdentity
+    graph: Graph
+  }
+}
+
+/**
+Exact causal step from one retained snapshot to the newly held frontier.
+
+`delta.changes` may be empty when Force time advanced without changing the
+public Graph. The distinct result frontier still records that logical tick.
+*/
+export type ReadGraphDeltaDeltaReceipt = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  resolution: "exact"
+  kind: "delta"
+  base: MetaGraphSnapshotIdentity
+  result: MetaGraphSnapshotIdentity
+  delta: GraphDelta
+}
+
+export type ReadGraphDeltaUnavailableReceipt = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  resolution: "unknown"
+  kind: "unavailable"
+  reason: "checkpoint-unavailable" | "baseline-unresolved"
+}
+
+/** Closed result of one causal Graph observation. */
+export type ReadGraphDeltaReceipt =
+  | ReadGraphDeltaSnapshotReceipt
+  | ReadGraphDeltaDeltaReceipt
+  | ReadGraphDeltaUnavailableReceipt
 
 /** Stable Graph Atom ref guarded by both current root and expected Meta. */
 export type MetaRuntimeAtomLocator = {
@@ -244,6 +307,60 @@ const validateFrontier = (
   }
   if (issues.length > 0) return {ok: false, issues}
   return {ok: true, value: structuredClone(value) as MetaCausalFrontier}
+}
+
+/** Validates an identity previously returned by `readGraphDelta`. */
+export const validateMetaGraphSnapshotIdentity = (
+  value: unknown,
+  path: JsonPointer,
+): ValidationResult<MetaGraphSnapshotIdentity> => {
+  if (!isRecord(value) || !exactKeys(value, ["root", "frontier", "digest"])) {
+    return {ok: false, issues: [issue(path, "invalid_graph_identity", "Graph snapshot identity must be closed")]}
+  }
+  const root = typeof value.root === "string" ? parseMetaAddress(value.root) : null
+  const frontier = validateFrontier(value.frontier, childPath(path, "frontier"))
+  const issues: ValidationIssue[] = []
+  if (!root) {
+    issues.push(issue(childPath(path, "root"), "invalid_meta_address", "Graph snapshot root must be canonical"))
+  }
+  if (!frontier.ok) issues.push(...frontier.issues)
+  if (typeof value.digest !== "string" || !DIGEST.test(value.digest)) {
+    issues.push(issue(childPath(path, "digest"), "invalid_digest", "Graph snapshot digest is invalid"))
+  }
+  if (issues.length > 0 || !root || !frontier.ok) return {ok: false, issues}
+  return {
+    ok: true,
+    value: {
+      root,
+      frontier: frontier.value,
+      digest: value.digest as GraphDigest,
+    },
+  }
+}
+
+/** Validates the closed initial-or-delta Graph request. */
+export const validateReadGraphDeltaRequest = (
+  input: unknown,
+): ValidationResult<ReadGraphDeltaRequest> => {
+  if (!isRecord(input) || !exactKeys(input, ["contractVersion", "base"])) {
+    return {ok: false, issues: [issue("", "invalid_request", "Graph delta request must be a closed plain object")]}
+  }
+  const issues: ValidationIssue[] = []
+  if (input.contractVersion !== META_OBSERVATION_CONTRACT_VERSION) {
+    issues.push(issue("/contractVersion", "invalid_literal", "Unsupported observation contract version"))
+  }
+  const base = input.base === null
+    ? {ok: true, value: null} as const
+    : validateMetaGraphSnapshotIdentity(input.base, "/base")
+  if (!base.ok) issues.push(...base.issues)
+  if (issues.length > 0 || !base.ok) return {ok: false, issues}
+  return {
+    ok: true,
+    value: {
+      contractVersion: META_OBSERVATION_CONTRACT_VERSION,
+      base: base.value,
+    },
+  }
 }
 
 const validateSemanticKey = (

@@ -14,6 +14,8 @@ export const GRAPH_SCHEMA = "metafor/graph" as const
 export const GRAPH_DELTA_SCHEMA = "metafor/graph-delta/v1" as const
 /** Dark Oracle method, возвращающий полный текущий Graph без client-selected root. */
 export const READ_GRAPH_METHOD = "readGraph" as const
+/** Dark Oracle method для coherent initial Graph либо следующего ref-based delta. */
+export const READ_GRAPH_DELTA_METHOD = "readGraphDelta" as const
 
 /** JSON leaf, допустимый в Graph после закрытой validation. */
 export type JsonPrimitive = null | boolean | number | string

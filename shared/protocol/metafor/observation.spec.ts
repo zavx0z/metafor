@@ -6,7 +6,9 @@ import {
   validateDarkForceHistoryReadRequest,
   validateEnergyMassResultReadRequest,
   validateMetaFieldValueApplyRequest,
+  validateMetaGraphSnapshotIdentity,
   validateMetaProcessExecutionReadRequest,
+  validateReadGraphDeltaRequest,
 } from "./observation.ts"
 
 const ROOT = parseMetaAddress("zavx0z/lada")!
@@ -38,6 +40,29 @@ describe("agent observation public contracts", () => {
       contractVersion: 1,
       query: {kind: "frontier", clear: true},
     })).toMatchObject({ok: false, issues: [{code: "unknown_property"}]})
+  })
+
+  test("accepts initial Graph sync and one previously issued exact base", () => {
+    const identity = {
+      root: ROOT,
+      frontier: {cutId: "cut-1", throughSequence: 17, retroactiveComplete: false as const},
+      digest: `sha256:${"a".repeat(64)}` as const,
+    }
+    expect(validateReadGraphDeltaRequest({contractVersion: 1, base: null})).toEqual({
+      ok: true,
+      value: {contractVersion: 1, base: null},
+    })
+    expect(validateMetaGraphSnapshotIdentity(identity, "/base")).toEqual({ok: true, value: identity})
+    expect(validateReadGraphDeltaRequest({contractVersion: 1, base: identity})).toEqual({
+      ok: true,
+      value: {contractVersion: 1, base: identity},
+    })
+    expect(validateReadGraphDeltaRequest({
+      contractVersion: 1,
+      base: {...identity, digest: "a".repeat(64)},
+    })).toMatchObject({ok: false, issues: [{path: "/base/digest", code: "invalid_digest"}]})
+    expect(validateReadGraphDeltaRequest({contractVersion: 1, base: identity, root: ROOT}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_request"}]})
   })
 
   test("accepts a bounded Mass result locator and rejects filesystem-shaped input", () => {

@@ -1,5 +1,8 @@
 import {describe, expect, test} from "bun:test"
-import {parseMetaAddress} from "@metafor/types/metafor/graph"
+import {
+  READ_GRAPH_DELTA_METHOD,
+  parseMetaAddress,
+} from "@metafor/types/metafor/graph"
 import {
   META_CAPABILITIES_READ_METHOD,
   META_CREATE_METHOD,
@@ -28,6 +31,7 @@ import {
   DARK_FORCE_STACK_METHOD,
   DARK_FORCE_STEP_METHOD,
   DarkOracle,
+  DarkOracleMutationGate,
 } from "./oracle.ts"
 
 class TestChannel implements OracleChannel {
@@ -89,6 +93,14 @@ describe("Dark Oracle", () => {
       pauseStack() {
         return []
       },
+      async readAtExactFrontier(reader) {
+        return await reader({
+          cutId: "cut-oracle",
+          phase: "held",
+          acceptanceSequence: 4,
+          domains: [],
+        })
+      },
     })
     oracle.setHistory({
       read() {
@@ -113,6 +125,7 @@ describe("Dark Oracle", () => {
       DARK_FORCE_STACK_METHOD,
       DARK_FORCE_STEP_METHOD,
       "readGraph",
+      READ_GRAPH_DELTA_METHOD,
     ])
     oracle.onChannelOpened()
 
@@ -239,6 +252,168 @@ describe("Dark Oracle", () => {
       {method: META_MATTER_APPLY_METHOD},
       {method: META_DECLARATION_APPLY_METHOD},
     ])
+  })
+
+  test("waits for an admitted authoring projection before holding causal time", async () => {
+    const events: string[] = []
+    let finishMutation!: () => void
+    const mutationDone = new Promise<void>((resolve) => {
+      finishMutation = resolve
+    })
+    let mutationStarted!: () => void
+    const started = new Promise<void>((resolve) => {
+      mutationStarted = resolve
+    })
+    const oracle = new DarkOracle()
+    oracle.setTimeControl({
+      async pauseExternalAdmission() {
+        events.push("admission:closed")
+        events.push("frontier:held")
+        return {
+          id: 1,
+          frontier: {cutId: "cut-gate", phase: "held", acceptanceSequence: 3, domains: []},
+        }
+      },
+      async stepAgentParticle() {
+        throw new Error("not used")
+      },
+      resumeExternalAdmission() {},
+      pauseStack() {
+        return []
+      },
+      async readAtExactFrontier(reader) {
+        return await reader({cutId: "cut-gate", phase: "held", acceptanceSequence: 3, domains: []})
+      },
+    })
+    oracle.setAuthoring({
+      registry: {
+        readCapabilities() {
+          throw new Error("not used")
+        },
+        async readSourceRevisions() {
+          throw new Error("not used")
+        },
+      },
+      create: {
+        async create() {
+          throw new Error("not used")
+        },
+      },
+      matter: {
+        async apply() {
+          throw new Error("not used")
+        },
+      },
+      declaration: {
+        async apply() {
+          events.push("mutation:started")
+          mutationStarted()
+          await mutationDone
+          events.push("mutation:finished")
+          return {ok: true} as never
+        },
+      },
+    })
+    const channel = new TestChannel()
+    const peer = new OracleRpcPeer(channel)
+    oracle.onServerStarted(peer)
+
+    const mutation = channel.receive({
+      version: ORACLE_RPC_VERSION,
+      id: "mutation",
+      source: "agent/local",
+      target: "dark",
+      method: META_DECLARATION_APPLY_METHOD,
+      params: {},
+    })
+    await started
+    const pause = channel.receive({
+      version: ORACLE_RPC_VERSION,
+      id: "pause",
+      source: "agent/local",
+      target: "dark",
+      method: DARK_FORCE_PAUSE_METHOD,
+      params: {},
+    })
+    await Bun.sleep(0)
+    expect(events).toEqual(["mutation:started"])
+
+    finishMutation()
+    await Promise.all([mutation, pause])
+    expect(events).toEqual([
+      "mutation:started",
+      "mutation:finished",
+      "admission:closed",
+      "frontier:held",
+    ])
+
+    await channel.receive({
+      version: ORACLE_RPC_VERSION,
+      id: "mutation-blocked",
+      source: "agent/local",
+      target: "dark",
+      method: META_DECLARATION_APPLY_METHOD,
+      params: {},
+    })
+    expect(events).toEqual([
+      "mutation:started",
+      "mutation:finished",
+      "admission:closed",
+      "frontier:held",
+    ])
+    expect(channel.sent.find((message) => message.id === "mutation-blocked")).toMatchObject({
+      ok: false,
+      error: {message: "Dark Oracle mutation admission is held by causal time"},
+    })
+
+    await channel.receive({
+      version: ORACLE_RPC_VERSION,
+      id: "resume",
+      source: "agent/local",
+      target: "dark",
+      method: DARK_FORCE_RESUME_METHOD,
+      params: {},
+    })
+    await channel.receive({
+      version: ORACLE_RPC_VERSION,
+      id: "mutation-after-resume",
+      source: "agent/local",
+      target: "dark",
+      method: META_DECLARATION_APPLY_METHOD,
+      params: {},
+    })
+    expect(events.slice(-2)).toEqual(["mutation:started", "mutation:finished"])
+  })
+
+  test("keeps a new mutation outside one causal provider read", async () => {
+    const gate = new DarkOracleMutationGate()
+    const events: string[] = []
+    let releaseProvider!: () => void
+    const providerReleased = new Promise<void>((resolve) => {
+      releaseProvider = resolve
+    })
+    let providerStarted!: () => void
+    const providerHeld = new Promise<void>((resolve) => {
+      providerStarted = resolve
+    })
+
+    const causalRead = gate.withClosedAdmission(async () => {
+      events.push("provider:started")
+      providerStarted()
+      await providerReleased
+      events.push("provider:finished")
+      return "snapshot"
+    })
+    await providerHeld
+    await expect(gate.run(async () => {
+      events.push("mutation:side-effect")
+      return "mutation"
+    })).rejects.toThrow("mutation admission is held")
+    expect(events).toEqual(["provider:started"])
+
+    releaseProvider()
+    await expect(causalRead).resolves.toBe("snapshot")
+    expect(events).toEqual(["provider:started", "provider:finished"])
   })
 
   test("exposes the subject Field input and Process execution projection", async () => {

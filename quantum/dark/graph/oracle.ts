@@ -9,6 +9,7 @@ Graph persistence.
 
 import {
   GRAPH_SCHEMA,
+  READ_GRAPH_DELTA_METHOD,
   READ_GRAPH_METHOD,
   parseMetaAddress,
   validateGraph,
@@ -21,6 +22,8 @@ import {
   type BoundaryGraphProjection,
 } from "shared/protocol/boundary/runtime"
 import type {OracleRpcPeer} from "shared/transport/oracle"
+import type {DarkForceTimeControl} from "../time-control.ts"
+import {CausalGraphReadService} from "./causal.ts"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
   type DarkGraphTemplate,
@@ -265,12 +268,40 @@ export const assembleGraph = async (
   return validatedJoin(root, darkValue, boundary)
 }
 
-/** Dark Oracle service surface; it retains no assembled document or provider result. */
+/**
+Dark Oracle service surface for stateless Graph reads and causal delta cursors.
+
+`readGraph` retains nothing. `readGraphDelta` uses a separate bounded disposable
+snapshot cache and resynchronizes with a full Graph after eviction or restart.
+*/
 export class GraphOracle {
+  #causalTime: Pick<DarkForceTimeControl, "readAtExactFrontier"> | null = null
+  #started = false
+
+  /** Installs the same applied-through hold used by Dark pause and step. */
+  setCausalTime(control: Pick<DarkForceTimeControl, "readAtExactFrontier">): void {
+    if (this.#started || this.#causalTime) {
+      throw new Error("Graph Oracle causal time is already installed or RPC registration has started")
+    }
+    this.#causalTime = control
+  }
+
   onServerStarted(peer: GraphOraclePeer): void {
+    if (this.#started) return
+    this.#started = true
     peer.expose(
       READ_GRAPH_METHOD,
       async (params) => await assembleGraph(peer, params),
     )
+    if (this.#causalTime) {
+      const causal = new CausalGraphReadService(
+        this.#causalTime,
+        async () => await assembleGraph(peer, {}),
+      )
+      peer.expose(
+        READ_GRAPH_DELTA_METHOD,
+        async (params) => await causal.read(params),
+      )
+    }
   }
 }

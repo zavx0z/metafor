@@ -96,38 +96,45 @@ transport и routing законами Oracle RPC, но не формой кли�
 
 ### Что реализовано и проверено сейчас
 
-- `boundary.initialState.read` возвращает полный нормализованный initial state,
+* `boundary.initialState.read` возвращает полный нормализованный initial state,
   нужный Matrix при рождении.
-- `boundary.initialProjection.read` возвращает полный текущий canonical
+* `boundary.initialProjection.read` возвращает полный текущий canonical
   projection, которым при рождении пользуется Energy.
-- `readGraph` принимает пустой request без выбранного клиентом root. Dark
+* `readGraph` принимает пустой request без выбранного клиентом root. Dark
   получает единственный текущий runtime root из coherent Boundary projection,
   собирает весь reachable declaration/runtime Graph и возвращает root как
   проверяемые данные самого ответа.
-- `dark.force.pause` закрывает только внешний вход Agent Particle и ждёт
+* `readGraphDelta` принимает `base: null` либо identity ранее выданного полного
+  Graph snapshot. Dark закрывает admission новых Oracle mutations, завершает
+  уже допущенные, затем закрывает внешний Force ingress и удерживает
+  applied-through frontier. Ответ возвращает initial/resync snapshot того же
+  Graph либо ref-based delta с
+  exact base/result identities. Недоказанный sequence-zero baseline даёт
+  `resolution: unknown`, а не условный Graph.
+* `dark.force.pause` закрывает только внешний вход Agent Particle и ждёт
   согласованную причинную границу checkpoint.
-- `dark.force.step` после pause принимает ровно одну Agent Particle и снова
+* `dark.force.step` после pause принимает ровно одну Agent Particle и снова
   устанавливает причинную границу.
-- `dark.force.stack` возвращает временные границы текущей паузы, а
+* `dark.force.stack` возвращает временные границы текущей паузы, а
   `dark.force.resume` открывает внешний вход и очищает этот временный список.
-- `bulk.observer.captureViewport` возвращает PNG и компактное доказательство
+* `bulk.observer.captureViewport` возвращает PNG и компактное доказательство
   Store cut уже подключённого observer-сеанса.
-- `dark.force.history.read` возвращает exact current frontier либо ограниченный
+* `dark.force.history.read` возвращает exact current frontier либо ограниченный
   acceptance-sequence range прямо из существующей Dark Force history. Старые
   `dark.history.read/clear` и любой history clear не опубликованы.
-- `energy.mass.result.read` возвращает текущий bounded JSON либо base64 result
+* `energy.mass.result.read` возвращает текущий bounded JSON либо base64 result
   одного объявленного Mass key, его digest и causal frontier. Метод принимает
   public Graph Atom ref с root/Meta guards и не принимает raw Atom ID.
-- `meta.field.value.apply` принимает public Graph Atom locator, semantic Field
+* `meta.field.value.apply` принимает public Graph Atom locator, semantic Field
   key ordinary Field, типизированное scalar-значение и точную ожидаемую causal
   frontier. Внутренний Boundary provider разрешает ref и Field, а Dark Force
   принимает одну Gluon Particle в существующую history. `enum` и `array`
   являются topology Fields и меняются только Process; этот RPC их отклоняет.
-- `meta.process.execution.read` возвращает для public Graph Atom locator,
+* `meta.process.execution.read` возвращает для public Graph Atom locator,
   Process key и public execution identity текущий `pending`, `committed`,
   `failed` либо `superseded`, acceptance регистрации, optional settlement,
   доступные Fields/error и exact causal frontier.
-- `energy.mass.fence` и `energy.mass.release` являются внутренними lifecycle RPC
+* `energy.mass.fence` и `energy.mass.release` являются внутренними lifecycle RPC
   для безопасной работы Boundary с Mass identity, а не клиентским чтением.
 
 В текущем public contract нет проверенного RPC, который возвращает компактный
@@ -137,6 +144,27 @@ transport и routing законами Oracle RPC, но не формой кли�
 ### Read contracts одного агента
 
 Новая access policy и конкурентные чтения в этот этап не входят.
+
+`readGraphDelta` не меняет и не заменяет `readGraph`. Initial request использует
+`base: null` и получает тот же полный nested Graph вместе с exact identity:
+root, held causal frontier и digest. На всё время hold новые mutation RPC
+отклоняются до вызова их provider, а ранее допущенные завершаются до чтения.
+Следующий request возвращает `GraphDelta`, только если exact base ещё известен
+bounded disposable cache. Delta адресует
+template через Meta address, runtime nodes и Reaction relations через stable
+refs, а порядок вложения — через полный список child refs; JSON Pointer не
+является mutation target. Клиент применяет delta атомарно и сверяет оба digest.
+Если Force frontier продвинулась без изменения публичного Graph, exact delta
+содержит пустой `changes`, но сохраняет новую result frontier как отдельный
+logical tick.
+
+Cache miss, restart либо смена cut/root возвращают новый полный exact snapshot
+с `reason: resync`. Cache не является каноническим Store, не сохраняется и не
+доказывает историю. Causal provenance по-прежнему читается отдельно через
+`dark.force.history.read`; Graph snapshot и delta не добавляются в Force NDJSON.
+Если checkpoint plane отсутствует или sequence-zero baseline не доказан, ответ
+имеет `resolution: unknown` и не содержит Graph, которому была бы приписана
+недоказанная frontier.
 
 `dark.force.history.read` читает существующую append-only Particle-history, а
 не создаёт новый журнал. Закрытый request задаёт один cut и ограниченный
@@ -260,27 +288,28 @@ filesystem paths, `MassHandle` или живые Energy handles.
 усечёнными branches остаётся partial, даже если все данные внутри его
 объявленной границы имеют resolution `exact`.
 
-Имена startup/projection методов, JSON schema, Boundary snapshot identity и
-frontier representation пока не реализованы и не входят в действующий public
-API. Текущий проверенный RPC surface остаётся перечисленным в разделе
-«Что реализовано и проверено сейчас».
+Имена partial startup/projection методов, их scope schema и Boundary snapshot
+identity пока не реализованы и не входят в действующий public API. Exact
+full-root Graph frontier/digest принадлежат действующему `readGraphDelta`.
 
 #### Проверенный первый локальный профиль
 
 Один доверенный локальный агент может выполнить полную рабочую сессию без
 нового startup endpoint и без скрытого context. Внешний task envelope
 передаёт digest применимых документов-владельцев, Git revision, source
-revision, результат `meta.capabilities.read`, текущий `readGraph`, exact Force
-frontier, цель и root scope. На этом этапе используется полный Graph текущего
-root: будущая частичная проекция и новая access policy не считаются
-реализованными.
+revision, результат `meta.capabilities.read`, initial snapshot
+`readGraphDelta`, цель и root scope. Snapshot уже связывает полный Graph
+текущего root с exact Force frontier и digest; будущая частичная проекция и
+новая access policy не считаются реализованными.
 
 Тот же RPC source применяет structural patch с автоматической source
 projection, меняет предметный Field, а затем проверяет State, Process outcome,
-Mass result и Bulk viewport evidence по публичным RPC. Следующий запрос history
-начинается с `throughSequence + 1` предыдущей exact frontier и не повторяет
-Graph snapshot. Истиной результата остаются эти первичные проекции и
-существующая Particle-history, а не память агента и не второй журнал.
+Mass result и Bulk viewport evidence по публичным RPC. Следующий
+`readGraphDelta` использует identity предыдущего snapshot и получает compact
+ref-based изменение либо явный resync. Запрос history начинается с
+`throughSequence + 1` предыдущей exact frontier. Истиной результата остаются
+эти первичные проекции и существующая Particle-history, а не память агента и не
+второй журнал.
 
 ### Gem на AI-server — планируемый startup profile
 
@@ -303,6 +332,10 @@ templates/particles, минимальные topology consequences и новую 
 identity. Пропущенный frontier или разрыв последовательности требует явного
 resync в пределах того же scope; клиент не достраивает пропуск из скрытого
 context и не объявляет его точным.
+
+Действующий `readGraphDelta` уже даёт такую exact последовательность для
+полного текущего root. Автоматический scoped startup, partial closure и
+per-capability filtering остаются планируемой частью Gem profile.
 
 Mass отсутствует в обычном topology snapshot и delta. Действующий
 `energy.mass.result.read` делает отдельный bounded fetch объявленного key по

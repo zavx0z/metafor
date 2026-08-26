@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {
   GRAPH_SCHEMA,
+  READ_GRAPH_DELTA_METHOD,
   READ_GRAPH_METHOD,
   parseMetaAddress,
   validateGraph,
@@ -16,6 +17,7 @@ import {
   GraphAssemblyError,
   GraphOracle,
 } from "../../dark/graph/oracle.ts"
+import type {ReadGraphDeltaSnapshotReceipt} from "shared/protocol/metafor/observation"
 
 const ROOT = parseMetaAddress("example/root")!
 const CHILD = parseMetaAddress("example/child")!
@@ -41,8 +43,12 @@ class TestPeer {
   }
 
   async invoke(params: unknown): Promise<unknown> {
-    const handler = this.handlers.get(READ_GRAPH_METHOD)
-    if (!handler) throw new Error("Graph read handler is not exposed")
+    return await this.invokeMethod(READ_GRAPH_METHOD, params)
+  }
+
+  async invokeMethod(method: string, params: unknown): Promise<unknown> {
+    const handler = this.handlers.get(method)
+    if (!handler) throw new Error(`Graph handler is not exposed: ${method}`)
     const context: OracleRpcContext = {source: "test/client"}
     return await handler(params, context)
   }
@@ -439,5 +445,57 @@ describe("stateless Graph Oracle assembly", () => {
     expect(first.runtime.roots[0]).toMatchObject({values: {label: "value 1"}})
     expect(second.template[ROOT]!.name).toBe("Root 2")
     expect(second.runtime.roots[0]).toMatchObject({values: {label: "value 2"}})
+  })
+})
+
+describe("causal Graph Oracle exposure", () => {
+  test("assembles the same Graph while the applied-through frontier is held", async () => {
+    const events: string[] = []
+    const peer = new TestPeer(providers(
+      () => {
+        events.push("dark")
+        return {root: ROOT, template: template()}
+      },
+      () => {
+        events.push("boundary")
+        return {root: ROOT, runtime: runtime()}
+      },
+    ))
+    const oracle = new GraphOracle()
+    oracle.setCausalTime({
+      async readAtExactFrontier(reader) {
+        events.push("hold")
+        const result = await reader({
+          cutId: "graph-oracle-cut",
+          phase: "held",
+          acceptanceSequence: 7,
+          domains: [],
+        })
+        events.push("release")
+        return result
+      },
+    })
+    oracle.onServerStarted(peer)
+
+    const result = await peer.invokeMethod(
+      READ_GRAPH_DELTA_METHOD,
+      {contractVersion: 1, base: null},
+    ) as ReadGraphDeltaSnapshotReceipt
+
+    expect(peer.handlers.has(READ_GRAPH_METHOD)).toBe(true)
+    expect(peer.handlers.has(READ_GRAPH_DELTA_METHOD)).toBe(true)
+    expect(result).toMatchObject({
+      resolution: "exact",
+      kind: "snapshot",
+      reason: "initial",
+      snapshot: {
+        identity: {
+          root: ROOT,
+          frontier: {cutId: "graph-oracle-cut", throughSequence: 7},
+        },
+        graph: {schema: GRAPH_SCHEMA, root: ROOT},
+      },
+    })
+    expect(events).toEqual(["hold", "boundary", "dark", "release"])
   })
 })

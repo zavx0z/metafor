@@ -9,7 +9,10 @@ import {
   isRoutedOracleRpcCall,
   type RoutedOracleRpcCall,
 } from "shared/protocol/oracle/rpc"
-import {READ_GRAPH_METHOD} from "@metafor/types/metafor/graph"
+import {
+  READ_GRAPH_DELTA_METHOD,
+  READ_GRAPH_METHOD,
+} from "@metafor/types/metafor/graph"
 import type {RemoteForceDomain} from "./force/store.ts"
 
 type ConnectedClient = {
@@ -238,6 +241,22 @@ describe("Dark server transport and relay", () => {
       error: {
         code: "method_error",
         message: "Graph read params must be empty",
+      },
+    })
+
+    const causalGraph = await oracleRequest("/oracle/rpc", interpreterChannel, "POST", {
+      version: ORACLE_RPC_VERSION,
+      id: "causal-graph-invalid",
+      target: "dark",
+      method: READ_GRAPH_DELTA_METHOD,
+      params: {contractVersion: 1, base: null, root: "not-accepted"},
+    })
+    expect(causalGraph.status).toBe(502)
+    expect(await causalGraph.json()).toMatchObject({
+      ok: false,
+      error: {
+        code: "method_error",
+        message: "/ [invalid_request] Graph delta request must be a closed plain object",
       },
     })
 

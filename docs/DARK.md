@@ -33,7 +33,19 @@ Dark состоит из двух равноправных слоёв:
 `readGraph` возвращает одну согласованную read-only проекцию текущего мира.
 Клиент не задаёт root: Dark получает coherent current projection у Boundary,
 определяет единственный текущий root, загружает полные декларации и возвращает
-root вместе с Graph. Graph не хранится внутри Dark между запросами.
+root вместе с Graph. Этот обычный путь не хранит Graph между запросами.
+
+`readGraphDelta` сначала закрывает admission новых Oracle mutations и завершает
+уже допущенные. Затем Dark закрывает внешний Force ingress и удерживает
+applied-through frontier. Внутри этой границы он собирает тот же полный Graph и
+связывает его с root, frontier и digest. Новая mutation RPC не входит в provider
+до освобождения всей границы. Первый запрос получает полный snapshot; следующий
+получает ref-based delta, если названный base ещё находится в ограниченном
+временном cache. После restart или вытеснения base Dark возвращает новый полный
+exact snapshot для resync. Cache не является Store или history и не переживает
+процесс. Пока sequence-zero baseline не доказан checkpoint-контуром, метод
+возвращает `unknown`, а не приписывает текущему Graph недоказанную причинную
+границу.
 
 ## Причинное время
 
@@ -41,7 +53,8 @@ root вместе с Graph. Graph не хранится внутри Dark меж
 закрывает только внешний ingress и фиксирует достигнутую причинную границу;
 выход доменов продолжает приниматься до её завершения. Step пропускает ровно
 одну явно переданную agent Particle при закрытом ingress и снова фиксирует
-границу. Resume открывает внешний ingress только у здорового текущего Force.
+границу. Oracle mutation admission также остаётся закрытым от начала Pause до
+Resume. Resume открывает внешний ingress только у здорового текущего Force.
 
 Pause-stack является read-only журналом действительно достигнутых границ, а не
 копией мира. Согласованное состояние Boundary и Mass сохраняется отдельным
@@ -59,6 +72,9 @@ exact current frontier либо bounded acceptance-sequence range этой же 
 через отдельные public types. Старых operations `dark.history.read` и
 `dark.history.clear`, произвольного persistence read, удаления, rewrite и
 автоматической очистки через service API нет.
+
+Graph snapshot и delta связываются с history через `(cutId, sequence)`, но не
+добавляются в строки Particle и не создают второй причинный журнал.
 
 ## Рождение и отказ
 

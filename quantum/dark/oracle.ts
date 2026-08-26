@@ -7,6 +7,7 @@ import {
 } from "./graph/declaration.ts"
 import {GraphOracle} from "./graph/oracle.ts"
 import type {DarkForceTimeControl} from "./time-control.ts"
+import type {CheckpointBarrierFrontier} from "./checkpoint/barrier.ts"
 import {
   META_CAPABILITIES_READ_METHOD,
   META_CREATE_METHOD,
@@ -57,6 +58,76 @@ const forceMessageInput = (value: unknown): ForceMessageInput => {
 }
 
 /**
+Serializes Oracle mutation admission against causal Graph reads and explicit
+pause. Closing the gate is synchronous; already running mutations drain before
+the owner enters its held operation, while later mutations fail before their
+provider is invoked.
+*/
+export class DarkOracleMutationGate {
+  #active = 0
+  #closed = false
+  readonly #idleWaiters = new Set<() => void>()
+
+  /** Runs one admitted mutation and contributes it to the active drain set. */
+  async run<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.#closed) {
+      throw new Error("Dark Oracle mutation admission is held by causal time")
+    }
+    this.#active++
+    try {
+      return await operation()
+    } finally {
+      this.#active--
+      if (this.#active === 0) {
+        for (const resolve of this.#idleWaiters) resolve()
+        this.#idleWaiters.clear()
+      }
+    }
+  }
+
+  /**
+  Closes new mutation admission and waits for every previously admitted
+  mutation. The returned release function owns exactly this hold.
+  */
+  async acquire(): Promise<() => void> {
+    if (this.#closed) throw new Error("Dark Oracle mutation admission is already held")
+    this.#closed = true
+    await this.#idle()
+    let released = false
+    return () => {
+      if (released) throw new Error("Dark Oracle mutation admission hold is already released")
+      released = true
+      this.#closed = false
+    }
+  }
+
+  /**
+  Holds mutation admission for the full lifetime of one causal operation.
+
+  @param operation - Provider work that must not overlap a new Oracle mutation.
+  @returns Result after the gate is reopened in `finally`.
+
+  @example
+  ```ts
+  const graph = await gate.withClosedAdmission(async () => await readGraph())
+  ```
+  */
+  async withClosedAdmission<T>(operation: () => Promise<T>): Promise<T> {
+    const release = await this.acquire()
+    try {
+      return await operation()
+    } finally {
+      release()
+    }
+  }
+
+  async #idle(): Promise<void> {
+    if (this.#active === 0) return
+    await new Promise<void>((resolve) => this.#idleWaiters.add(resolve))
+  }
+}
+
+/**
  * Owns Dark service RPC and causal time control without exposing Particle
  * history persistence or accepting world mutations directly.
  */
@@ -64,7 +135,9 @@ export class DarkOracle {
   #state: DarkOracleState = "created"
   #error: string | null = null
   readonly #graph = new GraphOracle()
+  readonly #mutations = new DarkOracleMutationGate()
   #timeControl: DarkForceTimeControl | null = null
+  #pauseMutationRelease: (() => void) | null = null
   #authoring: DarkMetaAuthoringRpc | null = null
   #history: Pick<DarkForceHistoryReadService, "read"> | null = null
   #runtime: Pick<MetaRuntimeRpcService, "applyFieldValue" | "readProcessExecution"> | null = null
@@ -75,8 +148,24 @@ export class DarkOracle {
 
   /** Installed by the local runtime after Force exists; Oracle never mutates it directly. */
   setTimeControl(control: DarkForceTimeControl): void {
-    if (this.#timeControl) throw new Error("Dark Oracle time control is already installed")
+    if (this.#state !== "created" || this.#timeControl) {
+      throw new Error("Dark Oracle time control is already installed or RPC registration has started")
+    }
     this.#timeControl = control
+    const mutations = this.#mutations
+    const oracle = this
+    this.#graph.setCausalTime({
+      async readAtExactFrontier<T>(
+        reader: (frontier: CheckpointBarrierFrontier) => Promise<T>,
+      ): Promise<T> {
+        if (oracle.#pauseMutationRelease) {
+          return await control.readAtExactFrontier(reader)
+        }
+        return await mutations.withClosedAdmission(
+          async () => await control.readAtExactFrontier(reader),
+        )
+      },
+    })
   }
 
   setAuthoring(services: DarkMetaAuthoringRpc): void {
@@ -109,7 +198,17 @@ export class DarkOracle {
     )
     peer.expose(
       DARK_FORCE_PAUSE_METHOD,
-      async () => await this.#timeControlOrThrow().pauseExternalAdmission(),
+      async () => {
+        const release = await this.#mutations.acquire()
+        try {
+          const frame = await this.#timeControlOrThrow().pauseExternalAdmission()
+          this.#pauseMutationRelease = release
+          return frame
+        } catch (error) {
+          release()
+          throw error
+        }
+      },
     )
     peer.expose(DARK_FORCE_STEP_METHOD, async (params) => {
       const result = await this.#timeControlOrThrow().stepAgentParticle(forceMessageInput(params))
@@ -117,6 +216,10 @@ export class DarkOracle {
     })
     peer.expose(DARK_FORCE_RESUME_METHOD, async () => {
       this.#timeControlOrThrow().resumeExternalAdmission()
+      const release = this.#pauseMutationRelease
+      if (!release) throw new Error("Dark Oracle pause has no mutation admission hold")
+      this.#pauseMutationRelease = null
+      release()
       return {ok: true}
     })
     peer.expose(
@@ -132,7 +235,9 @@ export class DarkOracle {
     if (this.#runtime) {
       peer.expose(
         META_FIELD_VALUE_APPLY_METHOD,
-        async (params) => await this.#runtime!.applyFieldValue(params),
+        async (params) => await this.#mutations.run(
+          async () => await this.#runtime!.applyFieldValue(params),
+        ),
       )
       peer.expose(
         META_PROCESS_EXECUTION_READ_METHOD,
@@ -150,15 +255,21 @@ export class DarkOracle {
       )
       peer.expose(
         META_CREATE_METHOD,
-        async (params, context) => await this.#authoring!.create.create(params, context.source),
+        async (params, context) => await this.#mutations.run(
+          async () => await this.#authoring!.create.create(params, context.source),
+        ),
       )
       peer.expose(
         META_MATTER_APPLY_METHOD,
-        async (params, context) => await this.#authoring!.matter.apply(params, context.source),
+        async (params, context) => await this.#mutations.run(
+          async () => await this.#authoring!.matter.apply(params, context.source),
+        ),
       )
       peer.expose(
         META_DECLARATION_APPLY_METHOD,
-        async (params, context) => await this.#authoring!.declaration.apply(params, context.source),
+        async (params, context) => await this.#mutations.run(
+          async () => await this.#authoring!.declaration.apply(params, context.source),
+        ),
       )
     }
     this.#graph.onServerStarted(peer)
@@ -194,6 +305,8 @@ export class DarkOracle {
   }
 
   onServerStopping(): void {
+    this.#pauseMutationRelease?.()
+    this.#pauseMutationRelease = null
     this.#state = "stopped"
   }
 
