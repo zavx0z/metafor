@@ -4,8 +4,10 @@ import type {Particle} from "shared/protocol/force/particle"
 import {
   REACTION_CLAIM_KIND,
   isReactionExecutionSignal,
+  isReactionQueueCommit,
   isReactionStateCommit,
   type ReactionResultProposal,
+  type ReactionStartRequest,
 } from "shared/protocol/force/reaction"
 import {open} from "../boundary/sqlite.ts"
 import {readBoundaryValue} from "../boundary/world.ts"
@@ -109,7 +111,25 @@ describe("Reaction multi-Field result", () => {
           timestamp: 1,
         },
       }))
-      const signalPart = registration?.messages.find(({parts}) => isReactionExecutionSignal(parts[0]?.value))?.parts[0]
+      const queue = registration?.messages
+        .map(({parts}) => parts[0]?.value)
+        .find(isReactionQueueCommit)
+      if (!queue || queue.status !== "queued") throw new Error("Reaction was not durably queued")
+      const start: ReactionStartRequest = {
+        kind: "reaction-start",
+        reactionExecutionId: queue.request.reactionExecutionId,
+        relationKey: queue.request.relationKey,
+        reactionId: queue.request.reactionId,
+        targetAtomId: queue.request.targetAtomId,
+      }
+      const started = await boundary.materialize(message({
+        part: "photon",
+        op: "test",
+        path: targetAtomId,
+        from: start.reactionExecutionId,
+        value: start,
+      }))
+      const signalPart = started?.messages.find(({parts}) => isReactionExecutionSignal(parts[0]?.value))?.parts[0]
       if (!signalPart || !isReactionExecutionSignal(signalPart.value)) throw new Error("Reaction was not scheduled")
       const signal = signalPart.value
       expect(signal.writeFields.map(([, key]) => key)).toEqual(["a", "b"])

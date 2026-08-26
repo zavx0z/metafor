@@ -25,22 +25,36 @@ describe("Quantum Graph weak coupling", () => {
     }
   })
 
-  test("uses the exact shared Storybook subpaths and does not import UI Storybook or Nodes", () => {
+  test("keeps Nodes inside the lazy NodeTree Storybook presentation boundary", () => {
     const root = join(quantumRoot, "storybook", "graph")
-    const sources = typescriptFiles(root).map((path) => readFileSync(path, "utf8")).join("\n")
+    const files = typescriptFiles(root)
+    const sources = files.map((path) => readFileSync(path, "utf8")).join("\n")
     expect(sources).toContain('from "@zavx0z/storybook/stories"')
     expect(sources).toContain('from "@zavx0z/storybook/workbench"')
     expect(sources).toContain('from "@zavx0z/storybook/route-tree"')
     expect(sources).toContain('from "@zavx0z/storybook/environment"')
     expect(sources).not.toContain('from "@ui/storybook/')
-    expect(sources).not.toContain('from "@nodes/')
+    expect(sources).not.toContain('from "@nodes/editor')
+    expect(sources).not.toContain('from "@nodes/storybook')
+    const nodesOwners = files
+      .filter((path) => readFileSync(path, "utf8").includes('from "@nodes/'))
+      .map((path) => path.slice(root.length + 1))
+      .sort()
+    expect(nodesOwners).toEqual([
+      "stories/hierarchical-node-tree-projector.ts",
+      "stories/node-tree-presentation.ts",
+      "stories/node-tree.ts",
+    ])
+    const stories = readFileSync(join(root, "stories.ts"), "utf8")
+    expect(stories).toContain('await import("./stories/node-tree.ts")')
+    expect(stories).not.toContain('from "./stories/node-tree.ts"')
     expect(existsSync(join(root, "stories.ts"))).toBe(true)
     expect(existsSync(join(root, "fixtures", "graph.ts"))).toBe(true)
     expect(existsSync(join(root, "state", "lab-state.ts"))).toBe(true)
     expect(existsSync(join(root, "body.html"))).toBe(false)
     expect(existsSync(join(root, "routes.ts"))).toBe(false)
     expect(existsSync(join(root, "story.ts"))).toBe(false)
-    expect(readFileSync(join(root, "stories.ts"), "utf8")).toContain("defineStorybookStories")
+    expect(stories).toContain("defineStorybookStories")
     const entry = readFileSync(join(root, "entry.ts"), "utf8")
     expect(entry).toContain("planStorybookShell")
     expect(entry).toContain('storybookPublicPath("quantum", "/")')
