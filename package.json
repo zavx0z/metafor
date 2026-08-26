@@ -35,6 +35,7 @@
     "cosmos/release",
     "cosmos/startup",
     "pkg/web-push",
+    "pkg/node-tree",
     "pkg/visual",
     "fixture",
     "create-metafor",

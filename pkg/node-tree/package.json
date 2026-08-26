@@ -1,0 +1,31 @@
+{
+  "name": "@metafor/node-tree",
+  "version": "0.0.1",
+  "description": "Derived public Graph projection into the generic @nodes/core NodeTree.",
+  "type": "module",
+  "private": true,
+  "files": [
+    "CONTRACT.md",
+    "graph.ts"
+  ],
+  "exports": {
+    "./graph": {
+      "types": "./graph.ts",
+      "default": "./graph.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit --pretty false",
+    "test": "bun test graph.spec.ts",
+    "check": "bun run typecheck && bun run test"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*",
+    "@nodes/core": "link:@nodes/core"
+  },
+  "devDependencies": {
+    "@nodes/ui": "link:@nodes/ui",
+    "@types/bun": "^1.4.0",
+    "typescript": "^7.0.2"
+  }
+}

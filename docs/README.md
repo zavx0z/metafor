@@ -88,6 +88,9 @@
   [adaptive side-selection](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/adaptive.md),
   [`RIGHT`](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/right.md) и
   [`DOWN`](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/down.md).
+* [Проекция Graph в NodeTree](../pkg/node-tree/CONTRACT.md) —
+  `@metafor/node-tree` переводит public Graph в производный generic NodeTree,
+  не создавая второй канонический Store или runtime WIMP.
 * [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
 * [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних репозиториев в
