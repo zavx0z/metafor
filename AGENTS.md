@@ -146,7 +146,8 @@
 - Для сущности, представленной независимыми проекциями нескольких Quantum-доменов,
   использовать `$quantum-dev` из `quantum/.agents/skills/quantum-dev`. Domain-owned
   implementations остаются слабосвязанными, а их общие проверки и лаборатория
-  располагаются только на уровне Quantum.
+  располагаются только на уровне Quantum. Lifecycle и browser evidence
+  `@quantum/storybook` принадлежат единому глобальному `$storybook`.
 - Для разработки, проверок и Storybook соседнего Engine использовать
   `$engine-dev` из `../engine/.agents/skills/engine-dev`. Engine не получает
   product-, UI- или Nodes-семантику через интеграционную задачу.
@@ -156,18 +157,16 @@
 - Все package pages семейства Nodes принадлежат единому dev-каталогу
   `@nodes/storybook`: один process/origin, главная `/` и exact routes
   `/core/*`, `/editor/*`, `/layout/*`, `/worker/*`, `/ui/*`. Для их
-  lifecycle и browser-проверки использовать skill `$nodes-dev` из соседнего
-  репозитория `../node/.agents/skills/nodes-dev`. Lifecycle-команды не выбирают
-  package: package задаётся только `--route`, а DOM/SVG и WebGPU capabilities
-  определяются fail-closed по центральному catalog manifest.
+  lifecycle и browser-проверки использовать единый глобальный `$storybook` с
+  exact package `@nodes/storybook`. Package page задаётся только `--route`, а
+  DOM/SVG и WebGPU capabilities определяются fail-closed по typed dev manifest.
 - Для разработки, lifecycle, browser-проверки и профилирования единого каталога
   package pages `@ui/elements`, `@ui/components`, `@ui/storybook` и `@ui/hud`
-  использовать skill `$ui-dev` из соседнего репозитория
-  `../ui/.agents/skills/ui-dev`. Он владеет единым UI catalog и exact target
-  только в границах selector `ui`; команды и договор dispatcher здесь не
-  дублировать.
+  использовать единый глобальный `$storybook` с exact package
+  `@ui/storybook`. UI-визуальная семантика остаётся у `$ui-dev`, но lifecycle,
+  target и browser commands здесь не дублируются.
 - Browser evidence в этих package-contours получать только через встроенный
-  в owning skill background exact-target CDP path. Агент не воспроизводит его CDP
+  в `$storybook` background exact-target CDP path. Агент не воспроизводит его CDP
   вручную и не вызывает focus, activate, `Page.bringToFront`, window APIs или
   AI macOS. Этот узкий package-owned path не меняет глобальные macOS-правила
   управления Chrome за его пределами.

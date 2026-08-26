@@ -301,6 +301,23 @@
         "@metafor/types": "workspace:*",
       },
     },
+    "quantum/storybook": {
+      "name": "@quantum/storybook",
+      "version": "0.0.0",
+      "dependencies": {
+        "@engine/core": "link:@engine/core",
+        "@layout/core": "link:@layout/core",
+        "@ui/components": "link:@ui/components",
+        "@ui/elements": "link:@ui/elements",
+        "@zavx0z/highlighter": "link:@zavx0z/highlighter",
+        "@zavx0z/storybook": "link:@zavx0z/storybook",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.0",
+        "@webgpu/types": "^0.1.68",
+        "typescript": "^7.0.2",
+      },
+    },
     "shared": {
       "name": "shared",
       "version": "0.0.1",
@@ -419,6 +436,8 @@
 
     "@puppeteer/browsers": ["@puppeteer/browsers@3.0.6", "", { "dependencies": { "modern-tar": "^0.7.6", "yargs": "^18.0.0" }, "peerDependencies": { "proxy-agent": ">=8.0.1", "yauzl": "^2.10.0 || ^3.4.0" }, "optionalPeers": ["proxy-agent", "yauzl"], "bin": { "browsers": "lib/main-cli.js" } }, "sha512-B/gKoqlFkzhvzsI6jo9K1cZz9o5ypviVv/xu8CwA4grZzyVwN+XfkT+tu8T1zrauuEXv6VhS2oGX+6NL95WcKA=="],
 
+    "@quantum/storybook": ["@quantum/storybook@workspace:quantum/storybook"],
+
     "@types/bun": ["@types/bun@1.4.0", "", { "dependencies": { "bun-types": "1.4.0" } }, "sha512-K+lZULY23vRgK/CfTjFIV+tyifaNdSMlPh9j+6mQ/cLfpOznLyAuzgV/JQysyECpkBQLVMSyvjlr2fBUSA9wFQ=="],
 
     "@types/node": ["@types/node@25.5.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw=="],
@@ -477,7 +496,7 @@
 
     "@zavx0z/highlighter": ["@zavx0z/highlighter@link:@zavx0z/highlighter", {}],
 
-    "@zavx0z/storybook": ["@zavx0z/storybook@link:@zavx0z/storybook", {}],
+    "@zavx0z/storybook": ["@zavx0z/storybook@link:@zavx0z/storybook", { "bin": { "storybook": "./scripts/storybook.ts", "create-storybook": "./scripts/create-storybook.ts" } }],
 
     "@zavx0z/template": ["@zavx0z/template@link:@zavx0z/template", {}],
 

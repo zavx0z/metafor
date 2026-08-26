@@ -160,12 +160,14 @@ describe("Quantum Graph Storybook delivery", () => {
   test("keeps server and local build on direct shared delivery imports", async () => {
     const serverSource = await readFile(join(import.meta.dir, "../../storybook/server.ts"), "utf8")
     const buildSource = await readFile(join(import.meta.dir, "../../storybook/build.ts"), "utf8")
-    const rootPackage = JSON.parse(
-      await readFile(join(import.meta.dir, "../../../package.json"), "utf8"),
-    ) as {scripts?: Record<string, string>}
+    const storybookPackage = JSON.parse(
+      await readFile(join(import.meta.dir, "../../storybook/package.json"), "utf8"),
+    ) as {name?: string; private?: boolean; scripts?: Record<string, string>}
 
     expect(serverSource).toContain('from "@zavx0z/storybook/server"')
-    expect(serverSource).toContain("QUANTUM_STORYBOOK_PORT ?? 4019")
+    expect(serverSource).toContain("startStorybookPackageServer({")
+    expect(serverSource).not.toContain("port:")
+    expect(serverSource).not.toMatch(/QUANTUM_STORYBOOK_(?:HOST|PORT)/u)
     expect(serverSource).not.toContain('from "@ui/storybook/server"')
     expect(buildSource).toContain('from "@zavx0z/storybook/build"')
     expect(buildSource).toContain('join(import.meta.dir, "dist")')
@@ -178,6 +180,11 @@ describe("Quantum Graph Storybook delivery", () => {
     ]) {
       expect(buildSource).toContain(`import.meta.resolve("${dependency}")`)
     }
-    expect(rootPackage.scripts?.["quantum:storybook:build"]).toBe("bun quantum/storybook/build.ts")
+    expect(storybookPackage).toMatchObject({
+      name: "@quantum/storybook",
+      private: true,
+    })
+    expect(storybookPackage.scripts?.storybook).toBe("bun server.ts")
+    expect(storybookPackage.scripts?.check).toBe("bun run typecheck && bun run test && bun run build")
   })
 })

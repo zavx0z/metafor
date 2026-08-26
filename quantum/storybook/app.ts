@@ -7,14 +7,13 @@ preview state and lazy experiments remain owned by Quantum.
 @packageDocumentation
 */
 
-import {join} from "node:path"
 import {fileURLToPath} from "node:url"
 import {
   defineStorybookApp,
   type StorybookAppManifest,
   type StorybookStaticFile,
 } from "@zavx0z/storybook/app"
-import {GRAPH_STORIES} from "./graph/stories.ts"
+import {createQuantumGraphStorybookPage} from "./graph/page.ts"
 
 /** Creates the single-page Quantum Storybook used by local server and static delivery. */
 export function createQuantumStorybookApp(): StorybookAppManifest {
@@ -42,27 +41,7 @@ export function createQuantumStorybookApp(): StorybookAppManifest {
         path: "/fonts/jetbrains-mono-bold.ttf",
       }],
     },
-    pages: [{
-      id: "graph",
-      title: "Quantum · лаборатория Graph",
-      mountPath: "/",
-      entrypoint: join(import.meta.dir, "graph/entry.ts"),
-      stylePath: join(import.meta.dir, "graph/style.css"),
-      body: {
-        kind: "canvas",
-        canvasId: "quantum-storybook-canvas",
-      },
-      capability: "webgpu-diagnostic",
-      readiness: {
-        dataset: "quantumStorybook",
-        value: "ready",
-      },
-      canvas: {
-        id: "quantum-storybook-canvas",
-        evidence: "non-black",
-      },
-      routeTree: GRAPH_STORIES.routeTree,
-    }],
+    pages: [createQuantumGraphStorybookPage()],
   })
 }
 

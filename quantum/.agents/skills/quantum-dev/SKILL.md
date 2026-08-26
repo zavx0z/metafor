@@ -12,41 +12,21 @@ Quantum состоит из слабосвязанных доменных про
 Для public TSDoc и существующих owner documents соблюдать общие
 [правила документации MetaFor](../../../../.agents/skills/metafor-dev/references/documentation.md).
 Для live product contour или browser-проверки Hamiltonian дополнительно
-использовать `$metafor-dev`. Lifecycle отдельного Quantum Storybook принадлежит
-этому skill и не запускает Cosmos либо доменные процессы.
+использовать `$metafor-dev`. Lifecycle, automatic origin, static build и
+browser evidence exact package `@quantum/storybook` принадлежат единому
+глобальному `$storybook`; этот skill не содержит process scripts, ports или
+generic Storybook rules.
 
-## Quantum Storybook lifecycle
+Локальный static artifact собирается через единый skill и не меняет живой
+process:
 
-```bash
-SKILL=quantum/.agents/skills/quantum-dev
-"$SKILL/scripts/quantum-dev.sh" status  "$PWD"
-"$SKILL/scripts/quantum-dev.sh" ensure  "$PWD"
-"$SKILL/scripts/quantum-dev.sh" start   "$PWD"
-"$SKILL/scripts/quantum-dev.sh" restart "$PWD"
-"$SKILL/scripts/quantum-dev.sh" health  "$PWD"
-"$SKILL/scripts/quantum-dev.sh" logs    "$PWD"
-"$SKILL/scripts/quantum-dev.sh" stop    "$PWD"
-```
-
-Перед первым lifecycle-действием выполнить read-only `status`, затем `ensure`.
-`ensure`, `start` и `restart` остаются foreground-владельцами exact Bun child,
-поэтому их нужно сохранять в долгоживущем PTY. Skill владеет одним no-HMR
-Storybook process на `http://127.0.0.1:4019` и проверяет страницу `/graph/`.
-
-Локальный static artifact собирается отдельно и не меняет живой process:
-
-```bash
-bun run quantum:storybook:build
+```text
+$storybook build @quantum/storybook
 ```
 
 Сборка принадлежит только локальной лаборатории и записывается в
 `quantum/storybook/dist`. Она не создаёт Pages, deployment или workflow и не
 является разрешением на их запуск.
-
-Listener, который не совпал с сохранёнными PID, process start, cwd и command,
-считается foreign: skill не принимает, не останавливает и не заменяет его.
-`QUANTUM_DEV_TEST_MODE=1` вместе с `QUANTUM_DEV_TEST_PORT` разрешает только
-изолированный lifecycle test на отдельном порту.
 
 ## Сквозная сущность
 
@@ -97,10 +77,12 @@ Storybook.
 
 ```text
 quantum/storybook/
+├── package.json         exact `@quantum/storybook` identity
 ├── app.ts               один typed Quantum Storybook application
-├── server.ts            один no-HMR local process
+├── server.ts            automatic-port package server
 ├── build.ts             local-only static delivery
 └── <entity>/
+    ├── page.ts          consumer-owned page descriptor
     ├── entry.ts         composition готового Workbench
     ├── stories.ts       единый typed catalog
     ├── preview.ts       consumer-owned preview Surface

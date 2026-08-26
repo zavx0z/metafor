@@ -1,0 +1,26 @@
+{
+  "name": "@quantum/storybook",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "storybook": "bun server.ts",
+    "build": "bun build.ts",
+    "test": "bun test ../tests/graph/storybook.spec.ts",
+    "typecheck": "tsc --noEmit --pretty false",
+    "check": "bun run typecheck && bun run test && bun run build"
+  },
+  "dependencies": {
+    "@engine/core": "link:@engine/core",
+    "@layout/core": "link:@layout/core",
+    "@ui/components": "link:@ui/components",
+    "@ui/elements": "link:@ui/elements",
+    "@zavx0z/highlighter": "link:@zavx0z/highlighter",
+    "@zavx0z/storybook": "link:@zavx0z/storybook"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "@webgpu/types": "^0.1.68",
+    "typescript": "^7.0.2"
+  }
+}

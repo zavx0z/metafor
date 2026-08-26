@@ -1,4 +1,4 @@
 interface:
   display_name: "Quantum Dev"
   short_description: "Develop weakly coupled Quantum projections"
-  default_prompt: "Use $quantum-dev to organize and verify a cross-domain Quantum entity, and start or reuse its Quantum Storybook when browser evidence is needed."
+  default_prompt: "Use $quantum-dev to organize and verify a cross-domain Quantum entity while preserving domain-local ownership."
