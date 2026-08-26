@@ -123,7 +123,32 @@ MetaFor("strict-generated-contract")
       return mod.default(energy.attempts)
     }),
   ])
-  .reactions(() => [])
+  .reactions((reaction) => [[
+    ["idle", "retry"],
+    reaction({
+      key: "remember",
+      mass: {read: ["attempts"], write: ["attempts"]},
+    })
+      .filter([{meta: "owner/sensor", states: ["ready"]}])
+      .equal(({mass, observation, self, state, update, value}) => {
+        const sourceState: string = observation.source.state
+        const targetState: "idle" | "retry" | "active" | "mixed" | "done" = state
+        void mass.attempts
+        void self.atom
+        void sourceState
+        void targetState
+        update({attempts: value.attempts + 1})
+
+        // @ts-expect-error Reaction cannot write topology Fields
+        update({mode: "active"})
+        // @ts-expect-error Reaction receives no previous source State
+        observation.previous
+        // @ts-expect-error Reaction receives no Force Particle
+        observation.part
+        // @ts-expect-error Reaction Mass contains only declared Mass keys
+        mass.socket
+      }),
+  ]])
   .matter(({ energy, html, mass, state, update, value }) => {
     const currentState: "idle" | "retry" | "active" | "mixed" | "done" = state
     const currentMode: "idle" | "active" = value.mode

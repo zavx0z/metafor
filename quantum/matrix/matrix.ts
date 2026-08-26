@@ -25,22 +25,56 @@ import type {
   ProcessResultCommit,
 } from "shared/protocol/force/execution"
 import {isProcessExecutionId} from "shared/protocol/force/execution"
+import {
+  REACTION_RELATION_PATH,
+  REACTION_STATE_COMMIT_KIND,
+  isReactionRelation,
+  isReactionResultCommit,
+  isReactionStateCommit,
+} from "shared/protocol/force/reaction"
 import {FieldType} from "@matrix/gravity"
 import {createStoredStringInterner, normalizeFieldValue, strong$} from "@matrix/strong"
 import {StepMode, weakHeapUpdate, weakRunStep, weakStructuralUpdate, weak$} from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
 import {Force} from "shared/transport/force"
-import {consumePreparedMatrixBirth, consumePreparedMatrixProcessRestarts} from "./birth.ts"
+import {
+  consumePreparedMatrixBirth,
+  consumePreparedMatrixProcessRestarts,
+  consumePreparedMatrixReactionRelations,
+  consumePreparedMatrixReactionStates,
+} from "./birth.ts"
 import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./graph/projection.ts"
 import {
   applyIncrementalMatrixProjection,
   initializeIncrementalMatrixIndexes,
 } from "./incremental.ts"
+import {MatrixReactionRouter} from "./reaction.ts"
 
 let force: Force
 const matrixGate: AsyncGate = {pending: null}
 const pendingProcessExecutionsByAtomId = new Map<number, MatrixPendingProcessExecution>()
+
+const currentMetaStateId = (atomId: number): number | null => {
+  const braneIndex = gravity$.getBraneIndexByAtomId(atomId)
+  if (braneIndex === undefined) return null
+  const stateIndex = matrix$.states[braneIndex]
+  if (stateIndex === undefined || stateIndex < 0) return null
+  return weak$.stateMetaStateIdsByBraneIndex[braneIndex]?.[stateIndex] ?? null
+}
+
+const reactionRouter = new MatrixReactionRouter({
+  currentStateId: currentMetaStateId,
+  currentWimp: (atomId) => gravity$.getWimpSrcByAtomId(atomId) ?? null,
+  emit: (request) => force.impulse({parts: [{
+    part: "photon",
+    op: "test",
+    path: request.targetAtomId,
+    ts: Date.now(),
+    from: request.reactionExecutionId,
+    value: request,
+  }]}),
+})
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -168,7 +202,7 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
       op: hasProcess ? "test" : "replace",
       path: atomId,
       ts: Date.now(),
-      ...(pending ? {from: pending.processExecutionId} : {}),
+      from: pending?.processExecutionId ?? crypto.randomUUID(),
       value: stateName,
     }]})
   }
@@ -180,6 +214,9 @@ const applyStructuralProjection = async (
   await runExclusive(matrixGate, async () => {
     const incremental = await applyIncrementalMatrixProjection(projection)
     for (const atomId of incremental.invalidatedAtomIds) pendingProcessExecutionsByAtomId.delete(atomId)
+    for (const atomId of incremental.invalidatedAtomIds) {
+      if (!gravity$.hasAtom(atomId)) reactionRouter.removeAtom(atomId)
+    }
     for (const preserved of incremental.preservedProcessStates) {
       const pending = pendingProcessExecutionsByAtomId.get(preserved.atomId)
       if (!pending || pending.braneIndex !== preserved.braneIndex) continue
@@ -478,6 +515,9 @@ export async function update(
 
 const preparedBirth = consumePreparedMatrixBirth()
 const restartProcessAtomIds = preparedBirth ? consumePreparedMatrixProcessRestarts() : []
+const initialReactionRelations = preparedBirth ? consumePreparedMatrixReactionRelations() : []
+const initialReactionStates = preparedBirth ? consumePreparedMatrixReactionStates() : []
+reactionRouter.hydrate(initialReactionRelations, initialReactionStates)
 if (preparedBirth) initializeIncrementalMatrixIndexes()
 const birthChanges = preparedBirth ? await weakRunStep(StepMode.UndefinedOnly) : []
 const restartedProcessStates: [number, number][] = []
@@ -499,7 +539,29 @@ force.onImpulseError = () => {
 }
 force.onImpulse = async (impulse) => {
   const part = impulse.parts[0]
+
+  if (part.part === "graviton" && part.path === REACTION_RELATION_PATH) {
+    if (!isReactionRelation(part.value)) throw new Error("Matrix received an invalid Reaction relation")
+    applyMatrixProjectionParticle(part)
+    if (part.op === "remove") reactionRouter.remove(part.value.key)
+    else if (part.op === "add" || part.op === "replace") reactionRouter.upsert(part.value)
+    return
+  }
+
   const projection = applyMatrixProjectionParticle(part)
+
+  if (part.part === "photon" && part.op === "copy" && isRecord(part.value) && part.value.kind === REACTION_STATE_COMMIT_KIND) {
+    if (!isReactionStateCommit(part.value)) throw new Error("Matrix received an invalid confirmed Reaction State")
+    reactionRouter.confirmState(part.value, part.ts)
+    return
+  }
+
+  if ((part.part === "w+" || part.part === "w-") && part.op === "copy" &&
+      isRecord(part.value) && Object.hasOwn(part.value, "reactionExecutionId")) {
+    if (!isReactionResultCommit(part.value)) throw new Error("Matrix received an invalid Reaction result commit")
+    reactionRouter.settle(part.value)
+    return
+  }
 
   if (projection.structural) {
     await applyStructuralProjection(projection)

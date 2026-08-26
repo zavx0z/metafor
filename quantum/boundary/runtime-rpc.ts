@@ -46,9 +46,16 @@ const fieldValueMatches = (
   return typeof value === "string" && variants.includes(value)
 }
 
+/** Resolves public stable Atom refs into scoped Boundary read and input plans. */
 export class BoundaryRuntimeRpcService {
   constructor(private readonly boundary: BoundaryDatabase) {}
 
+  /**
+  Plans one external ordinary Field Gluon.
+
+  `enum` and `array` are topology Fields and fail before a Particle is returned;
+  only Process result commit may create their Higgs consequence.
+  */
   async planFieldValue(input: unknown): Promise<ForceMessageInput> {
     const validation = validateMetaFieldValueApplyRequest(input)
     if (!validation.ok) throw invalid(validation.issues)
@@ -68,17 +75,14 @@ export class BoundaryRuntimeRpcService {
     `
     if (fields.length !== 1) throw new Error(`Boundary Field is not uniquely declared for selected Atom: ${request.field}`)
     const field = fields[0]!
-    const variants = field.type === "enum"
-      ? (await this.boundary.projection.sql<Array<{value: string}>>`
-          SELECT item_value AS value FROM field_enum_variant
-           WHERE field = ${field.id} ORDER BY position, id
-        `).map(({value}) => value)
-      : []
-    if (!fieldValueMatches(field.type, field.required === 1, request.value, variants)) {
+    if (field.type === "array" || field.type === "enum") {
+      throw new Error(`Boundary topology Field can be changed only by Process: ${request.field}`)
+    }
+    if (!fieldValueMatches(field.type, field.required === 1, request.value, [])) {
       throw new Error(`Boundary Field value does not match ${field.type} declaration: ${request.field}`)
     }
     return {parts: [{
-      part: field.type === "array" || field.type === "enum" ? "higgs" : "gluon",
+      part: "gluon",
       op: "replace",
       path: atom,
       ts: Date.now(),

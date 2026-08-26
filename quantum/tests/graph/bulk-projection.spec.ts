@@ -40,10 +40,12 @@ const document = (title = "current"): Graph => ({
         key: "observe",
         label: "Observe",
         desc: null,
-        cond: "() => true",
+        sources: [{meta: CHILD, states: ["visible"]}],
         src: "() => {}",
         read: ["mode"],
         write: ["title"],
+        massRead: [],
+        massWrite: [],
         states: ["ready"],
       }],
       matter: [{kind: "wimp", src: CHILD, fieldsBinding: {data: "title"}}],
@@ -51,26 +53,31 @@ const document = (title = "current"): Graph => ({
     [CHILD]: {
       name: "Child",
       fields: [],
-      superposition: [],
+      superposition: [{name: "visible", transitions: null}],
       mass: [],
       processes: [],
     },
   },
   runtime: {
     roots: [{
+      ref: "atom:1",
       kind: "atom",
       declaration: "#/template/example~1root",
       meta: ROOT,
       state: "ready",
       values: {title, mode: "ready"},
+      mass: [],
       children: [{
+        ref: "atom:2",
         kind: "atom",
         declaration: "#/template/example~1root/matter/0",
         meta: CHILD,
         state: null,
         values: {},
+        mass: [],
       }],
     }],
+    reactions: [],
   },
 })
 
@@ -88,12 +95,15 @@ const childDocument = (): Graph => ({
   },
   runtime: {
     roots: [{
+      ref: "atom:1",
       kind: "atom",
       declaration: "#/template/example~1child",
       meta: CHILD,
       state: null,
       values: {},
+      mass: [],
     }],
+    reactions: [],
   },
 })
 

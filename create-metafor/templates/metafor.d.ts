@@ -489,6 +489,84 @@ type MetaForMatterStage<
   ): MetaForBulkStage
 }
 
+type MetaForReactionSourceSelector = Readonly<{
+  atom?: `atom:${string}`
+  meta?: string
+  relation?: "parent" | "child" | "descendant"
+  states: readonly [string, ...string[]]
+}>
+
+type MetaForReactionConfig<Mass> = Readonly<{
+  key: string
+  label?: string
+  desc?: string
+  mass?: Readonly<{
+    read?: readonly Extract<keyof Mass, string>[]
+    write?: readonly Extract<keyof Mass, string>[]
+  }>
+}>
+
+type MetaForReactionObservation = Readonly<{
+  id: string
+  source: Readonly<{
+    atom: `atom:${string}`
+    meta: string
+    state: string
+  }>
+  timestamp: number
+}>
+
+type MetaForOrdinaryFieldKey<Fields extends MetaForFields> = {
+  [Key in keyof Fields]: Fields[Key]["type"] extends "string" | "number" | "boolean"
+    ? Key
+    : never
+}[keyof Fields]
+
+type MetaForReactionUpdate<Fields extends MetaForFields> = (
+  values: Partial<Pick<MetaForValues<Fields>, MetaForOrdinaryFieldKey<Fields>>>,
+) => Partial<Pick<MetaForValues<Fields>, MetaForOrdinaryFieldKey<Fields>>>
+
+type MetaForReactionAction<
+  Fields extends MetaForFields,
+  State extends string,
+  Mass,
+> = (params: Readonly<{
+  observation: MetaForReactionObservation
+  update: MetaForReactionUpdate<Fields>
+  value: MetaForValues<Fields>
+  mass: Mass
+  state: State
+  self: MetaForSelf
+}>) => void | Promise<void>
+
+type MetaForReactionItem<
+  Fields extends MetaForFields,
+  State extends string,
+  Mass,
+> = Readonly<{
+  key: string
+  label: string
+  desc?: string
+  sources: readonly MetaForReactionSourceSelector[]
+  update: MetaForReactionAction<Fields, State, Mass>
+}>
+
+type MetaForReactionBuilder<
+  Fields extends MetaForFields,
+  State extends string,
+  Mass,
+> = (
+  config: MetaForReactionConfig<Mass>,
+) => {
+  filter(
+    sources: readonly [MetaForReactionSourceSelector, ...MetaForReactionSourceSelector[]],
+  ): {
+    equal(
+      update: MetaForReactionAction<Fields, State, Mass>,
+    ): MetaForReactionItem<Fields, State, Mass>
+  }
+}
+
 type MetaForReactionStage<
   Fields extends MetaForFields,
   Superposition,
@@ -496,7 +574,14 @@ type MetaForReactionStage<
   Energy,
 > = {
   reactions(
-    callback?: () => readonly unknown[],
+    callback?: (
+      reaction: MetaForReactionBuilder<Fields, MetaForStateKeys<Superposition>, Mass>,
+    ) => readonly (
+      readonly [
+        readonly [MetaForStateKeys<Superposition>, ...MetaForStateKeys<Superposition>[]],
+        MetaForReactionItem<Fields, MetaForStateKeys<Superposition>, Mass>,
+      ]
+    )[],
   ): MetaForMatterStage<Fields, Superposition, Mass, Energy>
 }
 

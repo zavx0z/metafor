@@ -1,6 +1,7 @@
 import type {MetaAuthoringCauseV1, MetaForceAcceptanceIdentity} from "./authoring.ts"
 import {
   parseMetaAddress,
+  type AtomRef,
   type JsonPointer,
   type JsonValue,
   type MetaAddress,
@@ -25,12 +26,10 @@ export type MetaCausalFrontier = {
   retroactiveComplete: false
 }
 
-export type MetaRuntimeAtomPointer = `/runtime/roots/${number}${string}`
-
-/** Snapshot-local Graph path guarded by both current root and expected Meta. */
+/** Stable Graph Atom ref guarded by both current root and expected Meta. */
 export type MetaRuntimeAtomLocator = {
   root: MetaAddress
-  pointer: MetaRuntimeAtomPointer
+  ref: AtomRef
   meta: MetaAddress
 }
 
@@ -101,7 +100,8 @@ export type EnergyMassResultReadReceipt = {
   content: EnergyMassResultContent
 }
 
-export type MetaRuntimeFieldValue = null | string | number | boolean | number[]
+/** External input for an ordinary Field. Topology Fields change only through Process. */
+export type MetaRuntimeFieldValue = null | string | number | boolean
 
 export type MetaFieldValueApplyRequest = {
   contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
@@ -210,18 +210,19 @@ export const validateMetaRuntimeAtomLocator = (
   value: unknown,
   path: JsonPointer,
 ): ValidationResult<MetaRuntimeAtomLocator> => {
-  if (!isRecord(value) || !exactKeys(value, ["root", "pointer", "meta"])) {
+  if (!isRecord(value) || !exactKeys(value, ["root", "ref", "meta"])) {
     return {ok: false, issues: [issue(path, "invalid_locator", "Atom locator must be a closed plain object")]}
   }
   const root = typeof value.root === "string" ? parseMetaAddress(value.root) : null
   const meta = typeof value.meta === "string" ? parseMetaAddress(value.meta) : null
-  const pointer = runtimePointerIndices(value.pointer)
   const issues: ValidationIssue[] = []
   if (!root) issues.push(issue(childPath(path, "root"), "invalid_meta_address", "Locator root must be canonical"))
   if (!meta) issues.push(issue(childPath(path, "meta"), "invalid_meta_address", "Locator Meta must be canonical"))
-  if (!pointer) issues.push(issue(childPath(path, "pointer"), "invalid_runtime_pointer", "Locator pointer must select a Graph runtime path"))
+  if (typeof value.ref !== "string" || !/^atom:[1-9]\d*$/.test(value.ref)) {
+    issues.push(issue(childPath(path, "ref"), "invalid_atom_ref", "Locator ref must use atom:<positive-id>"))
+  }
   if (issues.length > 0 || !root || !meta) return {ok: false, issues}
-  return {ok: true, value: {root, pointer: value.pointer as MetaRuntimeAtomPointer, meta}}
+  return {ok: true, value: {root, ref: value.ref as AtomRef, meta}}
 }
 
 const validateFrontier = (
@@ -256,8 +257,7 @@ const validateSemanticKey = (
 const validateRuntimeFieldValue = (value: unknown, path: JsonPointer): ValidationIssue[] => {
   if (value === null || typeof value === "string" || typeof value === "boolean") return []
   if (typeof value === "number" && Number.isFinite(value)) return []
-  if (Array.isArray(value) && value.every((item) => typeof item === "number" && Number.isFinite(item))) return []
-  return [issue(path, "invalid_field_value", "Runtime Field value must be null, a scalar, or finite number[]")]
+  return [issue(path, "invalid_field_value", "Runtime Field input must be null or an ordinary scalar")]
 }
 
 export const validateDarkForceHistoryReadRequest = (

@@ -4,13 +4,19 @@ import {planStorybookShell} from "@zavx0z/storybook/workbench"
 import {projectBulkGraph} from "../../bulk/graph/projection.ts"
 import {GraphLabState} from "../../storybook/graph/state/lab-state.ts"
 import {
+  currentGraphFixture,
+  reactionGraphFixture,
+} from "../../storybook/graph/fixtures/graph.ts"
+import {
   GRAPH_STORIES,
   graphStorybookPresentationRoute,
 } from "../../storybook/graph/stories.ts"
 import {
+  GRAPH_FIXTURE_CHILD,
   createGraphFixture,
   insertSameMetaSibling,
   runtimeFieldAt,
+  runtimeRefAt,
 } from "./fixture.ts"
 
 describe("Quantum Graph laboratory fixtures", () => {
@@ -27,6 +33,41 @@ describe("Quantum Graph laboratory fixtures", () => {
     expect(validateGraph(after).ok).toBe(true)
     expect(runtimeFieldAt(before, pointer, "name")).toBe("второй")
     expect(runtimeFieldAt(after, pointer, "name")).toBe("первый")
+    expect(runtimeRefAt(before, pointer)).toBe("atom:3")
+    expect(runtimeRefAt(after, pointer)).toBe("atom:2")
+    expect(after.runtime.reactions[0]?.source.atom).toBe("atom:2")
+  })
+
+  test("keeps complete Reaction dependencies visible while Mass content stays lazy", () => {
+    const graph = createGraphFixture()
+    const root = graph.runtime.roots[0]
+    expect(graph.template[graph.root]?.reactions?.[0]).toMatchObject({
+      sources: [{meta: GRAPH_FIXTURE_CHILD, states: ["present"]}],
+      read: ["count"],
+      write: ["count"],
+      massRead: ["history"],
+      massWrite: ["history"],
+    })
+    expect(graph.runtime.reactions[0]).toMatchObject({
+      source: {atom: "atom:2", states: ["present"]},
+      target: {atom: "atom:1", states: ["idle"]},
+      active: true,
+    })
+    expect(root?.kind === "atom" ? root.mass : []).toEqual([expect.objectContaining({
+      ref: "mass:graph-history",
+      key: "history",
+      content: "lazy",
+    })])
+    expect(JSON.stringify(graph)).not.toContain("MassHandle")
+    expect(reactionGraphFixture()).toMatchObject({
+      relation: {ref: "reaction:remember:1:2"},
+      massContent: {included: false, read: "energy.mass.result.read"},
+    })
+    expect(currentGraphFixture("bulk")).toMatchObject({
+      reactions: 1,
+      reactionRelations: 1,
+      mass: 1,
+    })
   })
 })
 
@@ -35,6 +76,7 @@ describe("Quantum Graph Storybook laboratory", () => {
     expect(GRAPH_STORIES.representative).toBe("document/current/complete")
     expect(graphStorybookPresentationRoute("")).toBe("document/current/complete")
     expect(graphStorybookPresentationRoute("validation")).toBe("validation/contract/closed")
+    expect(graphStorybookPresentationRoute("reaction")).toBe("reaction/dependencies/complete")
     expect(graphStorybookPresentationRoute("identity/same-meta")).toBe("identity/same-meta/reorder")
     expect(() => graphStorybookPresentationRoute("validation/unknown")).toThrow(
       "Неизвестный путь лаборатории Graph",

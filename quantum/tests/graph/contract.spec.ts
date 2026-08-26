@@ -134,10 +134,12 @@ const completeDocument = (): Graph => ({
           key: "0",
           label: "Observe child",
           desc: null,
-          cond: "({meta}) => meta === 'example/child'",
+          sources: [{meta: CHILD, states: ["visible"]}],
           src: "({update}) => update({title: 'observed'})",
-          read: [],
+          read: ["count"],
           write: ["title"],
+          massRead: ["cache"],
+          massWrite: ["cache"],
           states: ["ready"],
         },
       ],
@@ -189,46 +191,74 @@ const completeDocument = (): Graph => ({
   },
   runtime: {
     roots: [{
+      ref: "atom:1",
       kind: "atom",
       declaration: "#/template/example~1root",
       meta: ROOT,
       state: "ready",
       values: {mode: "ready", title: null, items: [2, 4], count: 2, enabled: true},
+      mass: [{
+        ref: "mass:cache-root",
+        key: "cache",
+        format: "json",
+        label: "Cache",
+        description: "Metadata only",
+        content: "lazy",
+      }],
       children: [{
+        ref: "atom:2",
         kind: "atom",
         declaration: "#/template/example~1root/matter/0",
         meta: CHILD,
         state: "visible",
         values: {label: "Current child"},
+        mass: [],
         children: [{
+          ref: "topology:1",
           kind: "topology",
           declaration: "#/template/example~1root/matter/0/children/0/particle",
           topology: "macho",
         }],
       }, {
+        ref: "atom:3",
         kind: "atom",
         declaration: "#/template/example~1root/matter/1",
         meta: CHILD,
         state: "visible",
         values: {label: "Second child"},
+        mass: [],
         children: [{
+          ref: "topology:2",
           kind: "topology",
           declaration: "#/template/example~1root/matter/1/children/0/particle",
           topology: "macho",
         }],
       }],
     }],
+    reactions: [{
+      ref: "reaction:1:1:2",
+      kind: "reaction",
+      reaction: {meta: ROOT, key: "0"},
+      source: {atom: "atom:2", states: ["visible"]},
+      target: {atom: "atom:1", states: ["ready"]},
+      active: true,
+    }],
   },
 })
 
 const clone = (): Record<string, any> => structuredClone(completeDocument())
 
+let nextRuntimeAtomRef = 100
+let nextRuntimeTopologyRef = 100
+
 const runtimeAtom = (declaration: string, meta: MetaAddress, label: string): Record<string, unknown> => ({
+  ref: `atom:${nextRuntimeAtomRef++}`,
   kind: "atom",
   declaration,
   meta,
   state: "visible",
   values: {label},
+  mass: [],
 })
 
 const topologyDocument = (
@@ -240,7 +270,9 @@ const topologyDocument = (
   input.template["example/peer"] = structuredClone(input.template["example/child"])
   input.template["example/peer"].name = "Peer"
   input.template["example/root"].matter = [matter]
+  input.runtime.reactions = []
   input.runtime.roots[0].children = [{
+    ref: `topology:${nextRuntimeTopologyRef++}`,
     kind: "topology",
     declaration: "#/template/example~1root/matter/0",
     topology,
@@ -270,12 +302,15 @@ const createdWimpCompositionDocument = (): Record<string, any> => {
       },
     }],
   }]
+  input.runtime.reactions = []
   input.runtime.roots[0].children = [{
+    ref: `atom:${nextRuntimeAtomRef++}`,
     kind: "atom",
     declaration: "#/template/example~1root/matter/0",
     meta: CHILD,
     state: "visible",
     values: {label: "Child"},
+    mass: [],
     children: [
       runtimeAtom("#/template/example~1child/matter/0", LEAF, "Leaf"),
       runtimeAtom(
@@ -325,6 +360,90 @@ describe("Graph public contract", () => {
     expect(values).toEqual({mode: "ready", title: null, items: [2, 4], count: 2, enabled: true})
     expect(values).not.toHaveProperty("missing")
     expect(validateGraph(input).ok).toBe(true)
+  })
+
+  test("closes Reaction source, Field, Mass and runtime relation dependencies", () => {
+    const reactionOnlyDependency = clone()
+    reactionOnlyDependency.template["example/peer"] = structuredClone(
+      reactionOnlyDependency.template["example/child"],
+    )
+    reactionOnlyDependency.template["example/peer"].name = "Peer"
+    reactionOnlyDependency.template["example/root"].reactions[0].sources = [{
+      meta: "example/peer",
+      states: ["visible"],
+    }]
+    reactionOnlyDependency.runtime.reactions = []
+    expect(validateGraph(reactionOnlyDependency).ok).toBe(true)
+
+    const rawRef = clone()
+    rawRef.runtime.roots[0].ref = "1"
+    expectIssue(rawRef, "/runtime/roots/0/ref", "invalid_ref")
+
+    const childSelector = clone()
+    childSelector.template["example/root"].reactions[0].sources = [{
+      relation: "child",
+      states: ["visible"],
+    }]
+    expect(validateGraph(childSelector).ok).toBe(true)
+
+    const wrongStructuralSelector = clone()
+    wrongStructuralSelector.template["example/root"].reactions[0].sources = [{
+      relation: "parent",
+      states: ["visible"],
+    }]
+    expectIssue(
+      wrongStructuralSelector,
+      "/runtime/reactions/0/source",
+      "reaction_source_mismatch",
+    )
+
+    const topologyWrite = clone()
+    topologyWrite.template["example/root"].reactions[0].write = ["mode"]
+    expectIssue(
+      topologyWrite,
+      "/template/example~1root/reactions/0/write/0",
+      "topology_field_write",
+    )
+
+    const missingMass = clone()
+    missingMass.template["example/root"].reactions[0].massRead = ["missing"]
+    expectIssue(
+      missingMass,
+      "/template/example~1root/reactions/0/massRead/0",
+      "unknown_mass_reference",
+    )
+
+    const fieldEvent = clone()
+    fieldEvent.template["example/root"].reactions[0].sources[0].states = []
+    expectIssue(
+      fieldEvent,
+      "/template/example~1root/reactions/0/sources/0/states",
+      "empty_reaction_states",
+    )
+
+    const missingSourceState = clone()
+    missingSourceState.template["example/root"].reactions[0].sources[0].states = ["missing"]
+    expectIssue(
+      missingSourceState,
+      "/template/example~1root/reactions/0/sources/0/states/0",
+      "unknown_state_reference",
+    )
+
+    const staleRelation = clone()
+    staleRelation.runtime.reactions[0].source.atom = "atom:999"
+    expectIssue(
+      staleRelation,
+      "/runtime/reactions/0/source/atom",
+      "unknown_atom_reference",
+    )
+
+    const eagerMass = clone()
+    eagerMass.runtime.roots[0].mass[0].content = {runs: 1}
+    expectIssue(
+      eagerMass,
+      "/runtime/roots/0/mass/0/content",
+      "invalid_literal",
+    )
   })
 
   test("accepts active builder-derived Conditions for every Field type", () => {

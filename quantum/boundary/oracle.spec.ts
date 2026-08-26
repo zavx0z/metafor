@@ -83,7 +83,13 @@ describe("Boundary Oracle", () => {
       version: ORACLE_RPC_VERSION,
       id: "matrix-birth",
       ok: true,
-      result: {version: 1, atoms: [], declarations: [], pendingProcessExecutions: []},
+      result: {
+        version: 2,
+        atoms: [],
+        declarations: [],
+        pendingProcessExecutions: [],
+        reactionRelations: [],
+      },
     }])
 
     await channel.receive({
@@ -126,12 +132,14 @@ describe("Boundary Oracle", () => {
       result: {
         root: "owner/runtime",
         runtime: {roots: [{
+          ref: "atom:1",
           kind: "atom",
           declaration: "#/template/owner~1runtime",
           meta: "owner/runtime",
           state: null,
           values: {},
-        }]},
+          mass: [],
+        }], reactions: []},
       },
     })
   })

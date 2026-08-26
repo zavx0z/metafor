@@ -55,6 +55,18 @@ const template = (rootName = "Root"): Graph["template"] => ({
     superposition: [{name: "ready", transitions: null}],
     mass: [],
     processes: [],
+    reactions: [{
+      key: "observe",
+      label: "Observe",
+      desc: null,
+      sources: [{meta: CHILD, states: ["visible"]}],
+      src: "({update}) => update({label: 'observed'})",
+      read: ["label"],
+      write: ["label"],
+      massRead: [],
+      massWrite: [],
+      states: ["ready"],
+    }],
     matter: [{kind: "wimp", src: CHILD}],
   },
   [CHILD]: {
@@ -68,18 +80,30 @@ const template = (rootName = "Root"): Graph["template"] => ({
 
 const runtime = (label = "first"): Graph["runtime"] => ({
   roots: [{
+    ref: "atom:1",
     kind: "atom",
     declaration: "#/template/example~1root",
     meta: ROOT,
     state: "ready",
     values: {label},
+    mass: [],
     children: [{
+      ref: "atom:2",
       kind: "atom",
       declaration: "#/template/example~1root/matter/0",
       meta: CHILD,
       state: "visible",
       values: {},
+      mass: [],
     }],
+  }],
+  reactions: [{
+    ref: "reaction:observe:1:2",
+    kind: "reaction",
+    reaction: {meta: ROOT, key: "observe"},
+    source: {atom: "atom:2", states: ["visible"]},
+    target: {atom: "atom:1", states: ["ready"]},
+    active: true,
   }],
 })
 
@@ -116,6 +140,12 @@ describe("stateless Graph Oracle assembly", () => {
       root: ROOT,
       template: template(),
       runtime: runtime(),
+    })
+    expect((result as Graph).runtime.reactions[0]).toMatchObject({
+      ref: "reaction:observe:1:2",
+      source: {atom: "atom:2", states: ["visible"]},
+      target: {atom: "atom:1", states: ["ready"]},
+      active: true,
     })
     expect(Object.keys(result as Record<string, unknown>)).toEqual([
       "schema",

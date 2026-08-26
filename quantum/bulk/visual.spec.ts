@@ -40,12 +40,15 @@ const hydrationDocument = (): Graph => {
     },
     runtime: {
       roots: [{
+        ref: "atom:1",
         kind: "atom",
         declaration: "#/template/zavx0z~1lada",
         meta: root,
         state: null,
         values: {},
+        mass: [],
       }],
+      reactions: [],
     },
   }
 }

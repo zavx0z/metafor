@@ -73,12 +73,15 @@ const graphScene = (): BulkInitialScene => {
     },
     runtime: {
       roots: [{
+        ref: "atom:1",
         kind: "atom",
         declaration: "#/template/example~1root",
         meta: root,
         state: null,
         values: {},
+        mass: [],
       }],
+      reactions: [],
     },
   }
   const projection = projectBulkGraph(graph).runtime

@@ -5,6 +5,11 @@ import type {
   ProcessResultProposal,
 } from "shared/protocol/force/execution"
 import {isProcessExecutionId} from "shared/protocol/force/execution"
+import {
+  REACTION_STATE_COMMIT_KIND,
+  type ReactionResultCommit,
+  type ReactionStateCommit,
+} from "shared/protocol/force/reaction"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
@@ -41,6 +46,21 @@ type CanonicalProcess = {
   descriptor: JsonRecord
 }
 
+type SupersededReactionRow = {
+  executionId: string
+  relationKey: string
+  reactionId: number
+  energy: string | null
+}
+
+type StateCommitResult = {
+  atom: AtomRow
+  state: StateRow
+  changed: boolean
+  eventId: string
+  supersededReactions: SupersededReactionRow[]
+}
+
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
@@ -48,6 +68,13 @@ const positiveId = (value: unknown): number | null =>
   typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null
 
 const message = (part: Particle): ForceMessage => ({parts: [part]})
+
+const eventId = (part: Particle): string => {
+  if (typeof part.from !== "string" || part.from.trim().length === 0) {
+    throw new Error("State transition requires a stable event identity")
+  }
+  return part.from
+}
 
 const executionValue = (value: unknown): ProcessExecutionGrant | null => {
   if (!isRecord(value) || !isProcessExecutionId(value.processExecutionId) || !isRecord(value.fields)) return null
@@ -74,10 +101,13 @@ const proposalValue = (value: unknown): ProcessResultProposal | null => {
 }
 
 /**
- * Boundary-owned State and Process execution lifecycle.
- * Matrix computes State, Energy executes Process, but Boundary alone persists
- * the materialized State and turns a proposed W result into durable Fields.
- */
+Boundary-owned State and Process execution lifecycle.
+
+Matrix computes State and Energy executes Process, but Boundary alone persists
+the materialized State and turns a proposed W result into durable Fields. Every
+actual State change records a stable event and publishes one confirmation used
+by Matrix Reaction routing; same-State Process retrigger does neither.
+*/
 export class BoundaryExecutionStore {
   constructor(readonly sql: SQL) {}
 
@@ -105,7 +135,51 @@ export class BoundaryExecutionStore {
         state TEXT NOT NULL,
         energy TEXT
       );
+      CREATE TABLE IF NOT EXISTS boundary_state_event (
+        event_id TEXT PRIMARY KEY,
+        atom INTEGER NOT NULL,
+        wimp TEXT NOT NULL,
+        state_id INTEGER NOT NULL,
+        state_name TEXT NOT NULL,
+        committed_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+      CREATE INDEX IF NOT EXISTS boundary_state_event_by_atom
+        ON boundary_state_event (atom, committed_at, event_id);
     `)
+    const stateEventColumns = await this.sql.unsafe<Array<{name: string}>>(
+      "PRAGMA table_info(boundary_state_event)",
+    )
+    if (!stateEventColumns.some(({name}) => name === "state_name")) {
+      await this.sql.begin(async (sql) => {
+        await sql.unsafe("DROP INDEX IF EXISTS boundary_state_event_by_atom")
+        await sql.unsafe("ALTER TABLE boundary_state_event RENAME TO boundary_state_event_legacy")
+        await sql.unsafe(`
+          CREATE TABLE boundary_state_event (
+            event_id TEXT PRIMARY KEY,
+            atom INTEGER NOT NULL,
+            wimp TEXT NOT NULL,
+            state_id INTEGER NOT NULL,
+            state_name TEXT NOT NULL,
+            committed_at INTEGER NOT NULL DEFAULT (unixepoch())
+          )
+        `)
+        await sql.unsafe(`
+          INSERT INTO boundary_state_event (
+            event_id, atom, wimp, state_id, state_name, committed_at
+          )
+          SELECT legacy.event_id, legacy.atom, atom.wimp, legacy.state,
+                 state.name, legacy.committed_at
+            FROM boundary_state_event_legacy AS legacy
+            JOIN atom ON atom.id = legacy.atom
+            JOIN state ON state.id = legacy.state
+        `)
+        await sql.unsafe("DROP TABLE boundary_state_event_legacy")
+        await sql.unsafe(`
+          CREATE INDEX boundary_state_event_by_atom
+            ON boundary_state_event (atom, committed_at, event_id)
+        `)
+      })
+    }
   }
 
   async apply(input: ForceMessage): Promise<BoundaryIncrementalCommit | null | undefined> {
@@ -120,41 +194,30 @@ export class BoundaryExecutionStore {
     return undefined
   }
 
-  private async commitState(part: Particle): Promise<null | undefined> {
+  private async commitState(part: Particle): Promise<BoundaryIncrementalCommit | null | undefined> {
     const atomId = positiveId(part.path)
     const stateName = typeof part.value === "string" ? part.value : null
     if (atomId === null || stateName === null) return undefined
-
-    await this.sql.begin(async (tx) => {
+    const stableEventId = eventId(part)
+    const committed = await this.sql.begin(async (tx) => {
       const atom = await this.atom(tx, atomId)
-      if (!atom) return
+      if (!atom) return null
       const state = await this.stateForName(tx, atom.wimp, stateName)
       if (!state) throw new Error(`Cannot commit State for atom=${atomId} state=${stateName}`)
-
-      await tx`
-        INSERT INTO atom_state (atom, metaState)
-        VALUES (${atomId}, ${state.id})
-        ON CONFLICT (atom) DO UPDATE SET metaState = excluded.metaState
-      `
-      await tx`
-        UPDATE boundary_process_execution
-           SET status = ${"superseded"}
-         WHERE atom = ${atomId}
-           AND status = ${"pending"}
-      `
+      return await this.commitStateIn(tx, atom, state, stableEventId)
     })
-    return null
+    return committed ? this.stateCommit(committed, part.ts) : null
   }
 
-  private async registerExecution(part: Particle): Promise<null | undefined> {
+  private async registerExecution(part: Particle): Promise<BoundaryIncrementalCommit | null | undefined> {
     const atomId = positiveId(part.path)
     const stateName = typeof part.value === "string" ? part.value : null
     const processExecutionId = isProcessExecutionId(part.from) ? part.from : null
     if (atomId === null || stateName === null || processExecutionId === null) return undefined
 
-    await this.sql.begin(async (tx) => {
+    const committed = await this.sql.begin(async (tx) => {
       const atom = await this.atom(tx, atomId)
-      if (!atom) return
+      if (!atom) return null
       const state = await this.stateForName(tx, atom.wimp, stateName)
       const process = await this.processForState(tx, atom.wimp, stateName)
       if (!state || !process) {
@@ -171,14 +234,10 @@ export class BoundaryExecutionStore {
         if (existing.atom !== atomId || existing.process !== process.id || existing.state !== stateName) {
           throw new Error(`Process execution identity collision: ${processExecutionId}`)
         }
-        if (existing.status !== "pending") return
+        if (existing.status !== "pending") return null
       }
 
-      await tx`
-        INSERT INTO atom_state (atom, metaState)
-        VALUES (${atomId}, ${state.id})
-        ON CONFLICT (atom) DO UPDATE SET metaState = excluded.metaState
-      `
+      const stateCommit = await this.commitStateIn(tx, atom, state, processExecutionId)
       await tx`
         UPDATE boundary_process_execution
            SET status = ${"superseded"}
@@ -196,8 +255,137 @@ export class BoundaryExecutionStore {
       if (!inserted || inserted.atom !== atomId || inserted.process !== process.id || inserted.state !== stateName) {
         throw new Error(`Process execution identity collision: ${processExecutionId}`)
       }
+      return stateCommit
     })
-    return null
+    return committed ? this.stateCommit(committed, part.ts) : null
+  }
+
+  private async commitStateIn(
+    sql: Database,
+    atom: AtomRow,
+    state: StateRow,
+    stableEventId: string,
+  ): Promise<StateCommitResult> {
+    const previous = await this.currentState(sql, atom.id)
+    const changed = previous?.id !== state.id
+    const existingEvent = (await sql<Array<{
+      atom: number
+      wimp: string
+      stateId: number
+      stateName: string
+    }>>`
+      SELECT atom, wimp, state_id AS stateId, state_name AS stateName
+        FROM boundary_state_event WHERE event_id = ${stableEventId}
+    `)[0]
+    if (existingEvent && (Number(existingEvent.atom) !== atom.id || existingEvent.wimp !== atom.wimp ||
+        Number(existingEvent.stateId) !== state.id || existingEvent.stateName !== state.name)) {
+      throw new Error(`State event identity collision: ${stableEventId}`)
+    }
+    if (existingEvent) return {
+      atom,
+      state,
+      changed: previous?.id === state.id,
+      eventId: stableEventId,
+      supersededReactions: [],
+    }
+    await sql`
+      INSERT INTO atom_state (atom, metaState)
+      VALUES (${atom.id}, ${state.id})
+      ON CONFLICT (atom) DO UPDATE SET metaState = excluded.metaState
+    `
+    if (!changed) return {
+      atom,
+      state,
+      changed: false,
+      eventId: stableEventId,
+      supersededReactions: [],
+    }
+
+    await sql`
+      INSERT OR IGNORE INTO boundary_state_event (event_id, atom, wimp, state_id, state_name)
+      VALUES (${stableEventId}, ${atom.id}, ${atom.wimp}, ${state.id}, ${state.name})
+    `
+
+    await sql`
+      UPDATE boundary_process_execution
+         SET status = ${"superseded"}
+       WHERE atom = ${atom.id}
+         AND status = ${"pending"}
+    `
+    const supersededReactions = await sql<SupersededReactionRow[]>`
+      SELECT execution.execution_id AS executionId,
+             execution.relation_key AS relationKey,
+             execution.reaction AS reactionId,
+             execution.energy
+        FROM boundary_reaction_execution AS execution
+       WHERE execution.target_atom = ${atom.id}
+         AND execution.status = ${"pending"}
+         AND NOT EXISTS (
+           SELECT 1 FROM reaction_state
+            WHERE reaction_state.reaction = execution.reaction
+              AND reaction_state.state = ${state.id}
+         )
+       ORDER BY execution.created_at, execution.execution_id
+    `
+    if (supersededReactions.length > 0) await sql`
+      UPDATE boundary_reaction_execution
+         SET status = ${"superseded"}, committed_at = unixepoch()
+       WHERE target_atom = ${atom.id}
+         AND status = ${"pending"}
+         AND NOT EXISTS (
+           SELECT 1 FROM reaction_state
+            WHERE reaction_state.reaction = boundary_reaction_execution.reaction
+              AND reaction_state.state = ${state.id}
+         )
+    `
+    return {
+      atom,
+      state,
+      changed: true,
+      eventId: stableEventId,
+      supersededReactions: supersededReactions.map((execution) => ({
+        ...execution,
+        reactionId: Number(execution.reactionId),
+      })),
+    }
+  }
+
+  private stateCommit(committed: StateCommitResult, timestamp: number): BoundaryIncrementalCommit | null {
+    if (!committed.changed) return null
+    const confirmation: ReactionStateCommit = {
+      kind: REACTION_STATE_COMMIT_KIND,
+      eventId: committed.eventId,
+      atomId: committed.atom.id,
+      wimp: committed.atom.wimp,
+      stateId: committed.state.id,
+      state: committed.state.name,
+    }
+    const messages: ForceMessage[] = [message({
+      part: "photon",
+      op: "copy",
+      path: committed.atom.id,
+      ts: timestamp,
+      from: committed.eventId,
+      value: confirmation,
+    })]
+    for (const execution of committed.supersededReactions) {
+      const acknowledgement: ReactionResultCommit = {
+        reactionExecutionId: execution.executionId,
+        relationKey: execution.relationKey,
+        reactionId: execution.reactionId,
+        energy: execution.energy,
+        status: "superseded",
+      }
+      messages.push(message({
+        part: "w-",
+        op: "copy",
+        path: committed.atom.id,
+        ts: timestamp,
+        from: execution.executionId,
+        value: acknowledgement,
+      }))
+    }
+    return {rootSrc: committed.atom.wimp, messages}
   }
 
   private async selectEnergy(part: Particle): Promise<null | undefined> {

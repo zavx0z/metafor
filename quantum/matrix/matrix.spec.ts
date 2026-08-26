@@ -47,7 +47,8 @@ const waitForPart = async (
 }
 
 const runtimeInitialState = (): BoundaryInitialState => ({
-  version: 1,
+  version: 2,
+  reactionRelations: [],
   pendingProcessExecutions: [],
   atoms: [{
     id: 17,
@@ -77,7 +78,8 @@ describe("Matrix packed Force runtime", () => {
     const runtime = await import(`./matrix.ts?packed-force-test=${crypto.randomUUID()}`)
     const client = await waiting
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "idle", fromBootstrap)).toEqual({
-      part: "photon", op: "replace", path: 17, by: "matrix", ts: expect.any(Number), value: "idle",
+      part: "photon", op: "replace", path: 17, by: "matrix", ts: expect.any(Number),
+      from: expect.any(String), value: "idle",
     })
     expect(runtime.listMatrixRuntimeAtomIds()).toEqual([17])
     expect(weak$.mode).toBe("cpu")
@@ -228,7 +230,8 @@ describe("Matrix packed Force runtime", () => {
       value: commit,
     })
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "done", fromCommit)).toEqual({
-      part: "photon", op: "replace", path: 17, by: "matrix", ts: expect.any(Number), value: "done",
+      part: "photon", op: "replace", path: 17, by: "matrix", ts: expect.any(Number),
+      from: expect.any(String), value: "done",
     })
     expect(runtime.matrix$.branes[0]?.lock).toBe(false)
   })

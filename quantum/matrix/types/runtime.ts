@@ -1,5 +1,6 @@
 import type {MatrixInputData} from "./data.ts"
 import type {ProcessExecutionId} from "shared/protocol/force/execution"
+import type {ReactionRelation} from "shared/protocol/force/reaction"
 
 /**
  * У Atom есть объявленные States, но текущий State ещё не выбран.
@@ -81,7 +82,7 @@ export interface MatrixRuntimeTopology {
  */
 export interface MatrixRuntimeSnapshot {
   ok: true
-  version: 1
+  version: 2
   runtime: {
     atomIdByBraneIndex: number[]
     /** Atom whose matching prior pending Process must be replaced after cold birth. */
@@ -91,6 +92,8 @@ export interface MatrixRuntimeSnapshot {
     atomIdsByWimpSrc: Array<[wimpSrc: string, atomIds: number[]]>
     /** Canonical Matrix field identity remains the explicit Atom/Field pair. */
     runtimeFieldIndexByAtomFieldId: Array<[atomId: number, fieldId: number, runtimeFieldIndex: number]>
+    reactionRelations: ReactionRelation[]
+    confirmedStateIdByAtom: Array<[atomId: number, stateId: number | null]>
   }
   data: Required<Pick<MatrixInputData, "fields" | "branes" | "stateNames">> &
     Pick<MatrixInputData, "entanglement">

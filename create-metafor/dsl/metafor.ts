@@ -97,10 +97,12 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
                               key,
                               label: config.label,
                               desc: config.desc ?? null,
-                              cond: config.cond,
+                              sources: config.sources,
                               src: config.src,
-                              read: config.read ?? [],
-                              write: config.write ?? [],
+                              read: config.read,
+                              write: config.write,
+                              massRead: config.massRead,
+                              massWrite: config.massWrite,
                               states: Object.entries(reactions.superposition)
                                 .filter(([, reactionIds]) => reactionIds.includes(key))
                                 .map(([state]) => state),

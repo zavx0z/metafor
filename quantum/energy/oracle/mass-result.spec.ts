@@ -60,7 +60,7 @@ const harness = async (
 
 const request = () => ({
   contractVersion: 1 as const,
-  atom: {root: ROOT, pointer: "/runtime/roots/0/children/0" as const, meta: CHILD},
+  atom: {root: ROOT, ref: "atom:2" as const, meta: CHILD},
   key: "profile",
   maxBytes: 4096,
 })

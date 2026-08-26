@@ -47,8 +47,10 @@ WebSocket и не поднимают собственные HTTP servers.
 
 Matrix рождается последней. Она ждёт готовности остальных доменов, получает
 последний согласованный снимок текущего мира с Atom, Fields, States и
-декларациями и только после подготовки открывает общий поток изменений. Поэтому
-первое вычисление Matrix уже может безопасно начать Process в готовой Energy.
+декларациями, а также все точные потенциальные связи Reaction, и только после
+подготовки открывает общий поток изменений. Поэтому первое вычисление Matrix уже
+может безопасно начать Process в готовой Energy. Наличие связи при холодном
+рождении не переигрывает текущее State её источника.
 
 Тот же снимок содержит незавершённые Process executions прежнего полного
 contour. Они не продолжаются: Matrix создаёт для совпадающего текущего State и
@@ -76,6 +78,17 @@ Process новую execution identity, а Boundary при её регистра�
 Matrix не ждёт завершения Process всей системой: она блокирует только State
 конкретного Atom. Остальные Atom и домены продолжают работу.
 
+Проход Reaction является отдельной причинной ветвью:
+
+```text
+Boundary подтверждает новое State source Atom
+→ Matrix выбирает точные активные связи и очередь target Atom
+→ Boundary регистрирует execution и снимок объявленных зависимостей
+→ Energy исполняет Reaction рядом с Mass target Atom
+→ Boundary принимает только ordinary Field proposal
+→ Matrix завершает execution и выпускает следующий trigger очереди
+```
+
 После изменения кода причинно связанная Вселенная запускается заново целиком.
 Частичная горячая перезагрузка могла бы смешать разные исходные снимки и потому
 не поддерживается.
@@ -97,11 +110,12 @@ Graph, а не именем доменной сущности, вторым фо
 
 Graph содержит две явно разделённые части:
 
-- `template` — компактную, но полную сериализуемую нормализацию действующего
+* `template` — компактную, но полную сериализуемую нормализацию действующего
   `MetaDSL`, включая все declarations, defaults, Process/Reaction descriptors,
   Matter bindings и объявленный Bulk;
-- `runtime` — вложенные текущие Atom occurrences с реально присутствующими
-  State и Field values.
+* `runtime` — вложенные текущие Atom/Topology occurrences со стабильными refs,
+  реально присутствующими State и Field values, metadata разрешённой Mass и
+  отдельным списком точных Reaction relations.
 
 Runtime не объясняет происхождение значения. Если текущий Field value
 присутствует у Atom, он находится в runtime occurrence; если отсутствует, ключа
@@ -109,13 +123,21 @@ Runtime не объясняет происхождение значения. Е�
 `inherited-default`, `missing`, `not-projected`, отдельный `values/missing`
 envelope и provenance default-vs-write запрещены.
 
-Публичная agent-facing identity задаётся logical Meta address, вложенной
-структурой Graph и JSON paths/references его сериализации. Внутри доменного
-Force/RPC контура Boundary `Atom.id`, persisted row IDs декларационных таблиц
-и `valueId` сохраняются как canonical relational identity для Matrix и Bulk,
-но не становятся Graph-адресами или JSON Pointer. Graph не вводит направленные ports, boundary stubs или
-отдельный global edges graph: relations остаются в нормализованной Matter
-structure и её публичных structural references.
+Публичная agent-facing identity runtime-сущности задаётся типизированным opaque
+ref: `atom:*`, `topology:*`, `mass:*` или `reaction:*`. Вложенный путь остаётся
+текущим placement и может измениться, не меняя identity. JSON Pointer адресует
+место только внутри одного снимка и не подменяет ref.
+
+Graph не раскрывает raw SQLite row, `valueId`, filesystem path или handle.
+Typed refs формируются из канонической Boundary identity на границе проекции.
+Точный список `runtime.reactions` показывает source Atom и его наблюдаемые
+States, target Atom и его активные States и вычисленную активность связи. Это
+не универсальная таблица произвольных edges и не второй Store. Matter hierarchy
+по-прежнему остаётся вложенной structural projection.
+
+У каждого runtime Atom Graph показывает metadata разрешённых Mass keys с
+`content: "lazy"`. Bytes читаются отдельно через Mass RPC только по отдельному
+разрешению и никогда не входят в Graph.
 
 Последовательность сохраняется только там, где она уже влияет на смысл или
 materialization:
@@ -138,6 +160,11 @@ Boundary coherent current projection с единственным текущим 
 Graph и возвращает root как данные ответа. Assembler не хранит Graph и не
 читает Store другого домена напрямую. Dark Oracle и Boundary остаются
 владельцами своих projections; Dark Force только переносит Oracle RPC.
+
+Quantum Storybook сейчас является исполняемой JSON-лабораторией этого формата:
+он показывает declaration, exact Reaction relation и lazy Mass metadata. Он не
+является автоматическим dependency catalog, не строит node layout и не даёт
+live previews; эти возможности не считаются реализованными.
 
 При рождении Bulk один раз получает через `Boundary.initialProjection.read`
 согласованный набор необходимых canonical rows и сразу формирует плоский Bulk
@@ -304,10 +331,11 @@ Boundary suites открывают изолированные `:memory:` databas
 
 Boundary не хранит Meta-файл, JSON-зеркало декларации или второй snapshot
 мира. WIMP, Field, Variant, State, Transition, Condition, Process, Reaction,
-Matter, binding descriptors, Field source relations и materialized
-Atom/Topology/Value разложены по отдельным связанным таблицам. Рабочая Mass в
-Boundary отсутствует. Производные runtime-проекции можно восстановить из этих
-отношений.
+Reaction selectors и exact relations, Matter, binding descriptors, Field
+source relations и materialized Atom/Topology/Value разложены по отдельным
+связанным таблицам. Стабильные State event и execution identities сохраняют
+границу регистрации Process и Reaction. Рабочая Mass в Boundary отсутствует.
+Производные runtime-проекции можно восстановить из этих отношений.
 
 ## Bulk и renderer
 

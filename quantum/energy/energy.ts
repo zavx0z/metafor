@@ -16,14 +16,16 @@ import type {ProcessExecutionClaim, ProcessExecutionGrant, ProcessResultProposal
 import type {ForceMessage} from "shared/protocol/force/message"
 import {
   REACTION_CLAIM_KIND,
+  REACTION_SIGNAL_KIND,
   isReactionExecutionSignal,
+  isReactionResultCommit,
   type ReactionExecutionClaim,
   type ReactionExecutionSignal,
   type ReactionResultProposal,
 } from "shared/protocol/force/reaction"
 import {EnergyCatalogStore} from "./graph/catalog.ts"
 import {createFilesystemEnergyMassStore} from "./mass.ts"
-import {executeReaction} from "./reaction.ts"
+import {executeReaction, ReactionInvariantError} from "./reaction.ts"
 
 export type StartEnergyProtocolOptions = Omit<EnergyProtocolOptions, "force"> & {
   /** ForceChannel born by the service layer only after initial hydration. */
@@ -413,6 +415,14 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
   const activeTasks = new Set<Promise<void>>()
   let retiredDestroyQueue = Promise.resolve()
   let closed = false
+  let fatalError: Error | null = null
+
+  const failInvariant = (message: string): never => {
+    const error = new ReactionInvariantError(message)
+    fatalError = error
+    void options.onFatal?.(error)
+    throw error
+  }
 
   const trackTask = (task: Promise<unknown>): void => {
     let tracked!: Promise<void>
@@ -464,6 +474,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
   }
 
   force.onImpulse = (message: ForceMessage) => {
+    if (fatalError) throw fatalError
     const part = message.parts[0]
     if (part.part === "graviton") {
       const affectedBefore = catalog.affectedAtomIds(part)
@@ -575,12 +586,21 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
       return
     }
 
+    if ((part.part === "w+" || part.part === "w-") && part.op === "copy" && isReactionResultCommit(part.value)) {
+      pendingReactions.delete(part.value.reactionExecutionId)
+      runningReactionIds.delete(part.value.reactionExecutionId)
+      return
+    }
+
     switch (part.part) {
       case "photon": {
         if (part.op !== "test") break
         const atomId = parseAtomIdPath(part.path)
         if (atomId === null) break
 
+        if (isRecord(part.value) && part.value.kind === REACTION_SIGNAL_KIND && !isReactionExecutionSignal(part.value)) {
+          failInvariant("Energy received an invalid Reaction execution signal")
+        }
         if (isReactionExecutionSignal(part.value)) {
           const signal = part.value
           if (signal.target.atomId !== atomId || part.from !== signal.reactionExecutionId) break
@@ -634,6 +654,9 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
         const atomId = parseAtomIdPath(part.path)
         if (atomId === null || part.from !== energyId) break
 
+        if (isRecord(part.value) && part.value.kind === REACTION_SIGNAL_KIND && !isReactionExecutionSignal(part.value)) {
+          failInvariant("Energy received an invalid Reaction execution grant")
+        }
         if (isReactionExecutionSignal(part.value)) {
           const signal = part.value
           const pending = pendingReactions.get(signal.reactionExecutionId)
@@ -642,30 +665,27 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           trackTask(executeReaction(signal, energyId, massStore)
             .then((result) => {
               if (!pendingReactions.has(signal.reactionExecutionId) || !runningReactionIds.has(signal.reactionExecutionId)) return
-              if (!result.matched) {
-                emitReactionProposal("w-", signal, {
-                  reactionExecutionId: signal.reactionExecutionId,
-                  reactionId: signal.reactionId,
-                  matched: false,
-                  fields: {},
-                })
-                return
-              }
               emitReactionProposal("w+", signal, {
                 reactionExecutionId: signal.reactionExecutionId,
+                relationKey: signal.relationKey,
                 reactionId: signal.reactionId,
-                matched: true,
                 fields: result.fields,
               })
             })
-            .catch((thrown) => {
+            .catch(async (thrown) => {
               if (!pendingReactions.has(signal.reactionExecutionId) || !runningReactionIds.has(signal.reactionExecutionId)) return
+              const error = toError(thrown)
+              if (error instanceof ReactionInvariantError) {
+                fatalError = error
+                await options.onFatal?.(error)
+                return
+              }
               emitReactionProposal("w-", signal, {
                 reactionExecutionId: signal.reactionExecutionId,
+                relationKey: signal.relationKey,
                 reactionId: signal.reactionId,
-                matched: false,
                 fields: {},
-                error: toError(thrown).message,
+                error: error.message,
               })
             })
             .finally(() => {
@@ -785,7 +805,10 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
         const retired = retiredDestroyQueue
         const tasks = [...activeTasks]
         await Promise.all([retired, ...tasks])
-        if (retired === retiredDestroyQueue && activeTasks.size === 0) return
+        if (retired === retiredDestroyQueue && activeTasks.size === 0) {
+          if (fatalError) throw fatalError
+          return
+        }
       }
     },
     close() {

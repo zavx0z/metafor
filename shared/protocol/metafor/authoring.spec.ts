@@ -593,8 +593,9 @@ describe("meta.declaration.apply Meta entity validation", () => {
         ...common, operationId: "reaction-add", entity: "reaction", operation: "add",
         reaction: {
           key: "remember", label: "Remember", states: ["ready"],
-          filterSource: "({ value }) => value.status === 'ok'",
-          updateSource: "({ self }) => self", read: ["status"], write: [],
+          sources: [{meta: TEST, states: ["ready"]}],
+          src: "({ self }) => self", read: ["status"], write: [],
+          massRead: ["memory"], massWrite: [],
         },
       },
       {
@@ -673,7 +674,7 @@ describe("meta.declaration.apply Meta entity validation", () => {
     if (!result.ok) expect(result.issues.map((issue) => issue.code)).toContain(code)
   })
 
-  test("rejects executable-looking Bulk fields and empty Reaction source", () => {
+  test("rejects executable-looking Bulk fields and legacy Reaction source", () => {
     const common = {
       contractVersion: META_AUTHORING_CONTRACT_VERSION,
       capability: META_DECLARATION_WRITE_CAPABILITY,
@@ -686,14 +687,67 @@ describe("meta.declaration.apply Meta entity validation", () => {
       {
         ...common, operationId: "reaction-invalid", entity: "reaction",
         reaction: {
-          key: "bad", label: "Bad", states: [], filterSource: "",
-          updateSource: "({ self }) => self", read: [], write: [],
+          key: "bad", label: "Bad", states: ["ready"],
+          filterSource: "() => true", updateSource: "({ self }) => self",
+          read: [], write: [], massRead: [], massWrite: [],
         },
       },
     ]) {
       expect(validateMetaDeclarationRequest(input, {
         capabilities: [declarationGrant()], currentRevision,
       }).ok).toBe(false)
+    }
+  })
+
+  test("validates closed Reaction selectors, source States and dependencies", () => {
+    const base: MetaDeclarationRequest = {
+      contractVersion: META_AUTHORING_CONTRACT_VERSION,
+      operationId: "reaction-selector",
+      capability: META_DECLARATION_WRITE_CAPABILITY,
+      entity: "reaction" as const,
+      operation: "add" as const,
+      address: TEST,
+      revisions: [{address: TEST, revision: TEST_REVISION}],
+      reaction: {
+        key: "observe",
+        label: "Observe",
+        states: ["ready"],
+        sources: [
+          {atom: "atom:7", states: ["ready"]},
+          {meta: TEST, states: ["idle"]},
+          {relation: "parent" as const, states: ["ready"]},
+          {relation: "child" as const, meta: TEST, states: ["done"]},
+          {relation: "descendant" as const, meta: TEST, states: ["failed"]},
+        ],
+        read: ["status"],
+        write: ["message"],
+        massRead: ["memory"],
+        massWrite: ["history"],
+        src: "({ observation }) => observation.source.state",
+      },
+    }
+    const accepted = validateMetaDeclarationRequest(base, {
+      capabilities: [declarationGrant()], currentRevision,
+    })
+    expect(accepted).toEqual({ok: true, value: base})
+    if (accepted.ok) expect(accepted.value).not.toBe(base)
+
+    for (const [label, mutate, code] of [
+      ["empty sources", (input: Record<string, any>) => { input.reaction.sources = [] }, "empty_reaction_sources"],
+      ["empty target States", (input: Record<string, any>) => { input.reaction.states = [] }, "empty_reaction_states"],
+      ["missing selector identity", (input: Record<string, any>) => { input.reaction.sources = [{states: ["ready"]}] }, "empty_reaction_source"],
+      ["empty source States", (input: Record<string, any>) => { input.reaction.sources = [{meta: TEST, states: []}] }, "empty_reaction_source_states"],
+      ["unstable Atom ref", (input: Record<string, any>) => { input.reaction.sources = [{atom: "atom:temporary", states: ["ready"]}] }, "invalid_reaction_atom_ref"],
+      ["unknown relation", (input: Record<string, any>) => { input.reaction.sources = [{relation: "sibling", states: ["ready"]}] }, "invalid_reaction_relation"],
+      ["duplicate selector", (input: Record<string, any>) => { input.reaction.sources = [{meta: TEST, states: ["ready"]}, {meta: TEST, states: ["ready"]}] }, "duplicate_value"],
+    ] as const) {
+      const input = structuredClone(base) as Record<string, any>
+      mutate(input)
+      const result = validateMetaDeclarationRequest(input, {
+        capabilities: [declarationGrant()], currentRevision,
+      })
+      expect(result.ok, label).toBe(false)
+      if (!result.ok) expect(result.issues.map((issue) => issue.code), label).toContain(code)
     }
   })
 })

@@ -28,8 +28,20 @@ const template = (): Graph["template"] => ({
       {key: "count", type: "number", required: true, default: 7},
     ],
     superposition: [{name: "ready", transitions: null}],
-    mass: [],
+    mass: [{key: "history", format: "json"}],
     processes: [],
+    reactions: [{
+      key: "observe",
+      label: "Observe children",
+      desc: null,
+      sources: [{meta: CHILD, states: ["present"]}],
+      src: "({update, value}) => update({count: value.count + 1})",
+      read: ["count"],
+      write: ["count"],
+      massRead: ["history"],
+      massWrite: ["history"],
+      states: ["ready"],
+    }],
     matter: [{
       kind: "macho",
       collectionBinding: {data: "items"},
@@ -42,7 +54,7 @@ const template = (): Graph["template"] => ({
   [CHILD]: {
     name: "Child",
     fields: [{key: "note", type: "string"}],
-    superposition: [],
+    superposition: [{name: "present", transitions: null}],
     mass: [],
     processes: [],
   },
@@ -123,9 +135,16 @@ describe("Boundary Graph current projection", () => {
       position: 2,
     })
     await declaration("state", ROOT, 1, {name: "ready", position: 0})
+    await declaration("mass", ROOT, 1, {key: "history", format: "json"})
     const rootAtom = (await boundary.initialState()).atoms.find((atom) => atom.wimp === ROOT)
     if (!rootAtom) throw new Error("Root Atom was not materialized")
-    await apply({part: "photon", op: "replace", path: rootAtom.id, value: "ready"})
+    await apply({
+      part: "photon",
+      op: "replace",
+      path: rootAtom.id,
+      from: "graph-root-ready",
+      value: "ready",
+    })
     await declaration("matter", ROOT, 1, {
       parent: null,
       edgeSlot: "root",
@@ -152,39 +171,85 @@ describe("Boundary Graph current projection", () => {
       required: false,
       position: 0,
     })
+    await declaration("state", CHILD, 1, {name: "present", position: 0})
+    await declaration("reaction", ROOT, 1, {
+      key: "observe",
+      label: "Observe children",
+      desc: null,
+      sources: [{meta: CHILD, states: ["present"]}],
+      src: "({update, value}) => update({count: value.count + 1})",
+      read: [3],
+      write: [3],
+      massRead: ["history"],
+      massWrite: ["history"],
+      states: [1],
+    })
 
     const projection = await readBoundaryGraphProjection(boundary, {})
+    const projectedRoot = projection.runtime.roots[0]
+    const projectedMassRef = projectedRoot?.kind === "atom" ? projectedRoot.mass[0]?.ref : undefined
+    expect(projectedMassRef).toMatch(/^mass:[A-Za-z0-9-]+$/)
+    if (projectedMassRef === undefined) throw new Error("Projected root Mass is absent")
 
     expect(projection).toEqual({
       root: ROOT,
       runtime: {
         roots: [{
+          ref: "atom:1",
           kind: "atom",
           declaration: "#/template/example~1root",
           meta: ROOT,
           state: "ready",
           values: {items: [1, 2], mode: "active", count: 7},
+          mass: [{
+            ref: projectedMassRef,
+            key: "history",
+            format: "json",
+            label: null,
+            description: null,
+            content: "lazy",
+          }],
           children: [{
+            ref: "topology:1",
             kind: "topology",
             declaration: "#/template/example~1root/matter/0",
             topology: "macho",
             children: [
               {
+                ref: "atom:2",
                 kind: "atom",
                 declaration: "#/template/example~1root/matter/0/children/0/particle",
                 meta: CHILD,
                 state: null,
                 values: {note: null},
+                mass: [],
               },
               {
+                ref: "atom:3",
                 kind: "atom",
                 declaration: "#/template/example~1root/matter/0/children/0/particle",
                 meta: CHILD,
                 state: null,
                 values: {note: null},
+                mass: [],
               },
             ],
           }],
+        }],
+        reactions: [{
+          ref: "reaction:1:target:1:source:2",
+          kind: "reaction",
+          reaction: {meta: ROOT, key: "observe"},
+          source: {atom: "atom:2", states: ["present"]},
+          target: {atom: "atom:1", states: ["ready"]},
+          active: true,
+        }, {
+          ref: "reaction:1:target:1:source:3",
+          kind: "reaction",
+          reaction: {meta: ROOT, key: "observe"},
+          source: {atom: "atom:3", states: ["present"]},
+          target: {atom: "atom:1", states: ["ready"]},
+          active: true,
         }],
       },
     })
@@ -243,18 +308,22 @@ describe("Boundary Graph current projection", () => {
 
     expect(projection.runtime.roots[0]?.children).toEqual([
       {
+        ref: expect.stringMatching(/^atom:/),
         kind: "atom",
         declaration: "#/template/example~1root/matter/0",
         meta: FIRST,
         state: null,
         values: {},
+        mass: [],
       },
       {
+        ref: expect.stringMatching(/^atom:/),
         kind: "atom",
         declaration: "#/template/example~1root/matter/1",
         meta: SECOND,
         state: null,
         values: {},
+        mass: [],
       },
     ])
   })

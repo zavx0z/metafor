@@ -27,17 +27,20 @@ const AUTH = parseMetaAddress("zavx0z/lada-auth")!
 const CHAT = parseMetaAddress("zavx0z/lada-chat")!
 const MODEL = parseMetaAddress("zavx0z/lada-model")!
 const SEND = parseMetaAddress("zavx0z/lada-chat-send")!
+let nextRuntimeRef = 0
 
 const runtimeAtom = (
   declaration: DocumentPointer,
   meta: typeof LADA,
   children?: Graph["runtime"]["roots"],
 ): Graph["runtime"]["roots"][number] => ({
+  ref: `atom:${++nextRuntimeRef}`,
   kind: "atom",
   declaration,
   meta,
   state: meta === LADA ? "ready" : null,
   values: {},
+  mass: [],
   ...(children === undefined ? {} : {children}),
 })
 
@@ -45,6 +48,7 @@ const sampleDocument = (
   promoted = false,
   ladaState: "ready" | "working" = "ready",
 ): Graph => {
+  nextRuntimeRef = 0
   const ladaChildren: Graph["runtime"]["roots"] = [
     runtimeAtom("#/template/zavx0z~1lada/matter/0", AUTH),
     runtimeAtom("#/template/zavx0z~1lada/matter/1", CHAT, [
@@ -89,6 +93,7 @@ const sampleDocument = (
       roots: promoted
         ? [lada]
         : [runtimeAtom("#/template/zavx0z~1inference", INFERENCE, [lada])],
+      reactions: [],
     },
   }
 }

@@ -43,7 +43,7 @@ describe("agent observation public contracts", () => {
   test("accepts a bounded Mass result locator and rejects filesystem-shaped input", () => {
     const request = {
       contractVersion: 1 as const,
-      atom: {root: ROOT, pointer: "/runtime/roots/0/children/1" as const, meta: CHILD},
+      atom: {root: ROOT, ref: "atom:2" as const, meta: CHILD},
       key: "profile",
       maxBytes: 4096,
       expectedDigest: `sha256:${"a".repeat(64)}` as const,
@@ -54,19 +54,21 @@ describe("agent observation public contracts", () => {
       .toMatchObject({ok: false, issues: [{code: "invalid_request"}]})
     expect(validateEnergyMassResultReadRequest({...request, maxBytes: ENERGY_MASS_RESULT_MAX_BYTES + 1}))
       .toMatchObject({ok: false, issues: [{code: "invalid_limit"}]})
-    expect(validateEnergyMassResultReadRequest({...request, atom: {...request.atom, pointer: "/runtime/roots/0/value/1"}}))
-      .toMatchObject({ok: false, issues: [{code: "invalid_runtime_pointer"}]})
+    expect(validateEnergyMassResultReadRequest({...request, atom: {...request.atom, ref: "atom:missing"}}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_atom_ref"}]})
   })
 
   test("accepts one typed Field input at an exact causal frontier", () => {
     const request = {
       contractVersion: 1 as const,
-      atom: {root: ROOT, pointer: "/runtime/roots/0/children/1" as const, meta: CHILD},
+      atom: {root: ROOT, ref: "atom:2" as const, meta: CHILD},
       field: "mode",
       value: "ready",
       expectedFrontier: {cutId: "cut-1", throughSequence: 17, retroactiveComplete: false as const},
     }
     expect(validateMetaFieldValueApplyRequest(request)).toEqual({ok: true, value: request})
+    expect(validateMetaFieldValueApplyRequest({...request, value: [1, 2]}))
+      .toMatchObject({ok: false, issues: [{code: "invalid_field_value"}]})
     expect(validateMetaFieldValueApplyRequest({...request, value: [1, Number.NaN]}))
       .toMatchObject({ok: false, issues: [{code: "invalid_field_value"}]})
     expect(validateMetaFieldValueApplyRequest({...request, expectedFrontier: {...request.expectedFrontier, throughSequence: -1}}))
@@ -78,7 +80,7 @@ describe("agent observation public contracts", () => {
   test("accepts Process observation only by locator, semantic key and public execution", () => {
     const request = {
       contractVersion: 1 as const,
-      atom: {root: ROOT, pointer: "/runtime/roots/0" as const, meta: ROOT},
+      atom: {root: ROOT, ref: "atom:1" as const, meta: ROOT},
       process: "ready",
       execution: "execution-17",
     }

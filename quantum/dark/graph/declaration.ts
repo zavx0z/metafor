@@ -212,10 +212,12 @@ const reaction = (value: unknown, path: string): MetaReaction => {
     key: requiredString(input, "key", path),
     label: requiredString(input, "label", path),
     desc: input.desc === undefined ? null : jsonValue(input.desc, `${path}.desc`) as string | null,
-    cond: requiredString(input, "cond", path),
+    sources: jsonValue(required(input, "sources", path), `${path}.sources`) as unknown as MetaReaction["sources"],
     src: requiredString(input, "src", path),
     read: jsonValue(input.read ?? [], `${path}.read`) as string[],
     write: jsonValue(input.write ?? [], `${path}.write`) as string[],
+    massRead: jsonValue(input.massRead ?? [], `${path}.massRead`) as string[],
+    massWrite: jsonValue(input.massWrite ?? [], `${path}.massWrite`) as string[],
     states: jsonValue(input.states ?? [], `${path}.states`) as string[],
   }
 }
@@ -365,14 +367,46 @@ const matterReferences = (value: MetaDSL, address: string): MetaAddress[] => {
   return references
 }
 
+const reactionReferences = (value: MetaDSL, address: string): MetaAddress[] => {
+  if (value.reactions === undefined) return []
+  if (!Array.isArray(value.reactions)) throw new Error(`MetaDSL(${address}).reactions must be an array`)
+  const references: MetaAddress[] = []
+  for (const [reactionIndex, reaction] of value.reactions.entries()) {
+    if (!Array.isArray(reaction.sources)) {
+      throw new Error(`MetaDSL(${address}).reactions[${reactionIndex}].sources must be an array`)
+    }
+    for (const [sourceIndex, source] of reaction.sources.entries()) {
+      if (source.meta === undefined) continue
+      const reference = parseMetaAddress(source.meta)
+      if (!reference) {
+        throw new Error(
+          `MetaDSL(${address}).reactions[${reactionIndex}].sources[${sourceIndex}].meta must be a canonical <owner>/<repository> address`,
+        )
+      }
+      if (!references.includes(reference)) references.push(reference)
+    }
+  }
+  return references
+}
+
+const declarationReferences = (value: MetaDSL, address: string): MetaAddress[] => {
+  const references: MetaAddress[] = []
+  for (const reference of [...matterReferences(value, address), ...reactionReferences(value, address)]) {
+    if (!references.includes(reference)) references.push(reference)
+  }
+  return references
+}
+
 /**
- * Loads one canonical root breadth-first. The generator pauses after each Meta,
- * so Dark's existing declaration stream can emit locally ready entities before
- * the next Meta source is read.
+ * Loads one canonical root breadth-first. Matter reach is the safe default for
+ * materialization callers; Graph reach additionally follows Reaction source
+ * Meta only for the read-only declaration projection. The generator pauses
+ * after each Meta so a caller can consume locally ready declarations first.
  */
 export async function* loadMetaDeclarationGraph(
   root: string,
   readMeta: MetaLoader = loadMeta,
+  reach: "matter" | "graph" = "matter",
 ): AsyncGenerator<LoadedMetaDeclaration, void, void> {
   const canonicalRoot = parseMetaAddress(root)
   if (!canonicalRoot) {
@@ -383,7 +417,9 @@ export async function* loadMetaDeclarationGraph(
   for (let index = 0; index < pending.length; index++) {
     const address = pending[index]!
     const dsl = await readMeta(address)
-    const references = matterReferences(dsl, address)
+    const references = reach === "graph"
+      ? declarationReferences(dsl, address)
+      : matterReferences(dsl, address)
     yield {address, dsl, references}
     for (const reference of references) {
       if (queued.has(reference)) continue
@@ -413,7 +449,7 @@ export const readDarkDeclarationProjection = async (
 ): Promise<DarkGraphTemplate> => {
   const root = rootParam(params)
   const template = {} as Graph["template"]
-  for await (const {address, dsl} of loadMetaDeclarationGraph(root, readMeta)) {
+  for await (const {address, dsl} of loadMetaDeclarationGraph(root, readMeta, "graph")) {
     template[address] = normalizeMetaTemplate(dsl, address)
   }
   return {root, template}

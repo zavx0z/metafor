@@ -22,6 +22,15 @@ export type JsonPointer = "" | `/${string}`
 /** Внутридокументная ссылка, не являющаяся постоянной identity сущности. */
 export type DocumentPointer = `#${JsonPointer}`
 
+/** Opaque runtime Atom identity. Placement paths may change while this ref stays stable. */
+export type AtomRef = `atom:${string}`
+/** Opaque runtime Topology identity, independent from its current parent and order. */
+export type TopologyRef = `topology:${string}`
+/** Opaque identity of one authorized runtime Mass key-file. */
+export type MassRef = `mass:${string}`
+/** Opaque identity of one exact resolved source-to-target Reaction relation. */
+export type ReactionRelationRef = `reaction:${string}`
+
 declare const MetaAddressBrand: unique symbol
 
 /** Canonical safe two-segment `<owner>/<repository>` address. */
@@ -264,15 +273,25 @@ export interface MetaProcess {
   declaration: MetaActionProcessDescriptor | MetaFinallyProcessDescriptor
 }
 
-/** WIMP-local Reaction с явными read/write sets и active States. */
+/** Declarative source selector resolved by Boundary into exact runtime relations. */
+export interface MetaReactionSource {
+  atom?: AtomRef
+  meta?: MetaAddress
+  relation?: "parent" | "child" | "descendant"
+  states: string[]
+}
+
+/** WIMP-local Reaction with visible State, Field and Mass dependencies. */
 export interface MetaReaction {
   key: string
   label: string
   desc: string | null
-  cond: string
+  sources: MetaReactionSource[]
   src: string
   read: string[]
   write: string[]
+  massRead: string[]
+  massWrite: string[]
   states: string[]
 }
 
@@ -382,16 +401,19 @@ export interface MetaTemplate {
 проецируемого текущего значения; default остаётся в `template`.
 */
 export interface RuntimeAtom {
+  ref: AtomRef
   kind: "atom"
   declaration: DocumentPointer
   meta: MetaAddress
   state: string | null
   values: {[field: string]: JsonValue}
+  mass: RuntimeMass[]
   children?: RuntimeNode[]
 }
 
 /** Текущий structural controller occurrence, а не runtime WIMP. */
 export interface RuntimeTopology {
+  ref: TopologyRef
   kind: "topology"
   declaration: DocumentPointer
   topology: "fuzzy" | "axion" | "macho"
@@ -400,6 +422,36 @@ export interface RuntimeTopology {
 
 /** Runtime occurrence, допустимый во вложенном текущем дереве Graph. */
 export type RuntimeNode = RuntimeAtom | RuntimeTopology
+
+/** Metadata-only runtime Mass occurrence. Content is read lazily through its RPC. */
+export interface RuntimeMass {
+  ref: MassRef
+  key: string
+  format: "json" | "binary"
+  label: string | null
+  description: string | null
+  content: "lazy"
+}
+
+/** One exact potential Reaction relation resolved from an authored source selector. */
+export interface RuntimeReactionRelation {
+  ref: ReactionRelationRef
+  kind: "reaction"
+  reaction: {
+    meta: MetaAddress
+    key: string
+  }
+  source: {
+    atom: AtomRef
+    states: string[]
+  }
+  target: {
+    atom: AtomRef
+    states: string[]
+  }
+  /** Derived from the target Atom current State; it is not another runtime Store. */
+  active: boolean
+}
 
 /**
 Единственный публичный Graph, собираемый Dark Oracle из независимых Dark и
@@ -415,6 +467,7 @@ export interface Graph {
   template: {[address: MetaAddress]: MetaTemplate}
   runtime: {
     roots: RuntimeNode[]
+    reactions: RuntimeReactionRelation[]
   }
 }
 
@@ -444,6 +497,10 @@ type OccurrencePlan =
   | {mode: "axion"; alternatives: OccurrenceExpectation[][]}
   | {mode: "macho"; items: OccurrenceExpectation[]}
   | {mode: "fuzzy"; items: OccurrenceExpectation[]}
+type TemplateTargets = {
+  matter: Set<MetaAddress>
+  reactions: Set<MetaAddress>
+}
 
 const ADDRESS_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const EXECUTION_ENVS = new Set<MetaExecutionEnv>([
@@ -455,6 +512,10 @@ const EXECUTION_ENVS = new Set<MetaExecutionEnv>([
 ])
 const FIELD_TYPES = new Set(["string", "number", "boolean", "array", "enum"])
 const TOPOLOGIES = new Set(["fuzzy", "axion", "macho"])
+const ATOM_REF = /^atom:[1-9]\d*$/
+const TOPOLOGY_REF = /^topology:[1-9]\d*$/
+const MASS_REF = /^mass:[A-Za-z0-9][A-Za-z0-9._:-]*$/
+const REACTION_RELATION_REF = /^reaction:[A-Za-z0-9][A-Za-z0-9._:-]*$/
 
 const isRecord = (value: unknown): value is RecordValue => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false
@@ -485,6 +546,10 @@ export const parseMetaAddress = (value: string): MetaAddress | null =>
 
 class Validator {
   readonly issues: ValidationIssue[] = []
+  readonly runtimeAtoms = new Map<string, {meta: MetaAddress; state: string | null}>()
+  readonly runtimeParents = new Map<string, string | null>()
+  readonly runtimeMassFormats = new Map<string, "json" | "binary">()
+  readonly runtimeTopologies = new Set<string>()
 
   issue(path: JsonPointer, code: string, message: string): void {
     this.issues.push({path, code, message})
@@ -505,6 +570,24 @@ class Validator {
   string(value: unknown, path: JsonPointer, name: string): value is string {
     if (typeof value === "string") return true
     this.issue(path, "invalid_type", `${name} must be a string`)
+    return false
+  }
+
+  nonEmptyString(value: unknown, path: JsonPointer, name: string): value is string {
+    if (!this.string(value, path, name)) return false
+    if (value.trim().length > 0) return true
+    this.issue(path, "empty_string", `${name} must not be empty`)
+    return false
+  }
+
+  typedRef(
+    value: unknown,
+    path: JsonPointer,
+    name: string,
+    pattern: RegExp,
+  ): value is string {
+    if (typeof value === "string" && pattern.test(value)) return true
+    this.issue(path, "invalid_ref", `${name} is not a canonical typed ref`)
     return false
   }
 
@@ -973,26 +1056,100 @@ class Validator {
     this.unique(keys, path, "Process key")
   }
 
-  reactions(value: unknown, path: JsonPointer, fieldKeys: Set<string>, stateNames: Set<string>): void {
+  reactions(
+    value: unknown,
+    path: JsonPointer,
+    fields: ReadonlyMap<string, RecordValue>,
+    stateNames: Set<string>,
+    massKeys: Set<string>,
+    targets: Set<MetaAddress>,
+  ): void {
     if (!this.array(value, path, "Reactions")) return
     const keys: string[] = []
     value.forEach((item, index) => {
       const itemPath = childPath(path, index)
       if (!this.record(item, itemPath, "Reaction")) return
-      this.closed(item, itemPath, ["key", "label", "desc", "cond", "src", "read", "write", "states"])
-      this.required(item, itemPath, ["key", "label", "desc", "cond", "src", "read", "write", "states"])
-      if (this.string(item.key, childPath(itemPath, "key"), "Reaction key")) keys.push(item.key)
+      this.closed(item, itemPath, [
+        "key", "label", "desc", "sources", "src", "read", "write", "massRead", "massWrite", "states",
+      ])
+      this.required(item, itemPath, [
+        "key", "label", "desc", "sources", "src", "read", "write", "massRead", "massWrite", "states",
+      ])
+      if (this.nonEmptyString(item.key, childPath(itemPath, "key"), "Reaction key")) keys.push(item.key)
       this.string(item.label, childPath(itemPath, "label"), "Reaction label")
       if (item.desc !== null) this.string(item.desc, childPath(itemPath, "desc"), "Reaction description")
-      this.string(item.cond, childPath(itemPath, "cond"), "Reaction condition source")
-      this.string(item.src, childPath(itemPath, "src"), "Reaction update source")
+      this.nonEmptyString(item.src, childPath(itemPath, "src"), "Reaction update source")
+      const sourcesPath = childPath(itemPath, "sources")
+      if (this.array(item.sources, sourcesPath, "Reaction sources")) {
+        if (item.sources.length === 0) {
+          this.issue(sourcesPath, "empty_reaction_sources", "Reaction must observe at least one source selector")
+        }
+        item.sources.forEach((source, sourceIndex) => {
+          const sourcePath = childPath(sourcesPath, sourceIndex)
+          if (!this.record(source, sourcePath, "Reaction source")) return
+          this.closed(source, sourcePath, ["atom", "meta", "relation", "states"])
+          this.required(source, sourcePath, ["states"])
+          if (source.atom === undefined && source.meta === undefined && source.relation === undefined) {
+            this.issue(sourcePath, "empty_reaction_selector", "Reaction source must select an Atom, Meta or structural relation")
+          }
+          if (source.atom !== undefined) {
+            this.typedRef(source.atom, childPath(sourcePath, "atom"), "Reaction source Atom", ATOM_REF)
+          }
+          if (source.meta !== undefined && this.address(source.meta, childPath(sourcePath, "meta"))) {
+            targets.add(source.meta)
+          }
+          if (source.relation !== undefined &&
+              source.relation !== "parent" && source.relation !== "child" && source.relation !== "descendant") {
+            this.issue(
+              childPath(sourcePath, "relation"),
+              "invalid_reaction_relation",
+              "Reaction source relation must be parent, child or descendant",
+            )
+          }
+          if (this.stringArray(source.states, childPath(sourcePath, "states"), "Reaction source States")) {
+            this.unique(source.states, childPath(sourcePath, "states"), "Reaction source State")
+            if (source.states.length === 0) {
+              this.issue(childPath(sourcePath, "states"), "empty_reaction_states", "Reaction source must observe at least one State")
+            }
+            source.states.forEach((state, stateIndex) => {
+              if (state.trim().length === 0) {
+                this.issue(childPath(childPath(sourcePath, "states"), stateIndex), "empty_string", "Reaction source State must not be empty")
+              }
+            })
+          }
+        })
+      }
+      const fieldKeys = new Set(fields.keys())
       if (this.stringArray(item.read, childPath(itemPath, "read"), "Reaction read set")) {
         this.fieldReferences(item.read, childPath(itemPath, "read"), fieldKeys)
+        this.unique(item.read, childPath(itemPath, "read"), "Reaction read Field")
       }
       if (this.stringArray(item.write, childPath(itemPath, "write"), "Reaction write set")) {
         this.fieldReferences(item.write, childPath(itemPath, "write"), fieldKeys)
+        this.unique(item.write, childPath(itemPath, "write"), "Reaction write Field")
+        item.write.forEach((key, fieldIndex) => {
+          const field = fields.get(key)
+          if (field?.type === "enum" || field?.type === "array") {
+            this.issue(
+              childPath(childPath(itemPath, "write"), fieldIndex),
+              "topology_field_write",
+              `Reaction cannot write topology Field "${key}"`,
+            )
+          }
+        })
+      }
+      for (const access of ["massRead", "massWrite"] as const) {
+        const accessPath = childPath(itemPath, access)
+        if (!this.stringArray(item[access], accessPath, `Reaction ${access}`)) continue
+        this.unique(item[access], accessPath, `Reaction ${access} Mass`)
+        item[access].forEach((key, massIndex) => {
+          if (!massKeys.has(key)) {
+            this.issue(childPath(accessPath, massIndex), "unknown_mass_reference", `Unknown Mass "${key}"`)
+          }
+        })
       }
       if (this.stringArray(item.states, childPath(itemPath, "states"), "Reaction States")) {
+        this.unique(item.states, childPath(itemPath, "states"), "Reaction active State")
         item.states.forEach((state, stateIndex) => {
           if (!stateNames.has(state)) {
             this.issue(childPath(childPath(itemPath, "states"), stateIndex), "unknown_state_reference", `Unknown State "${state}"`)
@@ -1103,8 +1260,8 @@ class Validator {
     }
   }
 
-  template(value: unknown, path: JsonPointer): Set<MetaAddress> {
-    const targets = new Set<MetaAddress>()
+  template(value: unknown, path: JsonPointer): TemplateTargets {
+    const targets: TemplateTargets = {matter: new Set(), reactions: new Set()}
     if (!this.record(value, path, "Meta template")) return targets
     this.closed(value, path, ["name", "desc", "fields", "superposition", "mass", "processes", "reactions", "matter", "bulk"])
     this.required(value, path, ["name", "fields", "superposition", "mass", "processes"])
@@ -1145,9 +1302,16 @@ class Validator {
 
     this.processes(value.processes, childPath(path, "processes"), fieldSet, states)
     if (value.reactions !== undefined) {
-      this.reactions(value.reactions, childPath(path, "reactions"), fieldSet, states)
+      this.reactions(
+        value.reactions,
+        childPath(path, "reactions"),
+        fields,
+        states,
+        new Set(massKeys),
+        targets.reactions,
+      )
     }
-    if (value.matter !== undefined) this.matter(value.matter, childPath(path, "matter"), targets)
+    if (value.matter !== undefined) this.matter(value.matter, childPath(path, "matter"), targets.matter)
     if (value.bulk !== undefined) {
       const bulkPath = childPath(path, "bulk")
       if (this.record(value.bulk, bulkPath, "Bulk")) {
@@ -1246,6 +1410,56 @@ class Validator {
     return {mode: "static", items: occurrences}
   }
 
+  runtimeMass(value: unknown, path: JsonPointer, template: RecordValue): void {
+    if (!this.array(value, path, "Runtime Mass")) return
+    const declarations = new Map<string, RecordValue>()
+    if (Array.isArray(template.mass)) {
+      for (const declaration of template.mass) {
+        if (isRecord(declaration) && typeof declaration.key === "string") {
+          declarations.set(declaration.key, declaration)
+        }
+      }
+    }
+    const keys: string[] = []
+    value.forEach((item, index) => {
+      const itemPath = childPath(path, index)
+      if (!this.record(item, itemPath, "Runtime Mass item")) return
+      this.closed(item, itemPath, ["ref", "key", "format", "label", "description", "content"])
+      this.required(item, itemPath, ["ref", "key", "format", "label", "description", "content"])
+      const rawRef = item.ref
+      const rawKey = item.key
+      const format = item.format
+      const refOk = this.typedRef(rawRef, childPath(itemPath, "ref"), "Mass ref", MASS_REF)
+      const keyOk = this.nonEmptyString(rawKey, childPath(itemPath, "key"), "Runtime Mass key")
+      if (keyOk) keys.push(rawKey)
+      if (format !== "json" && format !== "binary") {
+        this.issue(childPath(itemPath, "format"), "invalid_mass_format", "Runtime Mass format must be json or binary")
+      }
+      if (item.label !== null) this.string(item.label, childPath(itemPath, "label"), "Runtime Mass label")
+      if (item.description !== null) {
+        this.string(item.description, childPath(itemPath, "description"), "Runtime Mass description")
+      }
+      if (item.content !== "lazy") {
+        this.issue(childPath(itemPath, "content"), "invalid_literal", "Runtime Mass content must use the lazy marker")
+      }
+      const declaration = keyOk ? declarations.get(rawKey) : undefined
+      if (keyOk && !declaration) {
+        this.issue(childPath(itemPath, "key"), "unknown_mass_reference", `Runtime Mass "${rawKey}" is not declared`)
+      } else if (declaration && declaration.format !== format) {
+        this.issue(childPath(itemPath, "format"), "mass_format_mismatch", "Runtime Mass format must match its declaration")
+      }
+      if (refOk && (format === "json" || format === "binary")) {
+        const previous = this.runtimeMassFormats.get(rawRef)
+        if (previous !== undefined && previous !== format) {
+          this.issue(childPath(itemPath, "ref"), "mass_ref_mismatch", "One Mass ref cannot use multiple formats")
+        } else {
+          this.runtimeMassFormats.set(rawRef, format)
+        }
+      }
+    })
+    this.unique(keys, path, "Runtime Mass key")
+  }
+
   runtimeNode(
     value: unknown,
     path: JsonPointer,
@@ -1253,13 +1467,15 @@ class Validator {
     templates: RecordValue,
     expectedDeclarations: OccurrenceExpectation[] | null,
     root: MetaAddress | null,
+    owningAtom: string | null,
   ): void {
     if (!this.record(value, path, "Runtime node")) return
     let resolved: {tokens: string[]; value: unknown} | null = null
     let childDeclarations: OccurrencePlan = {mode: "static", items: []}
     if (value.kind === "atom") {
-      this.closed(value, path, ["kind", "declaration", "meta", "state", "values", "children"])
-      this.required(value, path, ["kind", "declaration", "meta", "state", "values"])
+      this.closed(value, path, ["ref", "kind", "declaration", "meta", "state", "values", "mass", "children"])
+      this.required(value, path, ["ref", "kind", "declaration", "meta", "state", "values", "mass"])
+      const refOk = this.typedRef(value.ref, childPath(path, "ref"), "Atom ref", ATOM_REF)
       const meta = value.meta
       const metaOk = this.address(meta, childPath(path, "meta"))
       resolved = this.resolvePointer(document, value.declaration, childPath(path, "declaration"))
@@ -1331,10 +1547,29 @@ class Validator {
             this.runtimeFieldValue(field, fieldValue, valuePath)
           }
         }
+        this.runtimeMass(value.mass, childPath(path, "mass"), template)
+        if (refOk && metaOk) {
+          if (this.runtimeAtoms.has(value.ref as string)) {
+            this.issue(childPath(path, "ref"), "duplicate_ref", `Atom ref "${String(value.ref)}" is duplicated`)
+          } else {
+            this.runtimeAtoms.set(value.ref as string, {
+              meta,
+              state: typeof value.state === "string" ? value.state : null,
+            })
+            this.runtimeParents.set(value.ref as string, owningAtom)
+          }
+        }
       }
     } else if (value.kind === "topology") {
-      this.closed(value, path, ["kind", "declaration", "topology", "children"])
-      this.required(value, path, ["kind", "declaration", "topology"])
+      this.closed(value, path, ["ref", "kind", "declaration", "topology", "children"])
+      this.required(value, path, ["ref", "kind", "declaration", "topology"])
+      if (this.typedRef(value.ref, childPath(path, "ref"), "Topology ref", TOPOLOGY_REF)) {
+        if (this.runtimeTopologies.has(value.ref)) {
+          this.issue(childPath(path, "ref"), "duplicate_ref", `Topology ref "${value.ref}" is duplicated`)
+        } else {
+          this.runtimeTopologies.add(value.ref)
+        }
+      }
       if (root !== null) {
         this.issue(
           childPath(path, "kind"),
@@ -1367,7 +1602,17 @@ class Validator {
       this.issue(childPath(path, "kind"), "invalid_runtime_kind", "Runtime node kind must be atom or topology")
       return
     }
-    this.runtimeChildren(value.children, childPath(path, "children"), document, templates, childDeclarations)
+    const childOwner = value.kind === "atom" && typeof value.ref === "string" && ATOM_REF.test(value.ref)
+      ? value.ref
+      : owningAtom
+    this.runtimeChildren(
+      value.children,
+      childPath(path, "children"),
+      document,
+      templates,
+      childDeclarations,
+      childOwner,
+    )
   }
 
   runtimeChildren(
@@ -1376,6 +1621,7 @@ class Validator {
     document: RecordValue,
     templates: RecordValue,
     expected: OccurrencePlan,
+    owningAtom: string | null,
   ): void {
     const children = value === undefined
       ? []
@@ -1397,6 +1643,7 @@ class Validator {
         templates,
         matched === undefined ? [] : [matched],
         null,
+        owningAtom,
       )
     }
     const pointers = children.map(pointerOf)
@@ -1514,6 +1761,198 @@ class Validator {
     }
   }
 
+  reactionRelationMatches(
+    relation: unknown,
+    source: string,
+    target: string,
+  ): boolean {
+    if (relation === undefined) return true
+    if (relation === "parent") return this.runtimeParents.get(target) === source
+    if (relation === "child") return this.runtimeParents.get(source) === target
+    if (relation !== "descendant") return false
+    const visited = new Set<string>()
+    let current = this.runtimeParents.get(source) ?? null
+    while (current !== null) {
+      if (current === target) return true
+      if (visited.has(current)) return false
+      visited.add(current)
+      current = this.runtimeParents.get(current) ?? null
+    }
+    return false
+  }
+
+  runtimeReactions(value: unknown, path: JsonPointer, templates: RecordValue): void {
+    if (!this.array(value, path, "Runtime Reaction relations")) return
+    const refs: string[] = []
+    value.forEach((item, index) => {
+      const itemPath = childPath(path, index)
+      if (!this.record(item, itemPath, "Runtime Reaction relation")) return
+      this.closed(item, itemPath, ["ref", "kind", "reaction", "source", "target", "active"])
+      this.required(item, itemPath, ["ref", "kind", "reaction", "source", "target", "active"])
+      if (this.typedRef(item.ref, childPath(itemPath, "ref"), "Reaction relation ref", REACTION_RELATION_REF)) {
+        refs.push(item.ref)
+      }
+      if (item.kind !== "reaction") {
+        this.issue(childPath(itemPath, "kind"), "invalid_literal", "Runtime Reaction relation kind must be reaction")
+      }
+
+      const reactionPath = childPath(itemPath, "reaction")
+      let declaration: RecordValue | undefined
+      let reactionMeta: MetaAddress | null = null
+      let reactionKey: string | null = null
+      if (this.record(item.reaction, reactionPath, "Reaction declaration reference")) {
+        this.closed(item.reaction, reactionPath, ["meta", "key"])
+        this.required(item.reaction, reactionPath, ["meta", "key"])
+        if (this.address(item.reaction.meta, childPath(reactionPath, "meta"))) {
+          reactionMeta = item.reaction.meta
+        }
+        if (this.nonEmptyString(item.reaction.key, childPath(reactionPath, "key"), "Reaction key")) {
+          reactionKey = item.reaction.key
+        }
+        const template = reactionMeta === null ? undefined : templates[reactionMeta]
+        if (isRecord(template) && Array.isArray(template.reactions) && reactionKey !== null) {
+          declaration = template.reactions.find((candidate) =>
+            isRecord(candidate) && candidate.key === reactionKey
+          ) as RecordValue | undefined
+        }
+        if (reactionMeta !== null && reactionKey !== null && declaration === undefined) {
+          this.issue(reactionPath, "unknown_reaction_reference", `Reaction "${reactionMeta}#${reactionKey}" is not declared`)
+        }
+      }
+
+      const sourcePath = childPath(itemPath, "source")
+      let source: {meta: MetaAddress; state: string | null} | undefined
+      let sourceRef: string | null = null
+      let sourceStates: string[] = []
+      if (this.record(item.source, sourcePath, "Reaction source endpoint")) {
+        this.closed(item.source, sourcePath, ["atom", "states"])
+        this.required(item.source, sourcePath, ["atom", "states"])
+        if (this.typedRef(item.source.atom, childPath(sourcePath, "atom"), "Reaction source Atom", ATOM_REF)) {
+          sourceRef = item.source.atom
+          source = this.runtimeAtoms.get(item.source.atom)
+          if (!source) {
+            this.issue(childPath(sourcePath, "atom"), "unknown_atom_reference", `Unknown source Atom "${item.source.atom}"`)
+          }
+        }
+        if (this.stringArray(item.source.states, childPath(sourcePath, "states"), "Reaction source States")) {
+          sourceStates = item.source.states
+          this.unique(sourceStates, childPath(sourcePath, "states"), "Reaction source State")
+          if (sourceStates.length === 0) {
+            this.issue(childPath(sourcePath, "states"), "empty_reaction_states", "Resolved source must expose at least one State")
+          }
+        }
+      }
+
+      const targetPath = childPath(itemPath, "target")
+      let target: {meta: MetaAddress; state: string | null} | undefined
+      let targetRef: string | null = null
+      let targetStates: string[] = []
+      if (this.record(item.target, targetPath, "Reaction target endpoint")) {
+        this.closed(item.target, targetPath, ["atom", "states"])
+        this.required(item.target, targetPath, ["atom", "states"])
+        if (this.typedRef(item.target.atom, childPath(targetPath, "atom"), "Reaction target Atom", ATOM_REF)) {
+          targetRef = item.target.atom
+          target = this.runtimeAtoms.get(item.target.atom)
+          if (!target) {
+            this.issue(childPath(targetPath, "atom"), "unknown_atom_reference", `Unknown target Atom "${item.target.atom}"`)
+          }
+        }
+        if (this.stringArray(item.target.states, childPath(targetPath, "states"), "Reaction target States")) {
+          targetStates = item.target.states
+          this.unique(targetStates, childPath(targetPath, "states"), "Reaction target State")
+        }
+      }
+
+      if (source) {
+        const sourceTemplate = templates[source.meta]
+        const declaredStates = isRecord(sourceTemplate) && Array.isArray(sourceTemplate.superposition)
+          ? new Set(sourceTemplate.superposition.flatMap((state) =>
+              isRecord(state) && typeof state.name === "string" ? [state.name] : []
+            ))
+          : new Set<string>()
+        sourceStates.forEach((state, stateIndex) => {
+          if (!declaredStates.has(state)) {
+            this.issue(childPath(childPath(sourcePath, "states"), stateIndex), "unknown_state_reference", `Unknown source State "${state}"`)
+          }
+        })
+      }
+      if (target && reactionMeta !== null && target.meta !== reactionMeta) {
+        this.issue(targetPath, "reaction_target_mismatch", "Reaction relation target must instantiate the declaring Meta")
+      }
+      if (declaration) {
+        const declaredTargetStates = Array.isArray(declaration.states)
+          ? declaration.states.filter((state): state is string => typeof state === "string")
+          : []
+        if (declaredTargetStates.length !== targetStates.length ||
+            declaredTargetStates.some((state) => !targetStates.includes(state))) {
+          this.issue(childPath(targetPath, "states"), "reaction_target_states_mismatch", "Resolved target States must match the Reaction declaration")
+        }
+        const selectors = declaration.sources
+        if (source && sourceRef !== null && targetRef !== null && Array.isArray(selectors)) {
+          const matches = sourceStates.every((state) =>
+            selectors.some((selector) => {
+              if (!isRecord(selector)) return false
+              const selectorStates = selector.states
+              return (selector.atom === undefined || selector.atom === sourceRef) &&
+                (selector.meta === undefined || selector.meta === source.meta) &&
+                this.reactionRelationMatches(selector.relation, sourceRef, targetRef) &&
+                Array.isArray(selectorStates) && selectorStates.includes(state)
+            })
+          )
+          if (!matches) {
+            this.issue(sourcePath, "reaction_source_mismatch", "Resolved source does not match an authored Reaction selector")
+          }
+        }
+      }
+      if (typeof item.active !== "boolean") {
+        this.issue(childPath(itemPath, "active"), "invalid_type", "Reaction active must be boolean")
+      } else if (target && item.active !== (target.state !== null && targetStates.includes(target.state))) {
+        this.issue(childPath(itemPath, "active"), "reaction_activity_mismatch", "Reaction activity must be derived from the target current State")
+      }
+    })
+    this.unique(refs, path, "Reaction relation ref")
+  }
+
+  reactionSourceStates(templates: RecordValue): void {
+    for (const [address, template] of Object.entries(templates)) {
+      if (!isRecord(template) || !Array.isArray(template.reactions)) continue
+      template.reactions.forEach((reaction, reactionIndex) => {
+        if (!isRecord(reaction) || !Array.isArray(reaction.sources)) return
+        reaction.sources.forEach((source, sourceIndex) => {
+          if (!isRecord(source) || !isMetaAddress(source.meta) || !Array.isArray(source.states)) return
+          const sourceTemplate = templates[source.meta]
+          if (!isRecord(sourceTemplate)) return
+          const names = new Set(
+            Array.isArray(sourceTemplate.superposition)
+              ? sourceTemplate.superposition.flatMap((state) =>
+                  isRecord(state) && typeof state.name === "string" ? [state.name] : []
+                )
+              : [],
+          )
+          const statesPath = childPath(
+            childPath(
+              childPath(
+                childPath(childPath("/template", address), "reactions"),
+                reactionIndex,
+              ),
+              "sources",
+            ),
+            sourceIndex,
+          )
+          source.states.forEach((state, stateIndex) => {
+            if (typeof state === "string" && !names.has(state)) {
+              this.issue(
+                childPath(childPath(statesPath, "states"), stateIndex),
+                "unknown_state_reference",
+                `Unknown source State "${state}" in Meta "${source.meta}"`,
+              )
+            }
+          })
+        })
+      })
+    }
+  }
+
   validate(input: unknown): ValidationResult<Graph> {
     if (!this.record(input, "", "Graph")) return {ok: false, issues: this.issues}
     this.json(input, "")
@@ -1524,7 +1963,7 @@ class Validator {
     }
     const root = input.root
     const rootOk = this.address(root, "/root")
-    const targets = new Map<MetaAddress, Set<MetaAddress>>()
+    const targets = new Map<MetaAddress, TemplateTargets>()
     let templates: RecordValue = {}
     if (this.record(input.template, "/template", "Template map")) {
       templates = input.template
@@ -1538,7 +1977,7 @@ class Validator {
       this.issue("/root", "missing_root_template", `Root Meta "${root}" is absent from template`)
     }
     for (const [address, addressTargets] of targets) {
-      for (const target of addressTargets) {
+      for (const target of addressTargets.matter) {
         if (!Object.hasOwn(templates, target)) {
           this.issue(
             childPath(childPath("/template", address), "matter"),
@@ -1547,7 +1986,17 @@ class Validator {
           )
         }
       }
+      for (const target of addressTargets.reactions) {
+        if (!Object.hasOwn(templates, target)) {
+          this.issue(
+            childPath(childPath("/template", address), "reactions"),
+            "unresolved_reaction_source",
+            `Reaction source Meta "${target}" must have a complete template entry`,
+          )
+        }
+      }
     }
+    this.reactionSourceStates(templates)
     if (rootOk && Object.hasOwn(templates, root)) {
       const reachable = new Set<MetaAddress>()
       const pending: MetaAddress[] = [root]
@@ -1555,7 +2004,9 @@ class Validator {
         const address = pending.shift()!
         if (reachable.has(address)) continue
         reachable.add(address)
-        for (const target of targets.get(address) ?? []) pending.push(target)
+        const dependencies = targets.get(address)
+        for (const target of dependencies?.matter ?? []) pending.push(target)
+        for (const target of dependencies?.reactions ?? []) pending.push(target)
       }
       for (const address of Object.keys(templates)) {
         if (isMetaAddress(address) && !reachable.has(address)) {
@@ -1564,8 +2015,8 @@ class Validator {
       }
     }
     if (this.record(input.runtime, "/runtime", "Runtime")) {
-      this.closed(input.runtime, "/runtime", ["roots"])
-      this.required(input.runtime, "/runtime", ["roots"])
+      this.closed(input.runtime, "/runtime", ["roots", "reactions"])
+      this.required(input.runtime, "/runtime", ["roots", "reactions"])
       if (this.array(input.runtime.roots, "/runtime/roots", "Runtime roots")) {
         input.runtime.roots.forEach((node, index) =>
           this.runtimeNode(
@@ -1575,9 +2026,11 @@ class Validator {
             templates,
             null,
             rootOk ? root : null,
+            null,
           )
         )
       }
+      this.runtimeReactions(input.runtime.reactions, "/runtime/reactions", templates)
     }
     return this.issues.length === 0
       ? {ok: true, value: input as unknown as Graph}

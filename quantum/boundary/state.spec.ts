@@ -59,7 +59,9 @@ describe("Boundary canonical State", () => {
   }
 
   test("persists non-Process Photon and exposes the canonical State for domain birth", async () => {
-    await boundary.materialize(message({part: "photon", op: "replace", path: atomId, value: "idle"}))
+    await boundary.materialize(message({
+      part: "photon", op: "replace", path: atomId, from: "state-idle", value: "idle",
+    }))
     expect(await stateName()).toBe("idle")
 
     const initial = await boundary.initialState()
@@ -75,6 +77,7 @@ describe("Boundary canonical State", () => {
       part: "photon",
       op: "replace",
       path: atomId,
+      from: "state-missing",
       value: "missing",
     }))).rejects.toThrow("Cannot commit State")
     expect(await stateName()).toBe("idle")
@@ -117,7 +120,9 @@ describe("Boundary canonical State", () => {
       value: "ready",
     }
     await boundary.materialize(message(processPhoton))
-    await boundary.materialize(message({part: "photon", op: "replace", path: atomId, value: "complete"}))
+    await boundary.materialize(message({
+      part: "photon", op: "replace", path: atomId, from: "state-complete", value: "complete",
+    }))
 
     expect(await stateName()).toBe("complete")
     expect((await boundary.projection.sql<Array<{status: string}>>`

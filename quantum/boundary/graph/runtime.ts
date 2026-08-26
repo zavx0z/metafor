@@ -1,32 +1,36 @@
 /**
 Boundary-owned проекция одного coherent canonical cut в `Graph.runtime`.
 
-Внутренние relational identities используются только во время projection и
-locator resolution и не становятся публичными Graph addresses.
+Внутренние relational identities проецируются только как typed opaque refs;
+SQLite rows и числовые foreign keys не становятся отдельным public contract.
 
 @packageDocumentation
 */
 
 import {
   parseMetaAddress,
+  type AtomRef,
   type DocumentPointer,
   type JsonValue,
+  type MassRef,
   type MetaAddress,
   type Graph,
+  type ReactionRelationRef,
   type RuntimeAtom,
+  type RuntimeMass,
   type RuntimeNode,
+  type RuntimeReactionRelation,
   type RuntimeTopology,
+  type TopologyRef,
 } from "@metafor/types/metafor/graph"
 import type {
   BoundaryInitialAtom,
   BoundaryInitialDeclaration,
   BoundaryInitialProjectionEntry,
 } from "shared/protocol/boundary/initial"
+import type {ReactionRelation} from "shared/protocol/force/reaction"
 import type {BoundaryGraphProjection} from "shared/protocol/boundary/runtime"
-import {
-  parseMetaRuntimeAtomPointer,
-  type MetaRuntimeAtomLocator,
-} from "shared/protocol/metafor/observation"
+import type {MetaRuntimeAtomLocator} from "shared/protocol/metafor/observation"
 import type {BoundaryDatabase} from "../sqlite.ts"
 
 type RecordValue = Record<string, unknown>
@@ -119,6 +123,12 @@ const pointerToken = (value: string): string =>
 
 const templatePointer = (value: MetaAddress): DocumentPointer =>
   `#/template/${pointerToken(value)}` as DocumentPointer
+
+const atomRef = (id: number): AtomRef => `atom:${id}`
+const topologyRef = (id: number): TopologyRef => `topology:${id}`
+const massRef = (keyId: string): MassRef => `mass:${keyId}`
+const reactionRelationRef = (key: string): ReactionRelationRef =>
+  (key.startsWith("reaction:") ? key : `reaction:${key}`) as ReactionRelationRef
 
 const matterKey = (wimp: MetaAddress, id: number): string => `${wimp}\u0000${id}`
 
@@ -333,12 +343,42 @@ const resolveValue = (
   return variant.value
 }
 
+const runtimeMass = (value: unknown, atomId: number): RuntimeMass[] => {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) throw new Error(`Boundary Atom ${atomId} Mass must be an array`)
+  const keys = new Set<string>()
+  return value.map((raw, index) => {
+    const item = record(raw, `Boundary Atom ${atomId} Mass ${index}`)
+    const key = text(item.key, `Boundary Atom ${atomId} Mass ${index} key`)
+    if (keys.has(key)) throw new Error(`Boundary Atom ${atomId} Mass key is duplicated: ${key}`)
+    keys.add(key)
+    const keyId = text(item.keyId, `Boundary Atom ${atomId} Mass ${key} key identity`)
+    const format = text(item.format, `Boundary Atom ${atomId} Mass ${key} format`)
+    if (format !== "json" && format !== "binary") {
+      throw new Error(`Boundary Atom ${atomId} Mass ${key} format is unsupported: ${format}`)
+    }
+    const label = item.label === null ? null : text(item.label, `Boundary Atom ${atomId} Mass ${key} label`)
+    const description = item.description === null
+      ? null
+      : text(item.description, `Boundary Atom ${atomId} Mass ${key} description`)
+    return {
+      ref: massRef(keyId),
+      key,
+      format,
+      label,
+      description,
+      content: "lazy",
+    }
+  })
+}
+
 const atomNode = (
   atom: BoundaryInitialAtom,
   declaration: DocumentPointer,
   fields: Map<number, FieldDeclaration>,
   variants: Map<number, VariantDeclaration>,
   states: Map<number, StateDeclaration>,
+  mass: unknown,
 ): Omit<RuntimeAtom, "children"> => {
   const meta = address(atom.wimp, `Boundary Atom ${atom.id} Meta`)
   const values: {[field: string]: JsonValue} = {}
@@ -354,11 +394,13 @@ const atomNode = (
     throw new Error(`Boundary Atom ${atom.id} references a State outside ${meta}`)
   }
   return {
+    ref: atomRef(atom.id),
     kind: "atom",
     declaration,
     meta,
     state: state?.name ?? null,
     values,
+    mass: runtimeMass(mass, atom.id),
   }
 }
 
@@ -441,7 +483,7 @@ const runtimeRecords = (
         parent,
         position: position(head.position, `Boundary runtime ${key} position`),
         sequence,
-        node: atomNode(current, declaration, fields, variants, states),
+        node: atomNode(current, declaration, fields, variants, states, value.mass),
       })
       continue
     }
@@ -462,6 +504,7 @@ const runtimeRecords = (
       position: position(value.position, `Boundary runtime ${key} position`),
       sequence,
       node: {
+        ref: topologyRef(id),
         kind: "topology",
         declaration: originPointer(origin, "topology", topology, parent, matters),
         topology,
@@ -515,18 +558,105 @@ const currentRoot = (records: Map<RuntimeKey, RuntimeRecord>): MetaAddress => {
   return roots[0]!.node.meta
 }
 
-const currentRecords = async (
+const runtimeReactionRelations = (
+  relations: readonly ReactionRelation[],
+  records: ReadonlyMap<RuntimeKey, RuntimeRecord>,
+  declarations: readonly BoundaryInitialDeclaration[],
+): RuntimeReactionRelation[] => {
+  const states = stateDeclarations([...declarations])
+  return relations.map((relation) => {
+    const source = records.get(runtimeKey("atom", storedId(relation.source.atomId, "Reaction source Atom")))
+    const target = records.get(runtimeKey("atom", storedId(relation.target.atomId, "Reaction target Atom")))
+    if (source?.node.kind !== "atom" || source.node.meta !== relation.source.wimp) {
+      throw new Error(`Reaction relation ${relation.key} source Atom is unavailable`)
+    }
+    if (target?.node.kind !== "atom" || target.node.meta !== relation.target.wimp) {
+      throw new Error(`Reaction relation ${relation.key} target Atom is unavailable`)
+    }
+    const sourceNode = source.node
+    const targetNode = target.node
+    const sourceStates = relation.source.states.map((state) => {
+      const declaration = states.get(storedId(state.id, `Reaction relation ${relation.key} source State`))
+      if (!declaration || declaration.wimp !== sourceNode.meta || declaration.name !== state.name) {
+        throw new Error(`Reaction relation ${relation.key} source State is unavailable`)
+      }
+      return declaration.name
+    })
+    const targetStates = relation.target.stateIds.map((id) => {
+      const declaration = states.get(storedId(id, `Reaction relation ${relation.key} target State`))
+      if (!declaration || declaration.wimp !== targetNode.meta) {
+        throw new Error(`Reaction relation ${relation.key} target State is unavailable`)
+      }
+      return declaration.name
+    })
+    return {
+      ref: reactionRelationRef(text(relation.key, "Reaction relation key")),
+      kind: "reaction",
+      reaction: {
+        meta: targetNode.meta,
+        key: text(relation.reactionKey, `Reaction relation ${relation.key} declaration key`),
+      },
+      source: {
+        atom: sourceNode.ref,
+        states: sourceStates,
+      },
+      target: {
+        atom: targetNode.ref,
+        states: targetStates,
+      },
+      active: targetNode.state !== null && targetStates.includes(targetNode.state),
+    }
+  })
+}
+
+type CurrentGraphData = {
+  records: Map<RuntimeKey, RuntimeRecord>
+  reactions: RuntimeReactionRelation[]
+}
+
+const currentGraphData = async (
   boundary: BoundaryDatabase,
-): Promise<Map<RuntimeKey, RuntimeRecord>> => {
+): Promise<CurrentGraphData> => {
   const snapshot = await boundary.graphSnapshot()
   const matters = matterDeclarations(snapshot.initialProjection.entries)
-  return runtimeRecords(
+  const records = runtimeRecords(
     snapshot.originByInstance,
     snapshot.parentByInstance,
     snapshot.initialProjection.entries,
     snapshot.initialState.atoms,
     snapshot.initialState.declarations,
     matters,
+  )
+  return {
+    records,
+    reactions: runtimeReactionRelations(
+      snapshot.initialState.reactionRelations,
+      records,
+      snapshot.initialState.declarations,
+    ),
+  }
+}
+
+const currentRecords = async (boundary: BoundaryDatabase): Promise<Map<RuntimeKey, RuntimeRecord>> =>
+  (await currentGraphData(boundary)).records
+
+const runtimeAtomRefs = (roots: readonly RuntimeNode[]): Set<AtomRef> => {
+  const refs = new Set<AtomRef>()
+  const visit = (node: RuntimeNode): void => {
+    if (node.kind === "atom") refs.add(node.ref)
+    node.children?.forEach(visit)
+  }
+  roots.forEach(visit)
+  return refs
+}
+
+const scopedReactions = (
+  reactions: readonly RuntimeReactionRelation[],
+  roots: readonly RuntimeNode[],
+): RuntimeReactionRelation[] => {
+  const atoms = runtimeAtomRefs(roots)
+  return reactions.filter((reaction) =>
+    atoms.has(reaction.source.atom) && atoms.has(reaction.target.atom)
   )
 }
 
@@ -539,38 +669,35 @@ export async function readBoundaryGraphProjection(
   input: unknown,
 ): Promise<BoundaryGraphProjection> {
   parseParams(input)
-  const records = await currentRecords(boundary)
+  const current = await currentGraphData(boundary)
+  const records = current.records
   const root = currentRoot(records)
+  const roots = nestedRuntime(root, records)
   return {
     root,
-    runtime: {roots: nestedRuntime(root, records)},
+    runtime: {roots, reactions: scopedReactions(current.reactions, roots)},
   }
 }
 
 /**
-Resolves one snapshot-local public path against the current Boundary cut.
+Resolves one stable public Atom ref against the current Boundary cut.
 
 @returns Internal Atom ID only to the local Boundary caller, or `null` when the
-locator is stale, selects Topology, or violates its root/Meta guards.
+locator is stale or violates its root/Meta guards.
 */
 export async function resolveBoundaryRuntimeAtom(
   boundary: BoundaryDatabase,
   locator: MetaRuntimeAtomLocator,
 ): Promise<number | null> {
-  const indices = parseMetaRuntimeAtomPointer(locator.pointer)
-  if (!indices || indices.length === 0) return null
   const records = await currentRecords(boundary)
   if (currentRoot(records) !== locator.root) return null
-  const ordered = (parent: RuntimeKey | "root"): RuntimeRecord[] => [...records.values()]
-    .filter((entry) => entry.parent === parent)
-    .sort((left, right) => left.position - right.position || left.sequence - right.sequence)
-  let selected = ordered("root").filter((entry) => entry.node.kind === "atom" && entry.node.meta === locator.root)[indices[0]!]
-  for (const index of indices.slice(1)) {
-    if (!selected) return null
-    selected = ordered(selected.key)[index]
-  }
-  if (!selected || selected.node.kind !== "atom" || selected.node.meta !== locator.meta) return null
-  return Number(selected.key.slice("atom/".length))
+  const match = /^atom:([1-9]\d*)$/.exec(locator.ref)
+  if (!match) return null
+  const id = Number(match[1])
+  const selected = records.get(`atom/${id}`)
+  if (!selected || selected.node.kind !== "atom" || selected.node.meta !== locator.meta ||
+      selected.node.ref !== locator.ref) return null
+  return id
 }
 
 /** Exact-root projection used only by detached checkpoint and dissolve proofs. */
@@ -578,9 +705,10 @@ export async function readBoundaryGraphProjectionForRoot(
   boundary: BoundaryDatabase,
   root: MetaAddress,
 ): Promise<BoundaryGraphProjection> {
-  const records = await currentRecords(boundary)
+  const current = await currentGraphData(boundary)
+  const roots = nestedRuntime(root, current.records)
   return {
     root,
-    runtime: {roots: nestedRuntime(root, records)},
+    runtime: {roots, reactions: scopedReactions(current.reactions, roots)},
   }
 }

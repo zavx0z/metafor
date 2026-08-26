@@ -9,11 +9,14 @@ import {
 } from "shared/protocol/force/reaction"
 import {EnergyCatalogStore} from "./graph/catalog.ts"
 import {startEnergyProtocol} from "./energy.ts"
-import {executeReaction, matchesCondition} from "./reaction.ts"
+import {executeReaction, ReactionInvariantError} from "./reaction.ts"
 
 type ParticleInput = Omit<ForceMessage["parts"][0], "ts"> & {ts?: number}
 type ForceMessageInput = {parts: [ParticleInput]}
-const message = (input: ForceMessageInput): ForceMessage => ({parts: [{ts: 1, ...input.parts[0]}] as ForceMessage["parts"]})
+
+const message = (input: ForceMessageInput): ForceMessage => ({
+  parts: [{ts: 1, ...input.parts[0]}] as ForceMessage["parts"],
+})
 
 const waitFor = async (predicate: () => boolean): Promise<void> => {
   const deadline = Date.now() + 2_000
@@ -26,58 +29,78 @@ const waitFor = async (predicate: () => boolean): Promise<void> => {
 const signal = (overrides: Partial<ReactionExecutionSignal> = {}): ReactionExecutionSignal => ({
   kind: REACTION_SIGNAL_KIND,
   reactionExecutionId: "reaction-execution",
+  relationKey: "701:20:10",
   reactionId: 701,
-  target: {atomId: 20, wimp: "target/meta", state: "idle"},
-  source: {
-    atomId: 10,
-    wimp: "source/meta",
-    part: {op: "replace", path: "/context", ts: 1_700_000_000_000, value: {fields: {"1": 2}}},
-  },
-  value: {count: 1, result: 0},
+  reactionKey: "remember",
+  eventId: "state-event",
+  target: {atomId: 20, wimp: "target/meta", stateId: 201, state: "idle"},
+  source: {atomId: 10, wimp: "source/meta", stateId: 101, state: "ready"},
+  timestamp: 1_700_000_000_000,
+  readFields: [[201, "count", 1]],
   writeFields: [[202, "result"]],
-  cond: "() => ({meta: 'source/meta', op: 'replace', path: '/context'})",
-  update: "({update, value, meta, atom, state}) => { if (meta !== 'source/meta' || atom !== '10' || state !== 'idle') throw new Error('bad source'); update({result: value.count + 1}) }",
+  massRead: [],
+  massWrite: [],
+  updateSource: "({update, value, observation}) => { if (observation.source.state !== 'ready') throw new Error('bad observation'); update({result: value.count + 1}) }",
   ...overrides,
 })
 
-describe("Reaction condition evaluator", () => {
-  test("supports direct, string, numeric and collection operators", () => {
-    expect(matchesCondition("source/meta", {startsWith: "source", notInclude: "other"})).toBe(true)
-    expect(matchesCondition(10, {gte: 5, lt: 11, notEq: 9})).toBe(true)
-    expect(matchesCondition([1, 2], {include: 2, notInclude: 3, length: 2})).toBe(true)
-    expect(matchesCondition("abc", {pattern: /^a/, length: {min: 2, max: 4}})).toBe(true)
-    expect(matchesCondition({a: 1}, {a: 1})).toBe(true)
+describe("Energy Reaction execution", () => {
+  test("executes without filter, previous State, Force part or live Energy", async () => {
+    const result = await executeReaction(signal({
+      updateSource: `({update, value, observation, energy, part}) => {
+        if (energy !== undefined || part !== undefined) throw new Error("unexpected runtime input")
+        globalThis.__reactionObservation = observation
+        update({result: value.count + 1})
+      }`,
+    }), "energy-test", {get: () => ({}), bind: () => {}})
+    const received = (globalThis as Record<string, unknown>).__reactionObservation
+    delete (globalThis as Record<string, unknown>).__reactionObservation
+
+    expect(result).toEqual({fields: {"202": 2}})
+    expect(received).toEqual({
+      id: "state-event",
+      source: {atom: "atom:10", meta: "source/meta", state: "ready"},
+      timestamp: 1_700_000_000_000,
+    })
   })
 
-  test("executes matched update with declared writes and persistent Mass", async () => {
-    const mass: Record<string, unknown> = {}
+  test("reads and writes declared Mass without exposing undeclared dependencies", async () => {
+    const history = {
+      readBytes: async () => new Uint8Array(),
+      readText: async () => "",
+      readJson: async () => ({count: 1}),
+      write: async () => {},
+    }
     const result = await executeReaction(signal({
-      update: "({update, mass}) => { mass.runs = Number(mass.runs ?? 0) + 1; update({result: mass.runs}) }",
-    }), "energy-test", {get: () => mass, bind: () => {}})
-    expect(result).toEqual({matched: true, fields: {"202": 1}})
-    expect(mass).toEqual({runs: 1})
+      massRead: ["history"],
+      massWrite: ["history"],
+      updateSource: "async ({update, mass}) => { if (mass.secret !== undefined) throw new Error('undeclared Mass leaked'); const value = await mass.history.readJson(); await mass.history.write({count: value.count + 1}); update({result: value.count + 1}) }",
+    }), "energy-test", {get: () => ({history, secret: history}), bind: () => {}})
+    expect(result).toEqual({fields: {"202": 2}})
+  })
 
-    const skipped = await executeReaction(signal({
-      cond: "() => ({meta: 'different/meta'})",
-    }), "energy-test", {get: () => mass, bind: () => {}})
-    expect(skipped).toEqual({matched: false, fields: {}})
+  test("treats a missing declared Mass dependency as a fatal invariant", async () => {
+    await expect(executeReaction(signal({massRead: ["history"]}), "energy-test", {
+      get: () => ({}),
+      bind: () => {},
+    })).rejects.toBeInstanceOf(ReactionInvariantError)
   })
 
   test("rejects an update key outside the declared Reaction write set", async () => {
     await expect(executeReaction(signal({
-      update: "({update}) => update({result: 1, ignored: 9})",
+      updateSource: "({update}) => update({result: 1, ignored: 9})",
     }), "energy-test", {get: () => ({}), bind: () => {}}))
       .rejects.toThrow('Reaction 701 cannot update undeclared Field "ignored"')
   })
 })
 
 describe("Energy Reaction claim protocol", () => {
-  const harness = (massStore?: EnergyMassStore) => {
+  const harness = (options: {massStore?: EnergyMassStore; onFatal?(error: Error): void} = {}) => {
     const messages: ForceMessage[] = []
     const force: EnergyForce = {
       onImpulse: () => {},
-      impulse(message) {
-        messages.push(structuredClone(message))
+      impulse(input) {
+        messages.push(structuredClone(input))
       },
     }
     const protocol = startEnergyProtocol({
@@ -85,13 +108,14 @@ describe("Energy Reaction claim protocol", () => {
       catalog: new EnergyCatalogStore(),
       energyId: "energy-reaction",
       runtimeKind: "server",
-      ...(massStore ? {massStore} : {}),
+      ...options,
     })
     return {
       messages,
       emit(input: ForceMessageInput) {
         void force.onImpulse(structuredClone(message(input)))
       },
+      quiesce: () => protocol.quiesce(),
       close() {
         protocol.close()
       },
@@ -130,8 +154,7 @@ describe("Energy Reaction claim protocol", () => {
         value: current,
       }]})
       await waitFor(() => runtime.messages.some((item) => item.parts[0]?.part === "w+"))
-      const proposal = runtime.messages.find((item) => item.parts[0]?.part === "w+")?.parts[0]
-      expect(proposal).toEqual({
+      expect(runtime.messages.find((item) => item.parts[0]?.part === "w+")?.parts[0]).toEqual({
         part: "w+",
         op: "replace",
         path: current.target.atomId,
@@ -139,8 +162,8 @@ describe("Energy Reaction claim protocol", () => {
         from: "energy-reaction",
         value: {
           reactionExecutionId: current.reactionExecutionId,
+          relationKey: current.relationKey,
           reactionId: current.reactionId,
-          matched: true,
           fields: {"202": 2},
         } satisfies ReactionResultProposal,
       })
@@ -149,38 +172,53 @@ describe("Energy Reaction claim protocol", () => {
     }
   })
 
-  test("returns an explicit skipped W- when filter does not match", async () => {
-    const runtime = harness()
-    const current = signal({cond: "() => ({meta: 'other/meta'})"})
+  test("reports a missing declared dependency through the fatal path without W-", async () => {
+    const failures: Error[] = []
+    const runtime = harness({
+      massStore: {get: () => ({}), bind: () => {}},
+      onFatal: (error) => failures.push(error),
+    })
+    const current = signal({massRead: ["history"]})
     try {
       runtime.emit({parts: [{
-        part: "photon",
-        op: "test",
-        path: current.target.atomId,
-        from: current.reactionExecutionId,
-        value: current,
+        part: "photon", op: "test", path: current.target.atomId,
+        from: current.reactionExecutionId, value: current,
       }]})
       await waitFor(() => runtime.messages.some((item) => item.parts[0]?.part === "z"))
-      runtime.emit({parts: [{part: "z", op: "copy", path: current.target.atomId, from: "energy-reaction", value: current}]})
-      await waitFor(() => runtime.messages.some((item) => item.parts[0]?.part === "w-"))
-      expect(runtime.messages.find((item) => item.parts[0]?.part === "w-")?.parts[0]?.value).toEqual({
-        reactionExecutionId: current.reactionExecutionId,
-        reactionId: current.reactionId,
-        matched: false,
-        fields: {},
-      })
+      runtime.emit({parts: [{
+        part: "z", op: "copy", path: current.target.atomId,
+        from: "energy-reaction", value: current,
+      }]})
+      await waitFor(() => failures.length === 1)
+      expect(failures[0]).toBeInstanceOf(ReactionInvariantError)
+      expect(runtime.messages.some((item) => item.parts[0]?.part === "w-")).toBe(false)
+      await expect(runtime.quiesce()).rejects.toBeInstanceOf(ReactionInvariantError)
+    } finally {
+      runtime.close()
+    }
+  })
+
+  test("fails the domain instead of ignoring a malformed Reaction signal", () => {
+    const failures: Error[] = []
+    const runtime = harness({onFatal: (error) => failures.push(error)})
+    const current = signal()
+    try {
+      expect(() => runtime.emit({parts: [{
+        part: "photon", op: "test", path: current.target.atomId,
+        from: current.reactionExecutionId, value: {...current, part: {op: "replace"}},
+      }]})).toThrow("invalid Reaction execution signal")
+      expect(failures).toHaveLength(1)
     } finally {
       runtime.close()
     }
   })
 
   test("drops a running Reaction result after its target Atom is removed", async () => {
-    const mass: Record<string, unknown> = {}
-    const runtime = harness({get: () => mass, bind: () => {}})
+    const runtime = harness()
     const current = signal({
-      update: `async ({update, mass}) => {
-        mass.started = true
-        await new Promise((resolve) => { mass.finish = resolve })
+      updateSource: `async ({update}) => {
+        globalThis.__reactionStarted = true
+        await new Promise((resolve) => { globalThis.__reactionFinish = resolve })
         update({result: 9})
       }`,
     })
@@ -209,11 +247,13 @@ describe("Energy Reaction claim protocol", () => {
         part: "z", op: "copy", path: current.target.atomId,
         from: "energy-reaction", value: current,
       }]})
-      await waitFor(() => mass.started === true)
+      await waitFor(() => (globalThis as Record<string, unknown>).__reactionStarted === true)
 
       runtime.emit({parts: [{part: "graviton", op: "remove", path: `atom/${current.target.atomId}`}]})
-      ;(mass.finish as () => void)()
+      ;((globalThis as Record<string, unknown>).__reactionFinish as () => void)()
       await Bun.sleep(10)
+      delete (globalThis as Record<string, unknown>).__reactionStarted
+      delete (globalThis as Record<string, unknown>).__reactionFinish
 
       expect(runtime.messages.filter((item) => ["w+", "w-"].includes(item.parts[0]?.part ?? ""))).toEqual([])
     } finally {

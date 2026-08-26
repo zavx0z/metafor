@@ -8,7 +8,7 @@ import {open, type BoundaryDatabase} from "./sqlite.ts"
 import {BoundaryRuntimeRpcService} from "./runtime-rpc.ts"
 
 const ROOT = parseMetaAddress("test/runtime-rpc")!
-const locator = {root: ROOT, pointer: "/runtime/roots/0" as const, meta: ROOT}
+const locator = {root: ROOT, ref: "atom:1" as const, meta: ROOT}
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
@@ -18,7 +18,6 @@ describe("Boundary runtime RPC provider", () => {
   let atom: number
   let inputField: number
   let outputField: number
-  let listField: number
   let process: number
 
   beforeEach(async () => {
@@ -36,7 +35,6 @@ describe("Boundary runtime RPC provider", () => {
     `
     inputField = Number(fields.find(({key}) => key === "input")!.id)
     outputField = Number(fields.find(({key}) => key === "output")!.id)
-    listField = Number(fields.find(({key}) => key === "items")!.id)
     await boundary.materialize(message({
       part: "inflaton",
       op: "add",
@@ -69,7 +67,7 @@ describe("Boundary runtime RPC provider", () => {
     expectedFrontier: {cutId: "runtime-cut", throughSequence: 4, retroactiveComplete: false},
   })
 
-  test("plans one typed Gluon or Higgs without exposing the resolved identities", async () => {
+  test("plans one ordinary Gluon and rejects topology Fields", async () => {
     await expect(service.planFieldValue(fieldRequest("input", 4))).resolves.toEqual({parts: [{
       part: "gluon",
       op: "replace",
@@ -77,15 +75,14 @@ describe("Boundary runtime RPC provider", () => {
       ts: expect.any(Number),
       value: {fields: {[String(inputField)]: 4}},
     }]})
-    await expect(service.planFieldValue(fieldRequest("items", [2, 3]))).resolves.toEqual({parts: [{
-      part: "higgs",
-      op: "replace",
-      path: atom,
-      ts: expect.any(Number),
-      value: {fields: {[String(listField)]: [2, 3]}},
-    }]})
+    await expect(service.planFieldValue({
+      ...fieldRequest("items", null),
+      value: [2, 3],
+    })).rejects.toThrow("ordinary scalar")
+    await expect(service.planFieldValue(fieldRequest("items", null)))
+      .rejects.toThrow("only by Process")
     await expect(service.planFieldValue(fieldRequest("input", "wrong"))).rejects.toThrow("number declaration")
-    await expect(service.planFieldValue({...fieldRequest("input", 1), atom: {...locator, pointer: "/runtime/roots/1"}}))
+    await expect(service.planFieldValue({...fieldRequest("input", 1), atom: {...locator, ref: "atom:999"}}))
       .rejects.toThrow("stale")
   })
 

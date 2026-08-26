@@ -269,12 +269,13 @@ path; отдельный Process generator и произвольный source wr
 использует закрытый occurrence/placement contract из раздела выше.
 
 `meta.field.value.apply` является предметным runtime input. Request адресует
-Atom через публичный locator точного Graph snapshot, называет Field key,
-передаёт типизированное значение и ожидаемую causal frontier. Provider
-разрешает locator во внутреннюю Boundary identity, проверяет Field declaration
-и проводит одну Gluon либо Higgs Particle через существующую Force-history.
-Boundary ID не становится частью публичного Graph, а runtime value не
-проецируется в `meta.ts` как декларация.
+Atom через stable public Graph ref с root/Meta guards, называет ordinary Field
+key, передаёт scalar-значение и ожидаемую causal frontier. Provider разрешает
+ref во внутреннюю Boundary identity, проверяет Field declaration и проводит
+одну Gluon Particle через существующую Force-history. `enum` и `array` являются
+topology Fields и меняются только Process; этот RPC их отклоняет. Boundary ID
+не принимается отдельным raw числом: публичной формой является типизированный
+Graph ref. Runtime value не проецируется в `meta.ts` как декларация.
 
 Receipt возвращает acceptance identity именно этой Particle и exact causal
 frontier после её проведения. Повтор со старой ожидаемой frontier отклоняется

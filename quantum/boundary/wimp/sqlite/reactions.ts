@@ -1,11 +1,14 @@
 import type { Wimp } from "./wimp.ts"
+import type {ReactionSourceSelector} from "@metafor/types/metafor/reactions"
 import { Reaction } from "./reaction.ts"
 
 /**
- * Коллекция реакций для одного wimp.
- * Гранулярный API: `add()` создаёт одну реакцию (idempotent по wimp+key),
- * связи (read/write/states) добавляются через sub-ORM на `Reaction`.
- */
+Коллекция Reaction одного WIMP.
+
+`add()` создаёт одну декларацию idempotent по `wimp + key`; exact selectors,
+Field/Mass dependencies и active target States принадлежат полученному
+`Reaction`.
+*/
 export class Reactions {
   readonly #wimp: Wimp
 
@@ -18,15 +21,16 @@ export class Reactions {
   }
 
   /**
-   * INSERT в `reaction` (UNIQUE по wimp+key).
-   * Идемпотентно: если reaction с таким key уже существует — возвращает existing
-   * без обновления label/desc/cond/src.
-   */
+  Вставляет Reaction с уникальным `wimp + key`.
+
+  Повтор существующего key возвращает ту же декларацию без скрытой замены её
+  selectors, metadata или action source.
+  */
   async add(input: {
     key: string
     label: string
     desc?: string | null | undefined
-    cond: string
+    sources: readonly ReactionSourceSelector[]
     src: string
   }): Promise<Reaction> {
     const sql = this.wimp.sql
@@ -39,12 +43,14 @@ export class Reactions {
     )[0]
     if (existing) return new Reaction(this, input.key)
 
-    const row = (await sql<Array<{id: number}>>`
-      INSERT INTO reaction (wimp, key, label, desc, cond_source, update_source)
-      VALUES (${src}, ${input.key}, ${input.label}, ${input.desc ?? null}, ${input.cond}, ${input.src})
+    await sql`
+      INSERT INTO reaction (wimp, key, label, desc, sources_json, update_source)
+      VALUES (${src}, ${input.key}, ${input.label}, ${input.desc ?? null}, ${JSON.stringify(input.sources)}, ${input.src})
       RETURNING id
-    `)[0]
-    return new Reaction(this, input.key)
+    `
+    const reaction = new Reaction(this, input.key)
+    await reaction.setSources(input.sources)
+    return reaction
   }
 
   async all(): Promise<Reaction[]> {

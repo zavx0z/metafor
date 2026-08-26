@@ -29,12 +29,13 @@ database.
 
 ## Public runtime paths
 
-- `boundary.initialState.read` — нормализованный initial state для Matrix;
-- `boundary.initialProjection.read` — полный canonical projection для Energy и
+* `boundary.initialState.read` — нормализованный initial state v2 с exact
+  Reaction relations для Matrix;
+* `boundary.initialProjection.read` — полный canonical projection для Energy и
   Bulk;
-- Inflaton от Dark — declaration/materialization в `incremental.ts`;
-- Photon/Z/W — Process commit в `execution.ts`;
-- Reaction lifecycle — `reaction.ts`.
+* Inflaton от Dark — declaration/materialization в `incremental.ts`;
+* Photon/Z/W — Process commit и подтверждение нового State в `execution.ts`;
+* Reaction trigger, registration, claim и Field commit — `reaction.ts`.
 
 Initial reads проходят через Oracle RPC. Realtime changes после рождения идут
 поштучными Particle через Force; Boundary не рассылает startup snapshot как
@@ -42,12 +43,14 @@ Graviton.
 
 ## Основные файлы
 
-- `sqlite.ts` — открытие database и Boundary facade;
-- `incremental.ts` — relational declaration/materialization projection;
-- `execution.ts` — Process registration, Energy selection и result commit;
-- `reaction.ts` — Reaction commit;
-- `oracle.ts` — initial read RPC;
-- `server.ts` — process lifecycle и transport wiring.
+* `sqlite.ts` — открытие database и Boundary facade;
+* `incremental.ts` — relational declaration/materialization projection;
+* `execution.ts` — Process registration, State event identity, Energy selection
+  и result commit;
+* `reaction.ts` — exact Reaction validation, execution registration и ordinary
+  Field commit;
+* `oracle.ts` — initial read RPC;
+* `server.ts` — process lifecycle и transport wiring.
 
 Низкоуровневые тесты могут открывать Boundary напрямую:
 

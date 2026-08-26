@@ -84,6 +84,15 @@ async function migrateMatterBranchSlots(sql: SQL): Promise<void> {
   await sql.unsafe("DROP INDEX IF EXISTS matter_particle_branch_slot")
 }
 
+/** Renames the former executable Reaction condition column to declaration data. */
+async function migrateReactionSources(sql: SQL): Promise<void> {
+  const columns = await sql.unsafe<Array<{name: string}>>("PRAGMA table_info(reaction)")
+  const names = new Set(columns.map(({name}) => name))
+  if (names.has("cond_source") && !names.has("sources_json")) {
+    await sql.unsafe("ALTER TABLE reaction RENAME COLUMN cond_source TO sources_json")
+  }
+}
+
 export class BoundaryWimpSqlite {
   private constructor(private readonly sql: SQL) {}
 
@@ -114,6 +123,7 @@ export class BoundaryWimpSqlite {
     )
     await migrateConditionPredicates(sql)
     await migrateMatterBranchSlots(sql)
+    await migrateReactionSources(sql)
     const matterWimpColumns = await sql.unsafe<Array<{name: string}>>(
       "PRAGMA table_info(matter_particle_wimp)",
     )

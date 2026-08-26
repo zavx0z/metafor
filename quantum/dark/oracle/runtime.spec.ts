@@ -13,7 +13,7 @@ import {
 import {MetaRuntimeRpcService} from "./runtime.ts"
 
 const ROOT = parseMetaAddress("test/runtime")!
-const locator = {root: ROOT, pointer: "/runtime/roots/0" as const, meta: ROOT}
+const locator = {root: ROOT, ref: "atom:41" as const, meta: ROOT}
 
 const entry = (
   sequence: number,

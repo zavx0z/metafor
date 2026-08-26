@@ -22,7 +22,8 @@ const ENERGY_ID = "energy-parity"
 type ParticleInput = Omit<SourcedParticle, "ts"> & {ts?: number}
 
 const runtimeInitialState = (): BoundaryInitialState => ({
-  version: 1,
+  version: 2,
+  reactionRelations: [],
   pendingProcessExecutions: [],
   atoms: [{
     id: 17,

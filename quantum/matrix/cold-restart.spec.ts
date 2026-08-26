@@ -23,7 +23,8 @@ afterAll(() => {
 })
 
 const initial = (): BoundaryInitialState => ({
-  version: 1,
+  version: 2,
+  reactionRelations: [],
   pendingProcessExecutions: [{
     executionId: "execution-before-cold-birth",
     atom: 17,

@@ -96,6 +96,16 @@ describe("Boundary canonical external Field input", () => {
     expect(await stored(LINKS)).toEqual([])
   })
 
+  test("rejects every external Higgs because topology belongs only to Process", async () => {
+    await expect(boundary.materialize(message({
+      part: "higgs",
+      op: "replace",
+      path: atomId,
+      value: {fields: {[String(LINKS)]: [atomId]}},
+    }))).rejects.toThrow("only by a committed Process")
+    expect(await stored(LINKS)).toEqual([])
+  })
+
   test("removes a scalar override through the same canonical path", async () => {
     await boundary.materialize(message({
       part: "gluon",

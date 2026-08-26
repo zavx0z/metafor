@@ -4,6 +4,7 @@ import type {Particle} from "shared/protocol/force/particle"
 import {
   REACTION_CLAIM_KIND,
   isReactionExecutionSignal,
+  isReactionStateCommit,
   type ReactionResultProposal,
 } from "shared/protocol/force/reaction"
 import {open} from "../boundary/sqlite.ts"
@@ -23,7 +24,7 @@ describe("Reaction multi-Field result", () => {
   test("preserves every declared read and write from DSL through Boundary commit", async () => {
     const source = MetaFor("Reaction source")
       .fields((field) => ({trigger: field.number.required(0)}))
-      .superposition({idle: null})
+      .superposition({idle: null, ready: null})
       .mass(() => ({}))
       .energy()
       .processes()
@@ -41,8 +42,8 @@ describe("Reaction multi-Field result", () => {
       .processes()
       .reactions((reaction) => [[
         ["idle"],
-        reaction({label: "Update both Fields"})
-          .filter(() => ({meta: "audit/reaction-source", op: "replace", path: "/context"}))
+        reaction({key: "update-both", label: "Update both Fields"})
+          .filter([{meta: SOURCE, states: ["ready"]}])
           .equal(({update, value}) => {
             const {a, b} = value
             update({a: a + 1, b: b + 2})
@@ -56,7 +57,7 @@ describe("Reaction multi-Field result", () => {
     const declarations = new Map([[TARGET, target], [SOURCE, source]])
     const boundary = await open(":memory:")
     try {
-      for await (const part of matterParticles(TARGET, async (src) => {
+      for await (const part of matterParticles(TARGET, async (src: string) => {
         const declaration = declarations.get(src)
         if (!declaration) throw new Error(`Missing test declaration ${src}`)
         return declaration
@@ -70,19 +71,45 @@ describe("Reaction multi-Field result", () => {
       expect(sourceAtomId).toBeGreaterThan(0)
       expect(targetAtomId).toBeGreaterThan(0)
 
-      await boundary.materialize(message({part: "photon", op: "replace", path: sourceAtomId, value: "idle"}))
-      await boundary.materialize(message({part: "photon", op: "replace", path: targetAtomId, value: "idle"}))
-
-      const sourceFieldId = Number((await boundary.projection.sql<Array<{id: number}>>`
-        SELECT id FROM field WHERE wimp = ${SOURCE} AND key = ${"trigger"}
-      `)[0]?.id)
-      const sourceCommit = await boundary.materialize(message({
-        part: "gluon",
-        op: "replace",
-        path: sourceAtomId,
-        value: {fields: {[String(sourceFieldId)]: 1}},
+      await boundary.materialize(message({
+        part: "photon", op: "replace", path: sourceAtomId,
+        from: "source-idle", value: "idle",
       }))
-      const signalPart = sourceCommit?.messages.find(({parts}) => isReactionExecutionSignal(parts[0]?.value))?.parts[0]
+      await boundary.materialize(message({
+        part: "photon", op: "replace", path: targetAtomId,
+        from: "target-idle", value: "idle",
+      }))
+
+      const sourceCommit = await boundary.materialize(message({
+        part: "photon", op: "replace", path: sourceAtomId,
+        from: "source-ready", value: "ready",
+      }))
+      const observed = sourceCommit?.messages.map(({parts}) => parts[0]?.value).find(isReactionStateCommit)
+      if (!observed) throw new Error("Source State was not confirmed")
+      const relation = (await boundary.initialState()).reactionRelations[0]
+      if (!relation) throw new Error("Reaction relation was not resolved")
+      const registration = await boundary.materialize(message({
+        part: "photon",
+        op: "test",
+        path: targetAtomId,
+        from: "reaction-execution",
+        value: {
+          kind: "reaction-trigger",
+          reactionExecutionId: "reaction-execution",
+          relationKey: relation.key,
+          reactionId: relation.reactionId,
+          eventId: observed.eventId,
+          targetAtomId,
+          source: {
+            atomId: observed.atomId,
+            wimp: observed.wimp,
+            stateId: observed.stateId,
+            state: observed.state,
+          },
+          timestamp: 1,
+        },
+      }))
+      const signalPart = registration?.messages.find(({parts}) => isReactionExecutionSignal(parts[0]?.value))?.parts[0]
       if (!signalPart || !isReactionExecutionSignal(signalPart.value)) throw new Error("Reaction was not scheduled")
       const signal = signalPart.value
       expect(signal.writeFields.map(([, key]) => key)).toEqual(["a", "b"])
@@ -102,8 +129,8 @@ describe("Reaction multi-Field result", () => {
 
       const proposal: ReactionResultProposal = {
         reactionExecutionId: signal.reactionExecutionId,
+        relationKey: signal.relationKey,
         reactionId: signal.reactionId,
-        matched: result.matched,
         fields: result.fields,
       }
       await boundary.materialize(message({

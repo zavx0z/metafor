@@ -38,13 +38,16 @@ const projection = (name = "Root"): Graph => ({
   },
   runtime: {
     roots: [{
+      ref: "atom:1",
       kind: "atom",
       declaration: "#/template/example~1root",
       meta: ROOT,
       state: "idle",
       values: {},
+      mass: [],
       children: [],
     }],
+    reactions: [],
   },
 })
 

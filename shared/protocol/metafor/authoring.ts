@@ -8,6 +8,7 @@ import {
   type ValidationIssue,
   type ValidationResult,
 } from "@metafor/types/metafor/graph"
+import type {ReactionSourceRelation, ReactionSourceSelector} from "@metafor/types/metafor/reactions"
 
 export const META_AUTHORING_CONTRACT_VERSION = 1 as const
 
@@ -413,11 +414,13 @@ export interface MetaReactionDeclaration {
   key: string
   label: string
   description?: string
+  sources: ReactionSourceSelector[]
   states: string[]
-  filterSource: string
-  updateSource: string
   read: string[]
   write: string[]
+  massRead: string[]
+  massWrite: string[]
+  src: string
 }
 
 export interface MetaReactionDeclarationAddRequest extends MetaDeclarationRequestBase {
@@ -566,6 +569,10 @@ const PROCESS_ARTIFACT_EXPORTS = new Set<MetaProcessArtifactExport>([
 const PROCESS_ENVS = new Set<MetaExecutionEnv>([
   "browser", "node", "worker", "server", "any",
 ])
+const REACTION_SOURCE_RELATIONS = new Set<ReactionSourceRelation>([
+  "parent", "child", "descendant",
+])
+const REACTION_ATOM_REF = /^atom:[1-9]\d*$/
 
 const pointerToken = (value: string): string =>
   value.replaceAll("~", "~0").replaceAll("/", "~1")
@@ -1165,6 +1172,72 @@ const massDeclaration = (
   }
 }
 
+const reactionSourceSelector = (
+  validator: AuthoringValidator,
+  value: unknown,
+  path: JsonPointer,
+): ReactionSourceSelector | null => {
+  if (!validator.record(value, path, "Reaction source selector")) return null
+  const issueCount = validator.issues.length
+  validator.closed(value, path, ["atom", "meta", "relation", "states"])
+  validator.required(value, path, ["states"])
+
+  const atom = value.atom === undefined
+    ? undefined
+    : validator.text(value.atom, childPath(path, "atom"), "Reaction source Atom")
+  if (atom !== undefined && atom !== null && !REACTION_ATOM_REF.test(atom)) {
+    validator.issue(
+      childPath(path, "atom"),
+      "invalid_reaction_atom_ref",
+      "Reaction source Atom must use atom:<positive-id>",
+    )
+  }
+  const meta = value.meta === undefined
+    ? undefined
+    : validator.address(value.meta, childPath(path, "meta"))
+  const relation = value.relation === undefined
+    ? undefined
+    : REACTION_SOURCE_RELATIONS.has(value.relation as ReactionSourceRelation)
+      ? value.relation as ReactionSourceRelation
+      : null
+  if (relation === null) {
+    validator.issue(
+      childPath(path, "relation"),
+      "invalid_reaction_relation",
+      "Reaction source relation must be parent, child or descendant",
+    )
+  }
+  const states = validator.stringList(
+    value.states,
+    childPath(path, "states"),
+    "Reaction source States",
+  )
+  if (states.length === 0) {
+    validator.issue(
+      childPath(path, "states"),
+      "empty_reaction_source_states",
+      "Reaction source must declare at least one State",
+    )
+  }
+  if (atom === undefined && meta === undefined && relation === undefined) {
+    validator.issue(
+      path,
+      "empty_reaction_source",
+      "Reaction source must declare atom, meta or relation",
+    )
+  }
+  if (
+    validator.issues.length !== issueCount || atom === null || meta === null || relation === null ||
+    states.length === 0
+  ) return null
+  return {
+    ...(atom === undefined ? {} : {atom: atom as `atom:${string}`}),
+    ...(meta === undefined ? {} : {meta}),
+    ...(relation === undefined ? {} : {relation}),
+    states: states as [string, ...string[]],
+  }
+}
+
 const reactionDeclaration = (
   validator: AuthoringValidator,
   value: unknown,
@@ -1172,33 +1245,60 @@ const reactionDeclaration = (
 ): MetaReactionDeclaration | null => {
   if (!validator.record(value, path, "Reaction declaration")) return null
   validator.closed(value, path, [
-    "key", "label", "description", "states", "filterSource", "updateSource", "read", "write",
+    "key", "label", "description", "sources", "states", "read", "write", "massRead", "massWrite", "src",
   ])
-  validator.required(value, path, ["key", "label", "states", "filterSource", "updateSource", "read", "write"])
+  validator.required(value, path, [
+    "key", "label", "sources", "states", "read", "write", "massRead", "massWrite", "src",
+  ])
   const key = validator.text(value.key, childPath(path, "key"), "Reaction key")
   if (key?.includes("\0")) validator.issue(childPath(path, "key"), "invalid_reaction_key", "Reaction key must not contain NUL")
   const label = validator.text(value.label, childPath(path, "label"), "Reaction label")
   const description = value.description === undefined
     ? undefined
     : validator.text(value.description, childPath(path, "description"), "Reaction description", true)
-  const states = validator.stringList(value.states, childPath(path, "states"), "Reaction states")
+  const sources: ReactionSourceSelector[] = []
+  const sourceKeys = new Set<string>()
+  if (validator.array(value.sources, childPath(path, "sources"), "Reaction sources")) {
+    value.sources.forEach((source, index) => {
+      const sourcePath = childPath(childPath(path, "sources"), index)
+      const normalized = reactionSourceSelector(validator, source, sourcePath)
+      if (!normalized) return
+      const sourceKey = JSON.stringify(normalized)
+      if (sourceKeys.has(sourceKey)) {
+        validator.issue(sourcePath, "duplicate_value", "Reaction source selector is duplicated")
+        return
+      }
+      sourceKeys.add(sourceKey)
+      sources.push(normalized)
+    })
+  }
+  if (sources.length === 0) {
+    validator.issue(childPath(path, "sources"), "empty_reaction_sources", "Reaction must declare at least one source")
+  }
+  const states = validator.stringList(value.states, childPath(path, "states"), "Reaction target States")
+  if (states.length === 0) {
+    validator.issue(childPath(path, "states"), "empty_reaction_states", "Reaction must declare at least one target State")
+  }
   const read = validator.stringList(value.read, childPath(path, "read"), "Reaction read Fields")
   const write = validator.stringList(value.write, childPath(path, "write"), "Reaction write Fields")
-  const filterSource = validator.source(value.filterSource, childPath(path, "filterSource"), "Reaction filterSource")
-  const updateSource = validator.source(value.updateSource, childPath(path, "updateSource"), "Reaction updateSource")
-  for (const field of write) if (!read.includes(field)) {
-    validator.issue(childPath(path, "read"), "missing_read_field", `Reaction write Field ${field} must also be declared in read`)
-  }
-  if (key === null || label === null || description === null || filterSource === null || updateSource === null) return null
+  const massRead = validator.stringList(value.massRead, childPath(path, "massRead"), "Reaction read Mass")
+  const massWrite = validator.stringList(value.massWrite, childPath(path, "massWrite"), "Reaction write Mass")
+  const src = validator.source(value.src, childPath(path, "src"), "Reaction src")
+  if (
+    key === null || label === null || description === null || sources.length === 0 ||
+    states.length === 0 || src === null
+  ) return null
   return {
     key,
     label,
     ...(description === undefined ? {} : {description}),
+    sources,
     states,
-    filterSource,
-    updateSource,
     read,
     write,
+    massRead,
+    massWrite,
+    src,
   }
 }
 

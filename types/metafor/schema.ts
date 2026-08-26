@@ -4,7 +4,7 @@ import type { MatterDeclaration, MatterSchema } from "./matter.ts"
 import type { ReactionsSchema } from "./reactions.ts"
 import type { SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.ts"
 import type { ReactionsDeclaration } from "./reactions.ts"
-import type { ParticleOperation } from "shared/protocol/force/particle"
+import type {ReactionSourceSelector} from "./reactions.ts"
 import type {MassDeclarationDSL, MassDeclarations, MassFactory, MassHandles} from "./mass.ts"
 
 export interface BulkSchema {
@@ -49,28 +49,25 @@ export interface MetaProcessDSL {
  * @prop key — ключ реакции внутри декларации WIMP.
  * @prop label — человекочитаемое имя реакции.
  * @prop desc — опциональное описание реакции.
- * @prop cond — исходник условия реакции.
- * @prop src — исходник update-функции реакции.
+ * @prop sources — декларативные selectors и новые States наблюдаемых Atom.
+ * @prop src — исходник функции Reaction.
  * @prop read — ключи полей, которые реакция читает.
  * @prop write — ключи полей, которые реакция пишет.
+ * @prop massRead — ключи Mass, которые реакция читает.
+ * @prop massWrite — ключи Mass, которые реакция пишет.
  * @prop states — имена состояний, в которых реакция активна.
  */
 export interface MetaReactionDSL {
   key: string
   label: string
   desc?: string | null | undefined
-  cond: string
+  sources: readonly ReactionSourceSelector[]
   src: string
   read?: readonly string[] | undefined
   write?: readonly string[] | undefined
+  massRead?: readonly string[] | undefined
+  massWrite?: readonly string[] | undefined
   states?: readonly string[] | undefined
-}
-
-export interface ReactionPart {
-  from?: string
-  op: ParticleOperation
-  path: string
-  value?: any
 }
 export enum Initiator {
   Transition = "t",
@@ -315,36 +312,32 @@ export type MetaForFn = (
          */
         processes(process?: ProcessesDeclaration<ɸ, SuperpositionStateKeys<ψ>, MassHandles<Schema>, ψ, e>): {
           /**
-           * Регистрирует карту реакций для автомата.
-           *
-           * **ВАЖНО: Реакции предназначены для реагирования на события других атомов, а не на собственные изменения состояния.**
-           * Для управления собственными переходами состояний используйте процессы и их success/error обработчики.
-           * Реакции связывают разные атомы в событийной архитектуре.
-           *
-           * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, label }]
-           * @returns chain API для вызова .matter(...)
-           *
-           * @example
-           * ```typescript
-           * // Правильно: реакция на события другого атома
-           * .reactions(reaction => [
-           *   ["idle", "loading"], // Состояния, в которых активна реакция
-           *   {
-           *     filter: (args) => args.meta.tag === "roadmap" && args.impulses[0]?.op === "replace",
-           *     update: ({ update, field, part }) => {
-           *       update({
-           *         lastMessage: part.value,
-           *         messageCount: field.messageCount + 1
-           *       })
-           *     },
-           *     label: "Обработка сообщений от roadmap атома"
-           *   }
-           * ])
-           *
-           * // Неправильно: реакция на собственные изменения
-           * // Вместо этого используйте процессы и их success/error обработчики
-           * ```
-           */
+          Регистрирует Reaction, наблюдающие подтверждённые новые States других
+          Atom. Первый элемент каждого кортежа задаёт непустой набор собственных
+          States, в которых Reaction слушает. Boundary заранее разрешает
+          декларативные selectors в точные связи, поэтому функция Reaction не
+          получает произвольный Particle, предыдущее State или live Energy.
+
+          Reaction читает только объявленные собственные Fields и Mass keys,
+          пишет собственные ordinary Fields и Mass и не может менять topology
+          Fields (`enum`, `array`).
+
+          @param reaction Фабрика декларации source selectors и action
+          @returns Chain API для вызова `.matter(...)`
+
+          @example
+          ```typescript
+          .reactions((reaction) => [[
+            ["listening"],
+            reaction({key: "remember", mass: {write: ["history"]}})
+              .filter([{meta: "owner/sensor", states: ["ready"]}])
+              .equal(async ({observation, mass, update, value}) => {
+                await mass.history.write({state: observation.source.state})
+                update({count: value.count + 1})
+              }),
+          ]])
+          ```
+          */
           reactions(reaction?: ReactionsDeclaration<ɸ, SuperpositionStateKeys<ψ>, MassHandles<Schema>>): {
             /**
              * Регистрирует matter-функцию компонента и возвращает финальный bulk-этап.

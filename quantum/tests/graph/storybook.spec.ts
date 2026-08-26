@@ -58,6 +58,7 @@ describe("Quantum Graph Storybook delivery", () => {
     expect(overview?.status).toBe(308)
     expect(overview?.headers.get("location")).toBe("/graph/")
     expect((await page.routeResponse("/graph/document/current/complete"))?.status).toBe(200)
+    expect((await page.routeResponse("/graph/reaction/dependencies/complete"))?.status).toBe(200)
     expect((await page.routeResponse("/graph/unknown"))?.status).toBe(404)
   })
 
@@ -80,6 +81,7 @@ describe("Quantum Graph Storybook delivery", () => {
     expect(source).toContain("quantumStorybook")
     expect(source).toContain("StorybookBackdropSurface")
     expect(source).toContain("GraphLabState")
+    expect(source).toContain("waitForStorybookFrameBoundary")
     expect(page.diagnostics.builds).toBe(1)
   })
 

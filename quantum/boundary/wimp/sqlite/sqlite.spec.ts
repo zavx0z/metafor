@@ -28,6 +28,12 @@ const metaforDslTableNames = [
   "reaction_state",
   "reaction_read",
   "reaction_write",
+  "reaction_source_selector",
+  "reaction_source_state",
+  "reaction_mass_read",
+  "reaction_mass_write",
+  "reaction_relation",
+  "reaction_relation_state",
   "matter_binding",
   "matter_binding_dep",
   "matter_binding_direct_mass",
@@ -54,6 +60,13 @@ const metaforDslIndexNames = [
   "reaction_state_by_reaction",
   "reaction_read_by_reaction",
   "reaction_write_by_reaction",
+  "reaction_source_selector_by_reaction",
+  "reaction_source_state_by_reaction",
+  "reaction_mass_read_by_reaction",
+  "reaction_mass_write_by_reaction",
+  "reaction_relation_by_source",
+  "reaction_relation_by_target",
+  "reaction_relation_state_by_source",
   "matter_binding_by_wimp",
   "matter_binding_dep_by_binding",
   "matter_root_particle_order",
@@ -106,10 +119,12 @@ describe("sqlite ddl", () => {
           {
             key: "on-status",
             label: "On status",
-            cond: "() => true",
+            sources: [{meta: "beta/meta", states: ["idle"]}],
             src: "() => {}",
             read: ["title"],
-            write: ["status"],
+            write: ["title"],
+            massRead: [],
+            massWrite: [],
             states: ["idle"],
           },
         ],
@@ -140,6 +155,11 @@ describe("sqlite ddl", () => {
       expect(await wimp.states.count()).toBe(2)
       expect(await wimp.processes.count()).toBe(1)
       expect(await wimp.reactions.count()).toBe(1)
+      const storedReaction = await wimp.reactions.get({key: "on-status"})
+      expect(await storedReaction?.sources()).toEqual([{meta: "beta/meta", states: ["idle"]}])
+      expect(await storedReaction?.read.all()).toEqual(["title"])
+      expect(await storedReaction?.write.all()).toEqual(["title"])
+      expect(await storedReaction?.states.all()).toEqual(["idle"])
       expect(await wimp.matter.count()).toBe(1)
       expect(await wimp.matter.all()).toEqual([
         {
@@ -517,8 +537,8 @@ describe("sqlite ddl", () => {
     }).toThrow()
 
     await expect(async () => {
-      await db`INSERT INTO reaction(id, wimp, key, label, cond_source, update_source)
-               VALUES (${60}, ${"missing/meta"}, ${"refresh"}, ${"Refresh"}, ${"() => true"}, ${"() => ({})"})`
+      await db`INSERT INTO reaction(id, wimp, key, label, sources_json, update_source)
+               VALUES (${60}, ${"missing/meta"}, ${"refresh"}, ${"Refresh"}, ${"[]"}, ${"() => ({})"})`
     }).toThrow()
   })
 
@@ -602,8 +622,8 @@ describe("sqlite ddl", () => {
     await db`INSERT INTO process_action_read(process, field, phase)
              VALUES (${17}, ${2}, ${"action"})`
 
-    await db`INSERT INTO reaction(id, wimp, key, label, cond_source, update_source)
-             VALUES (${18}, ${"alpha/meta"}, ${"refresh"}, ${"Refresh"}, ${"() => true"}, ${"() => ({})"})`
+    await db`INSERT INTO reaction(id, wimp, key, label, sources_json, update_source)
+             VALUES (${18}, ${"alpha/meta"}, ${"refresh"}, ${"Refresh"}, ${"[]"}, ${"() => ({})"})`
 
     await db`INSERT INTO reaction_state(reaction, state)
              VALUES (${18}, ${8})`

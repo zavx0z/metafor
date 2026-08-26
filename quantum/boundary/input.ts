@@ -23,12 +23,21 @@ type FieldRow = {
 const positiveId = (value: unknown): number | null =>
   typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null
 
-/** Commits an external scalar Field mutation before Matrix or Reaction can observe it. */
+/**
+Commits external ordinary Field input before Matrix can observe it.
+
+Every external Higgs is rejected. Topology Fields are admitted only as an
+already committed Process consequence passed directly to the internal
+projection path.
+*/
 export class BoundaryInputStore {
   constructor(readonly sql: SQL) {}
 
   async apply(input: ForceMessage): Promise<BoundaryIncrementalCommit | null | undefined> {
     const part = input.parts[0]
+    if (part.part === "higgs") {
+      throw new Error("Topology Fields can be changed only by a committed Process result")
+    }
     if (part.part !== "gluon" || part.from !== undefined) return undefined
     if (part.op !== "add" && part.op !== "replace" && part.op !== "remove") return undefined
 

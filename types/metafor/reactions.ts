@@ -1,590 +1,143 @@
-import type { Fields, Update, Values } from "./fields.ts"
-import type { Condition, ConditionOptional, CondNumberRequired, CondStringRequired } from "./superposition.ts"
-import type { Mass, ReactionPart, Self } from "./schema.ts"
+/**
+Reaction declaration for observing confirmed State changes of other Atom.
 
-export interface ReactionParams {
-  meta: string
-  atom: string
-  timestamp: number
-  part: ReactionPart
-  self: Self
-}
+Boundary resolves authored selectors into exact runtime relations. Matrix
+activates those relations only while the target Atom is in an authored State,
+and Energy executes the Reaction beside the target Atom Mass. Reaction never
+receives live Energy objects and cannot write topology Fields.
+
+@packageDocumentation
+*/
+
+import type {Fields, Values} from "./fields.ts"
+import type {Mass, Self} from "./schema.ts"
+
+export type ReactionSourceRelation = "parent" | "child" | "descendant"
 
 /**
- * Декларативные условия фильтрации реакций
- *
- * Плоская структура с расширенными возможностями для meta и part.
- * Позволяет фильтровать события по различным критериям.
- *
- * @example
- * ```typescript
- * const conditions: ReactionFilterConditions = {
- *   meta: "user",                   // Фильтр по мете атома
- *   op: "replace",                  // Фильтр по операции
- *   path: "/context",               // Фильтр по пути
- *   value: { gt: 0 },               // Фильтр по значению
- *   index: { gte: 0 },              // Фильтр по индексу
- *   timestamp: { gt: Date.now() }   // Фильтр по временной метке
- * }
- * ```
- */
+One conjunctive source selector resolved by Boundary.
 
-export interface ReactionFilterConditions {
-  /**
-   # Фильтрация по мете атома
-
-   1. Прямое сравнение строки с условием
-    - meta: "test" - мета должна быть равна "test"
-    - meta: /test/ - мета должна соответствовать регулярному выражению /test/ (без кавычек)
-
-   2. Сравнение с условием
-    - meta: { eq: "test" } - мета должна быть равна "test"
-    - meta: { pattern: /test/ } - мета должна соответствовать регулярному выражению /test/
-
-   Условия сравнения:
-   | Параметр       | Тип                                  | Описание                              |
-   | -------------- | ------------------------------------ | ------------------------------------- |
-   | startsWith     | string                               | Начинается ли с указанной строки      |
-   | endsWith       | string                               | Заканчивается ли на указанную строку  |
-   | include        | string                               | Включает ли указанную подстроку       |
-   | pattern        | RegExp                               | Шаблон регулярного выражения          |
-   | eq             | string                               | Равно указанной строке                |
-   | notEq          | string                               | Не равно указанной строке             |
-   | notInclude     | string                               | Не включает указанную подстроку       |
-   | notStartsWith  | string                               | Не начинается с указанной строки      |
-   | notEndsWith    | string                               | Не заканчивается на указанную строку  |
-   | length         | number \| { min?: number; max?: number } | Длина строки                      |
-   | between        | [string, string]                     | Должно быть между двумя строками      |
-   | in             | string[]                             | Входит ли в указанный массив строк     |
-   | notIn          | string[]                             | Не входит ли в указанный массив строк  |
-
-   @example
-   ```typescript
-   // Простые фильтры
-   meta: "user"
-   meta: /^user_/
-
-   // Сложные фильтры
-   meta: {
-     startsWith: "user",
-     notInclude: "admin"
-   }
-   meta: {
-     pattern: /^[a-z]+_[0-9]+$/,
-     length: { min: 3, max: 20 }
-   }
-   meta: {
-     in: ["user", "admin", "guest"]
-   }
-   ```
-  */
-  meta?: CondStringRequired
-  /**
-   # Фильтрация по индексу
-
-   1. Прямое сравнение числа с условием
-    - index: 5 - индекс должен быть равен 5
-
-   2. Сравнение с условием
-    - index: { eq: 5 } - индекс должен быть равен 5
-    - index: { gt: 3 } - индекс должен быть больше 3
-
-   Условия сравнения:
-   | Параметр       | Тип                                  | Описание                              |
-   | -------------- | ------------------------------------ | ------------------------------------- |
-   | eq             | number                               | Равно указанному числу                |
-   | notEq          | number                               | Не равно указанному числу             |
-   | gt             | number                               | Больше указанного числа               |
-   | gte            | number                               | Больше или равно указанному числу     |
-   | lt             | number                               | Меньше указанного числа               |
-   | lte            | number                               | Меньше или равно указанному числу     |
-   | notGt          | number                               | Не больше указанного числа            |
-   | notGte         | number                               | Не больше или равно указанному числу  |
-   | notLt          | number                               | Не меньше указанного числа            |
-   | notLte         | number                               | Не меньше или равно указанному числу  |
-   | between        | [number, number]                     | Должно быть между двумя числами       |
-
-   @example
-   ```typescript
-   // Простые фильтры
-   index: 0
-   index: { gt: 10 }
-
-   // Сложные фильтры
-   index: {
-     gte: 0,
-     lte: 100
-   }
-   index: {
-     between: [1, 10],
-     notEq: 5
-   }
-   ```
-  */
-  atom?: CondStringRequired
-  /**
-   # Фильтрация по временной метке
-
-   1. Прямое сравнение числа с условием
-    - timestamp: 1640995200000 - временная метка должна быть равна 1640995200000
-
-   2. Сравнение с условием
-    - timestamp: { eq: 1640995200000 } - временная метка должна быть равна 1640995200000
-    - timestamp: { gt: 1640995200000 } - временная метка должна быть больше 1640995200000
-
-   Условия сравнения:
-   | Параметр       | Тип                                  | Описание                              |
-   | -------------- | ------------------------------------ | ------------------------------------- |
-   | eq             | number                               | Равно указанному числу                |
-   | notEq          | number                               | Не равно указанному числу             |
-   | gt             | number                               | Больше указанного числа               |
-   | gte            | number                               | Больше или равно указанному числу     |
-   | lt             | number                               | Меньше указанного числа               |
-   | lte            | number                               | Меньше или равно указанному числу     |
-   | notGt          | number                               | Не больше указанного числа            |
-   | notGte         | number                               | Не больше или равно указанному числу  |
-   | notLt          | number                               | Не меньше указанного числа            |
-   | notLte         | number                               | Не меньше или равно указанному числу  |
-   | between        | [number, number]                     | Должно быть между двумя числами       |
-
-   @example
-   ```typescript
-   // Фильтры по времени
-   timestamp: { gt: Date.now() - 60000 }  // Последняя минута
-   timestamp: {
-     gte: Date.now() - 3600000,           // Последний час
-     lte: Date.now()
-   }
-   ```
-  */
-  timestamp?: CondNumberRequired
-  /**
-   # Фильтрация по операции part
-
-   Доступные операции:
-   | Операция       | Описание                              |
-   | -------------- | ------------------------------------- |
-   | replace        | Замена значения по указанному пути    |
-   | add            | Добавление нового значения по пути     |
-   | remove         | Удаление значения по указанному пути   |
-   | test           | Проверка значения по указанному пути   |
-
-   Примеры использования:
-   - op: "replace" - операция должна быть replace
-   - op: "add" - операция должна быть add
-
-   @example
-   ```typescript
-   // Фильтры по операции
-   op: "replace"  // Только замены
-   op: "add"      // Только добавления
-   op: "remove"   // Только удаления
-   ```
-  */
-  op?: "replace" | "add" | "remove" | "test"
-  /**
-   # Фильтрация по пути part
-
-   Доступные пути:
-   | Путь           | Описание                              |
-   | -------------- | ------------------------------------- |
-   | /context       | Путь к контексту атома               |
-   | /state         | Путь к состоянию атома               |
-   | /              | Корневой путь (полный объект атома)  |
-
-   Примеры использования:
-   - path: "/context" - путь должен быть /context
-   - path: "/state" - путь должен быть /state
-
-   @example
-   ```typescript
-   // Фильтры по пути
-   path: "/context"  // Только изменения контекста
-   path: "/state"    // Только изменения состояния
-   path: "/"         // Любые изменения
-   ```
-  */
-  path?: "/context" | "/state" | "/"
-  /**
-   # Фильтрация по значению part
-
-   Поддерживает все типы значений с расширенными условиями сравнения.
-
-   ## Строковые значения
-
-   1. Прямое сравнение
-    - value: "active" - значение должно быть равно "active"
-    - value: /test/ - значение должно соответствовать регулярному выражению
-
-   2. Расширенные условия
-
-   | Параметр       | Тип                                  | Описание                              |
-   | -------------- | ------------------------------------ | ------------------------------------- |
-   | eq             | string                               | Равно указанной строке                |
-   | notEq          | string                               | Не равно указанной строке             |
-   | startsWith     | string                               | Начинается ли с указанной строки      |
-   | endsWith       | string                               | Заканчивается ли на указанную строку  |
-   | include        | string                               | Включает ли указанную подстроку       |
-   | notInclude     | string                               | Не включает указанную подстроку       |
-   | notStartsWith  | string                               | Не начинается с указанной строки      |
-   | notEndsWith    | string                               | Не заканчивается на указанную строку  |
-   | pattern        | RegExp                               | Шаблон регулярного выражения          |
-   | length         | number \| { min?: number; max?: number } | Длина строки                      |
-   | between        | [string, string]                     | Должно быть между двумя строками      |
-
-   ## Числовые значения
-
-   1. Прямое сравнение
-    - value: 42 - значение должно быть равно 42
-
-   2. Расширенные условия
-
-   | Параметр | Тип              | Описание                              |
-   | -------- | ---------------- | ------------------------------------- |
-   | eq       | number           | Равно указанному числу                |
-   | notEq    | number           | Не равно указанному числу             |
-   | gt       | number           | Больше указанного числа               |
-   | gte      | number           | Больше или равно указанному числу     |
-   | lt       | number           | Меньше указанного числа               |
-   | lte      | number           | Меньше или равно указанному числу     |
-   | notGt    | number           | Не больше указанного числа            |
-   | notGte   | number           | Не больше или равно указанному числу  |
-   | notLt    | number           | Не меньше указанного числа            |
-   | notLte   | number           | Не меньше или равно указанному числу  |
-   | between  | [number, number] | Должно быть между двумя числами       |
-   | in       | number[]        | Входит ли в указанный массив чисел    |
-   | notIn    | number[]        | Не входит ли в указанный массив чисел |
-
-   ## Булевы значения
-
-   1. Прямое сравнение
-    - value: true - значение должно быть true
-
-   2. Расширенные условия
-
-   | Параметр   | Тип     | Описание                           |
-   | ---------- | ------- | ---------------------------------- |
-   | eq         | boolean | Равно указанному булеву значению   |
-   | notEq      | boolean | Не равно указанному булеву значению|
-   | logicalEq  | boolean | Логическое равенство               |
-
-   ## Массивы
-
-   1. Прямое сравнение
-    - value: [1, 2, 3] - массив должен быть равен [1, 2, 3]
-
-   2. Расширенные условия
-
-   | Параметр    | Тип              | Описание                              |
-   | ----------- | ---------------- | ------------------------------------- |
-   | length      | number \| { min?: number; max?: number } | Длина массива                    |
-   | includes    | any              | Содержит ли массив указанный элемент  |
-   | notIncludes | any              | Не содержит ли массив указанный элемент|
-   | every       | { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number; include?: string } | Все элементы удовлетворяют условию |
-   | some        | { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number; include?: string } | Хотя бы один элемент удовлетворяет условию |
-   | isEmpty     | boolean          | Является ли массив пустым             |
-
-   ## Null и undefined
-
-   | Параметр | Тип     | Описание                    |
-   | -------- | ------- | --------------------------- |
-   | null     | boolean | Является ли значение null   |
-
-   ## Объекты
-
-   - value: { name: "test" } - объект должен быть равен { name: "test" }
-
-   ## Комбинированные условия
-
-   Можно комбинировать с другими фильтрами:
-   ```typescript
-   filter({
-     value: { gt: 10, lt: 100 },
-     op: "replace",
-     path: "/context"
-   })
-   ```
-
-   @example
-   ```typescript
-   // Простые фильтры
-   value: "active"
-   value: 42
-   value: true
-   value: [1, 2, 3]
-
-   // Сложные фильтры
-   value: {
-     gt: 0,
-     lt: 100
-   }
-   value: {
-     startsWith: "user",
-     length: { min: 3 }
-   }
-   value: {
-     includes: "admin",
-     length: { min: 1 }
-   }
-   value: {
-     in: [1, 2, 3, 5, 8]
-   }
-   value: {
-     notIn: [0, 4, 6, 7]
-   }
-   ```
-  */
-  value?: Condition<any> | ConditionOptional<any>
-}
+Present `atom`, `meta` and `relation` constraints must all match. Selectors in
+one Reaction are alternatives; matching several selectors still creates one
+exact source-to-target relation. The target Atom itself never matches.
+*/
+export type ReactionSourceSelector = Readonly<{
+  /** Exact runtime Atom reference in the public `atom:<id>` form. */
+  atom?: `atom:${string}`
+  /** WIMP address shared by every matching runtime Atom. */
+  meta?: string
+  /** Structural position of the source relative to the target Atom. */
+  relation?: ReactionSourceRelation
+  /** New source States observed by this selector. */
+  states: readonly [string, ...string[]]
+}>
 
 /**
- * Конфигурация одной реакции
- *
- * Содержит название, описание, функцию фильтрации и функцию обновления.
- *
- * @template ɸ - схема полей
- * @template 𝛴 - строковые ключи состояний
- * @template m - тип проекции объявленных Mass handles
- *
- * @example
- * ```typescript
- * const reaction: Reaction<MyFields, "idle" | "loading"> = {
- *   label: "Обработка сообщений",
- *   desc: "Обрабатывает входящие сообщения от пользователей",
- *   filter: ({ meta, part }) => {
- *     return meta === "user" && part.op === "replace"
- *   },
- *   update: ({ update, value, part }) => {
- *     update({
- *       lastMessage: part.value,
- *       messageCount: value.messageCount + 1
- *     })
- *   }
- * }
- * ```
- */
-export interface Reaction<ɸ extends Fields, 𝛴 extends string, m extends Mass> {
-  /** Название реакции для документации */
-  label: string
-  /** Описание реакции для документации */
+Exact target Mass dependencies visible in Graph and enforced by Energy.
+
+Read access exposes only read methods and write access exposes only `write`.
+Mass writes are immediate and are not rolled back with a later Field proposal.
+*/
+export type ReactionMassAccess<m extends Mass> = Readonly<{
+  read?: readonly Extract<keyof m, string>[]
+  write?: readonly Extract<keyof m, string>[]
+}>
+
+/** Stable declaration identity, presentation metadata and explicit Mass access. */
+export type ReactionConfig<m extends Mass> = Readonly<{
+  key: string
+  label?: string
   desc?: string
-  /** Функция фильтрации событий */
-  filter: (args: ReactionParams) => boolean
-  /** Функция обработки события */
-  update: ReactionAction<ɸ, 𝛴, m>
-}
+  mass?: ReactionMassAccess<m>
+}>
 
 /**
- * Цепочка для создания массива реакций
- *
- * Позволяет создавать массив реакций с группировкой по суперпозициям.
- *
- * @template ɸ - схема полей
- * @template 𝛴 - строковые ключи состояний
- * @template m - тип проекции объявленных Mass handles
- *
- * @example
- * ```typescript
- * const reactions: ReactionsChain<MyFields, "idle" | "loading"> = (reaction) => [
- *   [
- *     ["idle", "loading"], // Суперпозиции
- *     reaction({ label: "Обработка сообщений" })
- *       .filter(({ self }) => ({ meta: "user", atom: self.atom.split("/")[1] }))
- *       .equal(({ update, part }) => {
- *         update({ lastMessage: part.value })
- *       })
- *   ]
- * ]
- * ```
- */
+One Boundary-confirmed source State occurrence.
 
-export type ReactionsDeclaration<ɸ extends Fields, 𝛴 extends string, m extends Mass> = (
-  reaction: (config?: {
-    key?: string
-    /** Название реакции */
-    label?: string
-    /** Описание реакции */
-    desc?: string
-  }) => {
-    /**
-     * Добавляет декларативные фильтры для реакции
-     *
-     * Принимает функцию, которая на основе текущих полей и идентификатора атома
-     * возвращает объект с условиями фильтрации. Условия могут включать проверки по:
-     * - `meta` - название компонента-отправителя из MetaFor("label") (строка, регулярное выражение, объект с условиями)
-     * - `atom` - идентификатор атома-отправителя
-     * - `path` - путь к изменяемому полю ("/fields", "/state", "/")
-     * - `op` - операция part ("add", "remove", "replace")
-     * - `value` - значение part (с поддержкой расширенных условий для строк, чисел, булевых, массивов)
-     * - `timestamp` - временная метка события
-     *
-     * Функция фильтра получает доступ к `self` (идентификатор атома) и `value` (текущие значения полей),
-     * что позволяет создавать динамические условия на основе состояния системы.
-     *
-     * @param filter - Функция, принимающая `{ self, value }` и возвращающая объект условий фильтрации
-     * @returns Объект с методом `equal` для завершения цепочки создания реакции
-     *
-     * @example
-     * ```typescript
-     * reaction({ label: "Обработка сообщений" })
-     *   .filter(({ self, value }) => ({
-     *     meta: "user",
-     *     path: "/fields",
-     *     value: { gt: 0 }
-     *   }))
-     *   .equal(({ update, part }) => update({ lastMessage: part.value }))
-     * ```
-     */
-    filter: (filter: (params: { self: Self; value: Values<ɸ> }) => ReactionFilterConditions) => {
-      /**
-       * Добавляет функцию обработки события реакции
-       *
-       * Функция вызывается автоматически, когда все условия фильтра выполнены.
-       * Получает полный доступ к параметрам события:
-       * - `update` - функция для обновления полей
-       * - `value` - текущие значения полей
-       * - `mass` - handles объявленных Mass key-files
-       * - `meta` - название компонента-отправителя из MetaFor("label")
-       * - `atom` - идентификатор атома-отправителя
-       * - `timestamp` - временная метка события
-       * - `part` - Force part с данными изменения
-       * - `state` - текущее состояние
-       * - `self` - полный идентификатор атома
-       *
-       * Функция может использовать `update()` для изменения полей и анализировать
-       * `part` для получения данных события. `mass` содержит handles, а не
-       * сохранённые JSON/binary значения.
-       *
-       * @param reaction - Функция обработки события, вызываемая при срабатывании реакции
-       * @returns Объект реакции с методом `registerStates` для регистрации состояний
-       *
-       * @example
-       * ```typescript
-       * .equal(({ update, value, part }) => {
-       *   // Обновление контекста
-       *   update({
-       *     lastMessage: part.value,
-       *     messageCount: value.messageCount + 1
-       *   })
-       * })
-       * ```
-       */
-      equal: (reaction: ReactionAction<ɸ, 𝛴, m>) => Reaction<ɸ, 𝛴, m> & {
-        /**
-         * Внутренний метод для регистрации состояний реакции в схеме
-         *
-         * Автоматически вызывается при построении схемы реакций для связывания реакций
-         * с состояниями, в которых они должны быть активны. Метод добавляет ID реакции
-         * в объект суперпозиций схемы, создавая обратную связь: для каждой суперпозиции
-         * хранится список ID реакций, которые должны выполняться в этой суперпозиции.
-         *
-         * Метод не предназначен для прямого вызова пользователем. Он используется
-         * автоматически при обработке результата цепочки `ReactionsDeclaration`, где
-         * каждая реакция возвращается в виде кортежа `[суперпозиции[], реакция]`.
-         *
-         * @param superposition - Массив суперпозиций, в которых реакция должна быть активна
-         *
-         * @internal
-         */
-        registerStates: (superposition: 𝛴[]) => void
-      }
+`id` is the stable causal event identity. The previous State and arbitrary
+Force Particle are intentionally absent.
+*/
+export type ReactionObservation = Readonly<{
+  id: string
+  source: Readonly<{
+    atom: `atom:${string}`
+    meta: string
+    state: string
+  }>
+  timestamp: number
+}>
+
+type OrdinaryFieldKey<ɸ extends Fields> = {
+  [Key in keyof ɸ]: ɸ[Key]["type"] extends "string" | "number" | "boolean" ? Key : never
+}[keyof ɸ]
+
+export type ReactionUpdate<ɸ extends Fields> = (
+  /** Partial proposal for declared ordinary target Fields. */
+  values: Partial<Pick<Values<ɸ>, OrdinaryFieldKey<ɸ>>>,
+) => Partial<Pick<Values<ɸ>, OrdinaryFieldKey<ɸ>>>
+
+/**
+Runtime function of one queued Reaction execution.
+
+The action receives only its target Atom snapshot and declared Mass projection.
+It has no live Energy access and no error handler. A normal thrown error produces
+a failed execution; a missing declared Field or Mass is a fatal system invariant
+failure.
+*/
+export type ReactionAction<ɸ extends Fields, 𝛺 extends string, m extends Mass> = (args: Readonly<{
+  /** Confirmed new State of the exact source Atom. */
+  observation: ReactionObservation
+  /** Collects a proposal for declared ordinary Fields of the target Atom. */
+  update: ReactionUpdate<ɸ>
+  /** Snapshot of exactly the declared target Field reads. */
+  value: Values<ɸ>
+  /** Capability-limited handles for explicitly declared target Mass keys. */
+  mass: m
+  /** Target State at Boundary registration time. */
+  state: 𝛺
+  /** Identity of the target Atom that owns the Reaction. */
+  self: Self
+}>) => void | Promise<void>
+
+export type Reaction<ɸ extends Fields, 𝛺 extends string, m extends Mass> = Readonly<{
+  key: string
+  label: string
+  desc?: string
+  sources: readonly ReactionSourceSelector[]
+  update: ReactionAction<ɸ, 𝛺, m>
+}>
+
+export type ReactionBuilder<ɸ extends Fields, 𝛺 extends string, m extends Mass> = (
+  config: ReactionConfig<m>,
+) => {
+  /** Declares one or more structural/source-State alternatives. */
+  filter(sources: readonly [ReactionSourceSelector, ...ReactionSourceSelector[]]): {
+    /** Attaches the action executed once for every queued confirmed State. */
+    equal(update: ReactionAction<ɸ, 𝛺, m>): Reaction<ɸ, 𝛺, m> & {
+      registerStates(states: 𝛺[]): void
     }
-  },
-) => ReactionsChainResult<ɸ, 𝛴, m>
+  }
+}
 
-/** Схема реакций */
+export type ReactionsChainResult<ɸ extends Fields, 𝛺 extends string, m extends Mass> = readonly (
+  readonly [readonly [𝛺, ...𝛺[]], Reaction<ɸ, 𝛺, m> & {registerStates(states: 𝛺[]): void}]
+)[]
+
+export type ReactionsDeclaration<ɸ extends Fields, 𝛺 extends string, m extends Mass> = (
+  reaction: ReactionBuilder<ɸ, 𝛺, m>,
+) => ReactionsChainResult<ɸ, 𝛺, m>
+
+/** Serializable builder output before WIMP materialization. */
 export interface ReactionsSchema {
-  reactions: Record<
-    string,
-    {
-      label: string
-      desc?: string
-      cond: string
-      read?: string[]
-      write?: string[]
-      src: string
-    }
-  >
+  reactions: Record<string, {
+    label: string
+    desc?: string
+    sources: ReactionSourceSelector[]
+    read: string[]
+    write: string[]
+    massRead: string[]
+    massWrite: string[]
+    src: string
+  }>
   superposition: Record<string, string[]>
 }
-/**
- * Функция обновления контекста
- *
- * Вызывается когда реакция срабатывает и фильтр прошел успешно.
- * Получает все необходимые данные для обработки события.
- *
- * @template ɸ - схема контекста
- * @template 𝛴 - строковые ключи состояний
- * @template m - тип проекции объявленных Mass handles
- *
- * @includeExample ./react/test/reactions.basic.spec.ts
- * @includeExample ./react/test/reactions.execution.spec.ts
- *
- * @example
- * ```typescript
- * const updateFn: ReactionUpdate<MyContext, "idle" | "loading"> = ({
- *   update,    // Функция для обновления контекста
- *   value,   // Текущие значения полей
- *   mass,      // Handles объявленных Mass key-files
- *   meta,      // имя meta
- *   atom,      // ID атома
- *   timestamp, // Временная метка
- *   part,     // Force part данных
- *   state,     // Текущее состояние
- *   self       // Полный идентификатор атома
- * }) => {
- *   // Обработка события
- *   update({
- *     lastMessage: part.value,
- *     messageCount: value.messageCount + 1
- *   })
- * }
- * ```
- */
-
-export type ReactionAction<ɸ extends Fields, 𝛴 extends string, m extends Mass> = (args: {
-  /**
-   * Функция для обновления полей. Все ключи одного `update({a, b})` входят в
-   * разрешённый write-set; передача необъявленного ключа завершается ошибкой.
-   */
-  update: Update<ɸ>
-  /** Все статически прочитанные поля, включая destructuring `{a, b} = value`. */
-  value: Values<ɸ>
-  /** Handles объявленных Mass key-files */
-  mass: m
-  /** Название компонента-отправителя из MetaFor("label") */
-  meta: string
-  /** Информация об атоме */
-  atom: string
-  /** Временная метка */
-  timestamp: number
-  /** Force part для применения к атому */
-  part: ReactionPart
-  /** Текущее состояние */
-  state: 𝛴
-  /** Идентификатор атома */
-  self: Self
-}) => void /** Результат цепочки реакций */
-
-export type ReactionsChainResult<ɸ extends Fields, 𝛴 extends string, m extends Mass> = [
-  𝛴[],
-  Reaction<ɸ, 𝛴, m> & {
-    /**
-     * Внутренний метод для регистрации суперпозиций реакции в схеме
-     *
-     * Автоматически вызывается при построении схемы реакций для связывания реакций
-     * с суперпозициями, в которых они должны быть активны. Метод добавляет ID реакции
-     * в объект суперпозиций схемы, создавая обратную связь: для каждой суперпозиции
-     * хранится список ID реакций, которые должны выполняться в этой суперпозиции.
-     *
-     * Метод не предназначен для прямого вызова пользователем. Он используется
-     * автоматически при обработке результата цепочки `ReactionsDeclaration`, где
-     * каждая реакция возвращается в виде кортежа `[суперпозиции[], реакция]`.
-     *
-     * @param superposition - Массив суперпозиций, в которых реакция должна быть активна
-     *
-     * @internal
-     */
-    registerStates: (superposition: 𝛴[]) => void
-  },
-][]

@@ -1,7 +1,8 @@
 # Energy
 
-Energy исполняет Process и владеет его живыми runtime-сущностями. Matrix решает,
-когда Process должен начаться; Energy не хранит State и не вычисляет переходы.
+Energy исполняет Process и Reaction и владеет живыми runtime-сущностями Process.
+Matrix решает, когда выполнение должно начаться; Energy не хранит State, не
+вычисляет переходы и не разрешает связи Reaction.
 
 ## Закон декларации Energy
 
@@ -32,9 +33,11 @@ TypeScript:
 
 Mass — persisted filesystem data, а не отдельный Artifact domain/entity. Фабрика
 `.mass((mass) => ({profile: mass.json()}))` объявляет только ключ, codec и
-описательную metadata. Process, Reaction, destroy и Matter получают по каждому
-разрешённому ключу `MassHandle` с `readBytes`, `readText`, `readJson` и `write`;
-содержимое не становится свойством runtime-объекта Mass.
+описательную metadata. Process, destroy и Matter получают разрешённые
+`MassHandle` с `readBytes`, `readText`, `readJson` и `write`. Reaction получает
+только явно объявленные собственные ключи и только объявленные для каждого ключа
+операции чтения или записи. Содержимое не становится свойством runtime-объекта
+Mass.
 Boundary выдаёт независимый ID декларации и глобальный ID key-file; Atom хранит
 membership прямо в key ID, без aggregate Mass ID. Energy открывает только key,
 разрешённые в canonical Atom projection, по плоскому пути
@@ -61,14 +64,30 @@ execution identity.
 
 ## Закон результата Reaction
 
-Декларация Reaction сохраняет полный набор читаемых и записываемых Fields.
-Обращение `value.a` и destructuring `const {a, b} = value` объявляют каждое
-прочитанное поле, а один вызов `update({a, b})` объявляет оба поля записи.
+Energy принимает Reaction только после того, как Boundary зарегистрировал
+конкретное подтверждённое изменение State источника, а Matrix выбрала точную
+связь и очередь целевого Atom. Фильтр в Energy не исполняется: выбор источника и
+State уже завершён раньше.
 
-Energy сопоставляет каждый фактически переданный в `update` ключ с полным
-разрешённым write-set. Необъявленный ключ завершает Reaction ошибкой и не может
-быть молча отброшен. Boundary повторно проверяет каждый предложенный Field по
-тому же полному набору и commit-ит все предложенные значения одной транзакцией.
+Reaction получает новое State источника без предыдущего State, снимок только
+объявленных собственных Fields, ограниченную проекцию только объявленных
+собственных Mass keys, собственное State и `self`. Живые объекты Energy и
+произвольный Force Particle ей не передаются.
+
+Обращение `value.a` и destructuring `const {a, b} = value` объявляют читаемые
+Fields, а `update({a, b})` объявляет Fields записи. `update` может предлагать
+только собственные ordinary Fields: `string`, `number` и `boolean`. `enum` и
+`array` являются topology Fields и меняются только Process.
+
+Mass записывается самим action сразу. Эти записи остаются, даже если к моменту
+завершения Boundary уже не принимает Field proposal. Boundary повторно
+проверяет точную связь, допустимое текущее State и полный Field write-set, затем
+commit-ит ordinary Fields одной транзакцией.
+
+Необъявленный ключ завершает обычное выполнение ошибкой. Отсутствующий
+объявленный Field, Mass key или обязательная операция handle является нарушением
+системного инварианта: Energy переводит свой contour в fail-stop и не выпускает
+обычный `w-`. Отдельного пользовательского error-обработчика Reaction нет.
 
 ## Закон runtime-перестройки
 

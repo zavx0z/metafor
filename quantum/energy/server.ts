@@ -43,7 +43,14 @@ try {
       return opened
     },
     createForce: () => new Force("energy"),
-    protocol: {massStore: oracle.massStore},
+    protocol: {
+      massStore: oracle.massStore,
+      onFatal(error) {
+        oracle.onRuntimeBirthFailed(error)
+        console.error("[energy] fatal runtime invariant", error)
+        void close().finally(() => process.exit(1))
+      },
+    },
     onBorn(summary) {
       console.log(
         `[energy] born atoms=${summary.atoms} topologies=${summary.topologies} ` +

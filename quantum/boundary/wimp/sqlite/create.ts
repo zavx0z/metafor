@@ -441,22 +441,55 @@ const insertReactions = async (
 ): Promise<void> => {
   for (const reaction of reactions) {
     const reactionId = await insertId(sql<Array<{id: number}>>`
-      INSERT INTO reaction (wimp, key, label, desc, cond_source, update_source)
-      VALUES (${src}, ${reaction.key}, ${reaction.label}, ${reaction.desc ?? null}, ${reaction.cond}, ${reaction.src})
+      INSERT INTO reaction (wimp, key, label, desc, sources_json, update_source)
+      VALUES (${src}, ${reaction.key}, ${reaction.label}, ${reaction.desc ?? null}, ${JSON.stringify(reaction.sources)}, ${reaction.src})
       RETURNING id
     `, "insertReactions")
 
+    for (let selectorOrder = 0; selectorOrder < reaction.sources.length; selectorOrder++) {
+      const selector = reaction.sources[selectorOrder]!
+      await sql`
+        INSERT INTO reaction_source_selector (reaction, selector_order, atom_ref, meta, relation)
+        VALUES (${reactionId}, ${selectorOrder}, ${selector.atom ?? null}, ${selector.meta ?? null}, ${selector.relation ?? null})
+      `
+      for (let stateOrder = 0; stateOrder < selector.states.length; stateOrder++) {
+        await sql`
+          INSERT INTO reaction_source_state (reaction, selector_order, state_order, state)
+          VALUES (${reactionId}, ${selectorOrder}, ${stateOrder}, ${selector.states[stateOrder]!})
+        `
+      }
+    }
+
     for (const fieldKey of reaction.read ?? []) {
       const fieldId = fieldIds.get(fieldKey)
-      if (fieldId) await sql`INSERT OR IGNORE INTO reaction_read (reaction, field) VALUES (${reactionId}, ${fieldId})`
+      if (!fieldId) throw new Error(`Reaction "${reaction.key}" references unavailable Field "${fieldKey}"`)
+      await sql`INSERT OR IGNORE INTO reaction_read (reaction, field) VALUES (${reactionId}, ${fieldId})`
     }
     for (const fieldKey of reaction.write ?? []) {
       const fieldId = fieldIds.get(fieldKey)
-      if (fieldId) await sql`INSERT OR IGNORE INTO reaction_write (reaction, field) VALUES (${reactionId}, ${fieldId})`
+      if (!fieldId) continue
+      const type = (await sql<Array<{type: string}>>`SELECT type FROM field WHERE id = ${fieldId}`)[0]?.type
+      if (type === "enum" || type === "array") {
+        throw new Error(`Reaction "${reaction.key}" cannot write topology Field "${fieldKey}"`)
+      }
+      await sql`INSERT OR IGNORE INTO reaction_write (reaction, field) VALUES (${reactionId}, ${fieldId})`
+    }
+    for (const [table, keys] of [
+      ["reaction_mass_read", reaction.massRead ?? []],
+      ["reaction_mass_write", reaction.massWrite ?? []],
+    ] as const) for (const key of keys) {
+      const mass = (await sql<Array<{id: number}>>`
+        SELECT id FROM mass_declaration
+         WHERE wimp = ${src} AND local_key = ${key} AND active = 1
+         LIMIT 1
+      `)[0]
+      if (!mass) throw new Error(`Reaction "${reaction.key}" references unavailable Mass "${key}"`)
+      await sql.unsafe(`INSERT OR IGNORE INTO ${table} (reaction, mass) VALUES (?, ?)`, [reactionId, mass.id])
     }
     for (const stateName of reaction.states ?? []) {
       const stateId = stateIds.get(stateName)
-      if (stateId) await sql`INSERT OR IGNORE INTO reaction_state (reaction, state) VALUES (${reactionId}, ${stateId})`
+      if (!stateId) throw new Error(`Reaction "${reaction.key}" references unavailable target State "${stateName}"`)
+      await sql`INSERT OR IGNORE INTO reaction_state (reaction, state) VALUES (${reactionId}, ${stateId})`
     }
   }
 }

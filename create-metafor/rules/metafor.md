@@ -117,11 +117,12 @@ transport и routing законами Oracle RPC, но не формой кли�
   `dark.history.read/clear` и любой history clear не опубликованы.
 - `energy.mass.result.read` возвращает текущий bounded JSON либо base64 result
   одного объявленного Mass key, его digest и causal frontier. Метод принимает
-  public Graph Atom locator и не раскрывает внутренний Atom ID.
+  public Graph Atom ref с root/Meta guards и не принимает raw Atom ID.
 - `meta.field.value.apply` принимает public Graph Atom locator, semantic Field
-  key, типизированное значение и точную ожидаемую causal frontier. Внутренний
-  Boundary provider разрешает locator и Field, а Dark Force принимает одну
-  Gluon либо Higgs Particle в существующую history.
+  key ordinary Field, типизированное scalar-значение и точную ожидаемую causal
+  frontier. Внутренний Boundary provider разрешает ref и Field, а Dark Force
+  принимает одну Gluon Particle в существующую history. `enum` и `array`
+  являются topology Fields и меняются только Process; этот RPC их отклоняет.
 - `meta.process.execution.read` возвращает для public Graph Atom locator,
   Process key и public execution identity текущий `pending`, `committed`,
   `failed` либо `superseded`, acceptance регистрации, optional settlement,
@@ -145,12 +146,13 @@ transport и routing законами Oracle RPC, но не формой кли�
 автоматическое удаление не публикуются.
 
 `energy.mass.result.read` читает только объявленный Mass key конкретного Atom,
-адресованного публичным locator точного Graph snapshot. Request задаёт key,
+адресованного стабильным public ref из Graph. Request задаёт key,
 верхнюю границу bytes и при повторной проверке optional expected digest. Ответ
 возвращает digest, exact resolution, causal frontier и bounded JSON либо base64
 bytes. `MassHandle`, key-file path, Energy handle и произвольный filesystem
-read не раскрываются. Locator является snapshot-local Graph path, защищённым
-ожидаемыми root и Meta; provider разрешает его во внутренний Atom ID локально.
+read не раскрываются. Locator содержит stable Atom ref и guards ожидаемых root и
+Meta; provider разрешает его во внутренний Atom ID локально. Перемещение Atom в
+Graph не меняет locator.
 
 `meta.process.execution.read` возвращает наблюдаемый исход Process
 для Atom и Process key: public execution identity, `pending`, `committed`,
@@ -304,7 +306,7 @@ context и не объявляет его точным.
 
 Mass отсутствует в обычном topology snapshot и delta. Действующий
 `energy.mass.result.read` делает отдельный bounded fetch объявленного key по
-public Atom locator, возвращает digest и exact live resolution, а не
+stable public Atom ref, возвращает digest и exact live resolution, а не
 `MassHandle`, filesystem path или расширение world snapshot. Текущая
 реализация подключена для доверенного локального контура; отдельная Mass-read
 capability и scope policy остаются отложенной работой.
@@ -1024,17 +1026,62 @@ return { group: group as "start" }
 
 ---
 
-## Reactions — события других атомов
+## Reactions — наблюдение за State других Atom
 
 ```typescript
 .reactions((reaction) => [
-  [["idle", "loading"], reaction({ label: "Обработка" })
-    .filter({ meta: "child", op: "replace", path: "/fields" })
-    .equal(({ update, patch }) => update({ value: patch.value }))],
+  [["listening"], reaction({
+    key: "remember-ready",
+    label: "Запомнить готовность",
+    mass: {read: ["history"], write: ["history"]},
+  })
+    .filter([{
+      relation: "descendant",
+      meta: "owner/sensor",
+      states: ["ready"],
+    }])
+    .equal(async ({observation, mass, update, value}) => {
+      const history = await mass.history.readJson() as string[]
+      await mass.history.write([...history, observation.source.state])
+      update({count: value.count + 1})
+    })],
 ])
 ```
 
-**Фильтры:** `meta`, `op` (add|replace|remove|test), `path` (/\|/fields\|/state), `value`
+Reaction принадлежит Atom, на котором объявлена, и наблюдает только каждый новый
+подтверждённый `State` другого Atom. Предыдущее состояние источника не
+передаётся. Изменение `Fields`, повторное подтверждение того же `State` и
+появление уже находящегося в нужном `State` источника Reaction не запускают.
+
+Первый список (`["listening"]`) задаёт собственные States целевого Atom, в
+которых Reaction слушает. `filter(...)` задаёт возможные источники:
+
+* `atom` выбирает один точный runtime Atom по его public ref;
+* `meta` выбирает Atom, порождённые указанным WIMP;
+* `relation` выбирает родителя, прямого ребёнка или любого потомка целевого Atom;
+* `states` перечисляет новые States источника, на которые можно реагировать;
+* несколько свойств одного selector должны совпасть одновременно, а несколько
+  selectors являются альтернативами;
+* совпадение одного source с несколькими selectors всё равно даёт одно
+  срабатывание.
+
+Boundary разрешает selectors в точные связи при изменении деклараций или
+структуры. Matrix хранит эти связи, включает их только в собственных States
+целевого Atom и выпускает по одному срабатыванию на каждый подтверждённый
+переход источника. Срабатывания одного целевого Atom выполняются строго по
+очереди: два последовательных `count + 1` обязаны дать `+2`.
+
+Reaction исполняется в Energy рядом с Mass целевого Atom, но не получает живые
+объекты Energy. Она читает только объявленные собственные Fields и Mass keys,
+пишет только объявленные собственные обычные Fields (`string`, `number`,
+`boolean`) и Mass keys. `enum` и `array` являются топологическими Fields: менять
+их может только Process. Недоступный объявленный Field или Mass key означает
+отказ системы, а не пропуск Reaction и не пользовательскую ошибку.
+
+Запись Mass происходит сразу и не откатывается, если более позднее предложение
+Fields уже не может быть принято. Если Reaction нужно помнить увиденный State,
+она сама записывает `observation.source.state` в собственную Mass. Отдельного
+error-обработчика у Reaction нет.
 
 Если реакций нет:
 

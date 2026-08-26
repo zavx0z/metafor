@@ -74,9 +74,11 @@ Dark рождается первым. Force открывает history, подг
 
 ## Границы ответственности
 
-* Boundary владеет каноническим текущим состоянием и SQLite.
-* Matrix выбирает State и Transition.
-* Energy владеет Process execution, Reaction и живыми ресурсами.
+* Boundary владеет каноническим текущим состоянием, точными Reaction relations,
+  регистрацией executions и SQLite.
+* Matrix выбирает State и Transition и владеет очередями Reaction target Atom.
+* Energy исполняет Process и Reaction, владеет живыми ресурсами Process и
+  файловой Mass.
 * Bulk владеет observer Store, browser projection и Visual lifecycle.
 * Dark переносит между ними причинные Particles и предоставляет service-level
   операции, но не читает и не изменяет их внутреннее состояние напрямую.

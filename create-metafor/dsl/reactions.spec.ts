@@ -1,141 +1,120 @@
-import { test, expect, describe } from "bun:test"
+import {describe, expect, test} from "bun:test"
+import {fieldSchema} from "./fields.ts"
+import {reactionsSchema} from "./reactions.ts"
 
-import { fieldSchema } from "./fields.ts"
-import { reactionsSchema } from "./reactions.ts"
-
-describe("схема реакций", () => {
-  const schema = fieldSchema((field) => ({
-    value: field.number.required(0),
-    name: field.string.required(""),
-    isActive: field.boolean.required(false),
-    tags: field.array.required([]),
+describe("Reaction declaration", () => {
+  const fields = fieldSchema((field) => ({
+    count: field.number.required(0),
+    message: field.string.required(""),
+    topology: field.enum("one", "two").required("one"),
   }))
-  type State = "idle" | "active" | "error"
+  type State = "idle" | "watching"
+  type Mass = {history: {readJson(): Promise<unknown>; write(value: unknown): Promise<void>}}
 
-  test("Создание уникальных реакций", () => {
-    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
-      [
-        ["idle", "active"],
-        reaction({ label: "inc", desc: "increment value" })
-          .filter(() => ({
-            meta: "test",
-            op: "replace",
-            path: "/context",
-            value: 1,
-          }))
-          .equal(({ update, value }) => update({ value: value.value + 1 })),
-      ],
-      [
-        ["error"],
-        reaction({ label: "reset" })
-          .filter(() => ({ meta: "any" }))
-          .equal(({ update }) => update({ value: 0 })),
-      ],
-    ])
-    expect(snapshot).toMatchObject({
-      reactions: {
-        0: {
-          label: "inc",
-          desc: "increment value",
-          cond: expect.any(String),
-          read: ["value"],
-          write: ["value"],
-          src: expect.any(String),
-        },
-        1: {
-          label: "reset",
-          cond: expect.any(String),
-          read: ["value"],
-          write: ["value"],
-          src: expect.any(String),
-        },
-      },
-      superposition: {
-        idle: ["0"],
-        active: ["0"],
-        error: ["1"],
-      },
-    })
-  })
-
-  test("Проверка структуры данных toSnapshot", () => {
-    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ label: "test" })
-          .filter(() => ({ meta: "test" }))
-          .equal(({ update }) => update({ value: 42 })),
-      ],
-    ])!
-
-    // Проверяем, что reactions - это объект, а не массив
-    expect(typeof snapshot.reactions, "reactions должен быть объектом").toBe("object")
-    expect(Array.isArray(snapshot.reactions), "reactions не должен быть массивом").toBe(false)
-
-    // Проверяем структуру первой реакции
-    const reactionIds = Object.keys(snapshot.reactions)
-    expect(reactionIds.length, "должна быть хотя бы одна реакция").toBeGreaterThan(0)
-    const reactionId = reactionIds[0]!
-    const reaction = snapshot.reactions[reactionId]!
-
-    expect(reaction.label, "реакция должна иметь label").toBe("test")
-    expect(reaction.read, "реакция должна иметь read").toEqual(["value"])
-    expect(reaction.write, "реакция должна иметь write").toEqual(["value"])
-    expect(reaction.src, "реакция должна иметь src").toEqual(expect.any(String))
-
-    // Проверяем структуру superposition
-    expect(snapshot.superposition, "superposition должен быть объектом").toEqual({
-      idle: [reactionId],
-    })
-  })
-
-  test("сохранение строкового представления функции equal", () => {
-    const updateFn = ({ update, value }: any) => update({ value: value.value * 2 })
-
-    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ label: "double" })
-          .filter(() => ({ meta: "test" }))
-          .equal(updateFn),
-      ],
-    ])!
-    const reactionIds = Object.keys(snapshot.reactions)
-    const reactionId = reactionIds[0]!
-    const reaction = snapshot.reactions[reactionId]!
-
-    expect(reaction.src, "сохранено строковое представление функции equal").toContain(
-      updateFn.toString().replace(/}\)$/, "")
-    )
-    expect(reaction.read, "прочитаны поля контекста").toEqual(["value"])
-    expect(reaction.write, "записаны поля контекста").toEqual(["value"])
-  })
-
-  test("объявляет все поля многосоставного чтения и записи", () => {
-    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [[
-      ["idle"],
-      reaction({label: "update pair"})
-        .filter(() => ({meta: "test"}))
-        .equal(({update, value}) => {
-          const {name, isActive} = value
-          update({name: name.toUpperCase(), isActive: !isActive})
+  test("preserves source State selectors and every visible dependency", () => {
+    const snapshot = reactionsSchema<typeof fields, State, Mass>((reaction) => [[
+      ["idle", "watching"],
+      reaction({
+        key: "remember",
+        label: "Remember",
+        mass: {read: ["history"], write: ["history"]},
+      })
+        .filter([{
+          relation: "descendant",
+          meta: "owner/sensor",
+          states: ["danger"],
+        }])
+        .equal(async ({mass, observation, update, value}) => {
+          await mass.history.write([{state: observation.source.state}])
+          update({count: value.count + 1})
         }),
     ]])!
 
-    expect(snapshot.reactions[0]?.read).toEqual(["name", "isActive"])
-    expect(snapshot.reactions[0]?.write).toEqual(["name", "isActive"])
+    expect(snapshot.reactions.remember).toMatchObject({
+      label: "Remember",
+      sources: [{relation: "descendant", meta: "owner/sensor", states: ["danger"]}],
+      read: ["count"],
+      write: ["count"],
+      massRead: ["history"],
+      massWrite: ["history"],
+      src: expect.any(String),
+    })
+    expect(snapshot.superposition).toEqual({idle: ["remember"], watching: ["remember"]})
   })
 
-  test("использует authored semantic key как identity и initiator", () => {
-    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [[
-      ["active"],
-      reaction({key: "remember", label: "Remember"})
-        .filter(() => ({meta: "test"}))
-        .equal(({update}) => update({value: 1})),
+  test("supports exact, type, parent, child and descendant alternatives", () => {
+    const snapshot = reactionsSchema<typeof fields, State, {}>((reaction) => [[
+      ["watching"],
+      reaction({key: "observe"})
+        .filter([
+          {atom: "atom:7", states: ["ready"]},
+          {meta: "owner/device", states: ["offline"]},
+          {relation: "parent", states: ["ready"]},
+          {relation: "child", meta: "owner/tool", states: ["done"]},
+          {relation: "descendant", meta: "owner/service", states: ["failed"]},
+        ])
+        .equal(() => {}),
     ]])!
 
-    expect(Object.keys(snapshot.reactions)).toEqual(["remember"])
-    expect(snapshot.superposition.active).toEqual(["remember"])
-    expect(snapshot.reactions.remember?.src).toContain("r:remember")
+    expect(snapshot.reactions.observe?.sources).toHaveLength(5)
+  })
+
+  test("deduplicates Mass keys and source States", () => {
+    const snapshot = reactionsSchema<typeof fields, State, Mass>((reaction) => [[
+      ["idle"],
+      reaction({
+        key: "dedupe",
+        mass: {read: ["history", "history"], write: ["history", "history"]},
+      })
+        .filter([{meta: "owner/source", states: ["ready", "ready"]}])
+        .equal(() => {}),
+    ]])!
+
+    expect(snapshot.reactions.dedupe).toMatchObject({
+      sources: [{meta: "owner/source", states: ["ready"]}],
+      massRead: ["history"],
+      massWrite: ["history"],
+    })
+  })
+
+  test("rejects ambiguous or unstable source declarations", () => {
+    expect(() => reactionsSchema<typeof fields, State, {}>((reaction) => [[
+      ["idle"],
+      reaction({key: "missing"})
+        .filter([{states: ["ready"]}])
+        .equal(() => {}),
+    ]])).toThrow("must declare atom, meta or relation")
+
+    expect(() => reactionsSchema<typeof fields, State, {}>((reaction) => [[
+      ["idle"],
+      reaction({key: "bad-id"})
+        .filter([{atom: "atom:temporary", states: ["ready"]}])
+        .equal(() => {}),
+    ]])).toThrow("atom:<positive-id>")
+
+    expect(() => reactionsSchema<typeof fields, State, {}>((reaction) => [[
+      ["idle"],
+      reaction({key: "bad-meta"})
+        .filter([{meta: "three/segment/address", states: ["ready"]}])
+        .equal(() => {}),
+    ]])).toThrow("<owner>/<repository>")
+  })
+
+  test("requires a stable semantic key", () => {
+    expect(() => reactionsSchema<typeof fields, State, {}>((reaction) => [[
+      ["idle"],
+      reaction({key: ""})
+        .filter([{meta: "owner/source", states: ["ready"]}])
+        .equal(() => {}),
+    ]])).toThrow("Reaction key is required")
+  })
+
+  test("requires at least one active target State", () => {
+    expect(() => reactionsSchema<typeof fields, State, {}>((reaction) => [[
+      [] as unknown as [State, ...State[]],
+      reaction({key: "never-active"})
+        .filter([{meta: "owner/source", states: ["ready"]}])
+        .equal(() => {}),
+    ]])).toThrow("must declare at least one target State")
   })
 })

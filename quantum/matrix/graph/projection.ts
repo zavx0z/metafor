@@ -21,6 +21,7 @@ import {
   resolveForceFieldsPayload,
 } from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
+import {REACTION_RELATION_PATH, isReactionRelation} from "shared/protocol/force/reaction"
 
 type JsonRecord = Record<string, unknown>
 
@@ -188,11 +189,14 @@ export function readMatrixProjectionFragment(atomIds: Iterable<number>): Boundar
   const sources = new Set(atoms.map((atom) => atom.wimp))
   const declarations = [...sources]
     .flatMap((src) => declarationsBySrc.get(src) ?? [])
+  const selected = new Set(atoms.map((atom) => atom.id))
   return {
-    version: 1,
+    version: 2,
     atoms: clone(atoms),
     declarations: clone(declarations),
     pendingProcessExecutions: [],
+    reactionRelations: clone(requireProjection().reactionRelations.filter((relation) =>
+      selected.has(relation.source.atomId) && selected.has(relation.target.atomId))),
   }
 }
 
@@ -523,6 +527,18 @@ export function applyMatrixProjectionParticle(part: Particle): MatrixProjectionC
     return unchanged()
   }
   if (part.part !== "graviton") return unchanged()
+  if (part.path === REACTION_RELATION_PATH && isReactionRelation(part.value)) {
+    const current = requireProjection()
+    const relation = part.value
+    const index = current.reactionRelations.findIndex((candidate) => candidate.key === relation.key)
+    if (part.op === "remove") {
+      if (index >= 0) current.reactionRelations.splice(index, 1)
+    } else if (part.op === "add" || part.op === "replace") {
+      if (index >= 0) current.reactionRelations[index] = clone(relation)
+      else current.reactionRelations.push(clone(relation))
+    }
+    return unchanged()
+  }
   if (typeof part.path === "string") {
     const atom = /^atom\/(\d+)$/.exec(part.path)
     if (atom) return applyAtomGraviton(part, Number(atom[1]))

@@ -11,7 +11,8 @@ import {prepareMatrixBirthFixture} from "./tests/shared/fixtures.ts"
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 
 const initialState = (): BoundaryInitialState => ({
-  version: 1,
+  version: 2,
+  reactionRelations: [],
   pendingProcessExecutions: [],
   atoms: [{id: 17, wimp: "owner/runtime", values: [{field: 101, valueId: 1001, value: 0}], state: null}],
   declarations: [
@@ -79,7 +80,8 @@ describe("Matrix Oracle birth", () => {
 
   test("prepares persisted optional Boundary values before Matrix opens Force", async () => {
     const optional: BoundaryInitialState = {
-      version: 1,
+      version: 2,
+      reactionRelations: [],
       pendingProcessExecutions: [],
       atoms: [{
         id: 18,
@@ -104,7 +106,8 @@ describe("Matrix Oracle birth", () => {
 
   test("restores canonical Field entanglement from shared Boundary value identity", async () => {
     const entangled: BoundaryInitialState = {
-      version: 1,
+      version: 2,
+      reactionRelations: [],
       pendingProcessExecutions: [],
       atoms: [
         {id: 17, wimp: "owner/parent", values: [{field: 101, valueId: 9001, value: "shot.png"}], state: null},

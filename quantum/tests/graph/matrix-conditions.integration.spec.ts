@@ -161,7 +161,7 @@ describe("Graph → Boundary → Matrix Conditions", () => {
     })
 
     const atomId = (await boundary.initialState()).atoms[0]!.id
-    await apply({part: "photon", op: "replace", path: atomId, value: "idle"})
+    await apply({part: "photon", op: "replace", path: atomId, from: "graph-condition-idle", value: "idle"})
     const zeroFieldBeforeBirth = (await boundary.initialState()).declarations.find(
       (item) => item.section === "fields" && item.value.key === "zero",
     )?.value.id

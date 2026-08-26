@@ -499,8 +499,9 @@ describe("Boundary incremental relational projection", () => {
       success: {src: "return value", read: [2], write: [2]},
     })
     await apply("add", "reaction", {
-      wimp: ROOT, id: 1, key: "react", label: "React", cond: "true", src: "return {}",
-      read: [2], write: [2], states: [1],
+      wimp: ROOT, id: 1, key: "react", label: "React",
+      sources: [{meta: ROOT, states: ["idle"]}], src: "return {}",
+      read: [2], write: [2], massRead: [], massWrite: [], states: [1],
     })
     await apply("add", "matter", {
       wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,
@@ -821,12 +822,14 @@ describe("Boundary incremental relational projection", () => {
     await apply("add", "state", {wimp: PEER, id: 1, name: "peer", position: 0, transitions: []})
     await apply("add", "reaction", {
       wimp: ROOT, id: 1, key: "remember", label: "Remember", desc: null,
-      cond: "() => true", src: "() => undefined", read: [1], write: [1], states: [1],
+      sources: [{meta: ROOT, states: ["root"]}], src: "() => undefined",
+      read: [1], write: [1], massRead: [], massWrite: [], states: [1],
     })
 
     await transfer("move", "reaction", `${ROOT}#1`, {
       wimp: PEER, id: 1, key: "remember", label: "Remember", desc: null,
-      cond: "() => true", src: "() => undefined", read: [1], write: [1], states: [1],
+      sources: [{meta: ROOT, states: ["root"]}], src: "() => undefined",
+      read: [1], write: [1], massRead: [], massWrite: [], states: [1],
     })
     expect(await boundary.projection.sql<Array<{wimp: string; fieldWimp: string; stateWimp: string}>>`
       SELECT reaction.wimp, field.wimp AS fieldWimp, state.wimp AS stateWimp
@@ -1235,7 +1238,7 @@ describe("Boundary incremental relational projection", () => {
       SELECT id FROM field WHERE wimp = ${CHILD} AND local_id = ${1}
     `)[0]!.id)
     for (const [index, parent] of parents.entries()) {
-      await boundary.materialize({parts: [{
+      await boundary.projection.apply({parts: [{
         part: "higgs", op: "replace", path: parent.atom,
         value: {fields: {[String(parentField)]: index === 0 ? "A" : "B"}}, by: "matrix", ts: 2,
       }]})
@@ -1299,7 +1302,7 @@ describe("Boundary incremental relational projection", () => {
       SELECT id FROM field WHERE wimp = ${CHILD} AND local_id = ${1}
     `)[0]!.id)
     for (const [index, parent] of parents.entries()) {
-      await boundary.materialize({parts: [{
+      await boundary.projection.apply({parts: [{
         part: "higgs", op: "replace", path: parent.atom,
         value: {fields: {[String(parentField)]: index === 0 ? "A" : "B"}}, by: "matrix", ts: 2,
       }]})
@@ -1432,7 +1435,7 @@ describe("Boundary incremental relational projection", () => {
     const childField = Number((await boundary.projection.sql<Array<{id: number}>>`
       SELECT id FROM field WHERE wimp = ${CHILD} AND local_id = ${1}
     `)[0]!.id)
-    await boundary.materialize({parts: [{
+    await boundary.projection.apply({parts: [{
       part: "higgs", op: "replace", path: atomId,
       value: {fields: {[String(childField)]: "kept"}}, by: "matrix", ts: 2,
     }]})
@@ -2082,7 +2085,7 @@ describe("Boundary incremental relational projection", () => {
     `).map((atom) => Number(atom.id))
     expect(childIds).toHaveLength(2)
 
-    await boundary.materialize({parts: [{part: "higgs", op: "replace", path: rootId, value: {fields: {[String(field)]: ["one"]}}, by: "matrix", ts: 2}]})
+    await boundary.projection.apply({parts: [{part: "higgs", op: "replace", path: rootId, value: {fields: {[String(field)]: ["one"]}}, by: "boundary", ts: 2}]})
     expect((await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM topology WHERE kind = ${"macho"}`)[0]!.id).toBe(topologyId)
     expect(await boundary.projection.sql<Array<{id: number}>>`
       SELECT id FROM atom WHERE wimp = ${CHILD} ORDER BY position
@@ -2145,7 +2148,10 @@ describe("Boundary incremental relational projection", () => {
     expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${CHILD}`).toEqual([])
     expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${PEER}`).length).toBe(1)
 
-    const commit = await boundary.materialize({parts: [{part: "photon", op: "replace", path: rootId, value: "ready", by: "matrix", ts: 2}]})
+    const commit = await boundary.materialize({parts: [{
+      part: "photon", op: "replace", path: rootId, from: "state-ready-one",
+      value: "ready", by: "matrix", ts: 2,
+    }]})
     expect(await boundary.projection.sql<Array<{id: number}>>`SELECT id FROM atom WHERE wimp = ${PEER}`).toEqual([])
     expect((await boundary.projection.sql`SELECT id FROM atom WHERE wimp = ${CHILD}`).length).toBe(1)
     expect(commit).not.toBeUndefined()
@@ -2184,7 +2190,10 @@ describe("Boundary incremental relational projection", () => {
       {wimp: elseTwo, position: 1},
     ])
 
-    await boundary.materialize({parts: [{part: "photon", op: "replace", path: rootId, value: "ready", by: "matrix", ts: 2}]})
+    await boundary.materialize({parts: [{
+      part: "photon", op: "replace", path: rootId, from: "state-ready-two",
+      value: "ready", by: "matrix", ts: 2,
+    }]})
     expect(await materialized()).toEqual([
       {wimp: thenOne, position: 0},
       {wimp: thenTwo, position: 1},
@@ -2240,8 +2249,10 @@ describe("Boundary incremental relational projection", () => {
       error: null,
     })
     await apply("add", "reaction", {
-      wimp: ROOT, id: 1, key: "refresh", label: "Refresh", cond: "() => true",
-      src: "({update}) => update({mode: 'ready'})", read: [1], write: [1], states: [1],
+      wimp: ROOT, id: 1, key: "refresh", label: "Refresh",
+      sources: [{meta: ROOT, states: ["idle"]}],
+      src: "({update}) => update({mode: 'ready'})", read: [1], write: [1],
+      massRead: [], massWrite: [], states: [1],
     })
     await apply("add", "matter", {
       wimp: ROOT, id: 1, parent: null, edgeSlot: "root", position: 0,

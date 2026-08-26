@@ -7,6 +7,7 @@ import type {StorybookNavigationItem} from "@zavx0z/storybook/workbench"
 
 export type GraphStoryRoute =
   | "document/current/complete"
+  | "reaction/dependencies/complete"
   | "validation/contract/closed"
   | "identity/same-meta/reorder"
 
@@ -18,6 +19,11 @@ const loadCurrentStory = async (): Promise<StorybookStoryModule> => {
 const loadValidationStory = async (): Promise<StorybookStoryModule> => {
   const {createValidationGraphStory} = await import("./stories/validation.ts")
   return createValidationGraphStory()
+}
+
+const loadReactionStory = async (): Promise<StorybookStoryModule> => {
+  const {createReactionGraphStory} = await import("./stories/reaction.ts")
+  return createReactionGraphStory()
 }
 
 const loadIdentityStory = async (): Promise<StorybookStoryModule> => {
@@ -45,6 +51,22 @@ export const GRAPH_STORIES = defineStorybookStories({
               label: "Полный Graph",
               title: "Graph · Текущий документ",
               load: loadCurrentStory,
+            }],
+          }],
+        },
+        {
+          id: "reaction",
+          label: "Reaction",
+          apiName: "RuntimeReactionRelation",
+          tags: ["reaction", "state", "fields", "mass", "dependencies", "lazy"],
+          sections: [{
+            id: "dependencies",
+            label: "Зависимости",
+            variants: [{
+              id: "complete",
+              label: "Полная связь",
+              title: "Graph · зависимости Reaction",
+              load: loadReactionStory,
             }],
           }],
         },

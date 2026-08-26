@@ -10,6 +10,8 @@ import type {Particle} from "shared/protocol/force/particle"
 import type {FieldInit, MatterBindingValue, MatterEdgeSlot, MatterParticleKind} from "@metafor/types/metafor/matter"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import type {MetaFieldDSL, MetaMassDSL} from "@metafor/types/metafor/schema"
+import type {ReactionSourceRelation, ReactionSourceSelector} from "@metafor/types/metafor/reactions"
+import type {ReactionResultCommit} from "shared/protocol/force/reaction"
 import {
   insertFieldDefault,
   insertMatterBinding,
@@ -63,6 +65,30 @@ type AuthoredMatterRuntimeOrigin = {
   targetScopeAtom: number
 }
 
+type NormalizedReactionSource = {
+  atom?: `atom:${string}`
+  meta?: string
+  relation?: ReactionSourceRelation
+  states: [string, ...string[]]
+}
+
+type ReactionRelationEntity = {
+  kind: "reaction-relation"
+  key: string
+  reactionId: number
+  reactionKey: string
+  target: {
+    atomId: number
+    wimp: string
+    stateIds: number[]
+  }
+  source: {
+    atomId: number
+    wimp: string
+    states: Array<{id: number; name: string}>
+  }
+}
+
 export type InflatonAddress = {
   path: DeclarationPath
   src: string
@@ -100,6 +126,45 @@ const positiveInteger = (value: unknown, label: string): number => {
 const nonNegativeInteger = (value: unknown, label: string): number => {
   if (!Number.isSafeInteger(value) || Number(value) < 0) throw new Error(`${label} must be a non-negative integer`)
   return Number(value)
+}
+
+const reactionSources = (value: unknown, label: string): NormalizedReactionSource[] => {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${label} must be a non-empty array`)
+  }
+  return value.map((raw, index) => {
+    const source = record(raw, `${label}[${index}]`)
+    const unknown = Object.keys(source).filter((key) =>
+      key !== "atom" && key !== "meta" && key !== "relation" && key !== "states")
+    if (unknown.length > 0) throw new Error(`${label}[${index}] contains unknown field ${unknown[0]}`)
+    const atom = source.atom === undefined ? undefined : requiredString(source.atom, `${label}[${index}].atom`)
+    const meta = source.meta === undefined ? undefined : requiredString(source.meta, `${label}[${index}].meta`)
+    const relation = source.relation === undefined
+      ? undefined
+      : requiredString(source.relation, `${label}[${index}].relation`) as ReactionSourceRelation
+    if (atom === undefined && meta === undefined && relation === undefined) {
+      throw new Error(`${label}[${index}] must declare atom, meta or relation`)
+    }
+    if (atom !== undefined && !/^atom:[1-9]\d*$/.test(atom)) {
+      throw new Error(`${label}[${index}].atom must use atom:<positive-id>`)
+    }
+    if (meta !== undefined && parseMetaAddress(meta) === null) {
+      throw new Error(`${label}[${index}].meta must use <owner>/<repository>`)
+    }
+    if (relation !== undefined && relation !== "parent" && relation !== "child" && relation !== "descendant") {
+      throw new Error(`${label}[${index}].relation is unsupported`)
+    }
+    if (!Array.isArray(source.states)) throw new Error(`${label}[${index}].states must be a non-empty array`)
+    const states = [...new Set(source.states.map((state, stateIndex) =>
+      requiredString(state, `${label}[${index}].states[${stateIndex}]`)))]
+    if (states.length === 0) throw new Error(`${label}[${index}].states must be a non-empty array`)
+    return {
+      ...(atom === undefined ? {} : {atom: atom as `atom:${string}`}),
+      ...(meta === undefined ? {} : {meta}),
+      ...(relation === undefined ? {} : {relation}),
+      states: states as [string, ...string[]],
+    }
+  })
 }
 
 const clone = <T>(value: T): T => structuredClone(value)
@@ -557,6 +622,10 @@ export class BoundaryIncrementalStore {
         );
     `)
     await this.mass.ensureIndependentMemberships(this.sql)
+    const relations = await this.reactionRelationEntities(this.sql)
+    await this.sql.begin(async (tx) => {
+      await this.reconcileReactionRelations(tx, relations, [])
+    })
     await this.loadIndexes()
   }
 
@@ -571,6 +640,8 @@ export class BoundaryIncrementalStore {
     this.originByInstance.clear()
     this.parentByInstance.clear()
     await this.loadIndexes()
+    const relations = await this.reactionRelationEntities(this.sql)
+    await this.reconcileReactionRelations(this.sql, relations, [])
   }
 
   async apply(message: ForceMessage): Promise<BoundaryIncrementalCommit | null> {
@@ -625,6 +696,7 @@ export class BoundaryIncrementalStore {
     let effects: Particle[]
     try { effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
       const committed: Particle[] = []
+      const reactionRelationsBefore = await this.reactionRelationEntities(tx)
       const supersedeCommittedWimps = async (): Promise<void> => {
         const wimps = new Set<string>()
         for (const effect of committed) {
@@ -670,7 +742,9 @@ export class BoundaryIncrementalStore {
                 OR substr(src, 1, ${address.src.length + 1}) = ${`${address.src}/`}
           `
           for (const value of valueIds) await deleteUnreferencedValue(tx, Number(value.id))
-          return repositoryRemoval
+          committed.push(...repositoryRemoval)
+          await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
+          return committed
         }
         const previous = await this.canonical(tx, address, input)
         const stateRemovals = await this.stateCompositionRemovalEffects(tx, address)
@@ -688,6 +762,7 @@ export class BoundaryIncrementalStore {
         }
         if (address.path === "mass") await this.addRuntimeConsequences(tx, address, previous ?? input, committed)
         await supersedeCommittedWimps()
+        await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
         return committed
       }
 
@@ -762,6 +837,17 @@ export class BoundaryIncrementalStore {
         }
       }
       await supersedeCommittedWimps()
+      if (declarationChanged && address.path === "reaction" && canonical) {
+        const reactionId = positiveInteger(canonical.id, "reaction.id")
+        await this.supersedeReactionExecutions(
+          tx,
+          new Set(reactionRelationsBefore
+            .filter((relation) => relation.reactionId === reactionId)
+            .map((relation) => relation.key)),
+          committed,
+        )
+      }
+      await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
       return committed
     }) } catch (error) {
       for (const plan of detachPlans) {
@@ -960,6 +1046,7 @@ export class BoundaryIncrementalStore {
     const atomId = part.path
     const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
       const committed: Particle[] = []
+      const reactionRelationsBefore = await this.reactionRelationEntities(tx)
       const reconcileScopes = new Map<string, {wimp: string; scopeAtom: number}>()
       const currentState = (await tx<Array<{name: string}>>`
         SELECT state.name FROM atom_state JOIN state ON state.id = atom_state.metaState
@@ -1013,6 +1100,7 @@ export class BoundaryIncrementalStore {
       for (const scope of reconcileScopes.values()) {
         await this.reconcileMatterScope(tx, scope.wimp, scope.scopeAtom, committed)
       }
+      await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
       return committed
     })
     if (effects.length === 0) return null
@@ -1645,40 +1733,58 @@ export class BoundaryIncrementalStore {
       const key = requiredString(merged.key, "reaction.key")
       const label = requiredString(merged.label, "reaction.label")
       const desc = nullableString(merged.desc, "reaction.desc")
-      const cond = requiredString(merged.cond, "reaction.cond")
+      const sources = reactionSources(merged.sources, "reaction.sources")
       const update = requiredString(merged.src, "reaction.src")
       const id = copy
         ? await insertedId(sql<Array<{id: number}>>`
-            INSERT INTO reaction (wimp, local_id, key, label, desc, cond_source, update_source)
-            VALUES (${target.src}, ${target.localId}, ${key}, ${label}, ${desc}, ${cond}, ${update}) RETURNING id
+            INSERT INTO reaction (wimp, local_id, key, label, desc, sources_json, update_source)
+            VALUES (${target.src}, ${target.localId}, ${key}, ${label}, ${desc}, ${JSON.stringify(sources)}, ${update}) RETURNING id
           `, "Reaction copy")
         : sourceId
       if (!copy) await sql`
         UPDATE reaction SET wimp = ${target.src}, local_id = ${target.localId},
-          key = ${key}, label = ${label}, desc = ${desc}, cond_source = ${cond}, update_source = ${update}
+          key = ${key}, label = ${label}, desc = ${desc}, sources_json = ${JSON.stringify(sources)}, update_source = ${update}
         WHERE id = ${sourceId}
       `
-      await sql`DELETE FROM reaction_read WHERE reaction = ${id}`
-      await sql`DELETE FROM reaction_write WHERE reaction = ${id}`
-      await sql`DELETE FROM reaction_state WHERE reaction = ${id}`
-      const relatedFields = async (key: "read" | "write"): Promise<number[]> =>
-        Object.hasOwn(targetInput, key)
-          ? await Promise.all(this.processFieldIds(targetInput[key], `reaction.${key}`).map(async (local) =>
-              await fieldId(sql, target.src, local)))
-          : this.processFieldIds(sourceValue[key], `reaction.${key}`)
-      const relatedStates = Object.hasOwn(targetInput, "states")
-        ? await Promise.all(this.processFieldIds(targetInput.states, "reaction.states").map(async (local) =>
-            await stateId(sql, target.src, local)))
-        : this.processFieldIds(sourceValue.states, "reaction.states")
-      for (const field of await relatedFields("read")) {
-        await sql`INSERT INTO reaction_read (reaction, field) VALUES (${id}, ${field})`
+      const targetFieldLocals = async (value: unknown, label: string): Promise<number[]> => {
+        const locals: number[] = []
+        for (const field of this.processFieldIds(value, label)) {
+          const sourceField = (await sql<Array<{key: string}>>`SELECT key FROM field WHERE id = ${field}`)[0]
+          if (!sourceField) throw new Error(`${label} references unavailable source Field ${field}`)
+          const targetField = (await sql<Array<{localId: number}>>`
+            SELECT local_id AS localId FROM field WHERE wimp = ${target.src} AND key = ${sourceField.key}
+          `)[0]
+          if (!targetField) throw new Error(`${label} target ${target.src} has no Field ${sourceField.key}`)
+          locals.push(Number(targetField.localId))
+        }
+        return locals
       }
-      for (const field of await relatedFields("write")) {
-        await sql`INSERT INTO reaction_write (reaction, field) VALUES (${id}, ${field})`
+      const targetStateLocals = async (value: unknown): Promise<number[]> => {
+        const locals: number[] = []
+        for (const state of this.processFieldIds(value, "reaction.states")) {
+          const sourceState = (await sql<Array<{name: string}>>`SELECT name FROM state WHERE id = ${state}`)[0]
+          if (!sourceState) throw new Error(`reaction.states references unavailable source State ${state}`)
+          const targetState = (await sql<Array<{localId: number}>>`
+            SELECT local_id AS localId FROM state WHERE wimp = ${target.src} AND name = ${sourceState.name}
+          `)[0]
+          if (!targetState) throw new Error(`reaction.states target ${target.src} has no State ${sourceState.name}`)
+          locals.push(Number(targetState.localId))
+        }
+        return locals
       }
-      for (const state of relatedStates) {
-        await sql`INSERT INTO reaction_state (reaction, state) VALUES (${id}, ${state})`
-      }
+      await this.writeRelationalReaction(sql, id, target.src, {
+        ...merged,
+        sources,
+        read: Object.hasOwn(targetInput, "read")
+          ? targetInput.read
+          : await targetFieldLocals(sourceValue.read, "reaction.read"),
+        write: Object.hasOwn(targetInput, "write")
+          ? targetInput.write
+          : await targetFieldLocals(sourceValue.write, "reaction.write"),
+        states: Object.hasOwn(targetInput, "states")
+          ? targetInput.states
+          : await targetStateLocals(sourceValue.states),
+      })
       return id
     }
 
@@ -1929,6 +2035,7 @@ export class BoundaryIncrementalStore {
     const input = record(part.value, "matter value")
     const patch = authoredMatterTreePatch(input.treePatch)
     const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
+      const reactionRelationsBefore = await this.reactionRelationEntities(tx)
       const current = new Map<string, {physicalId: number; entry: AuthoredMatterTreeEntry; entity: JsonRecord}>()
       for (const version of patch.before) {
         if (version.entries.some((entry) => entry.before !== undefined)) {
@@ -2096,6 +2203,7 @@ export class BoundaryIncrementalStore {
              AND atom IN (SELECT id FROM atom WHERE wimp = ${version.wimp})
         `
       }
+      await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
       return committed
     })
     await this.updateIndexes(effects)
@@ -2218,7 +2326,12 @@ export class BoundaryIncrementalStore {
     }
 
     const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
-      if (path === "wimp") return await this.applyWimpTransfer(tx, op, source, target, input)
+      const reactionRelationsBefore = await this.reactionRelationEntities(tx)
+      if (path === "wimp") {
+        const committed = await this.applyWimpTransfer(tx, op, source, target, input)
+        await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
+        return committed
+      }
       if (!isNumericDeclarationPath(path)) {
         throw new Error(`Boundary declaration transfer path ${path} has no persisted table`)
       }
@@ -2295,6 +2408,7 @@ export class BoundaryIncrementalStore {
       }
       await this.mass.ensureIndependentMemberships(tx)
       await this.reconcileMassBindingSources(tx)
+      await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
       return committed
     })
 
@@ -2532,30 +2646,115 @@ export class BoundaryIncrementalStore {
     }
   }
 
+  private async reactionFieldIds(
+    sql: Database,
+    src: string,
+    value: unknown,
+    label: string,
+    access: "read" | "write",
+  ): Promise<number[]> {
+    if (value === undefined || value === null) return []
+    if (!Array.isArray(value)) throw new Error(`${label} must be an array`)
+    const result: number[] = []
+    for (let index = 0; index < value.length; index++) {
+      const id = await fieldId(sql, src, positiveInteger(value[index], `${label}[${index}]`))
+      if (access === "write") {
+        const type = (await sql<Array<{type: string}>>`SELECT type FROM field WHERE id = ${id}`)[0]?.type
+        if (type === "enum" || type === "array") {
+          throw new Error(`${label}[${index}] references topology Field ${id}`)
+        }
+      }
+      if (!result.includes(id)) result.push(id)
+    }
+    return result
+  }
+
+  private async reactionMassIds(
+    sql: Database,
+    src: string,
+    value: unknown,
+    label: string,
+  ): Promise<number[]> {
+    if (value === undefined || value === null) return []
+    if (!Array.isArray(value)) throw new Error(`${label} must be an array`)
+    const result: number[] = []
+    for (let index = 0; index < value.length; index++) {
+      const key = requiredString(value[index], `${label}[${index}]`)
+      const declaration = (await sql<Array<{id: number}>>`
+        SELECT id FROM mass_declaration
+         WHERE wimp = ${src} AND local_key = ${key} AND active = 1
+         LIMIT 1
+      `)[0]
+      if (!declaration) throw new Error(`${label}[${index}] references unavailable Mass ${key}`)
+      const id = Number(declaration.id)
+      if (!result.includes(id)) result.push(id)
+    }
+    return result
+  }
+
+  private async writeRelationalReaction(
+    sql: Database,
+    id: number,
+    src: string,
+    value: JsonRecord,
+  ): Promise<void> {
+    const sources = reactionSources(value.sources, "reaction.sources")
+    const read = await this.reactionFieldIds(sql, src, value.read, "reaction.read", "read")
+    const write = await this.reactionFieldIds(sql, src, value.write, "reaction.write", "write")
+    const massRead = await this.reactionMassIds(sql, src, value.massRead, "reaction.massRead")
+    const massWrite = await this.reactionMassIds(sql, src, value.massWrite, "reaction.massWrite")
+    if (!Array.isArray(value.states) || value.states.length === 0) {
+      throw new Error("reaction.states must be a non-empty array")
+    }
+    const states: number[] = []
+    for (let index = 0; index < value.states.length; index++) {
+      const state = await stateId(sql, src, positiveInteger(value.states[index], `reaction.states[${index}]`))
+      if (!states.includes(state)) states.push(state)
+    }
+
+    await sql`UPDATE reaction SET sources_json = ${JSON.stringify(sources)} WHERE id = ${id}`
+    await sql`DELETE FROM reaction_source_selector WHERE reaction = ${id}`
+    await sql`DELETE FROM reaction_read WHERE reaction = ${id}`
+    await sql`DELETE FROM reaction_write WHERE reaction = ${id}`
+    await sql`DELETE FROM reaction_mass_read WHERE reaction = ${id}`
+    await sql`DELETE FROM reaction_mass_write WHERE reaction = ${id}`
+    await sql`DELETE FROM reaction_state WHERE reaction = ${id}`
+
+    for (let selectorOrder = 0; selectorOrder < sources.length; selectorOrder++) {
+      const source = sources[selectorOrder]!
+      await sql`
+        INSERT INTO reaction_source_selector (reaction, selector_order, atom_ref, meta, relation)
+        VALUES (${id}, ${selectorOrder}, ${source.atom ?? null}, ${source.meta ?? null}, ${source.relation ?? null})
+      `
+      for (let stateOrder = 0; stateOrder < source.states.length; stateOrder++) {
+        await sql`
+          INSERT INTO reaction_source_state (reaction, selector_order, state_order, state)
+          VALUES (${id}, ${selectorOrder}, ${stateOrder}, ${source.states[stateOrder]!})
+        `
+      }
+    }
+    for (const field of read) await sql`INSERT INTO reaction_read (reaction, field) VALUES (${id}, ${field})`
+    for (const field of write) await sql`INSERT INTO reaction_write (reaction, field) VALUES (${id}, ${field})`
+    for (const mass of massRead) await sql`INSERT INTO reaction_mass_read (reaction, mass) VALUES (${id}, ${mass})`
+    for (const mass of massWrite) await sql`INSERT INTO reaction_mass_write (reaction, mass) VALUES (${id}, ${mass})`
+    for (const state of states) await sql`INSERT INTO reaction_state (reaction, state) VALUES (${id}, ${state})`
+  }
+
   private async persistReaction(sql: Database, address: InflatonAddress, value: JsonRecord): Promise<void> {
+    const sources = reactionSources(value.sources, "reaction.sources")
     const id = await insertedId(sql<Array<{id: number}>>`
-      INSERT INTO reaction (wimp, local_id, key, label, desc, cond_source, update_source)
+      INSERT INTO reaction (wimp, local_id, key, label, desc, sources_json, update_source)
       VALUES (
         ${address.src}, ${address.localId}, ${requiredString(value.key, "reaction.key")},
         ${requiredString(value.label, "reaction.label")}, ${nullableString(value.desc, "reaction.desc")},
-        ${requiredString(value.cond, "reaction.cond")}, ${requiredString(value.src, "reaction.src")}
+        ${JSON.stringify(sources)}, ${requiredString(value.src, "reaction.src")}
       )
       ON CONFLICT (wimp, local_id) DO UPDATE SET
         key = excluded.key, label = excluded.label, desc = excluded.desc,
-        cond_source = excluded.cond_source, update_source = excluded.update_source
+        sources_json = excluded.sources_json, update_source = excluded.update_source
       RETURNING id
     `, "Reaction")
-    await sql`DELETE FROM reaction_read WHERE reaction = ${id}`
-    await sql`DELETE FROM reaction_write WHERE reaction = ${id}`
-    await sql`DELETE FROM reaction_state WHERE reaction = ${id}`
-    for (const [table, values] of [["reaction_read", value.read], ["reaction_write", value.write]] as const) {
-      for (const local of Array.isArray(values) ? values : []) {
-        await sql.unsafe(`INSERT INTO ${table} (reaction, field) VALUES (?, ?)`, [id, await fieldId(sql, address.src, positiveInteger(local, `${table}.field`))])
-      }
-    }
-    for (const local of Array.isArray(value.states) ? value.states : []) {
-      await sql`INSERT INTO reaction_state (reaction, state) VALUES (${id}, ${await stateId(sql, address.src, positiveInteger(local, "reaction.state"))})`
-    }
+    await this.writeRelationalReaction(sql, id, address.src, {...value, sources})
   }
 
   private async persistMatter(sql: Database, address: InflatonAddress, value: JsonRecord): Promise<void> {
@@ -2672,8 +2871,16 @@ export class BoundaryIncrementalStore {
       return
     }
     if (address.path === "field") {
-      const row = (await sql<Array<{id: number}>>`SELECT id FROM field WHERE wimp = ${address.src} AND local_id = ${address.localId}`)[0]
+      const row = (await sql<Array<{id: number; key: string}>>`
+        SELECT id, key FROM field WHERE wimp = ${address.src} AND local_id = ${address.localId}
+      `)[0]
       if (row) {
+        const reactions = Number((await sql<Array<{count: number}>>`
+          SELECT
+            (SELECT COUNT(*) FROM reaction_read WHERE field = ${row.id}) +
+            (SELECT COUNT(*) FROM reaction_write WHERE field = ${row.id}) AS count
+        `)[0]?.count ?? 0)
+        if (reactions > 0) throw new Error(`Cannot remove Reaction dependency Field ${address.src}/${row.key}`)
         const values = await sql<Array<{value: number}>>`SELECT value FROM atom_value WHERE field = ${row.id}`
         await sql`DELETE FROM field WHERE id = ${row.id}`
         for (const value of values) await deleteUnreferencedValue(sql, Number(value.value))
@@ -2698,8 +2905,32 @@ export class BoundaryIncrementalStore {
         }
       }
       await sql`DELETE FROM field_enum_variant WHERE wimp = ${address.src} AND local_id = ${address.localId}`
-    } else if (address.path === "state") await sql`DELETE FROM state WHERE wimp = ${address.src} AND local_id = ${address.localId}`
-    else if (address.path === "mass") await sql`UPDATE mass_declaration SET active = 0 WHERE wimp = ${address.src} AND local_id = ${address.localId}`
+    } else if (address.path === "state") {
+      const state = (await sql<Array<{id: number; name: string}>>`
+        SELECT id, name FROM state WHERE wimp = ${address.src} AND local_id = ${address.localId}
+      `)[0]
+      if (state) {
+        const reactions = Number((await sql<Array<{count: number}>>`
+          SELECT COUNT(*) AS count FROM reaction_state WHERE state = ${state.id}
+        `)[0]?.count ?? 0)
+        if (reactions > 0) throw new Error(`Cannot remove Reaction active State ${address.src}/${state.name}`)
+      }
+      await sql`DELETE FROM state WHERE wimp = ${address.src} AND local_id = ${address.localId}`
+    } else if (address.path === "mass") {
+      const mass = (await sql<Array<{id: number; key: string}>>`
+        SELECT id, local_key AS key FROM mass_declaration
+         WHERE wimp = ${address.src} AND local_id = ${address.localId} AND active = 1
+      `)[0]
+      if (mass) {
+        const reactions = Number((await sql<Array<{count: number}>>`
+          SELECT
+            (SELECT COUNT(*) FROM reaction_mass_read WHERE mass = ${mass.id}) +
+            (SELECT COUNT(*) FROM reaction_mass_write WHERE mass = ${mass.id}) AS count
+        `)[0]?.count ?? 0)
+        if (reactions > 0) throw new Error(`Cannot remove Reaction dependency Mass ${address.src}/${mass.key}`)
+      }
+      await sql`UPDATE mass_declaration SET active = 0 WHERE wimp = ${address.src} AND local_id = ${address.localId}`
+    }
     else if (address.path === "transition") await sql`DELETE FROM transition WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     else if (address.path === "condition") await sql`DELETE FROM condition WHERE wimp = ${address.src} AND local_id = ${address.localId}`
     else if (address.path === "process") await sql`DELETE FROM process WHERE wimp = ${address.src} AND local_id = ${address.localId}`
@@ -2836,12 +3067,48 @@ export class BoundaryIncrementalStore {
 
   private async reactionEntity(sql: Database, src: string, localId: number): Promise<JsonRecord | null> {
     const row = (await sql<Array<{
-      id: number; key: string; label: string; desc: string | null; cond: string; updateSource: string;
+      id: number; key: string; label: string; desc: string | null; updateSource: string;
     }>>`
-      SELECT id, key, label, desc, cond_source AS cond, update_source AS updateSource
+      SELECT id, key, label, desc, update_source AS updateSource
         FROM reaction WHERE wimp = ${src} AND local_id = ${localId}
     `)[0]
     if (!row) return null
+    const selectors = await sql<Array<{
+      selectorOrder: number
+      atom: string | null
+      meta: string | null
+      relation: ReactionSourceRelation | null
+    }>>`
+      SELECT selector_order AS selectorOrder, atom_ref AS atom, meta, relation
+        FROM reaction_source_selector
+       WHERE reaction = ${row.id}
+       ORDER BY selector_order
+    `
+    const sources: ReactionSourceSelector[] = []
+    for (const selector of selectors) {
+      const states = (await sql<Array<{state: string}>>`
+        SELECT state FROM reaction_source_state
+         WHERE reaction = ${row.id} AND selector_order = ${selector.selectorOrder}
+         ORDER BY state_order
+      `).map(({state}) => state)
+      if (states.length === 0) throw new Error(`Reaction ${row.id} source selector has no States`)
+      sources.push({
+        ...(selector.atom === null ? {} : {atom: selector.atom as `atom:${string}`}),
+        ...(selector.meta === null ? {} : {meta: selector.meta}),
+        ...(selector.relation === null ? {} : {relation: selector.relation}),
+        states: states as [string, ...string[]],
+      })
+    }
+    if (sources.length === 0) throw new Error(`Reaction ${row.id} has no source selectors`)
+    const massKeys = async (table: "reaction_mass_read" | "reaction_mass_write"): Promise<string[]> =>
+      (await sql.unsafe<Array<{key: string}>>(
+        `SELECT declaration.local_key AS key
+           FROM ${table} AS link
+           JOIN mass_declaration AS declaration ON declaration.id = link.mass
+          WHERE link.reaction = ?
+          ORDER BY declaration.local_id, declaration.id`,
+        [row.id],
+      )).map(({key}) => key)
     return {
       id: Number(row.id),
       wimp: src,
@@ -2849,11 +3116,363 @@ export class BoundaryIncrementalStore {
       key: row.key,
       label: row.label,
       desc: row.desc,
-      cond: row.cond,
+      sources,
       src: row.updateSource,
       read: (await sql<Array<{field: number}>>`SELECT field FROM reaction_read WHERE reaction = ${row.id} ORDER BY field`).map((item) => Number(item.field)),
       write: (await sql<Array<{field: number}>>`SELECT field FROM reaction_write WHERE reaction = ${row.id} ORDER BY field`).map((item) => Number(item.field)),
+      massRead: await massKeys("reaction_mass_read"),
+      massWrite: await massKeys("reaction_mass_write"),
       states: (await sql<Array<{state: number}>>`SELECT state FROM reaction_state WHERE reaction = ${row.id} ORDER BY state`).map((item) => Number(item.state)),
+    }
+  }
+
+  private reactionRelationKey(reaction: number, targetAtom: number, sourceAtom: number): string {
+    return `reaction:${reaction}:target:${targetAtom}:source:${sourceAtom}`
+  }
+
+  private async reactionRelationEntities(sql: Database): Promise<ReactionRelationEntity[]> {
+    const result: ReactionRelationEntity[] = []
+    for (const row of await sql<Array<{
+      reactionId: number
+      reactionKey: string
+      targetAtom: number
+      targetWimp: string
+      sourceAtom: number
+      sourceWimp: string
+    }>>`
+      SELECT relation.reaction AS reactionId,
+             reaction.key AS reactionKey,
+             relation.target_atom AS targetAtom,
+             target.wimp AS targetWimp,
+             relation.source_atom AS sourceAtom,
+             source.wimp AS sourceWimp
+        FROM reaction_relation AS relation
+        JOIN reaction ON reaction.id = relation.reaction
+        JOIN atom AS target ON target.id = relation.target_atom
+        JOIN atom AS source ON source.id = relation.source_atom
+       ORDER BY relation.reaction, relation.target_atom, relation.source_atom
+    `) {
+      const targetStates = (await sql<Array<{state: number}>>`
+        SELECT state FROM reaction_state WHERE reaction = ${row.reactionId} ORDER BY state
+      `).map(({state}) => Number(state))
+      const sourceStates = (await sql<Array<{id: number; name: string}>>`
+        SELECT state.id, state.name
+          FROM reaction_relation_state AS relation_state
+          JOIN state ON state.id = relation_state.state
+         WHERE relation_state.reaction = ${row.reactionId}
+           AND relation_state.target_atom = ${row.targetAtom}
+           AND relation_state.source_atom = ${row.sourceAtom}
+         ORDER BY state.id
+      `).map(({id, name}) => ({id: Number(id), name}))
+      result.push({
+        kind: "reaction-relation",
+        key: this.reactionRelationKey(
+          Number(row.reactionId),
+          Number(row.targetAtom),
+          Number(row.sourceAtom),
+        ),
+        reactionId: Number(row.reactionId),
+        reactionKey: row.reactionKey,
+        target: {
+          atomId: Number(row.targetAtom),
+          wimp: row.targetWimp,
+          stateIds: targetStates,
+        },
+        source: {
+          atomId: Number(row.sourceAtom),
+          wimp: row.sourceWimp,
+          states: sourceStates,
+        },
+      })
+    }
+    return result
+  }
+
+  private async desiredReactionRelations(sql: Database): Promise<ReactionRelationEntity[]> {
+    type AtomRelationRow = {
+      id: number
+      wimp: string
+      parentAtom: number | null
+      parentTopology: number | null
+    }
+    type TopologyRelationRow = {
+      id: number
+      parentAtom: number | null
+      parentTopology: number | null
+    }
+    const atoms = (await sql<AtomRelationRow[]>`
+      SELECT id, wimp, parent_atom AS parentAtom, parent_topology AS parentTopology
+        FROM atom ORDER BY id
+    `).map((atom) => ({
+      ...atom,
+      id: Number(atom.id),
+      parentAtom: atom.parentAtom === null ? null : Number(atom.parentAtom),
+      parentTopology: atom.parentTopology === null ? null : Number(atom.parentTopology),
+    }))
+    const topologies = new Map((await sql<TopologyRelationRow[]>`
+      SELECT id, parent_atom AS parentAtom, parent_topology AS parentTopology
+        FROM topology ORDER BY id
+    `).map((topology) => [Number(topology.id), {
+      ...topology,
+      id: Number(topology.id),
+      parentAtom: topology.parentAtom === null ? null : Number(topology.parentAtom),
+      parentTopology: topology.parentTopology === null ? null : Number(topology.parentTopology),
+    }] as const))
+    const parentAtomByAtom = new Map<number, number | null>()
+    const nearestParentAtom = (atom: AtomRelationRow): number | null => {
+      if (parentAtomByAtom.has(atom.id)) return parentAtomByAtom.get(atom.id) ?? null
+      if (atom.parentAtom !== null) {
+        parentAtomByAtom.set(atom.id, atom.parentAtom)
+        return atom.parentAtom
+      }
+      let topologyId = atom.parentTopology
+      const visited = new Set<number>()
+      while (topologyId !== null) {
+        if (visited.has(topologyId)) throw new Error(`Topology parent cycle at ${topologyId}`)
+        visited.add(topologyId)
+        const topology = topologies.get(topologyId)
+        if (!topology) throw new Error(`Atom ${atom.id} references unavailable Topology ${topologyId}`)
+        if (topology.parentAtom !== null) {
+          parentAtomByAtom.set(atom.id, topology.parentAtom)
+          return topology.parentAtom
+        }
+        topologyId = topology.parentTopology
+      }
+      parentAtomByAtom.set(atom.id, null)
+      return null
+    }
+    for (const atom of atoms) nearestParentAtom(atom)
+    const isDescendant = (source: number, target: number): boolean => {
+      let current = parentAtomByAtom.get(source) ?? null
+      const visited = new Set<number>()
+      while (current !== null) {
+        if (current === target) return true
+        if (visited.has(current)) throw new Error(`Atom parent cycle at ${current}`)
+        visited.add(current)
+        current = parentAtomByAtom.get(current) ?? null
+      }
+      return false
+    }
+
+    const statesByWimpAndName = new Map<string, {id: number; name: string}>()
+    for (const state of await sql<Array<{id: number; wimp: string; name: string}>>`
+      SELECT id, wimp, name FROM state ORDER BY id
+    `) statesByWimpAndName.set(`${state.wimp}\u0000${state.name}`, {
+      id: Number(state.id),
+      name: state.name,
+    })
+
+    const result: ReactionRelationEntity[] = []
+    for (const reaction of await sql<Array<{id: number; key: string; wimp: string}>>`
+      SELECT id, key, wimp FROM reaction ORDER BY id
+    `) {
+      const reactionId = Number(reaction.id)
+      for (const field of await sql<Array<{key: string; wimp: string; type: string; access: string}>>`
+        SELECT field.key, field.wimp, field.type, ${"read"} AS access
+          FROM reaction_read AS link JOIN field ON field.id = link.field
+         WHERE link.reaction = ${reactionId}
+        UNION ALL
+        SELECT field.key, field.wimp, field.type, ${"write"} AS access
+          FROM reaction_write AS link JOIN field ON field.id = link.field
+         WHERE link.reaction = ${reactionId}
+      `) {
+        if (field.wimp !== reaction.wimp) {
+          throw new Error(`Reaction ${reactionId} ${field.access} Field ${field.key} belongs to another WIMP`)
+        }
+        if (field.access === "write" && (field.type === "enum" || field.type === "array")) {
+          throw new Error(`Reaction ${reactionId} cannot write topology Field ${field.key}`)
+        }
+      }
+      for (const mass of await sql<Array<{key: string; wimp: string; active: number}>>`
+        SELECT declaration.local_key AS key, declaration.wimp, declaration.active
+          FROM (
+            SELECT mass FROM reaction_mass_read WHERE reaction = ${reactionId}
+            UNION
+            SELECT mass FROM reaction_mass_write WHERE reaction = ${reactionId}
+          ) AS link
+          JOIN mass_declaration AS declaration ON declaration.id = link.mass
+      `) {
+        if (mass.wimp !== reaction.wimp || Number(mass.active) !== 1) {
+          throw new Error(`Reaction ${reactionId} Mass ${mass.key} is unavailable`)
+        }
+      }
+      const targetStates = (await sql<Array<{state: number}>>`
+        SELECT state.id AS state
+          FROM reaction_state AS link
+          JOIN state ON state.id = link.state
+         WHERE link.reaction = ${reactionId} AND state.wimp = ${reaction.wimp}
+         ORDER BY state.id
+      `).map(({state}) => Number(state))
+      const targetStateLinks = Number((await sql<Array<{count: number}>>`
+        SELECT COUNT(*) AS count FROM reaction_state WHERE reaction = ${reactionId}
+      `)[0]?.count ?? 0)
+      if (targetStates.length !== targetStateLinks) {
+        throw new Error(`Reaction ${reactionId} active State belongs to another WIMP`)
+      }
+      if (targetStates.length === 0) throw new Error(`Reaction ${reactionId} has no active target States`)
+      const selectors = await sql<Array<{
+        selectorOrder: number
+        atom: string | null
+        meta: string | null
+        relation: ReactionSourceRelation | null
+      }>>`
+        SELECT selector_order AS selectorOrder, atom_ref AS atom, meta, relation
+          FROM reaction_source_selector
+         WHERE reaction = ${reactionId}
+         ORDER BY selector_order
+      `
+      if (selectors.length === 0) throw new Error(`Reaction ${reactionId} has no source selectors`)
+
+      const selectorStates = new Map<number, string[]>()
+      for (const selector of selectors) {
+        const states = (await sql<Array<{state: string}>>`
+          SELECT state FROM reaction_source_state
+           WHERE reaction = ${reactionId} AND selector_order = ${selector.selectorOrder}
+           ORDER BY state_order
+        `).map(({state}) => state)
+        if (states.length === 0) throw new Error(`Reaction ${reactionId} source selector has no States`)
+        selectorStates.set(Number(selector.selectorOrder), states)
+      }
+
+      for (const target of atoms) {
+        if (target.wimp !== reaction.wimp) continue
+        for (const source of atoms) {
+          if (source.id === target.id) continue
+          const matchedStates = new Map<number, {id: number; name: string}>()
+          for (const selector of selectors) {
+            if (selector.atom !== null && selector.atom !== `atom:${source.id}`) continue
+            if (selector.meta !== null && selector.meta !== source.wimp) continue
+            if (selector.relation === "parent" && parentAtomByAtom.get(target.id) !== source.id) continue
+            if (selector.relation === "child" && parentAtomByAtom.get(source.id) !== target.id) continue
+            if (selector.relation === "descendant" && !isDescendant(source.id, target.id)) continue
+            for (const stateName of selectorStates.get(Number(selector.selectorOrder)) ?? []) {
+              const state = statesByWimpAndName.get(`${source.wimp}\u0000${stateName}`)
+              if (state) matchedStates.set(state.id, state)
+            }
+          }
+          if (matchedStates.size === 0) continue
+          result.push({
+            kind: "reaction-relation",
+            key: this.reactionRelationKey(reactionId, target.id, source.id),
+            reactionId,
+            reactionKey: reaction.key,
+            target: {atomId: target.id, wimp: target.wimp, stateIds: targetStates},
+            source: {
+              atomId: source.id,
+              wimp: source.wimp,
+              states: [...matchedStates.values()].sort((left, right) => left.id - right.id),
+            },
+          })
+        }
+      }
+    }
+    return result.sort((left, right) => left.key.localeCompare(right.key))
+  }
+
+  private async reconcileReactionRelations(
+    sql: Database,
+    before: readonly ReactionRelationEntity[],
+    effects: Particle[],
+  ): Promise<void> {
+    const after = await this.desiredReactionRelations(sql)
+    const beforeByKey = new Map(before.map((relation) => [relation.key, relation] as const))
+    const afterByKey = new Map(after.map((relation) => [relation.key, relation] as const))
+
+    await sql`DELETE FROM reaction_relation`
+    for (const relation of after) {
+      await sql`
+        INSERT INTO reaction_relation (reaction, target_atom, source_atom)
+        VALUES (${relation.reactionId}, ${relation.target.atomId}, ${relation.source.atomId})
+      `
+      for (const state of relation.source.states) await sql`
+        INSERT INTO reaction_relation_state (reaction, target_atom, source_atom, state)
+        VALUES (${relation.reactionId}, ${relation.target.atomId}, ${relation.source.atomId}, ${state.id})
+      `
+    }
+
+    const ts = Date.now()
+    for (const relation of before) if (!afterByKey.has(relation.key)) effects.push({
+      part: "graviton",
+      op: "remove",
+      path: "reaction-link",
+      ts,
+      value: relation,
+    })
+    for (const relation of after) {
+      const previous = beforeByKey.get(relation.key)
+      if (previous === undefined) effects.push({
+        part: "graviton",
+        op: "add",
+        path: "reaction-link",
+        ts,
+        value: relation,
+      })
+      else if (!sameJson(previous, relation)) effects.push({
+        part: "graviton",
+        op: "replace",
+        path: "reaction-link",
+        ts,
+        value: relation,
+      })
+    }
+    const invalidated = new Set<string>()
+    for (const relation of before) {
+      const next = afterByKey.get(relation.key)
+      if (next === undefined || !sameJson(relation, next)) invalidated.add(relation.key)
+    }
+    await this.supersedeReactionExecutions(sql, invalidated, effects)
+  }
+
+  private async supersedeReactionExecutions(
+    sql: Database,
+    relationKeys: ReadonlySet<string>,
+    effects: Particle[],
+  ): Promise<void> {
+    if (relationKeys.size === 0) return
+    const table = Number((await sql<Array<{count: number}>>`
+      SELECT COUNT(*) AS count FROM sqlite_master
+       WHERE type = ${"table"} AND name = ${"boundary_reaction_execution"}
+    `)[0]?.count ?? 0)
+    if (table === 0) return
+    const columns = await sql.unsafe<Array<{name: string}>>(
+      "PRAGMA table_info(boundary_reaction_execution)",
+    )
+    if (!columns.some(({name}) => name === "relation_key")) return
+
+    for (const key of [...relationKeys].sort()) {
+      for (const execution of await sql<Array<{
+        executionId: string
+        reactionId: number
+        targetAtom: number
+        energy: string | null
+      }>>`
+        SELECT execution_id AS executionId, reaction AS reactionId,
+               target_atom AS targetAtom, energy
+          FROM boundary_reaction_execution
+         WHERE relation_key = ${key} AND status = ${"pending"}
+         ORDER BY created_at, execution_id
+      `) {
+        await sql`
+          UPDATE boundary_reaction_execution
+             SET status = ${"superseded"}, committed_at = unixepoch()
+           WHERE execution_id = ${execution.executionId} AND status = ${"pending"}
+        `
+        const acknowledgement: ReactionResultCommit = {
+          reactionExecutionId: execution.executionId,
+          relationKey: key,
+          reactionId: Number(execution.reactionId),
+          energy: execution.energy,
+          status: "superseded",
+        }
+        effects.push({
+          part: "w-",
+          op: "copy",
+          path: Number(execution.targetAtom),
+          ts: Date.now(),
+          from: execution.executionId,
+          value: acknowledgement,
+        })
+      }
     }
   }
 
@@ -4222,6 +4841,7 @@ export class BoundaryIncrementalStore {
     if (!fields || (part.op !== "add" && part.op !== "replace" && part.op !== "remove")) return null
     const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
       const committed: Particle[] = []
+      const reactionRelationsBefore = await this.reactionRelationEntities(tx)
       const reconcileScopes = new Map<string, {wimp: string; scopeAtom: number}>()
       const atom = (await tx<Array<{wimp: string}>>`SELECT wimp FROM atom WHERE id = ${atomId}`)[0]
       if (!atom) throw new Error(`Unknown Atom ${atomId}`)
@@ -4287,6 +4907,7 @@ export class BoundaryIncrementalStore {
       for (const scope of reconcileScopes.values()) {
         await this.reconcileMatterScope(tx, scope.wimp, scope.scopeAtom, committed)
       }
+      await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
       return committed
     })
     await this.updateIndexes(effects)

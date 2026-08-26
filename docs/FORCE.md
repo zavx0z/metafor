@@ -43,6 +43,27 @@ Force.
 Общий wire language остаётся в `shared/protocol/force`; его совместное
 использование доменами не создаёт отдельный Force domain.
 
+Reaction проходит тем же каналом несколькими самостоятельными причинными
+сообщениями:
+
+```text
+Boundary graviton reaction-link add/replace/remove
+Boundary photon/copy state-commit
+Matrix photon/test reaction-trigger
+Boundary photon/test registered Reaction execution
+Energy z/test claim
+Boundary z/copy grant
+Energy w+/w- replace proposal
+Boundary w+/w- copy terminal result
+```
+
+`state-commit` появляется только после настоящего изменения State и несёт
+stable event identity без предыдущего State. `reaction-trigger` ещё не может
+исполняться Energy: Boundary сначала проверяет exact relation и event и
+регистрирует execution. Terminal copy освобождает одну очередь target Atom в
+Matrix. Каждое сообщение остаётся одной Particle; скрытого batch или отдельного
+Reaction transport нет.
+
 Для causal `dissolve` multi-entity Boundary commit не становится batch wire
 message. Non-live admission protocol сохраняет ordered post-commit plan:
 Energy retarget завершается первым; затем target promotion и каждое реально

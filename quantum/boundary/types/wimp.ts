@@ -24,7 +24,7 @@ export interface WimpReactionRow {
   key: string
   label: string
   desc: string | null
-  cond_source: string
+  sources_json: string
   update_source: string
 }
 

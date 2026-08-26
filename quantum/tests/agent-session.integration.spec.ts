@@ -232,7 +232,9 @@ describe("one complete trusted agent RPC session", () => {
     const atom = Number((await boundary.projection.sql<Array<{id: number}>>`
       SELECT id FROM atom WHERE wimp = ${ROOT}
     `)[0]!.id)
-    await boundary.materialize(forceMessage({part: "photon", op: "replace", path: atom, value: "idle"}))
+    await boundary.materialize(forceMessage({
+      part: "photon", op: "replace", path: atom, from: "agent-session-idle", value: "idle",
+    }))
     const fields = await boundary.projection.sql<Array<{id: number; key: string}>>`
       SELECT id, key FROM field WHERE wimp = ${ROOT}
     `
@@ -512,7 +514,9 @@ describe("one complete trusted agent RPC session", () => {
       DARK_FORCE_HISTORY_READ_METHOD,
       {contractVersion: 1, query: {kind: "frontier"}},
     )
-    const locator: MetaRuntimeAtomLocator = {root: snapshot.root, pointer: "/runtime/roots/0", meta: ROOT}
+    const rootOccurrence = snapshot.runtime.roots[0]
+    if (!rootOccurrence || rootOccurrence.kind !== "atom") throw new Error("Agent snapshot root Atom is absent")
+    const locator: MetaRuntimeAtomLocator = {root: snapshot.root, ref: rootOccurrence.ref, meta: ROOT}
     const initialMass = await agent.call<EnergyMassResultReadReceipt>(
       "energy",
       ENERGY_MASS_RESULT_READ_METHOD,
@@ -660,16 +664,16 @@ describe("one complete trusted agent RPC session", () => {
     expect(process).toMatchObject({
       status: "committed",
       acceptance: {cutId: "agent-session-cut", sequence: 6, id: "agent-session-cut:6"},
-      settlement: {cutId: "agent-session-cut", sequence: 11, id: "agent-session-cut:11"},
+      settlement: {cutId: "agent-session-cut", sequence: 12, id: "agent-session-cut:12"},
       outcome: {fields: {output: 8}},
-      frontier: {cutId: "agent-session-cut", throughSequence: 11},
+      frontier: {cutId: "agent-session-cut", throughSequence: 12},
     })
     expect(mass).toMatchObject({
-      frontier: {cutId: "agent-session-cut", throughSequence: 11},
+      frontier: {cutId: "agent-session-cut", throughSequence: 12},
       content: {format: "json", present: true, value: {processed: 4}},
     })
-    expect(runtimeDelta.entries.map(({sequence}) => sequence)).toEqual([4, 5, 6, 7, 8, 9, 10, 11])
-    expect(runtimeDelta.range).toMatchObject({requestedFromSequence: 4, firstSequence: 4, lastSequence: 11, truncated: false})
+    expect(runtimeDelta.entries.map(({sequence}) => sequence)).toEqual([4, 5, 6, 7, 8, 9, 10, 11, 12])
+    expect(runtimeDelta.range).toMatchObject({requestedFromSequence: 4, firstSequence: 4, lastSequence: 12, truncated: false})
     expect(JSON.stringify(runtimeDelta)).not.toContain("template")
     expect(viewport).toMatchObject({
       ok: true,

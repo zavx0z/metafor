@@ -34,6 +34,11 @@ Energy исполняет Process/Reaction и владеет локальным�
 `processExecutionId`, а W от Energy является proposal для Boundary. Matrix
 снимает lock только по committed `w+/w- copy` от Boundary.
 
+Reaction signal появляется только после регистрации Boundary. Он содержит
+новое подтверждённое State source Atom, exact target Field snapshot и declared
+Field/Mass access. Reaction не получает live Energy или произвольный Particle;
+отсутствующая declared dependency завершает process Energy как системный отказ.
+
 Action invocation имеет форму:
 
 ```ts

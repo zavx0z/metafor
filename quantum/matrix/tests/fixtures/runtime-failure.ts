@@ -40,7 +40,8 @@ Object.defineProperty(globalThis, "WebSocket", {
 })
 
 const initial: BoundaryInitialState = {
-  version: 1,
+  version: 2,
+  reactionRelations: [],
   pendingProcessExecutions: [],
   atoms: [{
     id: 17,

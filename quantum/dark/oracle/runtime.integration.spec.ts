@@ -21,7 +21,7 @@ import {forceDomains, type ForceDomain, type ForceStore} from "../force/store.ts
 import {MetaRuntimeRpcService} from "./runtime.ts"
 
 const ROOT = parseMetaAddress("test/agent-runtime")!
-const locator = {root: ROOT, pointer: "/runtime/roots/0" as const, meta: ROOT}
+const locator = {root: ROOT, ref: "atom:1" as const, meta: ROOT}
 type ParticleInput = Omit<Particle, "ts"> & {ts?: number}
 const message = (part: ParticleInput): ForceMessage => ({parts: [{ts: 1, ...part}] as [Particle]})
 
@@ -119,7 +119,9 @@ describe("agent runtime input and Process observation", () => {
         if (!decision.ok) throw new Error(decision.error)
       }
 
-      await publish("matrix", {parts: [{part: "photon", op: "replace", path: atom, ts: 3, value: "ready"}]})
+      await publish("matrix", {parts: [{
+        part: "photon", op: "replace", path: atom, from: "runtime-ready", ts: 3, value: "ready",
+      }]})
       const execution = "agent-runtime-execution"
       await publish("matrix", {parts: [{part: "photon", op: "test", path: atom, from: execution, ts: 4, value: "ready"}]})
       const grant: ProcessExecutionGrant = {processExecutionId: execution, fields: {[String(inputField)]: 4}}
@@ -146,10 +148,10 @@ describe("agent runtime input and Process observation", () => {
       }
       await expect(service.readProcessExecution(processRequest)).resolves.toMatchObject({
         status: "committed",
-        acceptance: {cutId: "agent-runtime-cut", sequence: 4, id: "agent-runtime-cut:4"},
-        settlement: {cutId: "agent-runtime-cut", sequence: 8, id: "agent-runtime-cut:8"},
+        acceptance: {cutId: "agent-runtime-cut", sequence: 5, id: "agent-runtime-cut:5"},
+        settlement: {cutId: "agent-runtime-cut", sequence: 9, id: "agent-runtime-cut:9"},
         outcome: {fields: {output: 8}},
-        frontier: {cutId: "agent-runtime-cut", throughSequence: 8, retroactiveComplete: false},
+        frontier: {cutId: "agent-runtime-cut", throughSequence: 9, retroactiveComplete: false},
       })
     } finally {
       await boundary.close()

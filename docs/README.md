@@ -30,11 +30,12 @@
 * [Immutable checkpoints](CHECKPOINTS.md) — coherent Boundary+Mass capture,
   отдельный Git provenance и forward-only replay.
 * [Boundary](../quantum/boundary/DOMAIN.md) — каноническое состояние, identity,
-  materialization и commit.
-* [Matrix](../quantum/matrix/README.md) — жизненный цикл State, Transition и Process,
-  включая рождение, блокировку, перестройку и ошибки.
-* [Energy](domains/ENERGY.md) — Process, Mass, Energy и lifecycle живых
-  ресурсов.
+  materialization, exact Reaction relations и commit.
+* [Matrix](../quantum/matrix/README.md) — жизненный цикл State, Transition,
+  Process и очередей Reaction, включая рождение, блокировку, перестройку и
+  ошибки.
+* [Energy](domains/ENERGY.md) — Process, Reaction, Mass, Energy и lifecycle
+  живых ресурсов.
 * [Bulk Store и Visual projection](../quantum/bulk/VISUAL.md) — единый browser Store,
   локальные Force handlers и принадлежащая `pkg/visual` геометрия.
 * [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать

@@ -19,4 +19,6 @@ export type EnergyProtocolOptions = {
   runtimeKind?: string
   massStore?: EnergyMassStore
   energyStore?: EnergyRuntimeStore
+  /** Fatal domain invariant failure, distinct from a failed user Process/Reaction. */
+  onFatal?(error: Error): void | Promise<void>
 }

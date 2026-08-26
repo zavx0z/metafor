@@ -34,18 +34,30 @@ export function createGraphFixture(): Graph {
           required: true,
           default: "idle",
           values: ["idle", "ready"],
-        }],
+        }, {key: "count", type: "number", required: true, default: 0}],
         superposition: [
           {name: "idle", transitions: {running: {mode: "ready"}}},
           {name: "running", transitions: null},
         ],
-        mass: [],
+        mass: [{key: "history", format: "json", label: "История", description: "Наблюдения Reaction"}],
         processes: [{
           key: "running",
           declaration: {
             type: "action",
             action: {src: "./run.ts", read: ["mode"]},
           },
+        }],
+        reactions: [{
+          key: "remember",
+          label: "Запомнить дочернее состояние",
+          desc: null,
+          sources: [{meta: GRAPH_FIXTURE_CHILD, states: ["present"]}],
+          src: "({update, value}) => update({count: value.count + 1})",
+          read: ["count"],
+          write: ["count"],
+          massRead: ["history"],
+          massWrite: ["history"],
+          states: ["idle"],
         }],
         matter: [
           {kind: "wimp", src: GRAPH_FIXTURE_CHILD},
@@ -62,15 +74,32 @@ export function createGraphFixture(): Graph {
     },
     runtime: {
       roots: [{
+        ref: "atom:1",
         kind: "atom",
         declaration: rootPointer,
         meta: GRAPH_FIXTURE_ROOT,
         state: "idle",
-        values: {mode: "idle"},
+        values: {mode: "idle", count: 0},
+        mass: [{
+          ref: "mass:graph-history",
+          key: "history",
+          format: "json",
+          label: "История",
+          description: "Наблюдения Reaction",
+          content: "lazy",
+        }],
         children: [
-          child(0, "первый"),
-          child(1, "второй"),
+          child(0, 2, "первый"),
+          child(1, 3, "второй"),
         ],
+      }],
+      reactions: [{
+        ref: "reaction:remember:1:2",
+        kind: "reaction",
+        reaction: {meta: GRAPH_FIXTURE_ROOT, key: "remember"},
+        source: {atom: "atom:2", states: ["present"]},
+        target: {atom: "atom:1", states: ["idle"]},
+        active: true,
       }],
     },
   }
@@ -86,9 +115,9 @@ export function insertSameMetaSibling(input: Graph): Graph {
   }
   rootTemplate.matter.unshift({kind: "wimp", src: GRAPH_FIXTURE_CHILD})
   runtimeRoot.children = [
-    child(0, "вставленный"),
-    child(1, "первый"),
-    child(2, "второй"),
+    child(0, 4, "вставленный"),
+    child(1, 2, "первый"),
+    child(2, 3, "второй"),
   ]
   return result
 }
@@ -106,12 +135,23 @@ export function runtimeFieldAt(
   return selected?.kind === "atom" ? selected.values[field] : undefined
 }
 
-function child(index: number, name: string): RuntimeNode {
+/** Reads the stable runtime ref currently selected by one snapshot-local pointer. */
+export function runtimeRefAt(graph: Graph, pointer: string): string | undefined {
+  const indices = parseMetaRuntimeAtomPointer(pointer)
+  if (!indices || indices.length === 0) return undefined
+  let selected: RuntimeNode | undefined = graph.runtime.roots[indices[0]!]
+  for (const index of indices.slice(1)) selected = selected?.children?.[index]
+  return selected?.ref
+}
+
+function child(index: number, ref: number, name: string): RuntimeNode {
   return {
+    ref: `atom:${ref}`,
     kind: "atom",
     declaration: matterPointer(index),
     meta: GRAPH_FIXTURE_CHILD,
     state: "present",
     values: {name},
+    mass: [],
   }
 }

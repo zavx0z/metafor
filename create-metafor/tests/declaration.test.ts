@@ -4,6 +4,7 @@ import {
   META_AUTHORING_CONTRACT_VERSION,
   META_DECLARATION_WRITE_CAPABILITY,
   type MetaDeclarationRequest,
+  type MetaReactionDeclaration,
   type MetaSourceRevision,
 } from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
@@ -299,18 +300,43 @@ describe("Meta declaration entity patch planner", () => {
         key: "remember",
         label: "Remember",
         states: ["ready"],
-        filterSource: "({ value }) => value.status === 'ok'",
-        updateSource: "({ self }) => self",
-        read: ["status"],
-        write: [],
+        sources: [{meta: TARGET, states: ["ready"]}],
+        src: "({ observation, update }) => update({ status: observation.source.state })",
+        read: [],
+        write: ["status"],
+        massRead: ["memory"],
+        massWrite: ["memory"],
       },
       revisions: [{address: ROOT, revision: REVISION}],
     }, [current], 43)
     expect(reaction.particle.parts[0]).toMatchObject({
-      op: "add", path: "reaction", value: {wimp: ROOT, id: 1, key: "remember", read: [1], states: [2]},
+      op: "add", path: "reaction", value: {
+        wimp: ROOT,
+        id: 1,
+        key: "remember",
+        sources: [{meta: TARGET, states: ["ready"]}],
+        read: [],
+        write: [1],
+        massRead: ["memory"],
+        massWrite: ["memory"],
+        states: [2],
+      },
     })
+    expect(reaction.sourceEdits[0]!.afterSource).toContain(
+      `.filter([{"meta":"example/target","states":["ready"]}])`,
+    )
+    expect(reaction.sourceEdits[0]!.afterSource).toContain(
+      `mass: {"read":["memory"],"write":["memory"]}`,
+    )
     current = await snapshot(ROOT, reaction.sourceEdits[0]!.afterSource)
-    expect(current.reactions?.[0]).toMatchObject({key: "remember", label: "Remember", states: ["ready"]})
+    expect(current.reactions?.[0]).toMatchObject({
+      key: "remember",
+      label: "Remember",
+      sources: [{meta: TARGET, states: ["ready"]}],
+      states: ["ready"],
+      massRead: ["memory"],
+      massWrite: ["memory"],
+    })
 
     const bulk = planMetaDeclarationPatch({
       ...requestBase,
@@ -326,6 +352,44 @@ describe("Meta declaration entity patch planner", () => {
     })
     current = await snapshot(ROOT, bulk.sourceEdits[0]!.afterSource)
     expect(current.bulk).toEqual({view: ".ready{color:green;}"})
+  })
+
+  test("rejects topology writes and unavailable Mass before writing Reaction source", async () => {
+    const current = await snapshot(
+      ROOT,
+      source(`{
+    status: field.string.optional(),
+    mode: field.enum("one", "two").required("one"),
+  }`).replace(".superposition({})", ".superposition({ idle: null })"),
+    )
+    const reaction: MetaReactionDeclaration = {
+      key: "observe",
+      label: "Observe",
+      sources: [{meta: TARGET, states: ["ready"]}],
+      states: ["idle"],
+      read: [],
+      write: ["mode"],
+      massRead: [],
+      massWrite: [],
+      src: "({ update }) => update({ mode: 'two' })",
+    }
+    const request = {
+      ...requestBase,
+      operationId: "reaction-topology",
+      entity: "reaction" as const,
+      operation: "add" as const,
+      address: ROOT,
+      reaction,
+      revisions: [{address: ROOT, revision: REVISION}],
+    }
+    expect(() => planMetaDeclarationPatch(request, [current], 45))
+      .toThrow("cannot write topology Field mode")
+
+    expect(() => planMetaDeclarationPatch({
+      ...request,
+      operationId: "reaction-mass",
+      reaction: {...reaction, write: ["status"], massRead: ["missing"]},
+    }, [current], 46)).toThrow("references missing Mass missing")
   })
 
   test("adds and updates Process through meta.ts plus one owned action artifact", async () => {

@@ -124,6 +124,35 @@ Mass declaration является отдельной categorical entity с WIMP-
 Reaction хранит обязательный semantic key. Bulk singleton материализуется в
 `wimp.view_css`, оставаясь вне Bulk Store.
 
+## Точные связи Reaction
+
+Reaction принадлежит каждому runtime Atom, порождённому её WIMP. Её декларация
+содержит непустой набор source selectors, новые States источника, собственные
+активные States и точные зависимости от собственных Fields и Mass.
+
+После изменения декларации или runtime-структуры Boundary в той же SQL
+transaction заново разрешает selectors в точные связи
+`Reaction + target Atom + source Atom`. Один source, совпавший с несколькими
+selectors, остаётся одной связью; разрешённые source States объединяются.
+Boundary публикует Matrix только add, replace или remove реально изменившихся
+связей. Matrix и Energy не перебирают мир и не читают Boundary для её
+восстановления.
+
+Каждое настоящее изменение State получает стабильную event identity и после
+commit подтверждается отдельным `photon/copy`. Предыдущее State в событие не
+входит. Повторный Process того же State не создаёт State event.
+
+Matrix регистрирует trigger обратно в Boundary. Boundary проверяет event,
+точную связь и активное State target, сохраняет execution и снимок только
+объявленных Fields. Все объявленные Field и Mass dependencies обязаны
+существовать; отсутствие означает отказ системы. Reaction write-set может
+содержать только ordinary Fields. `enum` и `array` меняются только Process.
+
+Если target остаётся в одном из разрешённых States, execution продолжает жить
+после перехода между ними. Выход из разрешённого набора, удаление связи или
+изменение декларации переводит execution в `superseded`. Boundary не откатывает
+Mass, уже записанную Energy, и не принимает поздний Field proposal.
+
 Пример: добавление Screenshot в Browser WIMP должно добавить Screenshot каждому
 существующему Browser Atom.
 

@@ -8,6 +8,7 @@ import {
 } from "@metafor/types/metafor/graph"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {
+  loadMetaDeclarationGraph,
   normalizeMetaTemplate,
   readDarkDeclarationProjection,
   type MetaLoader,
@@ -94,10 +95,12 @@ const completeDeclarations = (): Map<string, MetaDSL> => new Map([
         key: "observe",
         label: "Observe child",
         desc: null,
-        cond: "({meta}) => meta === 'example/dark-child'",
+        sources: [{meta: CHILD, states: ["visible"]}],
         src: "({update}) => update({title: 'observed'})",
         read: [],
         write: ["title"],
+        massRead: ["cache"],
+        massWrite: ["cache"],
         states: ["ready"],
       },
     ],
@@ -148,6 +151,14 @@ describe("Dark Graph declaration provider", () => {
     })
     expect(root.processes.map(({key}) => key)).toEqual(["ready", "idle"])
     expect(root.reactions?.map(({key}) => key)).toEqual(["observe"])
+    expect(root.reactions?.[0]).toMatchObject({
+      sources: [{meta: CHILD, states: ["visible"]}],
+      read: [],
+      write: ["title"],
+      massRead: ["cache"],
+      massWrite: ["cache"],
+      src: "({update}) => update({title: 'observed'})",
+    })
     expect(root.matter?.map(({kind}) => kind)).toEqual(["wimp"])
     expect(root.mass).toEqual([
       {key: "cache", format: "json", label: "Cache", description: "Metadata only"},
@@ -162,18 +173,37 @@ describe("Dark Graph declaration provider", () => {
       ...projection,
       runtime: {
         roots: [{
+          ref: "atom:1",
           kind: "atom",
           declaration: "#/template/example~1dark-root",
           meta: ROOT,
           state: "idle",
           values: {},
+          mass: [{
+            ref: "mass:cache-root",
+            key: "cache",
+            format: "json",
+            label: "Cache",
+            description: "Metadata only",
+            content: "lazy",
+          }],
           children: [{
+            ref: "atom:2",
             kind: "atom",
             declaration: "#/template/example~1dark-root/matter/0",
             meta: CHILD,
             state: "visible",
             values: {},
+            mass: [],
           }],
+        }],
+        reactions: [{
+          ref: "reaction:1:1:2",
+          kind: "reaction",
+          reaction: {meta: ROOT, key: "observe"},
+          source: {atom: "atom:2", states: ["visible"]},
+          target: {atom: "atom:1", states: ["ready"]},
+          active: false,
         }],
       },
     }
@@ -223,6 +253,50 @@ describe("Dark Graph declaration provider", () => {
       },
       {kind: "wimp", src: CHILD},
     ])
+  })
+
+  test("loads a Reaction source Meta even when Matter does not contain it", async () => {
+    const declarations = new Map<string, MetaDSL>([
+      [ROOT, dsl({
+        name: "Observer",
+        fields: [{key: "count", type: "number", required: true, default: 0}],
+        superposition: [{name: "listening", transitions: null}],
+        reactions: [{
+          key: "observe",
+          label: "Observe",
+          desc: null,
+          sources: [{meta: PEER, states: ["ready"]}],
+          src: "({update, value}) => update({count: value.count + 1})",
+          read: ["count"],
+          write: ["count"],
+          massRead: [],
+          massWrite: [],
+          states: ["listening"],
+        }],
+      })],
+      [PEER, dsl({
+        name: "Source",
+        superposition: [{name: "ready", transitions: null}],
+      })],
+    ])
+    const reads: string[] = []
+
+    const materialReads: string[] = []
+    const materialized: string[] = []
+    for await (const declaration of loadMetaDeclarationGraph(
+      ROOT,
+      loader(declarations, materialReads),
+    )) materialized.push(declaration.address)
+
+    const projection = await readDarkDeclarationProjection(
+      {root: ROOT},
+      loader(declarations, reads),
+    )
+
+    expect(materialReads).toEqual([ROOT])
+    expect(materialized).toEqual([ROOT])
+    expect(reads).toEqual([ROOT, PEER])
+    expect(Object.keys(projection.template)).toEqual([ROOT, PEER])
   })
 
   test("rejects a noncanonical root before loader access and closes RPC params", async () => {

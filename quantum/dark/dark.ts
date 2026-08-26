@@ -188,10 +188,12 @@ const declaration = (
       key: reaction.key,
       label: reaction.label,
       desc: reaction.desc ?? null,
-      cond: reaction.cond,
+      sources: structuredClone(reaction.sources),
       src: reaction.src,
       read: fieldReferences(reaction.read, `Reaction "${reaction.key}"`),
       write: fieldReferences(reaction.write, `Reaction "${reaction.key}"`),
+      massRead: [...(reaction.massRead ?? [])],
+      massWrite: [...(reaction.massWrite ?? [])],
       states: (reaction.states ?? []).map((name) => {
         const id = stateIds.get(name)
         if (!id) throw new Error(`Reaction "${reaction.key}" references unknown state "${name}" in "${src}"`)

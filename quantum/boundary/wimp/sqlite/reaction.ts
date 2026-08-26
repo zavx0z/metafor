@@ -1,4 +1,37 @@
 import type { Reactions } from "./reactions.ts"
+import type {ReactionSourceRelation, ReactionSourceSelector} from "@metafor/types/metafor/reactions"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
+
+const normalizeSources = (
+  sources: readonly ReactionSourceSelector[],
+): ReactionSourceSelector[] => {
+  if (sources.length === 0) throw new Error("Reaction must declare at least one source selector")
+  return sources.map((source, index) => {
+    const atom = source.atom?.trim()
+    const meta = source.meta?.trim()
+    const relation = source.relation
+    if (!atom && !meta && relation === undefined) {
+      throw new Error(`Reaction source ${index} must declare atom, meta or relation`)
+    }
+    if (atom !== undefined && !/^atom:[1-9]\d*$/.test(atom)) {
+      throw new Error(`Reaction source ${index} atom must use atom:<positive-id>`)
+    }
+    if (meta !== undefined && parseMetaAddress(meta) === null) {
+      throw new Error(`Reaction source ${index} meta must use <owner>/<repository>`)
+    }
+    if (relation !== undefined && relation !== "parent" && relation !== "child" && relation !== "descendant") {
+      throw new Error(`Reaction source ${index} relation is unsupported`)
+    }
+    const states = [...new Set(source.states.map((state) => state.trim()).filter(Boolean))]
+    if (states.length === 0) throw new Error(`Reaction source ${index} must declare at least one State`)
+    return {
+      ...(atom ? {atom: atom as `atom:${string}`} : {}),
+      ...(meta ? {meta} : {}),
+      ...(relation === undefined ? {} : {relation}),
+      states: states as [string, ...string[]],
+    }
+  })
+}
 
 /**
  * Sub-ORM для таблицы `reaction_read` (PK (reaction, field)).
@@ -11,11 +44,11 @@ export class ReactionRead {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionId = await this.reaction.id()
-    await sql`
-      INSERT OR IGNORE INTO reaction_read (reaction, field)
-      SELECT ${reactionId}, field.id
-      FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
-    `
+    const field = (await sql<Array<{id: number}>>`
+      SELECT id FROM field WHERE wimp = ${src} AND key = ${fieldKey}
+    `)[0]
+    if (!field) throw new Error(`Reaction ${this.reaction.key} references unavailable Field ${fieldKey}`)
+    await sql`INSERT OR IGNORE INTO reaction_read (reaction, field) VALUES (${reactionId}, ${field.id})`
   }
 
   async remove(fieldKey: string): Promise<void> {
@@ -83,11 +116,14 @@ export class ReactionWrite {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionId = await this.reaction.id()
-    await sql`
-      INSERT OR IGNORE INTO reaction_write (reaction, field)
-      SELECT ${reactionId}, field.id
-      FROM field WHERE field.wimp = ${src} AND field.key = ${fieldKey}
-    `
+    const field = (await sql<Array<{id: number; type: string}>>`
+      SELECT id, type FROM field WHERE wimp = ${src} AND key = ${fieldKey}
+    `)[0]
+    if (!field) throw new Error(`Reaction ${this.reaction.key} references unavailable Field ${fieldKey}`)
+    if (field.type === "enum" || field.type === "array") {
+      throw new Error(`Reaction ${this.reaction.key} cannot write topology Field ${fieldKey}`)
+    }
+    await sql`INSERT OR IGNORE INTO reaction_write (reaction, field) VALUES (${reactionId}, ${field.id})`
   }
 
   async remove(fieldKey: string): Promise<void> {
@@ -156,11 +192,11 @@ export class ReactionStates {
     const sql = this.reaction.reactions.wimp.sql
     const src = this.reaction.reactions.wimp.src
     const reactionId = await this.reaction.id()
-    await sql`
-      INSERT OR IGNORE INTO reaction_state (reaction, state)
-      SELECT ${reactionId}, state.id
-      FROM state WHERE state.wimp = ${src} AND state.name = ${stateName}
-    `
+    const state = (await sql<Array<{id: number}>>`
+      SELECT id FROM state WHERE wimp = ${src} AND name = ${stateName}
+    `)[0]
+    if (!state) throw new Error(`Reaction ${this.reaction.key} references unavailable target State ${stateName}`)
+    await sql`INSERT OR IGNORE INTO reaction_state (reaction, state) VALUES (${reactionId}, ${state.id})`
   }
 
   async remove(stateName: string): Promise<void> {
@@ -217,14 +253,87 @@ export class ReactionStates {
   }
 }
 
+type ReactionMassTable = "reaction_mass_read" | "reaction_mass_write"
+
+/** WIMP-local declared Mass keys for one Reaction access direction. */
+export class ReactionMassLinks {
+  constructor(
+    readonly reaction: Reaction,
+    readonly table: ReactionMassTable,
+  ) {}
+
+  async add(key: string): Promise<void> {
+    const sql = this.reaction.reactions.wimp.sql
+    const declaration = (await sql<Array<{id: number}>>`
+      SELECT id FROM mass_declaration
+       WHERE wimp = ${this.reaction.reactions.wimp.src}
+         AND local_key = ${key}
+         AND active = 1
+    `)[0]
+    if (!declaration) throw new Error(`Reaction ${this.reaction.key} references unavailable Mass ${key}`)
+    await sql.unsafe(
+      `INSERT OR IGNORE INTO ${this.table} (reaction, mass) VALUES (?, ?)`,
+      [await this.reaction.id(), declaration.id],
+    )
+  }
+
+  async remove(key: string): Promise<void> {
+    await this.reaction.reactions.wimp.sql.unsafe(
+      `DELETE FROM ${this.table}
+        WHERE reaction = ?
+          AND mass IN (
+            SELECT id FROM mass_declaration WHERE wimp = ? AND local_key = ?
+          )`,
+      [await this.reaction.id(), this.reaction.reactions.wimp.src, key],
+    )
+  }
+
+  async all(): Promise<string[]> {
+    const rows = await this.reaction.reactions.wimp.sql.unsafe<Array<{key: string}>>(
+      `SELECT declaration.local_key AS key
+         FROM ${this.table} AS link
+         JOIN mass_declaration AS declaration ON declaration.id = link.mass
+        WHERE link.reaction = ?
+        ORDER BY declaration.local_id, declaration.id`,
+      [await this.reaction.id()],
+    )
+    return rows.map(({key}) => key)
+  }
+
+  async has(key: string): Promise<boolean> {
+    const rows = await this.reaction.reactions.wimp.sql.unsafe<Array<{ok: number}>>(
+      `SELECT 1 AS ok
+         FROM ${this.table} AS link
+         JOIN mass_declaration AS declaration ON declaration.id = link.mass
+        WHERE link.reaction = ? AND declaration.wimp = ? AND declaration.local_key = ?
+        LIMIT 1`,
+      [await this.reaction.id(), this.reaction.reactions.wimp.src, key],
+    )
+    return rows.length === 1
+  }
+
+  async count(): Promise<number> {
+    const row = (await this.reaction.reactions.wimp.sql.unsafe<Array<{count: number}>>(
+      `SELECT COUNT(*) AS count FROM ${this.table} WHERE reaction = ?`,
+      [await this.reaction.id()],
+    ))[0]
+    return Number(row?.count ?? 0)
+  }
+}
+
 /**
- * ORM для строки таблицы `reaction` (UNIQUE wimp+key).
- * Sub-ORMs `read`/`write`/`states` управляют связями reaction_read/reaction_write/reaction_state.
- */
+Normalized Boundary declaration of one WIMP-local Reaction.
+
+`sources`, `read`, `write`, `massRead`, `massWrite` and `states` expose only
+declaration relations. Runtime source-to-target links are derived separately
+from these rows and current Atom structure.
+*/
 export class Reaction {
   readonly read: ReactionRead
   readonly write: ReactionWrite
   readonly states: ReactionStates
+  readonly massRead: ReactionMassLinks
+  readonly massWrite: ReactionMassLinks
 
   constructor(
     readonly reactions: Reactions,
@@ -233,6 +342,8 @@ export class Reaction {
     this.read = new ReactionRead(this)
     this.write = new ReactionWrite(this)
     this.states = new ReactionStates(this)
+    this.massRead = new ReactionMassLinks(this, "reaction_mass_read")
+    this.massWrite = new ReactionMassLinks(this, "reaction_mass_write")
   }
 
   /**
@@ -284,21 +395,51 @@ export class Reaction {
     `
   }
 
-  async cond(): Promise<string> {
-    const row = (
-      await this.reactions.wimp.sql<Array<{ cond_source: string }>>`
-        SELECT cond_source FROM reaction WHERE wimp = ${this.reactions.wimp.src} AND key = ${this.key}
-      `
-    )[0]
-    if (!row) throw new Error(`reaction ${this.key} not found in wimp ${this.reactions.wimp.src}`)
-    return row.cond_source
+  async sources(): Promise<ReactionSourceSelector[]> {
+    const id = await this.id()
+    const selectors = await this.reactions.wimp.sql<Array<{
+      selectorOrder: number
+      atom: string | null
+      meta: string | null
+      relation: ReactionSourceRelation | null
+    }>>`
+      SELECT selector_order AS selectorOrder, atom_ref AS atom, meta, relation
+        FROM reaction_source_selector
+       WHERE reaction = ${id}
+       ORDER BY selector_order
+    `
+    return await Promise.all(selectors.map(async (selector) => ({
+      ...(selector.atom === null ? {} : {atom: selector.atom as `atom:${string}`}),
+      ...(selector.meta === null ? {} : {meta: selector.meta}),
+      ...(selector.relation === null ? {} : {relation: selector.relation}),
+      states: (await this.reactions.wimp.sql<Array<{state: string}>>`
+        SELECT state FROM reaction_source_state
+         WHERE reaction = ${id} AND selector_order = ${selector.selectorOrder}
+         ORDER BY state_order
+      `).map(({state}) => state) as [string, ...string[]],
+    })))
   }
 
-  async setCond(value: string): Promise<void> {
-    await this.reactions.wimp.sql`
-      UPDATE reaction SET cond_source = ${value}
-      WHERE wimp = ${this.reactions.wimp.src} AND key = ${this.key}
-    `
+  async setSources(value: readonly ReactionSourceSelector[]): Promise<void> {
+    const sources = normalizeSources(value)
+    const id = await this.id()
+    await this.reactions.wimp.sql.begin(async (sql) => {
+      await sql`UPDATE reaction SET sources_json = ${JSON.stringify(sources)} WHERE id = ${id}`
+      await sql`DELETE FROM reaction_source_selector WHERE reaction = ${id}`
+      for (let selectorOrder = 0; selectorOrder < sources.length; selectorOrder++) {
+        const source = sources[selectorOrder]!
+        await sql`
+          INSERT INTO reaction_source_selector (reaction, selector_order, atom_ref, meta, relation)
+          VALUES (${id}, ${selectorOrder}, ${source.atom ?? null}, ${source.meta ?? null}, ${source.relation ?? null})
+        `
+        for (let stateOrder = 0; stateOrder < source.states.length; stateOrder++) {
+          await sql`
+            INSERT INTO reaction_source_state (reaction, selector_order, state_order, state)
+            VALUES (${id}, ${selectorOrder}, ${stateOrder}, ${source.states[stateOrder]!})
+          `
+        }
+      }
+    })
   }
 
   async src(): Promise<string> {

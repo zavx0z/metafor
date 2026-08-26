@@ -145,7 +145,7 @@ describe("Energy incremental catalog", () => {
     expect(store.continuation(2)).toEqual({})
   })
 
-  test("resolves the same public Graph child path through topology and sibling order", () => {
+  test("resolves stable public Graph refs independently from topology and sibling order", () => {
     const store = new EnergyCatalogStore()
     store.apply(part("add", "atom/1", {
       atom: {id: 1, parentAtom: null, parentTopology: null, wimp: "owner/root", position: 0},
@@ -162,12 +162,12 @@ describe("Energy incremental catalog", () => {
 
     expect(store.resolveAtom({
       root: parseMetaAddress("owner/root")!,
-      pointer: "/runtime/roots/0/children/0/children/0",
+      ref: "atom:2",
       meta: parseMetaAddress("owner/child")!,
     })?.id).toBe(2)
     expect(store.resolveAtom({
       root: parseMetaAddress("owner/root")!,
-      pointer: "/runtime/roots/0/children/1",
+      ref: "atom:3",
       meta: parseMetaAddress("owner/direct")!,
     })?.id).toBe(3)
   })

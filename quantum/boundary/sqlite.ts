@@ -107,7 +107,12 @@ export const open = async (filename?: string, options: BoundaryOpenOptions = {})
         ? await projection.reconcileStateMatter(message.parts[0])
         : null
       let rawCommit = executionCommit !== undefined
-        ? stateMatterCommit ?? executionCommit
+        ? executionCommit && stateMatterCommit
+          ? {
+              rootSrc: executionCommit.rootSrc ?? stateMatterCommit.rootSrc,
+              messages: [...stateMatterCommit.messages, ...executionCommit.messages],
+            }
+          : stateMatterCommit ?? executionCommit
         : reactionCommit !== undefined
           ? reactionCommit
           : inputCommit !== undefined
@@ -130,13 +135,10 @@ export const open = async (filename?: string, options: BoundaryOpenOptions = {})
 			messages.push(...(projected?.messages ?? [consequence]))
 		}
 		rawCommit = {...rawCommit, messages}
-	  }
+      }
 
       const commit = stampBoundaryCommit(message, rawCommit)
-      const reactionSignals = await reaction.derive(commit.messages)
-      return reactionSignals.length === 0
-        ? commit
-        : {...commit, messages: [...commit.messages, ...reactionSignals]}
+      return commit
     })
   }
 

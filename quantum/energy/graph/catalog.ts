@@ -17,10 +17,7 @@ import type {
   EnergyVariantEntity,
 } from "@energy/types/catalog"
 import type {Particle} from "shared/protocol/force/particle"
-import {
-  parseMetaRuntimeAtomPointer,
-  type MetaRuntimeAtomLocator,
-} from "shared/protocol/metafor/observation"
+import type {MetaRuntimeAtomLocator} from "shared/protocol/metafor/observation"
 
 type Address =
   | {kind: "atom"; id: number}
@@ -256,23 +253,13 @@ export class EnergyCatalogStore {
     return this.massArtifacts.get(atomId) ?? []
   }
 
-  /** Resolves one snapshot-local public Graph path without exposing the Atom ID. */
+  /** Resolves one stable public Graph Atom ref without exposing its numeric parsing to callers. */
   resolveAtom(locator: MetaRuntimeAtomLocator): EnergyAtomEntity | null {
-    const indices = parseMetaRuntimeAtomPointer(locator.pointer)
-    if (!indices || indices.length === 0) return null
-    const roots = [...this.atoms.values()]
-      .filter((atom) => atom.parentAtom === null && atom.parentTopology === null && atom.wimp === locator.root)
-      .sort((left, right) => left.position - right.position)
-    const rootIndex = indices[0]!
-    let selected: {kind: "atom" | "topology"; id: number} | undefined = roots[rootIndex]
-      ? {kind: "atom", id: roots[rootIndex]!.id}
-      : undefined
-    for (const index of indices.slice(1)) {
-      if (!selected) return null
-      selected = this.orderedChildren(`${selected.kind}:${selected.id}`)[index]
-    }
-    if (!selected || selected.kind !== "atom") return null
-    const atom = this.atoms.get(selected.id)
+    if (![...this.atoms.values()].some((atom) =>
+      atom.parentAtom === null && atom.parentTopology === null && atom.wimp === locator.root)) return null
+    const match = /^atom:([1-9]\d*)$/.exec(locator.ref)
+    if (!match) return null
+    const atom = this.atoms.get(Number(match[1]))
     return atom?.wimp === locator.meta ? clone(atom) : null
   }
 

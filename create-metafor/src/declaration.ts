@@ -397,12 +397,16 @@ const reactionSourceEntries = (snapshot: DeclarationMetaSnapshot): string[] => {
 }
 
 const renderReaction = (reaction: MetaReactionDeclaration): string => {
+  const mass = reaction.massRead.length === 0 && reaction.massWrite.length === 0
+    ? []
+    : [`mass: ${json({read: reaction.massRead, write: reaction.massWrite})}`]
   const config = [
     `key: ${json(reaction.key)}`,
     `label: ${json(reaction.label)}`,
     ...(reaction.description === undefined ? [] : [`desc: ${json(reaction.description)}`]),
+    ...mass,
   ].join(", ")
-  return `[${JSON.stringify(reaction.states)}, reaction({ ${config} }).filter(${reaction.filterSource}).equal(${reaction.updateSource})]`
+  return `[${json(reaction.states)}, reaction({ ${config} }).filter(${json(reaction.sources)}).equal(${reaction.src})]`
 }
 
 const reactionsSource = (snapshot: DeclarationMetaSnapshot, entries: readonly string[]): string => {
@@ -844,16 +848,17 @@ const processArtifactPathFrom = (process: MetaProcessDSL): string => {
 }
 
 const normalizedReaction = (reaction: MetaReactionDeclaration): MetaReactionDSL => {
-  functionExpression(reaction.filterSource, "Reaction filterSource")
-  functionExpression(reaction.updateSource, "Reaction updateSource")
+  functionExpression(reaction.src, "Reaction src")
   return {
     key: reaction.key,
     label: reaction.label,
     desc: reaction.description ?? null,
-    cond: normalizeFunctionString(reaction.filterSource),
-    src: normalizeFunctionString(updateAppendArg(reaction.updateSource, json(`r:${reaction.key}`))),
+    sources: structuredClone(reaction.sources),
+    src: normalizeFunctionString(updateAppendArg(reaction.src, json(`r:${reaction.key}`))),
     read: [...reaction.read],
     write: [...reaction.write],
+    massRead: [...reaction.massRead],
+    massWrite: [...reaction.massWrite],
     states: [...reaction.states],
   }
 }
@@ -862,17 +867,37 @@ const reactionValue = (
   address: MetaAddress,
   fields: readonly MetaFieldDSL[],
   states: readonly MetaSuperpositionDSL[],
+  mass: readonly MetaMassDSL[],
   reactions: readonly MetaReactionDSL[],
   index: number,
 ): Record<string, unknown> => {
-  const fieldIds = new Map(fields.map((field, position) => [field.key, position + 1] as const))
+  const fieldByKey = new Map(fields.map((field, position) => [field.key, {id: position + 1, type: field.type}] as const))
   const stateIds = new Map(states.map((state, position) => [state.name, position + 1] as const))
+  const massKeys = new Set(mass.map((declaration) => declaration.key))
   const reaction = reactions[index]!
-  const ids = (keys: readonly string[] | undefined, lookup: ReadonlyMap<string, number>, label: string): number[] =>
+  const fieldIds = (keys: readonly string[] | undefined, label: string, write = false): number[] =>
     (keys ?? []).map((key) => {
-      const id = lookup.get(key)
-      if (!id) throw new DeclarationPatchError("invalid_declaration", `Reaction ${address}/${reaction.key} references missing ${label} ${key}`)
-      return id
+      const field = fieldByKey.get(key)
+      if (!field) throw new DeclarationPatchError("invalid_declaration", `Reaction ${address}/${reaction.key} references missing ${label} ${key}`)
+      if (write && (field.type === "enum" || field.type === "array")) {
+        throw new DeclarationPatchError(
+          "invalid_declaration",
+          `Reaction ${address}/${reaction.key} cannot write topology Field ${key}`,
+        )
+      }
+      return field.id
+    })
+  const stateReferences = (keys: readonly string[] | undefined): number[] => (keys ?? []).map((key) => {
+    const id = stateIds.get(key)
+    if (!id) throw new DeclarationPatchError("invalid_declaration", `Reaction ${address}/${reaction.key} references missing State ${key}`)
+    return id
+  })
+  const massReferences = (keys: readonly string[] | undefined, label: string): string[] =>
+    (keys ?? []).map((key) => {
+      if (!massKeys.has(key)) {
+        throw new DeclarationPatchError("invalid_declaration", `Reaction ${address}/${reaction.key} references missing ${label} ${key}`)
+      }
+      return key
     })
   return {
     wimp: address,
@@ -880,11 +905,13 @@ const reactionValue = (
     key: reaction.key,
     label: reaction.label,
     desc: reaction.desc ?? null,
-    cond: reaction.cond,
+    sources: structuredClone(reaction.sources),
     src: reaction.src,
-    read: ids(reaction.read, fieldIds, "Field"),
-    write: ids(reaction.write, fieldIds, "Field"),
-    states: ids(reaction.states, stateIds, "State"),
+    read: fieldIds(reaction.read, "Field"),
+    write: fieldIds(reaction.write, "Field", true),
+    massRead: massReferences(reaction.massRead, "Mass"),
+    massWrite: massReferences(reaction.massWrite, "Mass"),
+    states: stateReferences(reaction.states),
   }
 }
 
@@ -1112,7 +1139,7 @@ const planOtherDeclarationPatch = (
       }
       const index = request.operation === "add" ? reactions.length - 1 : listIndex(current.address, "Reaction", reactions, next.key, keyOf)
       return {
-        particle: {parts: [{part: "inflaton", op: request.operation, path: "reaction", ts: timestamp, value: reactionValue(current.address, current.fields, current.states ?? [], reactions, index)}]},
+        particle: {parts: [{part: "inflaton", op: request.operation, path: "reaction", ts: timestamp, value: reactionValue(current.address, current.fields, current.states ?? [], current.mass ?? [], reactions, index)}]},
         sourceEdits: [genericEdit(current, reactionsSource(current, entries))],
       }
     }
@@ -1133,7 +1160,7 @@ const planOtherDeclarationPatch = (
     const targetEntries = [...reactionSourceEntries(target), entries[index]!]
     const targetReactions = [...(target.reactions ?? []).map((item) => structuredClone(item)), structuredClone(reactions[index]!)]
     return {
-      particle: {parts: [{part: "inflaton", op: "move", path: "reaction", from: `${source.address}#${index + 1}`, ts: timestamp, value: reactionValue(target.address, target.fields, target.states ?? [], targetReactions, targetReactions.length - 1)}]},
+      particle: {parts: [{part: "inflaton", op: "move", path: "reaction", from: `${source.address}#${index + 1}`, ts: timestamp, value: reactionValue(target.address, target.fields, target.states ?? [], target.mass ?? [], targetReactions, targetReactions.length - 1)}]},
       sourceEdits: [genericEdit(source, reactionsSource(source, entries.slice(0, index))), genericEdit(target, reactionsSource(target, targetEntries))]
         .sort((left, right) => left.address.localeCompare(right.address)),
     }

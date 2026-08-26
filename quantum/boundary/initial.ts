@@ -4,6 +4,7 @@ import type {
   BoundaryInitialState,
   BoundaryInitialVariantRef,
 } from "shared/protocol/boundary/initial"
+import {readBoundaryReactionRelations} from "./reaction.ts"
 type JsonRecord = Record<string, unknown>
 
 type AtomRow = {
@@ -201,7 +202,7 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
   }
   const stateByAtom = new Map(atomStates.map((row) => [Number(row.atom), row.metaState] as const))
   return {
-    version: 1,
+    version: 2,
     atoms: atoms.map((atom) => ({
       id: Number(atom.id),
       wimp: atom.wimp,
@@ -215,5 +216,6 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
       process: Number(execution.process),
       state: execution.state,
     })),
+    reactionRelations: await readBoundaryReactionRelations(sql),
   }
 }
