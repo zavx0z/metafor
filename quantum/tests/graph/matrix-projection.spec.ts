@@ -26,8 +26,9 @@ afterAll(() => {
 const atomKey = (atom: number, field: number): string => `${atom}\0${field}`
 
 const initialState = (): BoundaryInitialState => ({
-  version: 2,
+  version: 3,
   reactionRelations: [],
+  unfinishedReactionExecutions: [],
   pendingProcessExecutions: [],
   atoms: [
     {

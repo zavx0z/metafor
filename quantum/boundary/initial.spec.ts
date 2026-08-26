@@ -63,9 +63,10 @@ describe("Boundary canonical initial state", () => {
       SELECT value AS id FROM atom_value WHERE atom = ${atomId} AND field = ${fieldId}
     `)[0]!.id)
 
-    expect(initial.version).toBe(2)
+    expect(initial.version).toBe(3)
     expect(initial.pendingProcessExecutions).toEqual([])
     expect(initial.reactionRelations).toEqual([])
+    expect(initial.unfinishedReactionExecutions).toEqual([])
     expect(initial.atoms).toEqual([{
       id: atomId,
       wimp: ROOT,

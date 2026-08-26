@@ -1,11 +1,12 @@
 /**
 Boundary registration and commit lifecycle for Reaction executions.
 
-Matrix sends only a trigger for an exact Boundary-resolved relation and a
-previously confirmed State event. Boundary validates both identities, snapshots
-the declared target Fields, registers one execution and only then offers it to
-Energy. Reaction Mass writes happen inside Energy; Boundary commits only
-ordinary target Fields.
+Matrix sends one trigger for every exact Boundary-resolved relation matched by a
+confirmed State event. Boundary first persists every trigger without reading
+dependencies. A separate Matrix start of the durable FIFO head snapshots the
+declared target Fields, promotes one execution and only then offers it to Energy.
+Reaction Mass writes happen inside Energy; Boundary commits only ordinary target
+Fields.
 
 @packageDocumentation
 */
@@ -14,15 +15,21 @@ import type {ReservedSQL, SQL} from "bun"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import {
+  REACTION_QUEUE_COMMIT_KIND,
   REACTION_SIGNAL_KIND,
   isReactionExecutionClaim,
   isReactionExecutionSignal,
+  isReactionRecoveryRequest,
   isReactionResultProposal,
+  isReactionStartRequest,
   isReactionTriggerRequest,
   type ReactionExecutionSignal,
+  type ReactionQueueCommit,
   type ReactionRelation,
+  type ReactionRecoveryRequest,
   type ReactionResultCommit,
   type ReactionResultProposal,
+  type ReactionStartRequest,
   type ReactionTriggerRequest,
 } from "shared/protocol/force/reaction"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
@@ -47,8 +54,9 @@ type ReactionExecutionRow = {
   sourceAtom: number
   sourceState: number
   reaction: number
+  queueOrder: number
   energy: string | null
-  status: "pending" | "committed" | "failed" | "superseded"
+  status: "queued" | "pending" | "committed" | "failed" | "superseded"
   requestJson: string
   signalJson: string | null
   resultPart: "w+" | "w-" | null
@@ -74,6 +82,38 @@ const message = (part: Particle): ForceMessage => ({parts: [part]})
 
 const relationKey = (reaction: number, targetAtom: number, sourceAtom: number): string =>
   `reaction:${reaction}:target:${targetAtom}:source:${sourceAtom}`
+
+const executionTable = `
+  CREATE TABLE boundary_reaction_execution (
+    execution_id TEXT PRIMARY KEY,
+    relation_key TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    target_atom INTEGER NOT NULL,
+    target_state INTEGER NOT NULL,
+    target_state_name TEXT NOT NULL,
+    source_atom INTEGER NOT NULL,
+    source_state INTEGER NOT NULL,
+    reaction INTEGER NOT NULL,
+    queue_order INTEGER NOT NULL,
+    energy TEXT,
+    status TEXT NOT NULL CHECK (status IN ('queued', 'pending', 'committed', 'failed', 'superseded')),
+    request_json TEXT NOT NULL,
+    signal_json TEXT,
+    result_part TEXT CHECK (result_part IN ('w+', 'w-')),
+    result_json TEXT,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    committed_at INTEGER,
+    UNIQUE (event_id, relation_key),
+    UNIQUE (target_atom, queue_order)
+  )
+`
+
+const executionIndexes = `
+  CREATE INDEX IF NOT EXISTS boundary_reaction_target_status
+    ON boundary_reaction_execution (target_atom, status);
+  CREATE UNIQUE INDEX IF NOT EXISTS boundary_reaction_one_pending_target
+    ON boundary_reaction_execution (target_atom) WHERE status = 'pending';
+`
 
 /** Reads the complete exact Reaction adjacency stored by Boundary at one SQL cut. */
 export async function readBoundaryReactionRelations(sql: Database): Promise<ReactionRelation[]> {
@@ -129,17 +169,17 @@ export async function readBoundaryReactionRelations(sql: Database): Promise<Reac
 }
 
 /**
-Boundary-owned Reaction queue registration and result commit.
+Boundary-owned durable Reaction registration and result commit.
 
-The queue order itself belongs to Matrix. The unique pending target index is a
-fail-closed Boundary check that Matrix never advances two executions of one
-target Atom concurrently.
+Boundary persists the order but never advances it by itself. Matrix starts the
+exact head; the unique pending target index then proves that no two executions
+of one target Atom run concurrently.
 */
 export class BoundaryReactionStore {
   constructor(readonly sql: SQL) {}
 
   async init(): Promise<void> {
-    const columns = await this.sql.unsafe<Array<{name: string}>>(
+    let columns = await this.sql.unsafe<Array<{name: string}>>(
       "PRAGMA table_info(boundary_reaction_execution)",
     )
     if (columns.length > 0 && !columns.some(({name}) => name === "relation_key")) {
@@ -152,39 +192,50 @@ export class BoundaryReactionStore {
         )
       }
       await this.sql.unsafe("DROP TABLE boundary_reaction_execution")
+      columns = []
     }
-    await this.sql.unsafe(`
-      CREATE TABLE IF NOT EXISTS boundary_reaction_execution (
-        execution_id TEXT PRIMARY KEY,
-        relation_key TEXT NOT NULL,
-        event_id TEXT NOT NULL,
-        target_atom INTEGER NOT NULL,
-        target_state INTEGER NOT NULL,
-        target_state_name TEXT NOT NULL,
-        source_atom INTEGER NOT NULL,
-        source_state INTEGER NOT NULL,
-        reaction INTEGER NOT NULL,
-        energy TEXT,
-        status TEXT NOT NULL CHECK (status IN ('pending', 'committed', 'failed', 'superseded')),
-        request_json TEXT NOT NULL,
-        signal_json TEXT,
-        result_part TEXT CHECK (result_part IN ('w+', 'w-')),
-        result_json TEXT,
-        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-        committed_at INTEGER,
-        UNIQUE (event_id, relation_key)
-      );
-      CREATE INDEX IF NOT EXISTS boundary_reaction_target_status
-        ON boundary_reaction_execution (target_atom, status);
-      CREATE UNIQUE INDEX IF NOT EXISTS boundary_reaction_one_pending_target
-        ON boundary_reaction_execution (target_atom) WHERE status = 'pending';
-    `)
+    if (columns.length > 0 && !columns.some(({name}) => name === "queue_order")) {
+      await this.sql.begin(async (sql) => {
+        await sql.unsafe("ALTER TABLE boundary_reaction_execution RENAME TO boundary_reaction_execution_before_queue")
+        await sql.unsafe("DROP INDEX IF EXISTS boundary_reaction_target_status")
+        await sql.unsafe("DROP INDEX IF EXISTS boundary_reaction_one_pending_target")
+        await sql.unsafe(executionTable)
+        await sql.unsafe(`
+          INSERT INTO boundary_reaction_execution (
+            execution_id, relation_key, event_id, target_atom, target_state,
+            target_state_name, source_atom, source_state, reaction, queue_order,
+            energy, status, request_json, signal_json, result_part, result_json,
+            created_at, committed_at
+          )
+          SELECT execution_id, relation_key, event_id, target_atom, target_state,
+                 target_state_name, source_atom, source_state, reaction,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY target_atom ORDER BY created_at, execution_id
+                 ),
+                 energy, status, request_json, signal_json, result_part,
+                 result_json, created_at, committed_at
+            FROM boundary_reaction_execution_before_queue
+           ORDER BY target_atom, created_at, execution_id
+        `)
+        await sql.unsafe("DROP TABLE boundary_reaction_execution_before_queue")
+        await sql.unsafe(executionIndexes)
+      })
+      return
+    }
+    if (columns.length === 0) await this.sql.unsafe(executionTable)
+    await this.sql.unsafe(executionIndexes)
   }
 
   async apply(input: ForceMessage): Promise<BoundaryIncrementalCommit | null | undefined> {
     const part = input.parts[0]
     if (part.part === "photon" && part.op === "test" && isReactionTriggerRequest(part.value)) {
       return await this.registerTrigger(part, part.value)
+    }
+    if (part.part === "photon" && part.op === "test" && isReactionStartRequest(part.value)) {
+      return await this.startQueued(part, part.value)
+    }
+    if (part.part === "photon" && part.op === "test" && isReactionRecoveryRequest(part.value)) {
+      return await this.recoverPending(part, part.value)
     }
     if (part.part === "z" && part.op === "test" && isReactionExecutionClaim(part.value)) {
       return await this.selectEnergy(part)
@@ -220,16 +271,31 @@ export class BoundaryReactionStore {
         if (previous.requestJson !== JSON.stringify(request)) {
           throw new Error(`Reaction execution identity collision: ${request.reactionExecutionId}`)
         }
-        return {execution: previous, targetWimp: (await this.atomState(sql, targetAtomId))?.wimp ?? ""}
+        return {
+          execution: previous,
+          targetWimp: (await this.atomState(sql, targetAtomId))?.wimp ?? "",
+          offerSignal: false,
+        }
       }
       const duplicate = (await sql<Array<{executionId: string}>>`
         SELECT execution_id AS executionId
           FROM boundary_reaction_execution
          WHERE event_id = ${request.eventId} AND relation_key = ${request.relationKey}
       `)[0]
-      if (duplicate) throw new Error(
-        `Reaction event ${request.eventId} relation ${request.relationKey} is already execution ${duplicate.executionId}`,
-      )
+      if (duplicate) {
+        const execution = await this.execution(sql, duplicate.executionId)
+        if (!execution) throw new Error(`Reaction queue identity ${duplicate.executionId} is unavailable`)
+        const stored = this.trigger(execution)
+        if (stored.targetAtomId !== request.targetAtomId || stored.reactionId !== request.reactionId ||
+            JSON.stringify(stored.source) !== JSON.stringify(request.source)) {
+          throw new Error(`Reaction event ${request.eventId} relation ${request.relationKey} identity collision`)
+        }
+        return {
+          execution,
+          targetWimp: (await this.atomState(sql, targetAtomId))?.wimp ?? "",
+          offerSignal: false,
+        }
+      }
 
       const event = (await sql<Array<{atom: number; stateId: number; wimp: string; stateName: string}>>`
         SELECT event.atom, event.state_id AS stateId, event.wimp, event.state_name AS stateName
@@ -246,22 +312,24 @@ export class BoundaryReactionStore {
       if (!target) throw new Error(`Reaction target Atom ${targetAtomId} is unavailable`)
       const relation = await this.relation(sql, request)
       const active = relation !== null && relation.target.stateIds.includes(target.stateId)
+      const queueOrder = await this.nextQueueOrder(sql, targetAtomId)
       if (!active) {
         await sql`
           INSERT INTO boundary_reaction_execution (
             execution_id, relation_key, event_id, target_atom, target_state,
             target_state_name, source_atom, source_state, reaction,
-            status, request_json, signal_json, committed_at
+            queue_order, status, request_json, signal_json, committed_at
           ) VALUES (
             ${request.reactionExecutionId}, ${request.relationKey}, ${request.eventId},
             ${targetAtomId}, ${target.stateId}, ${target.stateName},
             ${request.source.atomId}, ${request.source.stateId}, ${request.reactionId},
-            ${"superseded"}, ${JSON.stringify(request)}, NULL, unixepoch()
+            ${queueOrder}, ${"superseded"}, ${JSON.stringify(request)}, NULL, unixepoch()
           )
         `
         return {
           execution: (await this.execution(sql, request.reactionExecutionId))!,
           targetWimp: target.wimp,
+          offerSignal: false,
         }
       }
 
@@ -269,68 +337,143 @@ export class BoundaryReactionStore {
       if (!reaction || reaction.key !== relation.reactionKey || !reaction.states.includes(target.stateId)) {
         throw new Error(`Reaction ${request.reactionId} declaration is unavailable for target ${targetAtomId}`)
       }
-      const signal: ReactionExecutionSignal = {
-        kind: REACTION_SIGNAL_KIND,
-        reactionExecutionId: request.reactionExecutionId,
-        relationKey: request.relationKey,
-        reactionId: reaction.id,
-        reactionKey: reaction.key,
-        eventId: request.eventId,
-        target: {
-          atomId: target.atomId,
-          wimp: target.wimp,
-          stateId: target.stateId,
-          state: target.stateName,
-        },
-        source: structuredClone(request.source),
-        timestamp: request.timestamp,
-        readFields: await this.readFields(sql, reaction, targetAtomId),
-        writeFields: await this.writeFields(sql, reaction),
-        massRead: await this.massKeys(sql, reaction, targetAtomId, "reaction_mass_read"),
-        massWrite: await this.massKeys(sql, reaction, targetAtomId, "reaction_mass_write"),
-        updateSource: reaction.updateSource,
-      }
       await sql`
         INSERT INTO boundary_reaction_execution (
           execution_id, relation_key, event_id, target_atom, target_state,
           target_state_name, source_atom, source_state, reaction,
-          status, request_json, signal_json
+          queue_order, status, request_json, signal_json
         ) VALUES (
           ${request.reactionExecutionId}, ${request.relationKey}, ${request.eventId},
           ${targetAtomId}, ${target.stateId}, ${target.stateName},
           ${request.source.atomId}, ${request.source.stateId}, ${request.reactionId},
-          ${"pending"}, ${JSON.stringify(request)}, ${JSON.stringify(signal)}
+          ${queueOrder}, ${"queued"}, ${JSON.stringify(request)}, NULL
         )
       `
       return {
         execution: (await this.execution(sql, request.reactionExecutionId))!,
         targetWimp: target.wimp,
+        offerSignal: false,
       }
     })
 
-    if (registered.execution.status !== "pending") {
-      return {
-        rootSrc: registered.targetWimp,
-        messages: [this.terminalMessage(registered.execution)],
+    return this.executionCommit(registered.execution, registered.targetWimp, registered.offerSignal)
+  }
+
+  private async startQueued(
+    part: Particle,
+    request: ReactionStartRequest,
+  ): Promise<BoundaryIncrementalCommit> {
+    this.assertControlIdentity(part, request)
+    const started = await this.sql.begin(async (sql) => {
+      const execution = await this.execution(sql, request.reactionExecutionId)
+      if (!execution) throw new Error(`Unknown queued Reaction execution ${request.reactionExecutionId}`)
+      this.assertExecutionIdentity(execution, request)
+      const target = await this.atomState(sql, request.targetAtomId)
+      const targetWimp = target?.wimp ?? ""
+      if (execution.status !== "queued") {
+        return {execution, targetWimp, offerSignal: false}
       }
-    }
-    const signal = registered.execution.signalJson === null
-      ? null
-      : JSON.parse(registered.execution.signalJson) as unknown
-    if (!isReactionExecutionSignal(signal)) {
-      throw new Error(`Invalid registered Reaction signal ${request.reactionExecutionId}`)
-    }
-    return {
-      rootSrc: signal.target.wimp,
-      messages: [message({
-        part: "photon",
-        op: "test",
-        path: signal.target.atomId,
-        ts: request.timestamp,
-        from: signal.reactionExecutionId,
-        value: signal,
-      })],
-    }
+      const pending = (await sql<Array<{executionId: string}>>`
+        SELECT execution_id AS executionId
+          FROM boundary_reaction_execution
+         WHERE target_atom = ${request.targetAtomId} AND status = ${"pending"}
+      `)[0]
+      if (pending) {
+        throw new Error(`Reaction target ${request.targetAtomId} already runs ${pending.executionId}`)
+      }
+      const head = (await sql<Array<{executionId: string}>>`
+        SELECT execution_id AS executionId
+          FROM boundary_reaction_execution
+         WHERE target_atom = ${request.targetAtomId} AND status = ${"queued"}
+         ORDER BY queue_order, execution_id
+         LIMIT 1
+      `)[0]
+      if (head?.executionId !== request.reactionExecutionId) {
+        throw new Error(`Reaction execution ${request.reactionExecutionId} is not the durable FIFO head`)
+      }
+
+      const trigger = this.trigger(execution)
+      const relation = target ? await this.relation(sql, trigger) : null
+      const reaction = target ? await this.reaction(sql, execution.reaction, target.wimp) : null
+      const active = target !== null && relation !== null && reaction !== null &&
+        relation.target.stateIds.includes(target.stateId) && reaction.states.includes(target.stateId)
+      if (!active) {
+        await sql`
+          UPDATE boundary_reaction_execution
+             SET status = ${"superseded"}, committed_at = unixepoch()
+           WHERE execution_id = ${request.reactionExecutionId} AND status = ${"queued"}
+        `
+        return {
+          execution: (await this.execution(sql, request.reactionExecutionId))!,
+          targetWimp: target?.wimp ?? "",
+          offerSignal: false,
+        }
+      }
+
+      const signal = await this.executionSignal(sql, trigger, target, reaction)
+      const updated = await sql<Array<{executionId: string}>>`
+        UPDATE boundary_reaction_execution
+           SET status = ${"pending"}, target_state = ${target.stateId},
+               target_state_name = ${target.stateName}, signal_json = ${JSON.stringify(signal)}
+         WHERE execution_id = ${request.reactionExecutionId} AND status = ${"queued"}
+        RETURNING execution_id AS executionId
+      `
+      if (updated.length !== 1) throw new Error(`Concurrent Reaction start ${request.reactionExecutionId}`)
+      return {
+        execution: (await this.execution(sql, request.reactionExecutionId))!,
+        targetWimp: target.wimp,
+        offerSignal: true,
+      }
+    })
+    return this.executionCommit(started.execution, started.targetWimp, started.offerSignal)
+  }
+
+  private async recoverPending(
+    part: Particle,
+    request: ReactionRecoveryRequest,
+  ): Promise<BoundaryIncrementalCommit> {
+    this.assertControlIdentity(part, request)
+    const recovered = await this.sql.begin(async (sql) => {
+      const execution = await this.execution(sql, request.reactionExecutionId)
+      if (!execution) throw new Error(`Unknown pending Reaction execution ${request.reactionExecutionId}`)
+      this.assertExecutionIdentity(execution, request)
+      const target = await this.atomState(sql, request.targetAtomId)
+      if (execution.status !== "pending") {
+        return {execution, targetWimp: target?.wimp ?? "", offerSignal: false}
+      }
+      if (execution.energy !== null) {
+        await sql`
+          UPDATE boundary_reaction_execution
+             SET status = ${"superseded"}, committed_at = unixepoch()
+           WHERE execution_id = ${request.reactionExecutionId} AND status = ${"pending"}
+        `
+        return {
+          execution: (await this.execution(sql, request.reactionExecutionId))!,
+          targetWimp: target?.wimp ?? "",
+          offerSignal: false,
+        }
+      }
+
+      const trigger = this.trigger(execution)
+      const relation = target ? await this.relation(sql, trigger) : null
+      const reaction = target ? await this.reaction(sql, execution.reaction, target.wimp) : null
+      const active = target !== null && relation !== null && reaction !== null &&
+        relation.target.stateIds.includes(target.stateId) && reaction.states.includes(target.stateId)
+      if (!active) {
+        await sql`
+          UPDATE boundary_reaction_execution
+             SET status = ${"superseded"}, committed_at = unixepoch()
+           WHERE execution_id = ${request.reactionExecutionId} AND status = ${"pending"}
+        `
+        return {
+          execution: (await this.execution(sql, request.reactionExecutionId))!,
+          targetWimp: target?.wimp ?? "",
+          offerSignal: false,
+        }
+      }
+      return {execution, targetWimp: target.wimp, offerSignal: true}
+    })
+    return this.executionCommit(recovered.execution, recovered.targetWimp, recovered.offerSignal)
   }
 
   private async selectEnergy(part: Particle): Promise<BoundaryIncrementalCommit | null> {
@@ -505,8 +648,123 @@ export class BoundaryReactionStore {
     }
   }
 
+  private async nextQueueOrder(sql: Database, targetAtomId: number): Promise<number> {
+    return Number((await sql<Array<{value: number}>>`
+      SELECT COALESCE(MAX(queue_order), 0) + 1 AS value
+        FROM boundary_reaction_execution
+       WHERE target_atom = ${targetAtomId}
+    `)[0]?.value ?? 1)
+  }
+
+  private trigger(execution: ReactionExecutionRow): ReactionTriggerRequest {
+    let value: unknown
+    try {
+      value = JSON.parse(execution.requestJson)
+    } catch {
+      throw new Error(`Invalid stored Reaction request ${execution.executionId}`)
+    }
+    if (!isReactionTriggerRequest(value)) {
+      throw new Error(`Invalid stored Reaction request ${execution.executionId}`)
+    }
+    return value
+  }
+
+  private async executionSignal(
+    sql: Database,
+    request: ReactionTriggerRequest,
+    target: AtomStateRow,
+    reaction: CanonicalReaction,
+  ): Promise<ReactionExecutionSignal> {
+    return {
+      kind: REACTION_SIGNAL_KIND,
+      reactionExecutionId: request.reactionExecutionId,
+      relationKey: request.relationKey,
+      reactionId: reaction.id,
+      reactionKey: reaction.key,
+      eventId: request.eventId,
+      target: {
+        atomId: target.atomId,
+        wimp: target.wimp,
+        stateId: target.stateId,
+        state: target.stateName,
+      },
+      source: structuredClone(request.source),
+      timestamp: request.timestamp,
+      readFields: await this.readFields(sql, reaction, target.atomId),
+      writeFields: await this.writeFields(sql, reaction),
+      massRead: await this.massKeys(sql, reaction, target.atomId, "reaction_mass_read"),
+      massWrite: await this.massKeys(sql, reaction, target.atomId, "reaction_mass_write"),
+      updateSource: reaction.updateSource,
+    }
+  }
+
+  private assertControlIdentity(
+    part: Particle,
+    request: ReactionStartRequest | ReactionRecoveryRequest,
+  ): void {
+    if (positiveId(part.path) !== request.targetAtomId || part.from !== request.reactionExecutionId) {
+      throw new Error("Reaction control path or execution identity is inconsistent")
+    }
+  }
+
+  private assertExecutionIdentity(
+    execution: ReactionExecutionRow,
+    request: ReactionStartRequest | ReactionRecoveryRequest,
+  ): void {
+    if (execution.targetAtom !== request.targetAtomId || execution.relationKey !== request.relationKey ||
+        execution.reaction !== request.reactionId) {
+      throw new Error(`Reaction control does not match execution ${request.reactionExecutionId}`)
+    }
+  }
+
+  private executionCommit(
+    execution: ReactionExecutionRow,
+    targetWimp: string,
+    offerSignal: boolean,
+  ): BoundaryIncrementalCommit {
+    if (execution.status !== "queued" && execution.status !== "pending") {
+      return {rootSrc: targetWimp, messages: [this.terminalMessage(execution)]}
+    }
+    const queue: ReactionQueueCommit = {
+      kind: REACTION_QUEUE_COMMIT_KIND,
+      queueOrder: execution.queueOrder,
+      status: execution.status,
+      request: this.trigger(execution),
+    }
+    const messages: ForceMessage[] = [message({
+      part: "photon",
+      op: "copy",
+      path: execution.targetAtom,
+      ts: Date.now(),
+      from: execution.executionId,
+      value: queue,
+    })]
+    if (execution.status === "pending" && offerSignal) {
+      let signal: unknown
+      try {
+        signal = execution.signalJson === null ? null : JSON.parse(execution.signalJson)
+      } catch {
+        throw new Error(`Invalid registered Reaction signal ${execution.executionId}`)
+      }
+      if (!isReactionExecutionSignal(signal)) {
+        throw new Error(`Invalid registered Reaction signal ${execution.executionId}`)
+      }
+      messages.push(message({
+        part: "photon",
+        op: "test",
+        path: signal.target.atomId,
+        ts: signal.timestamp,
+        from: signal.reactionExecutionId,
+        value: signal,
+      }))
+    }
+    return {rootSrc: targetWimp, messages}
+  }
+
   private terminalMessage(execution: ReactionExecutionRow): ForceMessage {
-    const status = execution.status === "pending" ? "superseded" : execution.status
+    const status = execution.status === "pending" || execution.status === "queued"
+      ? "superseded"
+      : execution.status
     const acknowledgement: ReactionResultCommit = {
       reactionExecutionId: execution.executionId,
       relationKey: execution.relationKey,
@@ -683,6 +941,7 @@ export class BoundaryReactionStore {
              source_atom AS sourceAtom,
              source_state AS sourceState,
              reaction,
+             queue_order AS queueOrder,
              energy,
              status,
              request_json AS requestJson,
@@ -699,6 +958,7 @@ export class BoundaryReactionStore {
       sourceAtom: Number(row.sourceAtom),
       sourceState: Number(row.sourceState),
       reaction: Number(row.reaction),
+      queueOrder: Number(row.queueOrder),
     } : null
   }
 

@@ -319,19 +319,19 @@ export class BoundaryExecutionStore {
              execution.energy
         FROM boundary_reaction_execution AS execution
        WHERE execution.target_atom = ${atom.id}
-         AND execution.status = ${"pending"}
+         AND execution.status IN (${"queued"}, ${"pending"})
          AND NOT EXISTS (
            SELECT 1 FROM reaction_state
             WHERE reaction_state.reaction = execution.reaction
               AND reaction_state.state = ${state.id}
          )
-       ORDER BY execution.created_at, execution.execution_id
+       ORDER BY execution.queue_order, execution.execution_id
     `
     if (supersededReactions.length > 0) await sql`
       UPDATE boundary_reaction_execution
          SET status = ${"superseded"}, committed_at = unixepoch()
        WHERE target_atom = ${atom.id}
-         AND status = ${"pending"}
+         AND status IN (${"queued"}, ${"pending"})
          AND NOT EXISTS (
            SELECT 1 FROM reaction_state
             WHERE reaction_state.reaction = boundary_reaction_execution.reaction

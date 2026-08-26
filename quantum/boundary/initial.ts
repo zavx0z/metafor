@@ -1,9 +1,15 @@
 import type {SQL} from "bun"
 import type {
   BoundaryInitialDeclaration,
+  BoundaryInitialReactionExecution,
   BoundaryInitialState,
   BoundaryInitialVariantRef,
 } from "shared/protocol/boundary/initial"
+import {
+  REACTION_QUEUE_COMMIT_KIND,
+  isReactionQueueCommit,
+  isReactionTriggerRequest,
+} from "shared/protocol/force/reaction"
 import {readBoundaryReactionRelations} from "./reaction.ts"
 type JsonRecord = Record<string, unknown>
 
@@ -192,6 +198,38 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
      WHERE status = ${"pending"}
      ORDER BY atom, created_at, execution_id
   `
+  const unfinishedReactionExecutions: BoundaryInitialReactionExecution[] = []
+  for (const execution of await sql<Array<{
+    queueOrder: number
+    status: "queued" | "pending"
+    energy: string | null
+    requestJson: string
+  }>>`
+    SELECT queue_order AS queueOrder, status, energy, request_json AS requestJson
+      FROM boundary_reaction_execution
+     WHERE status IN (${"queued"}, ${"pending"})
+     ORDER BY target_atom, queue_order, execution_id
+  `) {
+    let request: unknown
+    try {
+      request = JSON.parse(execution.requestJson)
+    } catch {
+      throw new Error("Boundary unfinished Reaction request is not valid JSON")
+    }
+    if (!isReactionTriggerRequest(request)) {
+      throw new Error("Boundary unfinished Reaction request is invalid")
+    }
+    const queue = {
+      kind: REACTION_QUEUE_COMMIT_KIND,
+      queueOrder: Number(execution.queueOrder),
+      status: execution.status,
+      request,
+    } as const
+    if (!isReactionQueueCommit(queue)) {
+      throw new Error(`Boundary unfinished Reaction ${request.reactionExecutionId} queue entry is invalid`)
+    }
+    unfinishedReactionExecutions.push({queue, energy: execution.energy})
+  }
 
   const valuesByAtom = new Map<number, Array<{field: number; valueId: number; value: unknown}>>()
   for (const row of atomFields) {
@@ -202,7 +240,7 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
   }
   const stateByAtom = new Map(atomStates.map((row) => [Number(row.atom), row.metaState] as const))
   return {
-    version: 2,
+    version: 3,
     atoms: atoms.map((atom) => ({
       id: Number(atom.id),
       wimp: atom.wimp,
@@ -217,5 +255,6 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
       state: execution.state,
     })),
     reactionRelations: await readBoundaryReactionRelations(sql),
+    unfinishedReactionExecutions,
   }
 }

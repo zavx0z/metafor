@@ -2,9 +2,9 @@
 Closed Force protocol for confirmed-State Reaction routing.
 
 Boundary publishes exact relations and confirmed State events. Matrix derives
-activity and serial order, then asks Boundary to register an execution. Only the
-registered signal is claimable by Energy. Terminal copies release Matrix's
-per-target queue.
+activity, asks Boundary to durably enqueue every match, then separately starts
+the exact FIFO head confirmed back by Boundary. Only the resulting registered
+signal is claimable by Energy. Terminal copies release Matrix's per-target lane.
 
 @packageDocumentation
 */
@@ -15,6 +15,9 @@ export const REACTION_RELATION_KIND = "reaction-relation" as const
 export const REACTION_RELATION_PATH = "reaction-link" as const
 export const REACTION_STATE_COMMIT_KIND = "state-commit" as const
 export const REACTION_TRIGGER_KIND = "reaction-trigger" as const
+export const REACTION_QUEUE_COMMIT_KIND = "reaction-queue" as const
+export const REACTION_START_KIND = "reaction-start" as const
+export const REACTION_RECOVERY_KIND = "reaction-recovery" as const
 export const REACTION_SIGNAL_KIND = "reaction" as const
 export const REACTION_CLAIM_KIND = "reaction-claim" as const
 
@@ -62,10 +65,11 @@ export type ReactionStateCommit = {
 }
 
 /**
-Matrix request for Boundary to register one queued Reaction execution.
+Matrix request for Boundary to durably enqueue one matched Reaction.
 
-This request is not Energy-ready: Boundary still validates the relation and
-event, snapshots declared dependencies and persists the execution.
+This request is not Energy-ready and never snapshots dependencies. Boundary
+validates the relation and event, persists an exact FIFO position and confirms
+it back to Matrix before a later {@link ReactionStartRequest} may promote it.
 */
 export type ReactionTriggerRequest = {
   kind: typeof REACTION_TRIGGER_KIND
@@ -82,6 +86,49 @@ export type ReactionTriggerRequest = {
   }
   timestamp: number
 }
+
+/**
+Boundary confirmation that one Matrix match is durably ordered for its target.
+
+`queued` carries no Field snapshot or resolved Mass access set. Boundary creates
+them only when the exact head becomes `pending`, after every earlier terminal
+result. Mass content itself remains lazy in Energy.
+*/
+export type ReactionQueueCommit = {
+  kind: typeof REACTION_QUEUE_COMMIT_KIND
+  queueOrder: number
+  status: "queued" | "pending"
+  request: ReactionTriggerRequest
+}
+
+/** Matrix instruction to start the exact durable FIFO head. */
+export type ReactionStartRequest = {
+  kind: typeof REACTION_START_KIND
+  reactionExecutionId: string
+  relationKey: string
+  reactionId: number
+  targetAtomId: number
+}
+
+/**
+Cold-start instruction for one Boundary-persisted pending execution.
+
+Boundary reoffers an unclaimed signal with the same identity. A previously
+claimed execution is instead superseded because its old action may already have
+written Mass.
+*/
+export type ReactionRecoveryRequest = {
+  kind: typeof REACTION_RECOVERY_KIND
+  reactionExecutionId: string
+  relationKey: string
+  reactionId: number
+  targetAtomId: number
+}
+
+export type ReactionMatrixRequest =
+  | ReactionTriggerRequest
+  | ReactionStartRequest
+  | ReactionRecoveryRequest
 
 /** Boundary-validated execution offered to Energy after durable registration. */
 export type ReactionExecutionSignal = {
@@ -182,6 +229,26 @@ export const isReactionTriggerRequest = (value: unknown): value is ReactionTrigg
   positiveId(value.targetAtomId) && isParticleTimestamp(value.timestamp) && isRecord(value.source) &&
   exactKeys(value.source, ["atomId", "wimp", "stateId", "state"]) && positiveId(value.source.atomId) &&
   nonEmptyString(value.source.wimp) && positiveId(value.source.stateId) && nonEmptyString(value.source.state)
+
+export const isReactionQueueCommit = (value: unknown): value is ReactionQueueCommit =>
+  isRecord(value) && exactKeys(value, ["kind", "queueOrder", "status", "request"]) &&
+  value.kind === REACTION_QUEUE_COMMIT_KIND && positiveId(value.queueOrder) &&
+  (value.status === "queued" || value.status === "pending") && isReactionTriggerRequest(value.request)
+
+const isReactionControlRequest = (
+  value: unknown,
+  kind: typeof REACTION_START_KIND | typeof REACTION_RECOVERY_KIND,
+): value is ReactionStartRequest | ReactionRecoveryRequest =>
+  isRecord(value) && exactKeys(value, [
+    "kind", "reactionExecutionId", "relationKey", "reactionId", "targetAtomId",
+  ]) && value.kind === kind && isReactionExecutionId(value.reactionExecutionId) &&
+  nonEmptyString(value.relationKey) && positiveId(value.reactionId) && positiveId(value.targetAtomId)
+
+export const isReactionStartRequest = (value: unknown): value is ReactionStartRequest =>
+  isReactionControlRequest(value, REACTION_START_KIND)
+
+export const isReactionRecoveryRequest = (value: unknown): value is ReactionRecoveryRequest =>
+  isReactionControlRequest(value, REACTION_RECOVERY_KIND)
 
 export const isReactionExecutionSignal = (value: unknown): value is ReactionExecutionSignal => {
   if (!isRecord(value) || !exactKeys(value, [

@@ -1,14 +1,31 @@
 import {describe, expect, test} from "bun:test"
 import {
   REACTION_RELATION_KIND,
+  REACTION_QUEUE_COMMIT_KIND,
+  REACTION_RECOVERY_KIND,
   REACTION_SIGNAL_KIND,
+  REACTION_START_KIND,
   REACTION_STATE_COMMIT_KIND,
   REACTION_TRIGGER_KIND,
   isReactionExecutionSignal,
+  isReactionQueueCommit,
+  isReactionRecoveryRequest,
   isReactionRelation,
+  isReactionStartRequest,
   isReactionStateCommit,
   isReactionTriggerRequest,
 } from "./reaction.ts"
+
+const trigger = () => ({
+  kind: REACTION_TRIGGER_KIND,
+  reactionExecutionId: "execution-1",
+  relationKey: "701:20:10",
+  reactionId: 701,
+  eventId: "event-1",
+  targetAtomId: 20,
+  source: {atomId: 10, wimp: "source/meta", stateId: 101, state: "ready"},
+  timestamp: 100,
+} as const)
 
 describe("Reaction Force protocol", () => {
   test("validates one exact potential relation", () => {
@@ -36,16 +53,7 @@ describe("Reaction Force protocol", () => {
   })
 
   test("keeps Matrix trigger separate from Boundary execution signal", () => {
-    expect(isReactionTriggerRequest({
-      kind: REACTION_TRIGGER_KIND,
-      reactionExecutionId: "execution-1",
-      relationKey: "701:20:10",
-      reactionId: 701,
-      eventId: "event-1",
-      targetAtomId: 20,
-      source: {atomId: 10, wimp: "source/meta", stateId: 101, state: "ready"},
-      timestamp: 100,
-    })).toBe(true)
+    expect(isReactionTriggerRequest(trigger())).toBe(true)
 
     const signal = {
       kind: REACTION_SIGNAL_KIND,
@@ -66,5 +74,27 @@ describe("Reaction Force protocol", () => {
     expect(isReactionExecutionSignal(signal)).toBe(true)
     expect(isReactionExecutionSignal({...signal, part: {op: "replace"}})).toBe(false)
     expect(isReactionExecutionSignal({...signal, energy: {}})).toBe(false)
+  })
+
+  test("closes durable queue commits and Matrix control requests", () => {
+    const queue = {
+      kind: REACTION_QUEUE_COMMIT_KIND,
+      queueOrder: 2,
+      status: "queued",
+      request: trigger(),
+    }
+    expect(isReactionQueueCommit(queue)).toBe(true)
+    expect(isReactionQueueCommit({...queue, queueOrder: 0})).toBe(false)
+    expect(isReactionQueueCommit({...queue, signal: {}})).toBe(false)
+
+    const control = {
+      reactionExecutionId: "execution-1",
+      relationKey: "701:20:10",
+      reactionId: 701,
+      targetAtomId: 20,
+    }
+    expect(isReactionStartRequest({kind: REACTION_START_KIND, ...control})).toBe(true)
+    expect(isReactionRecoveryRequest({kind: REACTION_RECOVERY_KIND, ...control})).toBe(true)
+    expect(isReactionStartRequest({kind: REACTION_START_KIND, ...control, eventId: "event-1"})).toBe(false)
   })
 })

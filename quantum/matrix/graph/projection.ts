@@ -191,10 +191,11 @@ export function readMatrixProjectionFragment(atomIds: Iterable<number>): Boundar
     .flatMap((src) => declarationsBySrc.get(src) ?? [])
   const selected = new Set(atoms.map((atom) => atom.id))
   return {
-    version: 2,
+    version: 3,
     atoms: clone(atoms),
     declarations: clone(declarations),
     pendingProcessExecutions: [],
+    unfinishedReactionExecutions: [],
     reactionRelations: clone(requireProjection().reactionRelations.filter((relation) =>
       selected.has(relation.source.atomId) && selected.has(relation.target.atomId))),
   }

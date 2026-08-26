@@ -1,4 +1,5 @@
 import type {MatrixInputData} from "./data.ts"
+import type {BoundaryInitialReactionExecution} from "shared/protocol/boundary/initial"
 import type {ProcessExecutionId} from "shared/protocol/force/execution"
 import type {ReactionRelation} from "shared/protocol/force/reaction"
 
@@ -82,7 +83,7 @@ export interface MatrixRuntimeTopology {
  */
 export interface MatrixRuntimeSnapshot {
   ok: true
-  version: 2
+  version: 3
   runtime: {
     atomIdByBraneIndex: number[]
     /** Atom whose matching prior pending Process must be replaced after cold birth. */
@@ -93,6 +94,7 @@ export interface MatrixRuntimeSnapshot {
     /** Canonical Matrix field identity remains the explicit Atom/Field pair. */
     runtimeFieldIndexByAtomFieldId: Array<[atomId: number, fieldId: number, runtimeFieldIndex: number]>
     reactionRelations: ReactionRelation[]
+    reactionExecutions: BoundaryInitialReactionExecution[]
     confirmedStateIdByAtom: Array<[atomId: number, stateId: number | null]>
   }
   data: Required<Pick<MatrixInputData, "fields" | "branes" | "stateNames">> &

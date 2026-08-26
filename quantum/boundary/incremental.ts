@@ -3449,13 +3449,13 @@ export class BoundaryIncrementalStore {
         SELECT execution_id AS executionId, reaction AS reactionId,
                target_atom AS targetAtom, energy
           FROM boundary_reaction_execution
-         WHERE relation_key = ${key} AND status = ${"pending"}
-         ORDER BY created_at, execution_id
+         WHERE relation_key = ${key} AND status IN (${"queued"}, ${"pending"})
+         ORDER BY queue_order, execution_id
       `) {
         await sql`
           UPDATE boundary_reaction_execution
              SET status = ${"superseded"}, committed_at = unixepoch()
-           WHERE execution_id = ${execution.executionId} AND status = ${"pending"}
+           WHERE execution_id = ${execution.executionId} AND status IN (${"queued"}, ${"pending"})
         `
         const acknowledgement: ReactionResultCommit = {
           reactionExecutionId: execution.executionId,

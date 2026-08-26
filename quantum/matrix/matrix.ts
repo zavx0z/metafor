@@ -26,8 +26,10 @@ import type {
 } from "shared/protocol/force/execution"
 import {isProcessExecutionId} from "shared/protocol/force/execution"
 import {
+  REACTION_QUEUE_COMMIT_KIND,
   REACTION_RELATION_PATH,
   REACTION_STATE_COMMIT_KIND,
+  isReactionQueueCommit,
   isReactionRelation,
   isReactionResultCommit,
   isReactionStateCommit,
@@ -41,6 +43,7 @@ import {Force} from "shared/transport/force"
 import {
   consumePreparedMatrixBirth,
   consumePreparedMatrixProcessRestarts,
+  consumePreparedMatrixReactionExecutions,
   consumePreparedMatrixReactionRelations,
   consumePreparedMatrixReactionStates,
 } from "./birth.ts"
@@ -517,7 +520,8 @@ const preparedBirth = consumePreparedMatrixBirth()
 const restartProcessAtomIds = preparedBirth ? consumePreparedMatrixProcessRestarts() : []
 const initialReactionRelations = preparedBirth ? consumePreparedMatrixReactionRelations() : []
 const initialReactionStates = preparedBirth ? consumePreparedMatrixReactionStates() : []
-reactionRouter.hydrate(initialReactionRelations, initialReactionStates)
+const initialReactionExecutions = preparedBirth ? consumePreparedMatrixReactionExecutions() : []
+reactionRouter.hydrate(initialReactionRelations, initialReactionStates, initialReactionExecutions)
 if (preparedBirth) initializeIncrementalMatrixIndexes()
 const birthChanges = preparedBirth ? await weakRunStep(StepMode.UndefinedOnly) : []
 const restartedProcessStates: [number, number][] = []
@@ -549,6 +553,15 @@ force.onImpulse = async (impulse) => {
   }
 
   const projection = applyMatrixProjectionParticle(part)
+
+  if (part.part === "photon" && part.op === "copy" && isRecord(part.value) && part.value.kind === REACTION_QUEUE_COMMIT_KIND) {
+    if (!isReactionQueueCommit(part.value) || part.path !== part.value.request.targetAtomId ||
+        part.from !== part.value.request.reactionExecutionId) {
+      throw new Error("Matrix received an invalid Reaction queue commit")
+    }
+    reactionRouter.confirmQueue(part.value)
+    return
+  }
 
   if (part.part === "photon" && part.op === "copy" && isRecord(part.value) && part.value.kind === REACTION_STATE_COMMIT_KIND) {
     if (!isReactionStateCommit(part.value)) throw new Error("Matrix received an invalid confirmed Reaction State")
@@ -582,6 +595,7 @@ force.onImpulse = async (impulse) => {
 }
 
 if (birthPhotonTargets.length > 0) publishPhotonChanges(birthPhotonTargets)
+reactionRouter.resumeColdStart()
 
 export {FieldType} from "./gravity"
 export {gravity$}

@@ -84,11 +84,12 @@ describe("Boundary Oracle", () => {
       id: "matrix-birth",
       ok: true,
       result: {
-        version: 2,
+        version: 3,
         atoms: [],
         declarations: [],
         pendingProcessExecutions: [],
         reactionRelations: [],
+        unfinishedReactionExecutions: [],
       },
     }])
 

@@ -4,8 +4,10 @@ import type {Particle} from "shared/protocol/force/particle"
 import {
   REACTION_CLAIM_KIND,
   isReactionExecutionSignal,
+  isReactionQueueCommit,
   isReactionResultCommit,
   isReactionStateCommit,
+  type ReactionMatrixRequest,
   type ReactionResultProposal,
   type ReactionTriggerRequest,
 } from "shared/protocol/force/reaction"
@@ -84,23 +86,24 @@ describe("Reaction confirmed State lifecycle", () => {
         from: "target-idle-event", value: "idle",
       }))
       const initial = await boundary.initialState()
-      expect(initial.version).toBe(2)
+      expect(initial.version).toBe(3)
       expect(initial.reactionRelations).toHaveLength(1)
       const relation = initial.reactionRelations[0]!
 
       const localStateIds = new Map(initial.atoms.map((atom) => [atom.id, atom.state]))
       const wimps = new Map(initial.atoms.map((atom) => [atom.id, atom.wimp]))
-      const triggers: ReactionTriggerRequest[] = []
+      const requests: ReactionMatrixRequest[] = []
       let reactionSequence = 0
       const router = new MatrixReactionRouter({
         currentStateId: (atomId) => localStateIds.get(atomId) ?? null,
         currentWimp: (atomId) => wimps.get(atomId) ?? null,
         executionId: () => `reaction-execution-${++reactionSequence}`,
-        emit: (request) => triggers.push(request),
+        emit: (request) => requests.push(request),
       })
       router.hydrate(
         initial.reactionRelations,
         initial.atoms.map((atom) => [atom.id, atom.state] as const),
+        initial.unfinishedReactionExecutions,
       )
 
       const readyState = relation.source.states.find((state) => state.name === "ready")!
@@ -113,17 +116,32 @@ describe("Reaction confirmed State lifecycle", () => {
         .map(({parts}) => parts[0]?.value)
         .find(isReactionStateCommit)
       if (!confirmed) throw new Error("Boundary did not confirm source State")
-      router.confirmState(confirmed, 2)
-      expect(triggers).toHaveLength(1)
+      const firstTrigger = router.confirmState(confirmed, 2)[0]
+      if (!firstTrigger) throw new Error("Matrix did not enqueue first Reaction")
 
       const registration = await boundary.materialize(message({
         part: "photon",
         op: "test",
         path: targetAtomId,
-        from: triggers[0]!.reactionExecutionId,
-        value: triggers[0]!,
+        from: firstTrigger.reactionExecutionId,
+        value: firstTrigger,
       }))
-      const signal = registration?.messages
+      const firstQueue = registration?.messages
+        .map(({parts}) => parts[0]?.value)
+        .find(isReactionQueueCommit)
+      if (!firstQueue) throw new Error("Boundary did not confirm first Reaction queue entry")
+      const firstStart = router.confirmQueue(firstQueue)
+      if (!firstStart) throw new Error("Matrix did not start first Reaction queue entry")
+      const firstStarted = await boundary.materialize(message({
+        part: "photon", op: "test", path: targetAtomId,
+        from: firstStart.reactionExecutionId, value: firstStart,
+      }))
+      const firstPendingQueue = firstStarted?.messages
+        .map(({parts}) => parts[0]?.value)
+        .find(isReactionQueueCommit)
+      if (!firstPendingQueue) throw new Error("Boundary did not promote first Reaction queue entry")
+      router.confirmQueue(firstPendingQueue)
+      const signal = firstStarted?.messages
         .map(({parts}) => parts[0]?.value)
         .find(isReactionExecutionSignal)
       if (!signal) throw new Error("Boundary did not register Reaction execution")
@@ -182,9 +200,19 @@ describe("Reaction confirmed State lifecycle", () => {
         .map(({parts}) => parts[0]?.value)
         .find(isReactionStateCommit)
       if (!secondReadyConfirmed) throw new Error("Boundary did not confirm second ready State")
-      router.confirmState(secondReadyConfirmed, 5)
+      const secondTrigger = router.confirmState(secondReadyConfirmed, 5)[0]
+      if (!secondTrigger) throw new Error("Matrix did not enqueue second Reaction")
+      const secondQueued = await boundary.materialize(message({
+        part: "photon", op: "test", path: targetAtomId,
+        from: secondTrigger.reactionExecutionId, value: secondTrigger,
+      }))
+      const secondQueue = secondQueued?.messages
+        .map(({parts}) => parts[0]?.value)
+        .find(isReactionQueueCommit)
+      if (!secondQueue) throw new Error("Boundary did not confirm second Reaction queue entry")
+      router.confirmQueue(secondQueue)
+      expect(secondQueue.status).toBe("queued")
       expect(router.queued(targetAtomId)).toBe(1)
-      expect(triggers).toHaveLength(1)
 
       let history: string[] = []
       const massHandle = {
@@ -215,23 +243,26 @@ describe("Reaction confirmed State lifecycle", () => {
       expect(terminal?.op).toBe("copy")
       expect(terminal?.value).toMatchObject({status: "committed", relationKey: relation.key})
       if (!isReactionResultCommit(terminal?.value)) throw new Error("Boundary did not acknowledge Reaction execution")
-      const secondTrigger = router.settle(terminal.value)
-      const emittedSecond = triggers[1]
-      if (!secondTrigger || !emittedSecond) throw new Error("Matrix did not release the second Reaction trigger")
-      expect(secondTrigger).toEqual(emittedSecond)
-      expect(router.pending(targetAtomId)).toBe(secondTrigger.reactionExecutionId)
+      const secondStart = router.settle(terminal.value)
+      if (!secondStart) throw new Error("Matrix did not start the second durable Reaction")
 
       const secondRegistration = await boundary.materialize(message({
         part: "photon",
         op: "test",
         path: targetAtomId,
-        from: secondTrigger!.reactionExecutionId,
-        value: secondTrigger!,
+        from: secondStart.reactionExecutionId,
+        value: secondStart,
       }))
+      const secondPendingQueue = secondRegistration?.messages
+        .map(({parts}) => parts[0]?.value)
+        .find(isReactionQueueCommit)
+      if (!secondPendingQueue) throw new Error("Boundary did not promote second Reaction queue entry")
+      router.confirmQueue(secondPendingQueue)
       const secondSignal = secondRegistration?.messages
         .map(({parts}) => parts[0]?.value)
         .find(isReactionExecutionSignal)
       if (!secondSignal) throw new Error("Boundary did not register second Reaction execution")
+      expect(router.pending(targetAtomId)).toBe(secondSignal.reactionExecutionId)
       expect(secondSignal.readFields[0]?.[2]).toBe(1)
       await boundary.materialize(message({
         part: "z",

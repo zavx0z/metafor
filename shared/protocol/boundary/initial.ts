@@ -1,6 +1,6 @@
 import type {Particle} from "shared/protocol/force/particle"
 import type {ProcessExecutionId} from "shared/protocol/force/execution"
-import type {ReactionRelation} from "shared/protocol/force/reaction"
+import type {ReactionQueueCommit, ReactionRelation} from "shared/protocol/force/reaction"
 
 /** Stable canonical enum identity; itemValue is resolved from the current Variant declaration. */
 export type BoundaryInitialVariantRef = {kind: "enum"; variant: number}
@@ -35,14 +35,27 @@ export type BoundaryInitialPendingProcessExecution = {
   state: string
 }
 
+/**
+One durable Reaction queue entry that was unfinished at the initial SQL cut.
+
+`energy` is non-null after an old Energy claim. Matrix passes that distinction
+back to Boundary recovery instead of guessing whether the old action wrote Mass.
+*/
+export type BoundaryInitialReactionExecution = {
+  queue: ReactionQueueCommit
+  energy: string | null
+}
+
 /** Canonical current Boundary data used by Matrix during server birth. */
 export type BoundaryInitialState = {
-  version: 2
+  version: 3
   atoms: BoundaryInitialAtom[]
   declarations: BoundaryInitialDeclaration[]
   pendingProcessExecutions: BoundaryInitialPendingProcessExecution[]
   /** Complete exact potential relations resolved by Boundary at this same cut. */
   reactionRelations: ReactionRelation[]
+  /** Durable per-target FIFO entries, ordered by target and queue order. */
+  unfinishedReactionExecutions: BoundaryInitialReactionExecution[]
 }
 
 export const BOUNDARY_INITIAL_STATE_METHOD = "boundary.initialState.read" as const

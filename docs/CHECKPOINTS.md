@@ -106,6 +106,12 @@ acceptance. Перезапуск восстанавливает точные sen
 frontiers; unresolved delivery после crash вызывает fail-stop, а не
 пропускается.
 
+Reaction enqueue считается применённым Matrix только после принятия Dark всех
+совпавших отдельных Particles. Если Boundary ещё не записал одну из них,
+обычное receipt recovery доставляет её после cold birth, а Boundary queue copy
+возвращает durable элемент новой Matrix. Очередь не восстанавливается перебором
+старых State: появившаяся позже relation не должна проигрывать прежнее событие.
+
 Пустой tracker с sequence `0` не доказывает applied-through состояние уже
 существующих Boundary/Mass. Первый live baseline строится только остановленным
 cold capture: pre-cut Boundary copy для sequence `0` и остановленный current
@@ -133,6 +139,9 @@ Live Energy objects (`WebSocket`, `MediaStream`, tracks и другие handles
 процессов) не serializable и не синхронизируются. Другой device проверяет
 выбранный commit, materialize локальные Mass files по сохранённым Boundary
 identities и создаёт новые локальные Energy handles обычным lifecycle.
+Незавершённая Reaction с уже выбранной Energy также не является replay action:
+её прежние Mass writes сохраняются, execution становится `superseded`, а
+следующий durable элемент начинает Matrix.
 
 Read-only isolated replay не меняет live contour. Применение checkpoint в live
 Universe является отдельным owner-approved full cold cut с backup, новым

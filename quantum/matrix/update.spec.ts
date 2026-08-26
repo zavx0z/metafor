@@ -6,8 +6,9 @@ import {prepareMatrixBirthFixture} from "./tests/shared/fixtures.ts"
 const previousBackend = Bun.env.METAFOR_WEAK_BACKEND
 
 const initialState = (): BoundaryInitialState => ({
-  version: 2,
+  version: 3,
   reactionRelations: [],
+  unfinishedReactionExecutions: [],
   pendingProcessExecutions: [],
   atoms: [{
     id: 17,

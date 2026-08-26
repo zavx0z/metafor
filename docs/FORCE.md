@@ -49,7 +49,10 @@ Reaction проходит тем же каналом несколькими са
 ```text
 Boundary graviton reaction-link add/replace/remove
 Boundary photon/copy state-commit
-Matrix photon/test reaction-trigger
+Matrix photon/test reaction-trigger enqueue
+Boundary photon/copy reaction-queue queued
+Matrix photon/test reaction-start
+Boundary photon/copy reaction-queue pending
 Boundary photon/test registered Reaction execution
 Energy z/test claim
 Boundary z/copy grant
@@ -59,10 +62,18 @@ Boundary w+/w- copy terminal result
 
 `state-commit` появляется только после настоящего изменения State и несёт
 stable event identity без предыдущего State. `reaction-trigger` ещё не может
-исполняться Energy: Boundary сначала проверяет exact relation и event и
-регистрирует execution. Terminal copy освобождает одну очередь target Atom в
-Matrix. Каждое сообщение остаётся одной Particle; скрытого batch или отдельного
-Reaction transport нет.
+исполняться Energy: Matrix отправляет отдельный enqueue для каждого совпадения,
+а Boundary подтверждает его durable FIFO-место без снимка Fields. Только
+отдельный `reaction-start` точного head создаёт снимок и переводит запись в
+`pending`. Terminal copy освобождает очередь target Atom в Matrix. Каждое
+сообщение остаётся одной Particle; скрытого batch или отдельного Reaction
+transport нет.
+
+При холодном рождении Matrix отправляет `reaction-recovery` для сохранённого
+`pending`. Boundary повторно предлагает signal только пока Energy не была
+выбрана. Выбранное execution завершается как `superseded`, потому что прежний
+action мог уже записать Mass. После terminal copy Matrix обычным
+`reaction-start` продолжает следующий durable head.
 
 Для causal `dissolve` multi-entity Boundary commit не становится batch wire
 message. Non-live admission protocol сохраняет ordered post-commit plan:
@@ -153,6 +164,10 @@ Bulk также принимаются по одной entity в одном `For
 acceptance и новый пользовательский patch не создаются; уже подтверждённые
 домены повторной доставки не получают. Обычный ingress остаётся закрыт до
 завершения recovery, а несоответствие receipt и history приводит к fail-stop.
+Если Matrix enqueue уже принят Dark, но ещё не записан Boundary к моменту нового
+начального снимка, эта же доставка восстанавливает запись, а Boundary queue copy
+добавляет её в новую Matrix. Текущее или старое State источника для этого не
+проигрывается повторно.
 
 ## Текущая пауза и один шаг
 

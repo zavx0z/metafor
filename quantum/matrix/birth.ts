@@ -1,12 +1,13 @@
 import type {
   BoundaryInitialDeclaration,
+  BoundaryInitialReactionExecution,
   BoundaryInitialState,
   BoundaryInitialVariantRef,
 } from "shared/protocol/boundary/initial"
 import type {MatrixConditionValue} from "@matrix/types/condition"
 import type {MatrixBraneValue, MatrixFieldRecord, MatrixInputBrane} from "@matrix/types/data"
 import type {MatrixData} from "@matrix/types/store"
-import {isReactionRelation, type ReactionRelation} from "shared/protocol/force/reaction"
+import {isReactionQueueCommit, isReactionRelation, type ReactionRelation} from "shared/protocol/force/reaction"
 import {
   STATE_NONE,
   STATE_UNDEFINED,
@@ -37,10 +38,16 @@ const fieldType = {
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
+const isInitialReactionExecution = (value: unknown): value is BoundaryInitialReactionExecution =>
+  isRecord(value) && Reflect.ownKeys(value).length === 2 && isReactionQueueCommit(value.queue) &&
+  (value.energy === null || typeof value.energy === "string")
+
 const isBoundaryInitialState = (value: unknown): value is BoundaryInitialState =>
-  isRecord(value) && value.version === 2 && Array.isArray(value.atoms) &&
+  isRecord(value) && value.version === 3 && Array.isArray(value.atoms) &&
   Array.isArray(value.declarations) && Array.isArray(value.pendingProcessExecutions) &&
-  Array.isArray(value.reactionRelations) && value.reactionRelations.every(isReactionRelation)
+  Array.isArray(value.reactionRelations) && value.reactionRelations.every(isReactionRelation) &&
+  Array.isArray(value.unfinishedReactionExecutions) &&
+  value.unfinishedReactionExecutions.every(isInitialReactionExecution)
 
 const integer = (value: unknown): number | null =>
   typeof value === "number" && Number.isSafeInteger(value) ? value : null
@@ -388,7 +395,7 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
 
   return {
     ok: true,
-    version: 2,
+    version: 3,
     runtime: {
       atomIdByBraneIndex,
       restartProcessAtomIds,
@@ -397,6 +404,7 @@ export function buildMatrixRuntime(initial: BoundaryInitialState): MatrixRuntime
       atomIdsByWimpSrc: [...atomIdsByWimpSrc.entries()].map(([src, atomIds]) => [src, [...atomIds]]),
       runtimeFieldIndexByAtomFieldId,
       reactionRelations: clone(initial.reactionRelations),
+      reactionExecutions: clone(initial.unfinishedReactionExecutions),
       confirmedStateIdByAtom: initial.atoms.map((atom) => [atom.id, atom.state]),
     },
     data: {
@@ -426,6 +434,7 @@ let preparedBirth = false
 let preparedRestartProcessAtomIds: number[] = []
 let preparedReactionRelations: ReactionRelation[] = []
 let preparedReactionStates: Array<[number, number | null]> = []
+let preparedReactionExecutions: BoundaryInitialReactionExecution[] = []
 
 const prepareMatrixProjection = async (
   value: unknown,
@@ -469,6 +478,7 @@ const prepareMatrixProjection = async (
     preparedRestartProcessAtomIds = [...snapshot.runtime.restartProcessAtomIds]
     preparedReactionRelations = clone(snapshot.runtime.reactionRelations)
     preparedReactionStates = clone(snapshot.runtime.confirmedStateIdByAtom)
+    preparedReactionExecutions = clone(snapshot.runtime.reactionExecutions)
   }
 
   return {
@@ -516,5 +526,12 @@ export function consumePreparedMatrixReactionRelations(): ReactionRelation[] {
 export function consumePreparedMatrixReactionStates(): Array<[number, number | null]> {
   const prepared = preparedReactionStates
   preparedReactionStates = []
+  return prepared
+}
+
+/** Durable unfinished Reaction work from the same canonical initial cut. */
+export function consumePreparedMatrixReactionExecutions(): BoundaryInitialReactionExecution[] {
+  const prepared = preparedReactionExecutions
+  preparedReactionExecutions = []
   return prepared
 }
