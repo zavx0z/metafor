@@ -10,6 +10,8 @@
 
 /** Schema marker единственного публичного Graph-контракта. */
 export const GRAPH_SCHEMA = "metafor/graph" as const
+/** Schema marker одной ref-based разницы между двумя валидными Graph. */
+export const GRAPH_DELTA_SCHEMA = "metafor/graph-delta/v1" as const
 /** Dark Oracle method, возвращающий полный текущий Graph без client-selected root. */
 export const READ_GRAPH_METHOD = "readGraph" as const
 
@@ -471,6 +473,112 @@ export interface Graph {
   }
 }
 
+/** Lowercase SHA-256 canonical Graph bytes with an explicit algorithm prefix. */
+export type GraphDigest = `sha256:${string}`
+
+/** Stable identity of one runtime occurrence, independent from tree placement. */
+export type RuntimeNodeRef = AtomRef | TopologyRef
+
+/**
+Runtime occurrence data without nested placement.
+
+Containment and sibling order are changed only by `children`, so moving a node
+does not replace its semantic data or address it by an array position.
+*/
+export type RuntimeNodeHead =
+  | Omit<RuntimeAtom, "children">
+  | Omit<RuntimeTopology, "children">
+
+/** Add or replace one complete template selected by its canonical Meta identity. */
+export type GraphDeltaTemplateWrite = {
+  op: "add" | "replace"
+  target: {kind: "template"; ref: MetaAddress}
+  value: MetaTemplate
+}
+
+/** Remove one complete template by canonical Meta identity. */
+export type GraphDeltaTemplateRemove = {
+  op: "remove"
+  target: {kind: "template"; ref: MetaAddress}
+}
+
+/** Add or replace runtime data while preserving placement as a separate relation. */
+export type GraphDeltaRuntimeNodeWrite = {
+  op: "add" | "replace"
+  target: {kind: "runtime-node"; ref: RuntimeNodeRef}
+  value: RuntimeNodeHead
+}
+
+/** Remove one runtime occurrence by stable ref. Descendants remain explicit changes. */
+export type GraphDeltaRuntimeNodeRemove = {
+  op: "remove"
+  target: {kind: "runtime-node"; ref: RuntimeNodeRef}
+}
+
+/**
+Replace one complete ordered child-ref list.
+
+`parent: null` addresses `Graph.runtime.roots`. For a runtime node, `value: null`
+preserves an absent optional `children` member; an empty array preserves an
+explicit empty member. This distinction keeps canonical Graph bytes exact.
+*/
+export type GraphDeltaChildrenReplace = {
+  op: "replace"
+  target: {kind: "children"; parent: RuntimeNodeRef | null}
+  value: RuntimeNodeRef[] | null
+}
+
+/** Add or replace one exact Boundary-resolved Reaction relation. */
+export type GraphDeltaReactionRelationWrite = {
+  op: "add" | "replace"
+  target: {kind: "reaction-relation"; ref: ReactionRelationRef}
+  value: RuntimeReactionRelation
+}
+
+/** Remove one exact Reaction relation by stable ref. */
+export type GraphDeltaReactionRelationRemove = {
+  op: "remove"
+  target: {kind: "reaction-relation"; ref: ReactionRelationRef}
+}
+
+/**
+Replace deterministic order of the flat runtime Reaction relation projection.
+
+Relation identity and content stay in their own changes; this list preserves
+exact Graph bytes without positional mutation targets.
+*/
+export type GraphDeltaReactionOrderReplace = {
+  op: "replace"
+  target: {kind: "reaction-order"}
+  value: ReactionRelationRef[]
+}
+
+/** Closed semantic operations accepted by one atomic GraphDelta application. */
+export type GraphDeltaChange =
+  | GraphDeltaTemplateWrite
+  | GraphDeltaTemplateRemove
+  | GraphDeltaRuntimeNodeWrite
+  | GraphDeltaRuntimeNodeRemove
+  | GraphDeltaChildrenReplace
+  | GraphDeltaReactionRelationWrite
+  | GraphDeltaReactionRelationRemove
+  | GraphDeltaReactionOrderReplace
+
+/**
+Ref-based difference between two complete Graph snapshots of the same root.
+
+The delta is a derived read artifact. It is not an authoring command, Force
+Particle, canonical history or second Store. `baseDigest` and `resultDigest`
+make detached application fail closed before exposing a result.
+*/
+export interface GraphDelta {
+  schema: typeof GRAPH_DELTA_SCHEMA
+  root: MetaAddress
+  baseDigest: GraphDigest
+  resultDigest: GraphDigest
+  changes: GraphDeltaChange[]
+}
+
 /** Одна точная проблема закрытой Graph validation по JSON Pointer. */
 export interface ValidationIssue {
   path: JsonPointer
@@ -483,9 +591,10 @@ export type ValidationResult<T> =
   | {ok: true; value: T}
   | {ok: false; issues: ValidationIssue[]}
 
-/** Closed validation surface for the single Graph contract. */
+/** Closed validation surface for Graph snapshots and structural deltas. */
 export interface GraphValidators {
   graph(input: unknown): ValidationResult<Graph>
+  delta(input: unknown): ValidationResult<GraphDelta>
 }
 
 type RecordValue = Record<string, unknown>
@@ -516,6 +625,7 @@ const ATOM_REF = /^atom:[1-9]\d*$/
 const TOPOLOGY_REF = /^topology:[1-9]\d*$/
 const MASS_REF = /^mass:[A-Za-z0-9][A-Za-z0-9._:-]*$/
 const REACTION_RELATION_REF = /^reaction:[A-Za-z0-9][A-Za-z0-9._:-]*$/
+const GRAPH_DIGEST = /^sha256:[a-f0-9]{64}$/
 
 const isRecord = (value: unknown): value is RecordValue => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false
@@ -588,6 +698,18 @@ class Validator {
   ): value is string {
     if (typeof value === "string" && pattern.test(value)) return true
     this.issue(path, "invalid_ref", `${name} is not a canonical typed ref`)
+    return false
+  }
+
+  runtimeNodeRef(value: unknown, path: JsonPointer, name: string): value is RuntimeNodeRef {
+    if (typeof value === "string" && (ATOM_REF.test(value) || TOPOLOGY_REF.test(value))) return true
+    this.issue(path, "invalid_ref", `${name} is not a canonical Atom or Topology ref`)
+    return false
+  }
+
+  digest(value: unknown, path: JsonPointer): value is GraphDigest {
+    if (typeof value === "string" && GRAPH_DIGEST.test(value)) return true
+    this.issue(path, "invalid_digest", "Graph digest must be lowercase sha256:<64 hex>")
     return false
   }
 
@@ -1953,6 +2075,229 @@ class Validator {
     }
   }
 
+  deltaRuntimeNodeHead(
+    value: unknown,
+    path: JsonPointer,
+    targetRef: RuntimeNodeRef,
+  ): void {
+    if (!this.record(value, path, "GraphDelta runtime node value")) return
+    if (value.kind === "atom") {
+      this.closed(value, path, ["ref", "kind", "declaration", "meta", "state", "values", "mass"])
+      this.required(value, path, ["ref", "kind", "declaration", "meta", "state", "values", "mass"])
+      if (this.typedRef(value.ref, childPath(path, "ref"), "Atom ref", ATOM_REF) && value.ref !== targetRef) {
+        this.issue(childPath(path, "ref"), "target_ref_mismatch", "Runtime Atom value ref must match its delta target")
+      }
+      this.string(value.declaration, childPath(path, "declaration"), "Runtime Atom declaration")
+      this.address(value.meta, childPath(path, "meta"))
+      if (value.state !== null) this.string(value.state, childPath(path, "state"), "Runtime Atom State")
+      this.record(value.values, childPath(path, "values"), "Runtime Atom values")
+      this.array(value.mass, childPath(path, "mass"), "Runtime Atom Mass")
+      return
+    }
+    if (value.kind === "topology") {
+      this.closed(value, path, ["ref", "kind", "declaration", "topology"])
+      this.required(value, path, ["ref", "kind", "declaration", "topology"])
+      if (this.typedRef(value.ref, childPath(path, "ref"), "Topology ref", TOPOLOGY_REF) && value.ref !== targetRef) {
+        this.issue(childPath(path, "ref"), "target_ref_mismatch", "Runtime Topology value ref must match its delta target")
+      }
+      this.string(value.declaration, childPath(path, "declaration"), "Runtime Topology declaration")
+      if (!TOPOLOGIES.has(value.topology as string)) {
+        this.issue(childPath(path, "topology"), "invalid_topology", "Runtime topology must be fuzzy, axion or macho")
+      }
+      return
+    }
+    this.issue(childPath(path, "kind"), "invalid_runtime_kind", "GraphDelta runtime node must be atom or topology")
+  }
+
+  deltaReactionRelation(
+    value: unknown,
+    path: JsonPointer,
+    targetRef: ReactionRelationRef,
+  ): void {
+    if (!this.record(value, path, "GraphDelta Reaction relation value")) return
+    this.closed(value, path, ["ref", "kind", "reaction", "source", "target", "active"])
+    this.required(value, path, ["ref", "kind", "reaction", "source", "target", "active"])
+    if (
+      this.typedRef(value.ref, childPath(path, "ref"), "Reaction relation ref", REACTION_RELATION_REF) &&
+      value.ref !== targetRef
+    ) {
+      this.issue(childPath(path, "ref"), "target_ref_mismatch", "Reaction relation value ref must match its delta target")
+    }
+    if (value.kind !== "reaction") {
+      this.issue(childPath(path, "kind"), "invalid_literal", "Reaction relation kind must be reaction")
+    }
+    const reactionPath = childPath(path, "reaction")
+    if (this.record(value.reaction, reactionPath, "Reaction declaration reference")) {
+      this.closed(value.reaction, reactionPath, ["meta", "key"])
+      this.required(value.reaction, reactionPath, ["meta", "key"])
+      this.address(value.reaction.meta, childPath(reactionPath, "meta"))
+      this.nonEmptyString(value.reaction.key, childPath(reactionPath, "key"), "Reaction key")
+    }
+    for (const side of ["source", "target"] as const) {
+      const sidePath = childPath(path, side)
+      if (!this.record(value[side], sidePath, `Reaction ${side}`)) continue
+      this.closed(value[side], sidePath, ["atom", "states"])
+      this.required(value[side], sidePath, ["atom", "states"])
+      this.typedRef(value[side].atom, childPath(sidePath, "atom"), `Reaction ${side} Atom ref`, ATOM_REF)
+      const statesPath = childPath(sidePath, "states")
+      if (this.stringArray(value[side].states, statesPath, `Reaction ${side} States`)) {
+        this.unique(value[side].states, statesPath, `Reaction ${side} State`)
+      }
+    }
+    if (typeof value.active !== "boolean") {
+      this.issue(childPath(path, "active"), "invalid_type", "Reaction relation active must be boolean")
+    }
+  }
+
+  deltaChange(
+    value: unknown,
+    path: JsonPointer,
+    targets: Set<string>,
+  ): void {
+    if (!this.record(value, path, "GraphDelta change")) return
+    const targetPath = childPath(path, "target")
+    if (!this.record(value.target, targetPath, "GraphDelta target")) {
+      this.closed(value, path, ["op", "target", "value"])
+      this.required(value, path, ["op", "target"])
+      return
+    }
+    const kind = value.target.kind
+    let targetKey: string | null = null
+
+    if (kind === "template") {
+      this.closed(value.target, targetPath, ["kind", "ref"])
+      this.required(value.target, targetPath, ["kind", "ref"])
+      const refOk = this.address(value.target.ref, childPath(targetPath, "ref"))
+      targetKey = refOk ? `template\u0000${value.target.ref}` : null
+      if (value.op === "remove") {
+        this.closed(value, path, ["op", "target"])
+        this.required(value, path, ["op", "target"])
+      } else if (value.op === "add" || value.op === "replace") {
+        this.closed(value, path, ["op", "target", "value"])
+        this.required(value, path, ["op", "target", "value"])
+        this.template(value.value, childPath(path, "value"))
+      } else {
+        this.issue(childPath(path, "op"), "invalid_delta_operation", "Template delta op must be add, replace or remove")
+      }
+    } else if (kind === "runtime-node") {
+      this.closed(value.target, targetPath, ["kind", "ref"])
+      this.required(value.target, targetPath, ["kind", "ref"])
+      const targetRef = value.target.ref
+      const refOk = this.runtimeNodeRef(targetRef, childPath(targetPath, "ref"), "Runtime node ref")
+      targetKey = refOk ? `runtime-node\u0000${targetRef}` : null
+      if (value.op === "remove") {
+        this.closed(value, path, ["op", "target"])
+        this.required(value, path, ["op", "target"])
+      } else if ((value.op === "add" || value.op === "replace") && refOk) {
+        this.closed(value, path, ["op", "target", "value"])
+        this.required(value, path, ["op", "target", "value"])
+        this.deltaRuntimeNodeHead(value.value, childPath(path, "value"), targetRef)
+      } else if (value.op !== "add" && value.op !== "replace") {
+        this.issue(childPath(path, "op"), "invalid_delta_operation", "Runtime node delta op must be add, replace or remove")
+      }
+    } else if (kind === "children") {
+      this.closed(value.target, targetPath, ["kind", "parent"])
+      this.required(value.target, targetPath, ["kind", "parent"])
+      const parentOk = value.target.parent === null ||
+        this.runtimeNodeRef(value.target.parent, childPath(targetPath, "parent"), "Children parent ref")
+      targetKey = parentOk ? `children\u0000${value.target.parent ?? "root"}` : null
+      this.closed(value, path, ["op", "target", "value"])
+      this.required(value, path, ["op", "target", "value"])
+      if (value.op !== "replace") {
+        this.issue(childPath(path, "op"), "invalid_delta_operation", "Children delta op must be replace")
+      }
+      if (value.value === null) {
+        if (value.target.parent === null) {
+          this.issue(childPath(path, "value"), "invalid_root_children", "Runtime roots cannot be absent")
+        }
+      } else if (this.array(value.value, childPath(path, "value"), "Children refs")) {
+        const refs: string[] = []
+        value.value.forEach((ref, index) => {
+          if (this.runtimeNodeRef(ref, childPath(childPath(path, "value"), index), "Child ref")) refs.push(ref)
+        })
+        this.unique(refs, childPath(path, "value"), "Child ref")
+      }
+    } else if (kind === "reaction-relation") {
+      this.closed(value.target, targetPath, ["kind", "ref"])
+      this.required(value.target, targetPath, ["kind", "ref"])
+      const refOk = this.typedRef(
+        value.target.ref,
+        childPath(targetPath, "ref"),
+        "Reaction relation ref",
+        REACTION_RELATION_REF,
+      )
+      targetKey = refOk ? `reaction-relation\u0000${value.target.ref}` : null
+      if (value.op === "remove") {
+        this.closed(value, path, ["op", "target"])
+        this.required(value, path, ["op", "target"])
+      } else if ((value.op === "add" || value.op === "replace") && refOk) {
+        this.closed(value, path, ["op", "target", "value"])
+        this.required(value, path, ["op", "target", "value"])
+        this.deltaReactionRelation(
+          value.value,
+          childPath(path, "value"),
+          value.target.ref as ReactionRelationRef,
+        )
+      } else if (value.op !== "add" && value.op !== "replace") {
+        this.issue(childPath(path, "op"), "invalid_delta_operation", "Reaction relation delta op must be add, replace or remove")
+      }
+    } else if (kind === "reaction-order") {
+      this.closed(value.target, targetPath, ["kind"])
+      this.required(value.target, targetPath, ["kind"])
+      targetKey = "reaction-order"
+      this.closed(value, path, ["op", "target", "value"])
+      this.required(value, path, ["op", "target", "value"])
+      if (value.op !== "replace") {
+        this.issue(childPath(path, "op"), "invalid_delta_operation", "Reaction order delta op must be replace")
+      }
+      if (this.array(value.value, childPath(path, "value"), "Reaction relation order")) {
+        const refs: string[] = []
+        value.value.forEach((ref, index) => {
+          if (this.typedRef(
+            ref,
+            childPath(childPath(path, "value"), index),
+            "Reaction relation ref",
+            REACTION_RELATION_REF,
+          )) refs.push(ref)
+        })
+        this.unique(refs, childPath(path, "value"), "Reaction relation ref")
+      }
+    } else {
+      this.issue(childPath(targetPath, "kind"), "invalid_delta_target", "GraphDelta target kind is unsupported")
+      this.closed(value, path, ["op", "target", "value"])
+      this.required(value, path, ["op", "target"])
+    }
+
+    if (targetKey !== null) {
+      if (targets.has(targetKey)) {
+        this.issue(targetPath, "duplicate_delta_target", "GraphDelta may change one target at most once")
+      }
+      targets.add(targetKey)
+    }
+  }
+
+  validateDelta(input: unknown): ValidationResult<GraphDelta> {
+    if (!this.record(input, "", "GraphDelta")) return {ok: false, issues: this.issues}
+    this.json(input, "")
+    this.closed(input, "", ["schema", "root", "baseDigest", "resultDigest", "changes"])
+    this.required(input, "", ["schema", "root", "baseDigest", "resultDigest", "changes"])
+    if (input.schema !== GRAPH_DELTA_SCHEMA) {
+      this.issue("/schema", "invalid_schema", `schema must be "${GRAPH_DELTA_SCHEMA}"`)
+    }
+    this.address(input.root, "/root")
+    this.digest(input.baseDigest, "/baseDigest")
+    this.digest(input.resultDigest, "/resultDigest")
+    if (this.array(input.changes, "/changes", "GraphDelta changes")) {
+      const targets = new Set<string>()
+      input.changes.forEach((change, index) =>
+        this.deltaChange(change, childPath("/changes", index), targets)
+      )
+    }
+    return this.issues.length === 0
+      ? {ok: true, value: input as unknown as GraphDelta}
+      : {ok: false, issues: this.issues}
+  }
+
   validate(input: unknown): ValidationResult<Graph> {
     if (!this.record(input, "", "Graph")) return {ok: false, issues: this.issues}
     this.json(input, "")
@@ -2048,7 +2393,19 @@ class Validator {
 export const validateGraph = (input: unknown): ValidationResult<Graph> =>
   new Validator().validate(input)
 
-/** Стабильная object surface для consumer, внедряющего Graph validator. */
+/**
+Проверяет закрытую wire-структуру GraphDelta без предположений о base Graph.
+
+Semantic add/replace/remove preconditions, containment reachability и конечный
+Graph проверяются атомарным applicator, которому доступен base snapshot.
+
+@returns Валидированный structural delta либо полный список обнаруженных issues.
+*/
+export const validateGraphDelta = (input: unknown): ValidationResult<GraphDelta> =>
+  new Validator().validateDelta(input)
+
+/** Стабильная object surface для consumer, внедряющего Graph validators. */
 export const graphValidators: GraphValidators = {
   graph: validateGraph,
+  delta: validateGraphDelta,
 }
