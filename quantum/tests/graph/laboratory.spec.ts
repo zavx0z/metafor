@@ -94,7 +94,10 @@ describe("Quantum Graph Storybook laboratory", () => {
     await Promise.all([first, second])
     expect(state.route).toBe("identity/same-meta/reorder")
     expect(state.story.apiName).toBe("MetaRuntimeAtomLocator")
-    expect(state.module.source(state.args)).toContain("insertSameMetaSibling")
+    const source = state.module.source(state.args)
+    expect(source.html).toContain('class="graph-json"')
+    expect(source.css).toContain(".graph-json__result")
+    expect(source.typescript).toContain("insertSameMetaSibling")
   })
 
   test("returning to the committed route cancels a pending lazy selection", async () => {

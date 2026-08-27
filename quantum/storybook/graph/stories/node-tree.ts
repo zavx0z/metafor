@@ -12,6 +12,7 @@ import {
   GRAPH_NODE_TREE_STORY_KIND,
   type GraphNodeTreeStoryModule,
 } from "./node-tree-story.ts"
+import {graphNodeTreeStorySource} from "./source.ts"
 
 type NodeTreeStoryArgs = StorybookStoryArgs & Readonly<{
   incremented: boolean
@@ -32,7 +33,7 @@ export function createGraphNodeTreeStory(): GraphNodeTreeStoryModule {
     render() {},
     source(args) {
       const current = args as NodeTreeStoryArgs
-      return [
+      const typescript = [
         'import {createGraphNodeTree, reconcileGraphNodeTree} from "@metafor/node-tree/graph"',
         'import {createGraphNodeTreeHierarchicalProjector} from "./hierarchical-node-tree-projector.ts"',
         'import {NodeEditor} from "@nodes/ui/node-editor"',
@@ -47,6 +48,7 @@ export function createGraphNodeTreeStory(): GraphNodeTreeStoryModule {
         "const editor = new NodeEditor({renderers: createNodeRenderers()})",
         "editor.setProjection(projection)",
       ].join("\n")
+      return graphNodeTreeStorySource(typescript)
     },
     async createPreview() {
       const controller = new GraphNodeTreePresentationController()

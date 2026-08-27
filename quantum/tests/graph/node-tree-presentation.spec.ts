@@ -126,7 +126,10 @@ describe("Quantum Graph NodeTree retained presentation", () => {
       const durationMs = performance.now() - startedAt
 
       expect(module.kind).toBe("graph-node-tree-preview")
-      expect(module.source({incremented: true})).toContain("@metafor/node-tree/graph")
+      const source = module.source({incremented: true})
+      expect(source.html).toContain("<node-editor")
+      expect(source.css).toContain(".graph-node-tree")
+      expect(source.typescript).toContain("@metafor/node-tree/graph")
       expect(first.frames).toBe(7)
       expect(first.nodes).toBe(12)
       expect(first.links).toBe(18)

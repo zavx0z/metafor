@@ -4,6 +4,7 @@ import {
 } from "@zavx0z/storybook/stories"
 import {reactionGraphFixture} from "../fixtures/graph.ts"
 import {renderGraphJson} from "./render-json.ts"
+import {graphJsonStorySource} from "./source.ts"
 
 /** Shows every declared and resolved dependency without loading Mass content. */
 export function createReactionGraphStory(): StorybookStoryModule {
@@ -20,7 +21,7 @@ export function createReactionGraphStory(): StorybookStoryModule {
       )
     },
     source() {
-      return [
+      const typescript = [
         'import {createGraphFixture} from "../../../tests/graph/fixture.ts"',
         "",
         "const graph = createGraphFixture()",
@@ -30,6 +31,11 @@ export function createReactionGraphStory(): StorybookStoryModule {
         "  mass: graph.runtime.roots[0]?.kind === 'atom' ? graph.runtime.roots[0].mass : [],",
         "}",
       ].join("\n")
+      return graphJsonStorySource({
+        id: "quantum-graph-reaction",
+        title: "Reaction · зависимости и Mass",
+        typescript,
+      })
     },
   })
 }

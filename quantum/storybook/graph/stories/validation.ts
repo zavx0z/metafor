@@ -5,6 +5,7 @@ import {
 } from "@zavx0z/storybook/stories"
 import {validationGraphFixture} from "../fixtures/graph.ts"
 import {renderGraphJson} from "./render-json.ts"
+import {graphJsonStorySource} from "./source.ts"
 
 type ValidationGraphArgs = StorybookStoryArgs & Readonly<{
   "include-revision": boolean
@@ -30,7 +31,7 @@ export function createValidationGraphStory(): StorybookStoryModule {
       )
     },
     source(args) {
-      return [
+      const typescript = [
         'import {validateGraph} from "@metafor/types/metafor/graph"',
         'import {createGraphFixture} from "../../../tests/graph/fixture.ts"',
         "",
@@ -40,6 +41,11 @@ export function createValidationGraphStory(): StorybookStoryModule {
           : "const candidate = graph",
         "export const result = validateGraph(candidate)",
       ].join("\n")
+      return graphJsonStorySource({
+        id: "quantum-graph-validation",
+        title: "Закрытая проверка Graph",
+        typescript,
+      })
     },
   })
 }

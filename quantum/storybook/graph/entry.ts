@@ -12,7 +12,10 @@ import {
   StorybookRouteTreeRouter,
   type StorybookRouteTreeNode,
 } from "@zavx0z/storybook/route-tree"
-import {storybookPublicPath} from "@zavx0z/storybook/environment"
+import {
+  storybookPublicPath,
+  waitForStorybookFrameBoundary,
+} from "@zavx0z/storybook/environment"
 import {GraphStoryPreviewSurface} from "./preview.ts"
 import {
   isGraphNodeTreeStoryModule,
@@ -107,9 +110,9 @@ async function startGraphStorybook(): Promise<void> {
         {id: "changes", label: "Изменения", value: String(state.snapshot().changes)},
         {id: "scope", label: "Контур", value: "Quantum Graph"},
       ],
-      mode: state.panelMode,
-      onModeChange(mode) {
-        state.setPanelMode(mode)
+      category: state.panelCategory,
+      onCategoryChange(category) {
+        state.setPanelCategory(category)
         storyPanel.setOptions(panelOptions())
         publish()
       },
@@ -120,12 +123,12 @@ async function startGraphStorybook(): Promise<void> {
         storyPanel.setOptions(panelOptions())
         publish()
       },
-      async onCopy(source) {
+      async onCopy(kind, source) {
         try {
           await navigator.clipboard.writeText(source)
-          document.documentElement.dataset.quantumStorybookCopy = "copied"
+          document.documentElement.dataset.quantumStorybookCopy = `${kind}:copied`
         } catch {
-          document.documentElement.dataset.quantumStorybookCopy = "error"
+          document.documentElement.dataset.quantumStorybookCopy = `${kind}:error`
         }
       },
     })
@@ -170,6 +173,10 @@ async function startGraphStorybook(): Promise<void> {
       document.documentElement.dataset.quantumStorybookRoute = state.route
       document.documentElement.dataset.quantumStorybookFrames = String(presentedFrames)
       document.documentElement.dataset.quantumStorybookState = JSON.stringify(current)
+      const source = state.module.source(state.args)
+      document.documentElement.dataset.quantumStorybookHtml = source.html
+      document.documentElement.dataset.quantumStorybookCss = source.css
+      document.documentElement.dataset.quantumStorybookTypescript = source.typescript
       return current
     }
 
@@ -201,6 +208,8 @@ async function startGraphStorybook(): Promise<void> {
       storyPanel.setOptions(panelOptions())
       runtime.relayout()
       publish()
+      await waitForStorybookFrameBoundary()
+      if (router.current !== node) return
       document.documentElement.dataset.quantumStorybook = "ready"
     }
 
@@ -291,6 +300,8 @@ async function startGraphStorybook(): Promise<void> {
       return
     }
     publish()
+    if (router.current !== initialNode) return
+    await waitForStorybookFrameBoundary()
     if (router.current !== initialNode) return
     document.documentElement.dataset.quantumStorybook = "ready"
   } catch (error) {

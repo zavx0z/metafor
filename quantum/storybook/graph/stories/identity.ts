@@ -5,6 +5,7 @@ import {
 } from "@zavx0z/storybook/stories"
 import {identityGraphFixture} from "../fixtures/graph.ts"
 import {renderGraphJson} from "./render-json.ts"
+import {graphJsonStorySource} from "./source.ts"
 
 type IdentityGraphArgs = StorybookStoryArgs & Readonly<{
   "insert-sibling": boolean
@@ -30,7 +31,7 @@ export function createIdentityGraphStory(): StorybookStoryModule {
       )
     },
     source(args) {
-      return [
+      const typescript = [
         'import {createGraphFixture, insertSameMetaSibling, runtimeFieldAt} from "../../../tests/graph/fixture.ts"',
         "",
         'const pointer = "/runtime/roots/0/children/1"',
@@ -40,6 +41,11 @@ export function createIdentityGraphStory(): StorybookStoryModule {
           : "const after = before",
         'export const result = {before: runtimeFieldAt(before, pointer, "name"), after: runtimeFieldAt(after, pointer, "name")}',
       ].join("\n")
+      return graphJsonStorySource({
+        id: "quantum-graph-identity",
+        title: "Путь и идентичность после вставки",
+        typescript,
+      })
     },
   })
 }

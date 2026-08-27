@@ -8,6 +8,7 @@ import {
   type CurrentGraphView,
 } from "../fixtures/graph.ts"
 import {renderGraphJson} from "./render-json.ts"
+import {graphJsonStorySource} from "./source.ts"
 
 type CurrentGraphArgs = StorybookStoryArgs & Readonly<{
   view: CurrentGraphView
@@ -36,7 +37,7 @@ export function createCurrentGraphStory(): StorybookStoryModule {
       )
     },
     source(args) {
-      return [
+      const typescript = [
         'import {createGraphFixture} from "../../../tests/graph/fixture.ts"',
         'import {projectBulkGraph} from "../../../bulk/graph/projection.ts"',
         "",
@@ -45,6 +46,11 @@ export function createCurrentGraphStory(): StorybookStoryModule {
           ? "export const result = graph"
           : "export const result = projectBulkGraph(graph)",
       ].join("\n")
+      return graphJsonStorySource({
+        id: "quantum-graph-current",
+        title: args.view === "graph" ? "Текущий полный Graph" : "Состав проекции Bulk",
+        typescript,
+      })
     },
   })
 }

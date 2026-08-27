@@ -2,8 +2,9 @@ import type {
   StorybookStoryArgs,
   StorybookStoryIndexItem,
   StorybookStoryModule,
+  StorybookStorySource,
 } from "@zavx0z/storybook/stories"
-import type {StorybookStoryPanelMode} from "@zavx0z/storybook/workbench"
+import type {StorybookStoryPanelCategory} from "@zavx0z/storybook/workbench"
 import {
   GRAPH_STORIES,
   graphStoryIndex,
@@ -14,8 +15,8 @@ export type GraphLabSnapshot = Readonly<{
   route: GraphStoryRoute
   story: StorybookStoryIndexItem
   args: StorybookStoryArgs
-  source: string
-  panelMode: StorybookStoryPanelMode
+  source: StorybookStorySource
+  panelCategory: StorybookStoryPanelCategory
   changes: number
 }>
 
@@ -25,7 +26,7 @@ export class GraphLabState {
   #story: StorybookStoryIndexItem
   #module: StorybookStoryModule
   #args: StorybookStoryArgs
-  #panelMode: StorybookStoryPanelMode = "controls"
+  #panelCategory: StorybookStoryPanelCategory = "source"
   #changes = 0
   #loadRevision = 0
 
@@ -60,8 +61,8 @@ export class GraphLabState {
     return this.#args
   }
 
-  get panelMode(): StorybookStoryPanelMode {
-    return this.#panelMode
+  get panelCategory(): StorybookStoryPanelCategory {
+    return this.#panelCategory
   }
 
   async select(route: GraphStoryRoute): Promise<boolean> {
@@ -96,8 +97,8 @@ export class GraphLabState {
     this.#changes += 1
   }
 
-  setPanelMode(mode: StorybookStoryPanelMode): void {
-    this.#panelMode = mode
+  setPanelCategory(category: StorybookStoryPanelCategory): void {
+    this.#panelCategory = category
   }
 
   snapshot(): GraphLabSnapshot {
@@ -106,7 +107,7 @@ export class GraphLabState {
       story: this.#story,
       args: this.#args,
       source: this.#module.source(this.#args),
-      panelMode: this.#panelMode,
+      panelCategory: this.#panelCategory,
       changes: this.#changes,
     })
   }
