@@ -223,7 +223,7 @@ export const diagnosticStories: DiagnosticStory[] = [
         "navigated", "requested",
       ]),
       checkpoint("debug", "[@internal/visual:main]", "основное visual-окружение создано", [
-        "display", "hud", "space", "surfaceDisplay",
+        "display", "dock", "space", "viewPoint",
       ]),
       checkpoint("debug", "[@cosmos/release:main]", "Visual runtime подключён", ["runtime"]),
       checkpoint("debug", "[@cosmos/startup:main]", "страница готова к работе", [

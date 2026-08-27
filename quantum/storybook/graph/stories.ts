@@ -1,9 +1,9 @@
 import {
-  defineStorybookStories,
-  type StorybookStoryIndexItem,
-  type StorybookStoryModule,
-} from "@zavx0z/storybook/stories"
-import type {StorybookNavigationItem} from "@zavx0z/storybook/workbench"
+  defineStorybookDomCatalog,
+  type StorybookDomCatalogIndexItem,
+} from "@zavx0z/storybook/catalog"
+import type {GraphDomStoryFactory} from "./dom-story.ts"
+import type {GraphOverviewInput} from "./overview.ts"
 
 export type GraphStoryRoute =
   | "document/current/complete"
@@ -12,33 +12,33 @@ export type GraphStoryRoute =
   | "node-tree/projection/live"
   | "identity/same-meta/reorder"
 
-const loadCurrentStory = async (): Promise<StorybookStoryModule> => {
+const loadCurrentStory = async (): Promise<GraphDomStoryFactory> => {
   const {createCurrentGraphStory} = await import("./stories/current.ts")
-  return createCurrentGraphStory()
+  return createCurrentGraphStory
 }
 
-const loadValidationStory = async (): Promise<StorybookStoryModule> => {
+const loadValidationStory = async (): Promise<GraphDomStoryFactory> => {
   const {createValidationGraphStory} = await import("./stories/validation.ts")
-  return createValidationGraphStory()
+  return createValidationGraphStory
 }
 
-const loadReactionStory = async (): Promise<StorybookStoryModule> => {
+const loadReactionStory = async (): Promise<GraphDomStoryFactory> => {
   const {createReactionGraphStory} = await import("./stories/reaction.ts")
-  return createReactionGraphStory()
+  return createReactionGraphStory
 }
 
-const loadIdentityStory = async (): Promise<StorybookStoryModule> => {
+const loadIdentityStory = async (): Promise<GraphDomStoryFactory> => {
   const {createIdentityGraphStory} = await import("./stories/identity.ts")
-  return createIdentityGraphStory()
+  return createIdentityGraphStory
 }
 
-const loadNodeTreeStory = async (): Promise<StorybookStoryModule> => {
+const loadNodeTreeStory = async (): Promise<GraphDomStoryFactory> => {
   const {createGraphNodeTreeStory} = await import("./stories/node-tree.ts")
-  return createGraphNodeTreeStory()
+  return createGraphNodeTreeStory
 }
 
-/** Единый typed catalog Graph laboratory: route, source, controls и preview. */
-export const GRAPH_STORIES = defineStorybookStories({
+/** Exact lazy DOM catalog of the five canonical Graph laboratory leaves. */
+export const GRAPH_STORIES = defineStorybookDomCatalog<GraphDomStoryFactory>({
   groups: [
     {
       id: "contract",
@@ -102,7 +102,7 @@ export const GRAPH_STORIES = defineStorybookStories({
           id: "node-tree",
           label: "NodeTree",
           apiName: "createGraphNodeTree",
-          tags: ["node-tree", "projection", "node-editor", "live", "adapter"],
+          tags: ["node-tree", "projection", "live", "adapter", "dom"],
           sections: [{
             id: "projection",
             label: "Проекция",
@@ -134,71 +134,108 @@ export const GRAPH_STORIES = defineStorybookStories({
     },
   ],
   representative: {component: "document", section: "current", variant: "complete"},
+  normalizeModule(_route, factory) {
+    return factory
+  },
 })
 
-/** Выбирает сценарий представления только для зарегистрированного листа или обзора. */
-export function graphStorybookPresentationRoute(path: string): GraphStoryRoute {
-  const node = GRAPH_STORIES.routeTree.find(path)
-  if (node === undefined) throw new Error(`Неизвестный путь лаборатории Graph: ${path}`)
-  if (node.kind === "leaf") return node.path as GraphStoryRoute
-  const prefix = node.path.length === 0 ? "" : `${node.path}/`
-  if (GRAPH_STORIES.representative.startsWith(prefix)) {
-    return GRAPH_STORIES.representative as GraphStoryRoute
-  }
-  const route = GRAPH_STORIES.routeTree.leaves.find((candidate) => candidate.startsWith(prefix))
-  if (route === undefined) throw new Error(`Обзор не содержит сценарий Graph: ${node.path}`)
-  return route as GraphStoryRoute
+export function isGraphStoryRoute(route: string): route is GraphStoryRoute {
+  return GRAPH_STORIES.find(route) !== undefined
 }
 
-export function graphStoryIndex(route: GraphStoryRoute): StorybookStoryIndexItem {
+export function graphStoryIndex(route: GraphStoryRoute): StorybookDomCatalogIndexItem {
   const story = GRAPH_STORIES.find(route)
   if (story === undefined) throw new Error(`Неизвестный Graph story: ${route}`)
   return story
 }
 
-export function graphCatalogItems(
-  collapsedGroups: ReadonlySet<string>,
-): readonly StorybookNavigationItem<string>[] {
-  const firstByComponent = new Map<string, StorybookStoryIndexItem>()
+/** One catalog item per component, preserving the domain-owned group metadata. */
+export function graphCatalogItems(): readonly Readonly<{
+  id: string
+  label: string
+  route: string
+  title: string
+}>[] {
+  const firstByComponent = new Map<string, StorybookDomCatalogIndexItem>()
   for (const story of GRAPH_STORIES.index) {
     if (!firstByComponent.has(story.componentId)) firstByComponent.set(story.componentId, story)
   }
-  return [...firstByComponent.values()].map((story) => ({
+  return Object.freeze([...firstByComponent.values()].map((story) => Object.freeze({
     id: story.componentId,
     label: story.componentLabel,
     route: story.componentId,
-    group: {
-      id: story.groupId,
-      label: story.groupLabel,
-      collapsed: collapsedGroups.has(story.groupId),
-    },
-    searchText: `${story.apiName} ${story.tags.join(" ")}`,
-  }))
+    title: `${story.groupLabel} · ${story.apiName} · ${story.tags.join(" · ")}`,
+  })))
 }
 
-export function graphSectionItems(
-  route: GraphStoryRoute,
-): readonly StorybookNavigationItem<string>[] {
-  const selected = graphStoryIndex(route)
-  const firstBySection = new Map<string, StorybookStoryIndexItem>()
+export function graphSectionItems(route: string): readonly Readonly<{
+  id: string
+  label: string
+  route: string
+}>[] {
+  const componentId = route.split("/")[0] ?? ""
+  if (componentId.length === 0) return Object.freeze([])
+  const firstBySection = new Map<string, StorybookDomCatalogIndexItem>()
   for (const story of GRAPH_STORIES.index) {
-    if (story.componentId === selected.componentId && !firstBySection.has(story.sectionId)) {
+    if (story.componentId === componentId && !firstBySection.has(story.sectionId)) {
       firstBySection.set(story.sectionId, story)
     }
   }
-  return [...firstBySection.values()].map((story) => ({
-    id: story.sectionId,
+  return Object.freeze([...firstBySection.values()].map((story) => Object.freeze({
+    id: `${story.componentId}/${story.sectionId}`,
     label: story.sectionLabel,
     route: `${story.componentId}/${story.sectionId}`,
-  }))
+  })))
 }
 
-export function graphVariantItems(
-  route: GraphStoryRoute,
-): readonly StorybookNavigationItem<GraphStoryRoute>[] {
-  return GRAPH_STORIES.variants(route).map((story) => ({
-    id: story.variantId,
-    label: story.variantLabel,
-    route: story.route as GraphStoryRoute,
-  }))
+export function graphVariantItems(route: string): readonly Readonly<{
+  id: string
+  label: string
+}>[] {
+  const [componentId = "", sectionId = ""] = route.split("/")
+  if (componentId.length === 0 || sectionId.length === 0) return Object.freeze([])
+  return Object.freeze(GRAPH_STORIES.index
+    .filter((story) => story.componentId === componentId && story.sectionId === sectionId)
+    .map((story) => Object.freeze({id: story.route, label: story.variantLabel})))
+}
+
+/** Builds a presentation descriptor only for an actual route-tree overview. */
+export function graphOverviewInput(route: string): GraphOverviewInput {
+  const node = GRAPH_STORIES.routeTree.find(route)
+  if (node === undefined || node.kind !== "overview") {
+    throw new Error(`Graph overview route is not registered: ${route}`)
+  }
+  const parts = route.length === 0 ? [] : route.split("/")
+  if (parts.length === 0) {
+    return Object.freeze({
+      route,
+      title: "Graph · Обзор лаборатории",
+      summary: "Публичный Graph, его validation, Reaction, identity и производная NodeTree остаются независимыми проверяемыми представлениями.",
+      items: graphCatalogItems().map(({route: itemRoute, label, title}) => ({
+        route: itemRoute,
+        label,
+        detail: title,
+      })),
+    })
+  }
+  if (parts.length === 1) {
+    const items = graphSectionItems(route)
+    const example = GRAPH_STORIES.index.find(({componentId}) => componentId === parts[0])
+    return Object.freeze({
+      route,
+      title: `${example?.componentLabel ?? route} · Обзор`,
+      summary: `${example?.apiName ?? route} сохраняет собственные разделы и не подставляет detail scenario вместо обзора.`,
+      items: items.map((item) => ({route: item.route, label: item.label, detail: "Раздел Graph laboratory"})),
+    })
+  }
+  const items = graphVariantItems(route)
+  const [componentId, sectionId] = parts
+  const example = GRAPH_STORIES.index.find((item) =>
+    item.componentId === componentId && item.sectionId === sectionId)
+  return Object.freeze({
+    route,
+    title: `${example?.sectionLabel ?? route} · Обзор`,
+    summary: "Все варианты раздела показаны явно; ни один detail leaf не выбирается скрыто.",
+    items: items.map((item) => ({route: item.id, label: item.label, detail: "Точный Graph scenario"})),
+  })
 }

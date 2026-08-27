@@ -1,0 +1,278 @@
+import type {
+  Document as SemanticDocument,
+  HTMLElement as SemanticHTMLElement,
+  Node as SemanticNode,
+} from "@zavx0z/dom"
+import {
+  BULK_TIME_TRACKS,
+  BulkCausalTimeModel,
+  buildBulkCausalTimeline,
+  type BulkCausalTimeTransport,
+} from "./causal-time.ts"
+import {
+  createBulkHudDocument,
+  type BulkHudDocumentController,
+} from "./hud.ts"
+
+const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
+let appFullscreenFallbackActive = false
+
+export type BulkFullscreenHost = Readonly<{
+  active(): boolean
+  toggle(): Promise<void>
+  subscribe(listener: () => void): () => void
+}>
+
+export type CreateBulkHudControllerOptions = Readonly<{
+  document: SemanticDocument
+  parent?: SemanticNode
+  transport?: BulkCausalTimeTransport
+  fullscreen?: BulkFullscreenHost
+}>
+
+export type BulkHudController = Readonly<{
+  element: SemanticHTMLElement
+  presentation: BulkHudDocumentController
+  time: BulkCausalTimeModel
+  ready: Promise<void>
+  dispose(): void
+}>
+
+const bulkCausalTimeHttpTransport: BulkCausalTimeTransport = Object.freeze({
+  async stack(): Promise<unknown> {
+    const response = await fetch("/time/stack")
+    if (!response.ok) throw new Error(await responseError(response))
+    return await response.json()
+  },
+  async pause(): Promise<void> {
+    const response = await fetch("/time/pause", {method: "POST"})
+    if (!response.ok) throw new Error(await responseError(response))
+  },
+  async resume(): Promise<void> {
+    const response = await fetch("/time/resume", {method: "POST"})
+    if (!response.ok) throw new Error(await responseError(response))
+  },
+})
+
+/**
+ * Composes the production Bulk HUD in one caller-owned semantic Document.
+ * Product actions are ordinary bubbling button events; this controller owns
+ * only their fullscreen and causal-time effects.
+ */
+export function createBulkHudController(
+  options: CreateBulkHudControllerOptions,
+): BulkHudController {
+  const parent = options.parent ?? options.document
+  if (parent !== options.document && parent.ownerDocument !== options.document) {
+    throw new Error("Bulk HUD parent belongs to another Document")
+  }
+  const fullscreen = options.fullscreen ?? inertFullscreenHost
+  const time = new BulkCausalTimeModel(options.transport ?? bulkCausalTimeHttpTransport)
+  const presentation = createBulkHudDocument(options.document, presentationProps(time, fullscreen))
+  const fullscreenButton = presentation.refs.fullscreenButton
+  const previousButton = presentation.controllers.timeline.refs.previousButton
+  const playButton = presentation.controllers.timeline.refs.playButton
+  const nextButton = presentation.controllers.timeline.refs.nextButton
+  let disposed = false
+
+  const render = (): void => {
+    if (disposed) return
+    presentation.update(presentationProps(time, fullscreen))
+    const hasFrames = time.frames.length > 0
+    previousButton.disabled = !hasFrames
+    nextButton.disabled = !hasFrames
+    playButton.disabled = !time.canPause && !time.canResume
+    for (const {key: trackKey} of BULK_TIME_TRACKS) {
+      for (const frame of time.frames) {
+        presentation.controllers.timeline.refs.markerItems
+          .get(`${trackKey}/frame-${frame.id}`)
+          ?.setAttribute("data-resolution", frame.resolution ?? "unknown")
+      }
+    }
+  }
+  const onFullscreen = (): void => {
+    void fullscreen.toggle().then(render).catch((error) => {
+      console.warn("fullscreen toggle failed:", error)
+      render()
+    })
+  }
+  const onPrevious = (): void => time.selectRelativeFrame(-1)
+  const onNext = (): void => time.selectRelativeFrame(1)
+  const onPlay = (): void => {
+    if (time.canPause) void time.pause()
+    else if (time.canResume) void time.resume()
+  }
+
+  const unsubscribeTime = time.subscribe(render)
+  const unsubscribeFullscreen = fullscreen.subscribe(render)
+  fullscreenButton.addEventListener("click", onFullscreen)
+  previousButton.addEventListener("click", onPrevious)
+  playButton.addEventListener("click", onPlay)
+  nextButton.addEventListener("click", onNext)
+  parent.appendChild(presentation.element)
+  render()
+  const ready = time.open()
+
+  return Object.freeze({
+    element: presentation.element,
+    presentation,
+    time,
+    ready,
+    dispose() {
+      if (disposed) return
+      disposed = true
+      fullscreenButton.removeEventListener("click", onFullscreen)
+      previousButton.removeEventListener("click", onPrevious)
+      playButton.removeEventListener("click", onPlay)
+      nextButton.removeEventListener("click", onNext)
+      unsubscribeTime()
+      unsubscribeFullscreen()
+      time.dispose()
+      presentation.dispose()
+      presentation.element.remove()
+    },
+  })
+}
+
+/** Standard browser fullscreen adapter used by the production Bulk canvas. */
+export function createBrowserBulkFullscreenHost(preferredTarget: Element): BulkFullscreenHost {
+  const listeners = new Set<() => void>()
+  const notify = (): void => {
+    for (const listener of listeners) listener()
+  }
+  const onChange = (): void => {
+    if (appFullscreenElement() !== null && appFullscreenFallbackActive) {
+      setAppFullscreenFallback(false)
+    }
+    notify()
+  }
+  document.addEventListener("fullscreenchange", onChange)
+  document.addEventListener("webkitfullscreenchange", onChange)
+  let disposed = false
+
+  return Object.freeze({
+    active: appFullscreenActive,
+    async toggle() {
+      if (disposed) throw new Error("Bulk fullscreen host is disposed")
+      if (appFullscreenActive()) {
+        await exitAppFullscreen()
+      } else {
+        try {
+          await requestAppFullscreen(preferredTarget)
+        } catch (error) {
+          console.warn("fullscreen request failed, using viewport fallback:", error)
+          setAppFullscreenFallback(true)
+        }
+      }
+      notify()
+    },
+    subscribe(listener) {
+      if (disposed) throw new Error("Bulk fullscreen host is disposed")
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+        if (listeners.size !== 0 || disposed) return
+        disposed = true
+        document.removeEventListener("fullscreenchange", onChange)
+        document.removeEventListener("webkitfullscreenchange", onChange)
+      }
+    },
+  })
+}
+
+const inertFullscreenHost: BulkFullscreenHost = Object.freeze({
+  active: () => false,
+  async toggle() {},
+  subscribe: () => () => {},
+})
+
+const presentationProps = (
+  time: BulkCausalTimeModel,
+  fullscreen: BulkFullscreenHost,
+) => Object.freeze({
+  title: "Bulk Visual",
+  subtitle: time.message,
+  fullscreen: fullscreen.active(),
+  fullscreenDisabled: false,
+  causalTimeline: buildBulkCausalTimeline(
+    time.frames,
+    time.playhead,
+    time.state === "open",
+  ),
+})
+
+const responseError = async (response: Response): Promise<string> => {
+  const text = await response.text()
+  try {
+    const value = JSON.parse(text) as {error?: unknown}
+    if (typeof value.error === "string" && value.error.length > 0) return value.error
+    return `HTTP ${response.status}`
+  } catch {
+    return text || `HTTP ${response.status}`
+  }
+}
+
+function appFullscreenElement(): Element | null {
+  const webkitDocument = document as Document & {webkitFullscreenElement?: Element | null}
+  return document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? null
+}
+
+function appFullscreenActive(): boolean {
+  return appFullscreenElement() !== null || appFullscreenFallbackActive
+}
+
+async function requestAppFullscreen(preferredTarget: Element): Promise<void> {
+  let lastError: unknown = null
+  for (const target of fullscreenTargetCandidates(preferredTarget)) {
+    try {
+      await requestElementFullscreen(target)
+      return
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError ?? new Error("fullscreen request failed")
+}
+
+async function requestElementFullscreen(target: Element): Promise<void> {
+  const webkitTarget = target as Element & {
+    webkitRequestFullscreen?: () => Promise<void> | void
+  }
+  const request = target.requestFullscreen ?? webkitTarget.webkitRequestFullscreen
+  if (request === undefined) {
+    throw new Error(`fullscreen is not available on ${target.tagName.toLowerCase()}`)
+  }
+  await Promise.resolve(request.call(target))
+}
+
+async function exitAppFullscreen(): Promise<void> {
+  setAppFullscreenFallback(false)
+  const fullscreenDocument = document as Document & {
+    webkitExitFullscreen?: () => Promise<void> | void
+  }
+  if (document.exitFullscreen !== undefined && document.fullscreenElement !== null) {
+    await document.exitFullscreen()
+  } else if (
+    fullscreenDocument.webkitExitFullscreen !== undefined &&
+    appFullscreenElement() !== null
+  ) {
+    await Promise.resolve(fullscreenDocument.webkitExitFullscreen())
+  }
+}
+
+function setAppFullscreenFallback(active: boolean): void {
+  appFullscreenFallbackActive = active
+  document.documentElement.classList.toggle(APP_FULLSCREEN_FALLBACK_CLASS, active)
+}
+
+function fullscreenTargetCandidates(preferredTarget: Element): Element[] {
+  const candidates = [preferredTarget, preferredTarget.parentElement, document.documentElement]
+  const seen = new Set<Element>()
+  const result: Element[] = []
+  for (const candidate of candidates) {
+    if (candidate === null || seen.has(candidate)) continue
+    seen.add(candidate)
+    result.push(candidate)
+  }
+  return result
+}

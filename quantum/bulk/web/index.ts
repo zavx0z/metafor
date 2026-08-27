@@ -5,8 +5,6 @@ import type {
 	BulkViewportStats,
 	BulkVisualLayer,
 	BulkViewPose,
-	BulkWebkitFullscreenDocument,
-	BulkWebkitFullscreenElement,
 	CanvasTouchTapState,
 	DarkParticleRenderRecord,
 	FadingLabelRemovalRecord,
@@ -20,11 +18,6 @@ import type {
 	SurfaceLabelVisual,
 	ViewNavigationState,
 } from "@bulk/types/viewport"
-import type {
-	BulkHudSurfaceSlot,
-	BulkViewportHudController,
-	BulkViewportWithHud,
-} from "@bulk/types/hud"
 import type { BulkRenderSettings } from "@bulk/types/settings"
 import type { SurfaceArcLimits, TextExtents } from "@bulk/types/text"
 import type {
@@ -98,23 +91,10 @@ import {
 	ViewPoint,
 } from "@engine/core"
 import {loadSharedFont} from "@engine/core/default-font"
-import {HUD} from "@layout/core/hud"
-import type {
-	UiRuntime,
-	UiSurfaceLayoutFn,
-	UiSurfaceLayerOpts,
-	UiSurfaceNode,
-	UiSurfaceRect,
-} from "@layout/core/runtime"
-import {UiSurface, Z} from "@layout/core/surface"
 import {
-	handleActiveInputKey,
-	insertActiveInputText,
-	surfaceHasActiveInput,
-} from "@layout/core/text-input"
-import {VirtualInput, type VirtualInputSoftKeyboardMode} from "@layout/core/virtual-input"
-import {drawIconCentered} from "@ui/elements/icon"
-import {uiIcons} from "@ui/elements/icons"
+	createBulkDomOverlayRuntime,
+	type BulkDomOverlayRuntime,
+} from "../dom/overlay-runtime.ts"
 import {
 	getBulkPickTargetKey,
 	isBulkSpherePickTarget,
@@ -173,7 +153,13 @@ import {
 	resolveForceImpulseVisual,
 } from "./force-protocol"
 
-export type BulkVisualViewportWithHud = BulkViewportWithHud & Readonly<{
+/**
+ * One Bulk WebGPU viewport with a semantic HUD Document projected into its
+ * existing Engine renderer. Capture reads the last combined presented frame.
+ */
+export type BulkVisualViewport = BulkViewportController & Readonly<{
+	readonly uiDocument: BulkDomOverlayRuntime["document"]
+	captureLastPresentedFramePng(): Promise<Blob | null>
 	applyVisualManifestPatch(projection: BulkVisualRenderManifest): void
 	applyVisualReadyScene(projection: BulkReadyVisualRenderManifest): void
 	applyBulkStoreInitialScene(projection: BulkReadyVisualRenderManifest): void
@@ -246,13 +232,6 @@ type ImpulseRenderRecord = {
 }
 
 const NAVIGATION_VIEWPORT_FIT_PADDING_RATIO = 1.25
-const BULK_RADIAL_MENU_SECTOR_COUNT = 12
-const BULK_RADIAL_MENU_SIZE_PX = 296
-const BULK_RADIAL_MENU_INNER_SIZE_PX = 150
-const BULK_RADIAL_MENU_LONG_PRESS_MS = 560
-const BULK_RADIAL_MENU_LONG_PRESS_MOVE_PX = 10
-const BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX = 48
-const BULK_RADIAL_MENU_HUD_Z = 10
 const BULK_TOUCH_TAP_MOVE_PX = 14
 let activeRenderSettings: BulkRenderSettings = { ...DEFAULT_BULK_SETTINGS.render }
 
@@ -300,84 +279,6 @@ const writeStoredBulkViewPose = (pose: BulkViewPose, rootFitLockedToViewport: bo
 	} catch {
 		// Session storage is best-effort. Reload still works without pose persistence.
 	}
-}
-
-const bulkFullscreenElement = (): Element | null => {
-	const webkitDocument = document as BulkWebkitFullscreenDocument
-	return document.fullscreenElement ?? webkitDocument.webkitFullscreenElement ?? null
-}
-
-const requestBulkFullscreen = async (preferredTarget: Element): Promise<void> => {
-	const targets = bulkFullscreenTargetCandidates(preferredTarget)
-	let lastError: unknown = null
-	for (const target of targets) {
-		try {
-			await requestBulkElementFullscreen(target)
-			return
-		} catch (error) {
-			lastError = error
-		}
-	}
-	throw lastError ?? new Error("fullscreen request failed")
-}
-
-const requestBulkElementFullscreen = async (target: Element): Promise<void> => {
-	if (target.requestFullscreen !== undefined) {
-		if (!isBulkAndroidBrowser()) {
-			try {
-				await target.requestFullscreen({navigationUI: "hide"} as FullscreenOptions)
-				return
-			} catch (error) {
-				if (!isBulkFullscreenOptionsError(error)) throw error
-			}
-		}
-		await target.requestFullscreen()
-		return
-	}
-	const webkitTarget = target as BulkWebkitFullscreenElement
-	const request = webkitTarget.webkitRequestFullscreen ?? webkitTarget.webkitRequestFullScreen
-	if (request === undefined) throw new Error(`fullscreen is not available on ${target.tagName.toLowerCase()}`)
-	await Promise.resolve(request.call(target))
-}
-
-const bulkFullscreenTargetCandidates = (preferredTarget: Element): Element[] => {
-	const body = document.body
-	const root = document.documentElement
-	const preferred: Array<Element | null> = isBulkAndroidBrowser()
-		? [root, body, preferredTarget]
-		: [preferredTarget, root, body]
-	return uniqueBulkElements(preferred.filter((item): item is Element => item instanceof Element))
-}
-
-const uniqueBulkElements = (elements: readonly Element[]): Element[] => {
-	const seen = new Set<Element>()
-	const result: Element[] = []
-	for (const element of elements) {
-		if (seen.has(element)) continue
-		seen.add(element)
-		result.push(element)
-	}
-	return result
-}
-
-const isBulkAndroidBrowser = (): boolean => {
-	const nav = navigator as Navigator & {userAgentData?: {platform?: string}}
-	return /android/i.test(`${nav.userAgent} ${nav.userAgentData?.platform ?? ""}`)
-}
-
-const isBulkFullscreenOptionsError = (error: unknown): boolean => {
-	const text = error instanceof Error ? error.message : String(error)
-	return /dictionary|navigationUI|parameter|argument|options|type/i.test(text)
-}
-
-const exitBulkFullscreen = async (): Promise<void> => {
-	const webkitDocument = document as BulkWebkitFullscreenDocument
-	if (document.exitFullscreen !== undefined && document.fullscreenElement !== null) {
-		await document.exitFullscreen()
-		return
-	}
-	const exit = webkitDocument.webkitExitFullscreen ?? webkitDocument.webkitCancelFullScreen
-	if (exit !== undefined && webkitDocument.webkitFullscreenElement !== null) await Promise.resolve(exit.call(document))
 }
 
 const getViewportConfig = () => bulkViewportConfig.viewport
@@ -435,195 +336,6 @@ const detachObject = (object: Object3D): void => {
 	object.parent = null
 }
 
-class BulkRadialMenuPane extends UiSurface {
-	onClose: (() => void) | null = null
-	readonly #handleKeyDown = (event: KeyboardEvent): void => {
-		if (event.key === "Escape") this.close()
-	}
-	#visible = false
-	#center = {x: 0, y: 0}
-	#hoveredSector: number | null = null
-	#pressedSector: number | null = null
-
-	constructor() {
-		super({bgColor: null, borderColor: null})
-		this.node.name = "BulkRadialMenuPane"
-		document.addEventListener("keydown", this.#handleKeyDown, true)
-	}
-
-	open(center: {x: number; y: number}): void {
-		this.#visible = true
-		this.#center = center
-		this.#hoveredSector = null
-		this.#pressedSector = null
-		this.requestRender()
-	}
-
-	setCenter(center: {x: number; y: number}): void {
-		if (!this.#visible) return
-		if (Math.hypot(center.x - this.#center.x, center.y - this.#center.y) <= 0.25) return
-		this.#center = center
-		this.#hoveredSector = null
-		this.#pressedSector = null
-		this.requestRender()
-	}
-
-	close(): void {
-		if (!this.#visible) return
-		this.#visible = false
-		this.#hoveredSector = null
-		this.#pressedSector = null
-		this.onClose?.()
-		this.requestRender()
-	}
-
-	acceptsPointerEvents(): boolean {
-		return this.#visible
-	}
-
-	containsPointer(localX: number, localY: number): boolean {
-		return this.#sectorAt(localX, localY) !== null
-	}
-
-	protected render(): void {
-		if (!this.#visible) return
-		const center = this.#menuCenter()
-		const outerRadius = BULK_RADIAL_MENU_SIZE_PX / 2
-		const innerRadius = BULK_RADIAL_MENU_INNER_SIZE_PX / 2
-		const base = new Color(0.035, 0.095, 0.13, 0.76)
-		const border = new Color(0.22, 0.78, 0.94, 0.62)
-		const bright = new Color(0.48, 0.94, 1, 0.88)
-
-		this.#drawCircleStroke(
-			center.x,
-			center.y,
-			(outerRadius + innerRadius) / 2,
-			base,
-			outerRadius - innerRadius,
-			Z.CONTAINER + 0.2,
-		)
-		this.#drawCircleStroke(center.x, center.y, outerRadius - 1, border, 1.6, Z.ELEMENT + 0.14)
-		this.#drawCircleStroke(center.x, center.y, innerRadius + 1, new Color(0.48, 0.94, 1, 0.18), 1.2, Z.ELEMENT + 0.14)
-
-		for (let index = 0; index < BULK_RADIAL_MENU_SECTOR_COUNT; index += 1) {
-			const angle = -Math.PI / 2 + index * this.#sectorAngle()
-			const x0 = center.x + Math.cos(angle) * innerRadius
-			const y0 = center.y + Math.sin(angle) * innerRadius
-			const x1 = center.x + Math.cos(angle) * outerRadius
-			const y1 = center.y + Math.sin(angle) * outerRadius
-			this.drawRoundedLine(x0, y0, x1, y1, new Color(0.08, 0.28, 0.36, 0.68), 2.4, Z.ELEMENT + 0.22)
-		}
-
-		if (this.#hoveredSector !== null) {
-			this.#drawSectorStroke(this.#hoveredSector, bright, this.#pressedSector === this.#hoveredSector ? 5 : 3, Z.TEXT + 0.2)
-		}
-	}
-
-	override onPointerMove(_event: MouseEvent, localX: number, localY: number): void {
-		const next = this.#sectorAt(localX, localY)
-		if (this.canvas !== null) this.canvas.canvas.style.cursor = next === null ? "default" : "pointer"
-		if (next === this.#hoveredSector) return
-		this.#hoveredSector = next
-		this.requestRender()
-	}
-
-	override onPointerDown(event: MouseEvent, localX: number, localY: number): void {
-		if (event.button !== 0) return
-		this.#pressedSector = this.#sectorAt(localX, localY)
-		event.preventDefault()
-		this.requestRender()
-	}
-
-	override onPointerUp(event: MouseEvent): void {
-		this.#pressedSector = null
-		event.preventDefault()
-		this.requestRender()
-	}
-
-	override onContextMenu(event: MouseEvent): void {
-		event.preventDefault()
-	}
-
-	override onPointerLeave(): void {
-		this.#hoveredSector = null
-		this.#pressedSector = null
-		if (this.canvas !== null) this.canvas.canvas.style.cursor = "default"
-		this.requestRender()
-	}
-
-	override dispose(): void {
-		document.removeEventListener("keydown", this.#handleKeyDown, true)
-		super.dispose()
-	}
-
-	#menuCenter(): {x: number; y: number} {
-		return this.#center
-	}
-
-	#sectorAngle(): number {
-		return (Math.PI * 2) / BULK_RADIAL_MENU_SECTOR_COUNT
-	}
-
-	#sectorAt(localX: number, localY: number): number | null {
-		if (!this.#visible) return null
-		const center = this.#menuCenter()
-		const dx = localX - center.x
-		const dy = localY - center.y
-		const distance = Math.hypot(dx, dy)
-		if (distance < BULK_RADIAL_MENU_INNER_SIZE_PX / 2 || distance > BULK_RADIAL_MENU_SIZE_PX / 2) return null
-		const normalized = (Math.atan2(dy, dx) + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2)
-		return Math.min(BULK_RADIAL_MENU_SECTOR_COUNT - 1, Math.floor(normalized / this.#sectorAngle()))
-	}
-
-	#drawCircleStroke(cx: number, cy: number, radius: number, color: Color, thickness: number, z: number): void {
-		const outerRadius = radius + thickness / 2
-		this.drawRoundedRect(
-			cx - outerRadius,
-			cy - outerRadius,
-			outerRadius * 2,
-			outerRadius * 2,
-			{
-				radius: outerRadius,
-				fill: new Color(0, 0, 0, 0),
-				border: color,
-				borderWidth: thickness,
-				z,
-			},
-		)
-	}
-
-	#drawSectorStroke(index: number, color: Color, thickness: number, z: number): void {
-		const center = this.#menuCenter()
-		const outerRadius = BULK_RADIAL_MENU_SIZE_PX / 2 - 6
-		const innerRadius = BULK_RADIAL_MENU_INNER_SIZE_PX / 2 + 6
-		const start = -Math.PI / 2 + index * this.#sectorAngle()
-		const end = start + this.#sectorAngle()
-		for (const angle of [start, end]) {
-			this.drawRoundedLine(
-				center.x + Math.cos(angle) * innerRadius,
-				center.y + Math.sin(angle) * innerRadius,
-				center.x + Math.cos(angle) * outerRadius,
-				center.y + Math.sin(angle) * outerRadius,
-				color,
-				thickness,
-				z,
-			)
-		}
-		const arcSegments = 8
-		for (const radius of [innerRadius, outerRadius]) {
-			const points: Array<{x: number; y: number}> = []
-			for (let segment = 0; segment <= arcSegments; segment += 1) {
-				const angle = start + (segment / arcSegments) * this.#sectorAngle()
-				points.push({
-					x: center.x + Math.cos(angle) * radius,
-					y: center.y + Math.sin(angle) * radius,
-				})
-			}
-			this.drawPolyline(points, color, thickness, z)
-		}
-	}
-}
-
 const readObjectScenePosition = (object: Object3D, target: Vector3): Vector3 => {
 	const elements = object.matrixWorld.elements
 	return target.set(elements[12] ?? 0, elements[13] ?? 0, elements[14] ?? 0)
@@ -638,7 +350,7 @@ const createSurfaceLabelNode = (spec: LabelSpec, font: TrueTypeFont): SurfaceLab
 		text: spec.text,
 		font,
 		baseFontSize: spec.fontSize,
-		material: new TextMaterial({ color: LABEL_TEXT_COLOR, opacity: 1, depthWrite: true }),
+		material: new TextMaterial({color: LABEL_TEXT_COLOR, opacity: 1, depthWrite: true}),
 		curveRadiusMm: resolveCanonicalCurveRadius(spec),
 		limits: SURFACE_ARC_LIMITS,
 		minScale: MIN_SURFACE_LABEL_FIT_SCALE,
@@ -684,7 +396,8 @@ const mixColor = (left: Color, right: Color, amount: number): Color =>
 		left.a + (right.a - left.a) * amount,
 	)
 
-const brightenColor = (color: Color, amount: number): Color => mixColor(color, new Color(1, 1, 1, color.a), amount)
+const brightenColor = (color: Color, amount: number): Color =>
+	mixColor(color, new Color(1, 1, 1, color.a), amount)
 
 const createWorkspaceGrid = (): GridHelper => {
 	const gridConfig = getViewportConfig().grid
@@ -700,600 +413,10 @@ const createWorkspaceGrid = (): GridHelper => {
 	return grid
 }
 
-class BulkViewportHudRuntime implements BulkViewportHudController {
-	readonly canvas: HTMLCanvasElement
-	readonly renderer: Renderer
-	readonly inputProxy: VirtualInput | null
-	readonly #hud: HUD
-	readonly #viewPoint: ViewPoint
-	readonly #font: TrueTypeFont
-	readonly #requestFrame: (wakeMs?: number) => void
-	readonly #surfaces: BulkHudSurfaceSlot[] = []
-	#surfaceOrder = 0
-	#windowOrder = 0
-	readonly #windowOrders = new Map<string, number>()
-	readonly #windowZIndexes = new Map<string, number>()
-	#activeWindowId: string | null = null
-	#width = 1
-	#height = 1
-	#pixelScale = 1
-	#focused: UiSurfaceNode | null = null
-	#pressedSlot: BulkHudSurfaceSlot | null = null
-	#hoveredSlot: BulkHudSurfaceSlot | null = null
-	#activeTouchId: number | null = null
-	#lastTouchEventAt = 0
-	#claimNextClick = false
-	#disposed = false
+const clampBulkNumber = (value: number, min: number, max: number): number =>
+	Math.max(min, Math.min(max, value))
 
-	readonly #handleWheel = (event: WheelEvent): void => this.#onWheel(event)
-	readonly #handleMouseMove = (event: MouseEvent): void => this.#onMouseMove(event)
-	readonly #handleMouseDown = (event: MouseEvent): void => this.#onMouseDown(event)
-	readonly #handleMouseUp = (event: MouseEvent): void => this.#onMouseUp(event)
-	readonly #handleClick = (event: MouseEvent): void => this.#onClick(event)
-	readonly #handleMouseLeave = (): void => this.#onMouseLeave()
-	readonly #handleTouchStart = (event: TouchEvent): void => this.#onTouchStart(event)
-	readonly #handleTouchMove = (event: TouchEvent): void => this.#onTouchMove(event)
-	readonly #handleTouchEnd = (event: TouchEvent): void => this.#onTouchEnd(event)
-	readonly #handleTouchCancel = (event: TouchEvent): void => this.#onTouchCancel(event)
-	readonly #handleContextMenu = (event: MouseEvent): void => this.#onContextMenu(event)
-	readonly #handleKey = (event: KeyboardEvent): void => this.#onKey(event)
-	readonly #handleWindowKey = (event: KeyboardEvent): void => this.#onWindowKey(event)
-	readonly #handleWindowBlur = (): void => {
-		if (this.inputProxy?.softKeyboardActive() === true) return
-		this.setFocused(null)
-	}
-	readonly #handleVisibilityChange = (): void => {
-		if (document.visibilityState !== "visible") this.setFocused(null)
-	}
-
-	constructor(
-		canvas: HTMLCanvasElement,
-		renderer: Renderer,
-		viewPoint: ViewPoint,
-		font: TrueTypeFont,
-		requestFrame: (wakeMs?: number) => void,
-	) {
-		this.canvas = canvas
-		this.renderer = renderer
-		this.#viewPoint = viewPoint
-		this.#font = font
-		this.#requestFrame = requestFrame
-		this.#hud = new HUD({distanceMm: 600})
-		this.inputProxy = new VirtualInput(canvas.parentElement ?? document.body)
-		this.inputProxy.onKey((event) => this.#onKey(event))
-		this.inputProxy.onText((text) => this.#onInputText(text))
-		this.#attachInputListeners()
-	}
-
-	get overlay(): HUD {
-		return this.#hud
-	}
-
-	addSurface(surface: UiSurfaceNode, layout: UiSurfaceLayoutFn, opts: UiSurfaceLayerOpts = {}): void {
-		surface.attachCanvas(this as unknown as UiRuntime)
-		surface.setFramebufferClipSpace?.("screen")
-		this.#hud.add(surface.node)
-		const rect = layout({w: this.#width, h: this.#height})
-		const windowId = this.#surfaceWindowId(opts)
-		this.#surfaces.push({
-			surface,
-			layout,
-			rect,
-			order: this.#surfaceOrder++,
-			windowZIndex: this.#surfaceWindowZIndexFor(windowId, opts),
-			zIndex: windowId === null ? 0 : opts.zIndex ?? 0,
-			windowId,
-			windowOrder: this.#windowOrderFor(windowId),
-	})
-		this.#syncActiveSurfaceStates()
-		this.#sortSurfaceSlots()
-		this.#applyLayout()
-		this.requestRender()
-	}
-
-	clearSurfaceRect(surface: UiSurfaceNode): void {
-		const slot = this.#slotForSurface(surface)
-		if (slot === null || slot.rectOverride === undefined) return
-		delete slot.rectOverride
-		this.#applyLayout()
-		this.requestRender()
-	}
-
-	dispose(): void {
-		this.#disposed = true
-		this.canvas.removeEventListener("wheel", this.#handleWheel, true)
-		this.canvas.removeEventListener("mousemove", this.#handleMouseMove, true)
-		this.canvas.removeEventListener("mousedown", this.#handleMouseDown, true)
-		this.canvas.removeEventListener("mouseleave", this.#handleMouseLeave, true)
-		this.canvas.removeEventListener("click", this.#handleClick, true)
-		this.canvas.removeEventListener("touchstart", this.#handleTouchStart, true)
-		window.removeEventListener("touchmove", this.#handleTouchMove, true)
-		window.removeEventListener("touchend", this.#handleTouchEnd, true)
-		window.removeEventListener("touchcancel", this.#handleTouchCancel, true)
-		this.canvas.removeEventListener("contextmenu", this.#handleContextMenu, true)
-		this.canvas.removeEventListener("keydown", this.#handleKey, true)
-		window.removeEventListener("mouseup", this.#handleMouseUp, true)
-		window.removeEventListener("keydown", this.#handleWindowKey, true)
-		window.removeEventListener("blur", this.#handleWindowBlur)
-		document.removeEventListener("visibilitychange", this.#handleVisibilityChange)
-		this.setFocused(null)
-		this.#pressedSlot = null
-		this.#hoveredSlot = null
-		this.inputProxy?.dispose()
-		for (const slot of this.#surfaces) {
-			slot.surface.dispose?.()
-			this.#hud.remove(slot.surface.node)
-	}
-		this.#surfaces.length = 0
-	}
-
-	flushPendingRender(): void {
-		for (const slot of this.#surfaces) slot.surface.flushPendingRender?.()
-	}
-
-	handleSize(width: number, height: number): void {
-		const nextW = Math.max(1, Math.floor(width))
-		const nextH = Math.max(1, Math.floor(height))
-		this.#width = nextW
-		this.#height = nextH
-		const physicalHeight = 2 * this.#hud.distanceMm * Math.tan(this.#viewPoint.fov / 2)
-		this.#pixelScale = physicalHeight / nextH
-		this.#applyLayout()
-		this.requestRender()
-	}
-
-	relayout(): void {
-		this.#applyLayout()
-		this.requestRender()
-	}
-
-	requestRender(): void {
-		if (this.#disposed) return
-		this.#requestFrame()
-	}
-
-	setFocused(surface: UiSurfaceNode | null): void {
-		if (surface !== null) {
-			const slot = this.#slotForSurface(surface)
-			if (slot !== null) this.#activateSurfaceWindow(slot)
-		}
-		if (this.#focused === surface) return
-		this.#focused?.onDeactivate?.()
-		this.#focused = surface
-		surface?.onActivate?.()
-		this.requestRender()
-	}
-
-	setSurfaceRect(surface: UiSurfaceNode, rect: UiSurfaceRect): UiSurfaceRect | null {
-		const slot = this.#slotForSurface(surface)
-		if (slot === null) return null
-		const next = clampBulkHudSurfaceRect(rect, this.#width, this.#height)
-		slot.rectOverride = next
-		this.#applySurfaceSlotRect(slot, next, false)
-		this.requestRender()
-		return {...next}
-	}
-
-	surfaceFrame(surface: UiSurfaceNode): {rect: UiSurfaceRect; bounds: {w: number; h: number}} | null {
-		const slot = this.#slotForSurface(surface)
-		if (slot === null) return null
-		return {
-			rect: {...slot.rect},
-			bounds: {w: this.#width, h: this.#height},
-	}
-	}
-
-	#attachInputListeners(): void {
-		this.canvas.addEventListener("wheel", this.#handleWheel, {capture: true, passive: false})
-		this.canvas.addEventListener("mousemove", this.#handleMouseMove, true)
-		this.canvas.addEventListener("mousedown", this.#handleMouseDown, true)
-		this.canvas.addEventListener("mouseleave", this.#handleMouseLeave, true)
-		this.canvas.addEventListener("click", this.#handleClick, true)
-		this.canvas.addEventListener("touchstart", this.#handleTouchStart, {capture: true, passive: false})
-		window.addEventListener("touchmove", this.#handleTouchMove, {capture: true, passive: false})
-		window.addEventListener("touchend", this.#handleTouchEnd, {capture: true, passive: false})
-		window.addEventListener("touchcancel", this.#handleTouchCancel, {capture: true, passive: false})
-		this.canvas.addEventListener("contextmenu", this.#handleContextMenu, true)
-		this.canvas.addEventListener("keydown", this.#handleKey, true)
-		window.addEventListener("mouseup", this.#handleMouseUp, true)
-		window.addEventListener("keydown", this.#handleWindowKey, true)
-		window.addEventListener("blur", this.#handleWindowBlur)
-		document.addEventListener("visibilitychange", this.#handleVisibilityChange)
-		this.canvas.tabIndex = -1
-	}
-
-	#applyLayout(): void {
-		for (const slot of this.#surfaces) {
-			const layoutRect = slot.layout({w: this.#width, h: this.#height})
-			const nextRect = layoutRect.visible === false || slot.rectOverride === undefined
-				? layoutRect
-				: clampBulkHudSurfaceRect(slot.rectOverride, this.#width, this.#height)
-			if (layoutRect.visible !== false && slot.rectOverride !== undefined) slot.rectOverride = nextRect
-			this.#applySurfaceSlotRect(slot, nextRect, true)
-	}
-	}
-
-	#applySurfaceSlotRect(slot: BulkHudSurfaceSlot, rect: UiSurfaceRect, forceSetRect: boolean): void {
-		const previous = slot.rect
-		const previousScale = slot.pixelScale
-		slot.rect = rect
-		slot.pixelScale = this.#pixelScale
-		const visible = rect.visible !== false && rect.w > 0 && rect.h > 0
-		slot.surface.node.visible = visible
-		if (!visible) {
-			this.#releaseHiddenSurfaceSlot(slot)
-			return
-		}
-
-		slot.surface.node.position.x = (rect.x - this.#width / 2) * this.#pixelScale
-		slot.surface.node.position.y = (this.#height / 2 - rect.y) * this.#pixelScale
-		slot.surface.node.updateMatrix()
-
-		const sizeChanged = previous.w !== rect.w || previous.h !== rect.h || previous.visible === false || rect.visible === false
-		const scaleChanged = previousScale === undefined || previousScale !== this.#pixelScale
-		if (forceSetRect || sizeChanged || scaleChanged) {
-			slot.surface.setRect(rect, this.#pixelScale, this.#font)
-	} else if (previous.x !== rect.x || previous.y !== rect.y) {
-			slot.surface.moveRect?.(rect, this.#pixelScale, this.#font) ?? slot.surface.setRect(rect, this.#pixelScale, this.#font)
-	}
-	}
-
-	#sortSurfaceSlots(): void {
-		this.#surfaces.sort((a, b) => a.windowZIndex - b.windowZIndex || a.windowOrder - b.windowOrder || a.zIndex - b.zIndex || a.order - b.order)
-		for (const slot of this.#surfaces) this.#hud.add(slot.surface.node)
-	}
-
-	#surfaceWindowId(opts: UiSurfaceLayerOpts): string | null {
-		const windowId = opts.windowId?.trim()
-		return windowId === undefined || windowId.length === 0 ? null : windowId
-	}
-
-	#surfaceWindowZIndexFor(windowId: string | null, opts: UiSurfaceLayerOpts): number {
-		if (windowId === null) return opts.zIndex ?? 0
-		const existing = this.#windowZIndexes.get(windowId)
-		if (existing !== undefined) return existing
-		const zIndex = opts.windowZIndex ?? 0
-		this.#windowZIndexes.set(windowId, zIndex)
-		return zIndex
-	}
-
-	#windowOrderFor(windowId: string | null): number {
-		if (windowId === null) return 0
-		const existing = this.#windowOrders.get(windowId)
-		if (existing !== undefined) return existing
-		const order = ++this.#windowOrder
-		this.#windowOrders.set(windowId, order)
-		return order
-	}
-
-	#activateSurfaceWindow(slot: BulkHudSurfaceSlot): void {
-		if (slot.windowId === null) return
-		const order = ++this.#windowOrder
-		this.#windowOrders.set(slot.windowId, order)
-		for (const surfaceSlot of this.#surfaces) {
-			if (surfaceSlot.windowId === slot.windowId) surfaceSlot.windowOrder = order
-		}
-		this.#activeWindowId = slot.windowId
-		this.#syncActiveSurfaceStates()
-		this.#sortSurfaceSlots()
-		this.requestRender()
-	}
-
-	#syncActiveSurfaceStates(): void {
-		for (const slot of this.#surfaces) {
-			slot.surface.setActive?.(slot.windowId !== null && slot.windowId === this.#activeWindowId && slot.zIndex === 0)
-		}
-	}
-
-	#releaseHiddenSurfaceSlot(slot: BulkHudSurfaceSlot): void {
-		if (this.#hoveredSlot === slot) {
-			slot.surface.onPointerLeave?.()
-			this.#hoveredSlot = null
-		}
-		if (this.#pressedSlot === slot) {
-			this.#pressedSlot = null
-			this.#activeTouchId = null
-			this.#claimNextClick = false
-		}
-		if (this.#focused === slot.surface) {
-			this.setFocused(null)
-			this.inputProxy?.blur()
-		}
-	}
-
-	#surfaceAt(localX: number, localY: number): BulkHudSurfaceSlot | undefined {
-		for (let i = this.#surfaces.length - 1; i >= 0; i -= 1) {
-			const slot = this.#surfaces[i]!
-			if (slot.surface.acceptsPointerEvents?.() === false) continue
-			const rect = slot.rect
-			if (slot.surface.node.visible === false || rect.visible === false || rect.w <= 0 || rect.h <= 0) continue
-			if (localX < rect.x || localX > rect.x + rect.w || localY < rect.y || localY > rect.y + rect.h) continue
-			if (slot.surface.containsPointer?.(localX - rect.x, localY - rect.y) === false) continue
-			return slot
-	}
-		return undefined
-	}
-
-	#slotForSurface(surface: UiSurfaceNode): BulkHudSurfaceSlot | null {
-		return this.#surfaces.find((slot) => slot.surface === surface) ?? null
-	}
-
-	#localCoords(event: MouseEvent | WheelEvent): {x: number; y: number} {
-		const rect = this.canvas.getBoundingClientRect()
-		return {x: event.clientX - rect.left, y: event.clientY - rect.top}
-	}
-
-	#localCoordsFromTouch(touch: Touch): {x: number; y: number} {
-		const rect = this.canvas.getBoundingClientRect()
-		return {x: touch.clientX - rect.left, y: touch.clientY - rect.top}
-	}
-
-	#mouseEventFromTouch(type: "mousedown" | "mousemove" | "mouseup", touch: Touch): MouseEvent {
-		const init: MouseEventInit & PointerEventInit = {
-			bubbles: true,
-			cancelable: true,
-			button: 0,
-			buttons: type === "mouseup" ? 0 : 1,
-			clientX: touch.clientX,
-			clientY: touch.clientY,
-			screenX: touch.screenX,
-			screenY: touch.screenY,
-			pointerType: "touch",
-			pointerId: touch.identifier,
-			isPrimary: true,
-		}
-		const event = typeof PointerEvent === "function" ? new PointerEvent(type, init) : new MouseEvent(type, init)
-		Object.defineProperty(event, "metaforPointerType", {value: "touch"})
-		return event
-	}
-
-	#changedTouch(event: TouchEvent): Touch | null {
-		if (this.#activeTouchId === null) return event.changedTouches[0] ?? null
-		for (const touch of event.changedTouches) {
-			if (touch.identifier === this.#activeTouchId) return touch
-	}
-		return null
-	}
-
-	#positionInputProxy(clientX: number, clientY: number): void {
-		this.inputProxy?.setCaretViewport(clientX, clientY)
-	}
-
-	#claimPointerEvent(event: MouseEvent | WheelEvent | TouchEvent): void {
-		event.stopImmediatePropagation()
-	}
-
-	#rememberTouchEvent(): void {
-		this.#lastTouchEventAt = Date.now()
-	}
-
-	#isCompatibilityMouseEvent(event: MouseEvent): boolean {
-		const source = (event as MouseEvent & {sourceCapabilities?: {firesTouchEvents?: boolean} | null}).sourceCapabilities
-		if (source?.firesTouchEvents === true) return true
-		return this.#lastTouchEventAt > 0 && Date.now() - this.#lastTouchEventAt < 900
-	}
-
-	#onWheel(event: WheelEvent): void {
-		const local = this.#localCoords(event)
-		const slot = this.#surfaceAt(local.x, local.y)
-		if (slot === undefined) return
-		event.preventDefault()
-		this.#claimPointerEvent(event)
-		slot.surface.onWheel?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
-	}
-
-	#onMouseMove(event: MouseEvent): void {
-		if (this.#isCompatibilityMouseEvent(event)) {
-			event.preventDefault()
-			this.#claimPointerEvent(event)
-			return
-		}
-		const local = this.#localCoords(event)
-		const slot = this.#pressedSlot ?? this.#surfaceAt(local.x, local.y)
-		if (slot === undefined) {
-			this.#hoveredSlot?.surface.onPointerLeave?.()
-			this.#hoveredSlot = null
-			return
-	}
-		this.#claimPointerEvent(event)
-		if (this.#pressedSlot === null && slot !== this.#hoveredSlot) {
-			this.#hoveredSlot?.surface.onPointerLeave?.()
-			this.#hoveredSlot = slot
-	}
-		slot.surface.onPointerMove?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
-	}
-
-	#onMouseDown(event: MouseEvent): void {
-		if (this.#isCompatibilityMouseEvent(event)) {
-			event.preventDefault()
-			this.#claimPointerEvent(event)
-			this.#claimNextClick = true
-			return
-		}
-		const local = this.#localCoords(event)
-		const slot = this.#surfaceAt(local.x, local.y)
-		if (slot === undefined) {
-			this.#claimNextClick = false
-			this.setFocused(null)
-			return
-	}
-		event.preventDefault()
-		this.#claimPointerEvent(event)
-		this.#claimNextClick = true
-		this.#positionInputProxy(event.clientX, event.clientY)
-		this.setFocused(slot.surface)
-		this.#pressedSlot = slot
-		slot.surface.onPointerDown?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
-		this.#focusInputProxyForUserSurface(slot.surface, event)
-	}
-
-	#onMouseUp(event: MouseEvent): void {
-		if (this.#isCompatibilityMouseEvent(event)) {
-			event.preventDefault()
-			this.#claimPointerEvent(event)
-			this.#claimNextClick = false
-			return
-		}
-		const slot = this.#pressedSlot
-		if (slot === null) return
-		this.#pressedSlot = null
-		this.#activeTouchId = null
-		this.#claimPointerEvent(event)
-		const local = this.#localCoords(event)
-		slot.surface.onPointerUp?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
-	}
-
-	#onClick(event: MouseEvent): void {
-		if (this.#isCompatibilityMouseEvent(event)) {
-			this.#claimNextClick = false
-			event.preventDefault()
-			this.#claimPointerEvent(event)
-			return
-		}
-		const local = this.#localCoords(event)
-		const clickedHud = this.#surfaceAt(local.x, local.y) !== undefined
-		if (!this.#claimNextClick && !clickedHud) return
-		this.#claimNextClick = false
-		event.preventDefault()
-		this.#claimPointerEvent(event)
-	}
-
-	#onTouchStart(event: TouchEvent): void {
-		this.#rememberTouchEvent()
-		if (this.#activeTouchId !== null || event.changedTouches.length === 0) return
-		const touch = event.changedTouches[0]!
-		const local = this.#localCoordsFromTouch(touch)
-		const slot = this.#surfaceAt(local.x, local.y)
-		if (slot === undefined) {
-			this.setFocused(null)
-			return
-	}
-		const preserveNativeActivation = slot.surface.preserveNativeTouchActivation?.() === true
-		if (!preserveNativeActivation) event.preventDefault()
-		this.#claimPointerEvent(event)
-		this.#positionInputProxy(touch.clientX, touch.clientY)
-		this.setFocused(slot.surface)
-		this.#pressedSlot = slot
-		this.#activeTouchId = touch.identifier
-		const mouseEvent = this.#mouseEventFromTouch("mousedown", touch)
-		slot.surface.onPointerDown?.(mouseEvent, local.x - slot.rect.x, local.y - slot.rect.y)
-		if (!preserveNativeActivation) this.#focusInputProxyForUserSurface(slot.surface, mouseEvent)
-	}
-
-	#focusInputProxyForUserSurface(surface: UiSurfaceNode, event: MouseEvent): void {
-		if (this.inputProxy === null || event.button !== 0) return
-		this.inputProxy.focus({softKeyboard: bulkSoftKeyboardInputModeForSurface(surface) === "text"})
-	}
-
-	#onTouchMove(event: TouchEvent): void {
-		this.#rememberTouchEvent()
-		if (this.#activeTouchId === null) return
-		const touch = this.#changedTouch(event)
-		const slot = this.#pressedSlot
-		if (touch === null || slot === null) return
-		event.preventDefault()
-		this.#claimPointerEvent(event)
-		const local = this.#localCoordsFromTouch(touch)
-		slot.surface.onPointerMove?.(this.#mouseEventFromTouch("mousemove", touch), local.x - slot.rect.x, local.y - slot.rect.y)
-	}
-
-	#onTouchEnd(event: TouchEvent): void {
-		this.#rememberTouchEvent()
-		const touch = this.#changedTouch(event)
-		const slot = this.#pressedSlot
-		if (touch === null || slot === null) return
-		this.#pressedSlot = null
-		this.#activeTouchId = null
-		this.#claimPointerEvent(event)
-		const local = this.#localCoordsFromTouch(touch)
-		slot.surface.onPointerUp?.(this.#mouseEventFromTouch("mouseup", touch), local.x - slot.rect.x, local.y - slot.rect.y)
-		event.preventDefault()
-	}
-
-	#onTouchCancel(event: TouchEvent): void {
-		this.#rememberTouchEvent()
-		if (this.#activeTouchId === null) return
-		const touch = this.#changedTouch(event)
-		const slot = this.#pressedSlot
-		this.#pressedSlot = null
-		this.#activeTouchId = null
-		if (slot === null) return
-		event.preventDefault()
-		this.#claimPointerEvent(event)
-		const mouseEvent = touch === null
-			? new MouseEvent("mouseup", {bubbles: true, cancelable: true, button: 0, buttons: 0})
-			: this.#mouseEventFromTouch("mouseup", touch)
-		slot.surface.onPointerUp?.(mouseEvent, -1, -1)
-	}
-
-	#onMouseLeave(): void {
-		this.#hoveredSlot?.surface.onPointerLeave?.()
-		this.#hoveredSlot = null
-	}
-
-	#onContextMenu(event: MouseEvent): void {
-		const local = this.#localCoords(event)
-		const slot = this.#surfaceAt(local.x, local.y)
-		if (slot === undefined) return
-		event.preventDefault()
-		this.#claimPointerEvent(event)
-		slot.surface.onContextMenu?.(event, local.x - slot.rect.x, local.y - slot.rect.y)
-	}
-
-	#onKey(event: KeyboardEvent): void {
-		const focused = this.#focused
-		if (focused === null) return
-		focused.onKey?.(event)
-		if (!event.defaultPrevented) handleActiveInputKey(focused as Parameters<typeof handleActiveInputKey>[0], event)
-	}
-
-	#onWindowKey(event: KeyboardEvent): void {
-		if (this.#focused === null || this.inputProxy?.isFocused() === true) return
-		if (!isBulkHudKeyFallbackTarget(event.target, this.canvas)) return
-		this.#onKey(event)
-	}
-
-	#onInputText(text: string): void {
-		const focused = this.#focused
-		if (focused === null) return
-		focused.onInputText?.(text)
-		insertActiveInputText(focused as Parameters<typeof insertActiveInputText>[0], text)
-	}
-}
-
-function clampBulkHudSurfaceRect(rect: UiSurfaceRect, boundsW: number, boundsH: number): UiSurfaceRect {
-	const bw = Math.max(1, Math.floor(boundsW))
-	const bh = Math.max(1, Math.floor(boundsH))
-	const w = clampBulkHudNumber(finiteBulkHudNumber(rect.w, 1), 1, bw)
-	const h = clampBulkHudNumber(finiteBulkHudNumber(rect.h, 1), 1, bh)
-	const x = clampBulkHudNumber(finiteBulkHudNumber(rect.x, 0), 0, Math.max(0, bw - w))
-	const y = clampBulkHudNumber(finiteBulkHudNumber(rect.y, 0), 0, Math.max(0, bh - h))
-	return rect.visible === false ? {x, y, w, h, visible: false} : {x, y, w, h}
-}
-
-function clampBulkHudNumber(value: number, min: number, max: number): number {
-	return Math.max(min, Math.min(max, value))
-}
-
-function finiteBulkHudNumber(value: number, fallback: number): number {
-	return Number.isFinite(value) ? value : fallback
-}
-
-function bulkSoftKeyboardInputModeForSurface(surface: UiSurfaceNode): VirtualInputSoftKeyboardMode {
-	const explicit = surface.softKeyboardInputMode?.()
-	if (explicit !== undefined) return explicit
-	return surfaceHasActiveInput(surface as Parameters<typeof handleActiveInputKey>[0]) ? "text" : "none"
-}
-
-function isBulkHudKeyFallbackTarget(target: EventTarget | null, canvas: HTMLCanvasElement): boolean {
-	if (target === null || target === window || target === document || target === document.body || target === document.documentElement) return true
-	if (target === canvas) return true
-	if (!(target instanceof HTMLElement)) return false
-	if (target.closest("textarea,input,select,[contenteditable='true']") !== null) return false
-	return target === canvas.parentElement || target.contains(canvas)
-}
-
-export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkVisualViewportWithHud> => {
+export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkVisualViewport> => {
 	const renderer = new Renderer()
 	await renderer.init(options.canvas)
 	if (!renderer.canvas) {
@@ -1319,7 +442,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	let pickTargets: HoverablePickTarget[] = []
 	let hoveredPickTarget: HoverablePickTarget | null = null
-	let radialMenuPickTarget: HoverablePickTarget | null = null
 	const sphereSurfaceCache = new Map<string, BufferGeometry>()
 	const torusSurfaceCache = new Map<string, BufferGeometry>()
 	let activeVisualSphereMeshDetail:
@@ -1357,14 +479,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	let pointerDownX = 0
 	let pointerDownY = 0
 	let touchTapState: CanvasTouchTapState | null = null
-	const radialMenuPane = new BulkRadialMenuPane()
-	let radialMenuLongPress: {
-		startX: number
-		startY: number
-		target: HoverablePickTarget
-		timer: ReturnType<typeof setTimeout>
-		touchId: number
-	} | null = null
 	let disposed = false
 	let frameHandle = 0
 	let renderWakeUntilMs = 0
@@ -1550,7 +664,14 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (frameHandle !== 0) return
 		frameHandle = requestAnimationFrame(animate)
 	}
-	let hudRuntime: BulkViewportHudRuntime
+	const domRuntime = createBulkDomOverlayRuntime({
+		canvas: options.canvas,
+		renderer,
+		font: uiFont,
+		width: options.width,
+		height: options.height,
+		requestFrame: requestRenderLoop,
+	})
 
 	const resetHoverMaterial = (target: HoverablePickTarget): void => {
 		target.material.color.copy(target.baseColor)
@@ -1580,11 +701,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const syncPickTargetMaterialState = (target: HoverablePickTarget): void => {
 		const targetKey = getPickTargetKey(target)
-		if (
-			targetKey !== null &&
-			(targetKey === getPickTargetKey(hoveredPickTarget) || targetKey === getPickTargetKey(radialMenuPickTarget))
-		) applyHoverMaterial(target)
-		else resetHoverMaterial(target)
+		if (targetKey !== null && targetKey === getPickTargetKey(hoveredPickTarget)) {
+			applyHoverMaterial(target)
+		} else {
+			resetHoverMaterial(target)
+		}
 	}
 
 	const setHoveredPickTarget = (target: HoverablePickTarget | null): void => {
@@ -1598,20 +719,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		if (hoveredPickTarget) syncPickTargetMaterialState(hoveredPickTarget)
 		options.canvas.style.cursor = hoveredPickTarget ? "pointer" : ""
 		requestRenderLoop()
-	}
-
-	const setRadialMenuPickTarget = (target: HoverablePickTarget | null): void => {
-		if (getPickTargetKey(radialMenuPickTarget) === getPickTargetKey(target)) return
-		const previous = radialMenuPickTarget
-		radialMenuPickTarget = target
-		if (previous) syncPickTargetMaterialState(previous)
-		if (radialMenuPickTarget) syncPickTargetMaterialState(radialMenuPickTarget)
-		requestRenderLoop()
-	}
-
-	radialMenuPane.onClose = () => {
-		setRadialMenuPickTarget(null)
-		setHoveredPickTarget(null)
 	}
 
 	const clampTransitionScale = (value: number): number => {
@@ -2314,12 +1421,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const record = fieldParticleRecords.get(fieldParticleId)
 		if (!record) return
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
-		setHoveredPickTarget(null)
+			setHoveredPickTarget(null)
 	}
-		if (getPickTargetKey(radialMenuPickTarget) === getPickTargetKey(record.pickTarget)) {
-			radialMenuPane.close()
-			setRadialMenuPickTarget(null)
-		}
 		fadingRemovalRecords.push({
 			baseOpacity: record.pickTarget.baseOpacity,
 			durationMs: REMOVAL_FADE_MS,
@@ -2336,12 +1439,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const record = darkParticleRecords.get(darkParticleId)
 		if (!record) return
 		if (getPickTargetKey(hoveredPickTarget) === getPickTargetKey(record.pickTarget)) {
-		setHoveredPickTarget(null)
+			setHoveredPickTarget(null)
 	}
-		if (getPickTargetKey(radialMenuPickTarget) === getPickTargetKey(record.pickTarget)) {
-			radialMenuPane.close()
-			setRadialMenuPickTarget(null)
-		}
 		fadingRemovalRecords.push({
 			baseOpacity: record.pickTarget.baseOpacity,
 			durationMs: REMOVAL_FADE_MS,
@@ -2747,13 +1846,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					getPickTargetKey(hoveredPickTarget) ===
 					getPickTargetKey(record.pickTarget)
 				) setHoveredPickTarget(null)
-				if (
-					getPickTargetKey(radialMenuPickTarget) ===
-					getPickTargetKey(record.pickTarget)
-				) {
-					radialMenuPane.close()
-					setRadialMenuPickTarget(null)
-				}
 				detachObject(record.node)
 			}
 			fieldProxyRecords.delete(fieldProxyId)
@@ -2765,13 +1857,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					getPickTargetKey(hoveredPickTarget) ===
 					getPickTargetKey(record.pickTarget)
 				) setHoveredPickTarget(null)
-				if (
-					getPickTargetKey(radialMenuPickTarget) ===
-					getPickTargetKey(record.pickTarget)
-				) {
-					radialMenuPane.close()
-					setRadialMenuPickTarget(null)
-				}
 				detachObject(record.node)
 			}
 			orbitalParticleRecords.delete(orbitalParticleId)
@@ -3614,78 +2699,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		) as HoverablePickTarget | null
 	}
 
-	const pickRadialMenuTargetAtClientPoint = (clientX: number, clientY: number): HoverablePickTarget | null => {
-		const directTarget = pickClickTargetAtClientPoint(clientX, clientY)
-		if (directTarget) return directTarget
-
-		updateManifestationSceneState()
-		let bestTarget: HoverablePickTarget | null = null
-		let bestScore = Number.POSITIVE_INFINITY
-
-		for (const target of pickTargets) {
-			const score = isBulkSpherePickTarget(target)
-				? resolveProjectedSphereDistancePx(target.center, target.sphereRadius, clientX, clientY)
-				: resolveProjectedTorusDistancePx(target.center, target.torusRadius, target.torusTube, clientX, clientY)
-			if (score === null || score > BULK_RADIAL_MENU_PROJECTED_HIT_PAD_PX || score >= bestScore) continue
-			bestScore = score
-			bestTarget = target
-		}
-
-		return bestTarget
-	}
-
-	const radialMenuCenterForTarget = (target: HoverablePickTarget, fallbackClientX?: number, fallbackClientY?: number): {x: number; y: number} | null => {
-		const canvasRect = options.canvas.getBoundingClientRect()
-		if (canvasRect.width <= 0 || canvasRect.height <= 0) return null
-		const fallback = fallbackClientX !== undefined && fallbackClientY !== undefined
-			? {x: fallbackClientX, y: fallbackClientY}
-			: null
-		const centerPoint = projectSceneToClientPoint(target.center) ?? fallback
-		if (centerPoint === null) return null
-		return {
-			x: centerPoint.x - canvasRect.left,
-			y: centerPoint.y - canvasRect.top,
-		}
-	}
-
-	const syncRadialMenuAnchor = (): void => {
-		if (radialMenuPickTarget === null) return
-		const center = radialMenuCenterForTarget(radialMenuPickTarget)
-		if (center === null) return
-		radialMenuPane.setCenter(center)
-	}
-
-	const openRadialMenuForTarget = (target: HoverablePickTarget, fallbackClientX: number, fallbackClientY: number): void => {
-		cancelNavigation()
-		updateManifestationSceneState()
-		const center = radialMenuCenterForTarget(target, fallbackClientX, fallbackClientY)
-		if (center === null) return
-		setHoveredPickTarget(target)
-		setRadialMenuPickTarget(target)
-		radialMenuPane.open(center)
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
-	}
-
-	const closeRadialMenu = (): void => {
-		setRadialMenuPickTarget(null)
-		radialMenuPane.close()
-		requestRenderLoop(INPUT_RENDER_WAKE_MS)
-	}
-
-	const closeRadialMenuWithoutSceneAction = (suppressNextClick = true): boolean => {
-		if (radialMenuPickTarget === null) return false
-		closeRadialMenu()
-		clickNavigationSuppressed = suppressNextClick
-		isPrimaryPointerDown = false
-		return true
-	}
-
-	const cancelRadialMenuLongPress = (): void => {
-		if (radialMenuLongPress === null) return
-		clearTimeout(radialMenuLongPress.timer)
-		radialMenuLongPress = null
-	}
-
 	const applyNavigationFrame = (timestamp: number): void => {
 		if (!navigationState) return
 		viewPoint.alignUpToWorldZ()
@@ -3712,7 +2725,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		})
 
 		if (navigationState.startedAt === null) navigationState.startedAt = timestamp
-		const linear = clampBulkHudNumber((timestamp - navigationState.startedAt) / FOCUS_FLIGHT_MS, 0, 1)
+		const linear = clampBulkNumber((timestamp - navigationState.startedAt) / FOCUS_FLIGHT_MS, 0, 1)
 		const endPose: BulkViewPose = {
 			position: nextPose.position,
 			target: nextPose.target,
@@ -4122,7 +3135,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const handleCanvasMouseDown = (event: MouseEvent): void => {
 		cancelNavigation()
-		cancelRadialMenuLongPress()
 		if (event.button !== 0) return
 		disableRootViewportFit()
 		isPrimaryPointerDown = true
@@ -4142,12 +3154,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			return
 		}
 
-		if (radialMenuPickTarget !== null) {
-			setHoveredPickTarget(null)
-			requestRenderLoop(INPUT_RENDER_WAKE_MS)
-			return
-		}
-
 		setHoveredPickTarget(pickTargetAtClientPoint(event.clientX, event.clientY, true))
 	}
 
@@ -4159,7 +3165,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 
 	const resetCanvasPointerState = (): void => {
 		isPrimaryPointerDown = false
-		cancelRadialMenuLongPress()
 		setHoveredPickTarget(null)
 	}
 
@@ -4236,22 +3241,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const touch = canvasTouchForTap(event)
 		if (touch === null) return
 		resetCanvasTouchTap()
-		if (radialMenuPickTarget !== null) {
-			if (!state.cancelled && !clickNavigationSuppressed && Math.hypot(touch.clientX - state.startX, touch.clientY - state.startY) <= BULK_TOUCH_TAP_MOVE_PX) {
-				cancelRadialMenuLongPress()
-				closeRadialMenuWithoutSceneAction(false)
-				event.preventDefault()
-				event.stopImmediatePropagation()
-			}
-			clickNavigationSuppressed = false
-			return
-		}
-		if (state.cancelled || clickNavigationSuppressed || radialMenuPickTarget !== null) {
+		if (state.cancelled || clickNavigationSuppressed) {
 			clickNavigationSuppressed = false
 			return
 		}
 		if (Math.hypot(touch.clientX - state.startX, touch.clientY - state.startY) > BULK_TOUCH_TAP_MOVE_PX) return
-		cancelRadialMenuLongPress()
 		const hitTarget = pickClickTargetAtClientPoint(touch.clientX, touch.clientY)
 		if (!hitTarget) {
 			focusedViewportFitTargetKey = null
@@ -4276,11 +3270,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			clickNavigationSuppressed = false
 			return
 		}
-		if (closeRadialMenuWithoutSceneAction(false)) {
-			event.preventDefault()
-			event.stopImmediatePropagation()
-			return
-		}
 		const hitTarget =
 			pickClickTargetAtClientPoint(event.clientX, event.clientY) ??
 			hoveredPickTarget
@@ -4292,90 +3281,11 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		focusTarget(hitTarget)
 	}
 
-	const handleCanvasContextMenu = (event: MouseEvent): void => {
-		if (event.defaultPrevented) return
-		event.preventDefault()
-		event.stopImmediatePropagation()
-		let hitTarget: HoverablePickTarget | null = null
-		try {
-			hitTarget = pickRadialMenuTargetAtClientPoint(event.clientX, event.clientY)
-		} catch (error) {
-			console.warn("[bulk/web] radial menu target lookup failed", error)
-		}
-		if (!hitTarget) {
-			setHoveredPickTarget(null)
-			closeRadialMenu()
-			return
-		}
-		clickNavigationSuppressed = true
-		openRadialMenuForTarget(hitTarget, event.clientX, event.clientY)
-	}
-
-	const handleCanvasTouchStartForRadialMenu = (event: TouchEvent): void => {
-		cancelRadialMenuLongPress()
-		const hasOpenRadialMenu = radialMenuPickTarget !== null
-		if (event.touches.length !== 1) {
-			if (!hasOpenRadialMenu) closeRadialMenu()
-			return
-		}
-		const touch = event.changedTouches[0]
-		if (touch === undefined) return
-		const hitTarget = pickRadialMenuTargetAtClientPoint(touch.clientX, touch.clientY)
-		if (!hitTarget) {
-			if (!hasOpenRadialMenu) {
-				setHoveredPickTarget(null)
-				closeRadialMenu()
-			}
-			return
-		}
-		radialMenuLongPress = {
-			startX: touch.clientX,
-			startY: touch.clientY,
-			target: hitTarget,
-			touchId: touch.identifier,
-			timer: setTimeout(() => {
-				const pending = radialMenuLongPress
-				if (pending === null) return
-				radialMenuLongPress = null
-				isPrimaryPointerDown = false
-				clickNavigationSuppressed = true
-				openRadialMenuForTarget(pending.target, pending.startX, pending.startY)
-			}, BULK_RADIAL_MENU_LONG_PRESS_MS),
-		}
-	}
-
-	const handleCanvasTouchMoveForRadialMenu = (event: TouchEvent): void => {
-		if (radialMenuLongPress === null) return
-		for (const touch of Array.from(event.changedTouches)) {
-			if (touch.identifier !== radialMenuLongPress.touchId) continue
-			if (
-				Math.hypot(
-					touch.clientX - radialMenuLongPress.startX,
-					touch.clientY - radialMenuLongPress.startY,
-				) > BULK_RADIAL_MENU_LONG_PRESS_MOVE_PX
-			) {
-				cancelRadialMenuLongPress()
-			}
-			return
-		}
-	}
-
-	const handleCanvasTouchEndForRadialMenu = (event: TouchEvent): void => {
-		if (radialMenuLongPress === null) return
-		for (const touch of Array.from(event.changedTouches)) {
-			if (touch.identifier === radialMenuLongPress.touchId) {
-				cancelRadialMenuLongPress()
-				return
-			}
-		}
-	}
-
 	options.canvas.addEventListener("mousedown", handleCanvasMouseDown)
 	options.canvas.addEventListener("mousemove", handleCanvasMouseMove)
 	options.canvas.addEventListener("mouseup", handleCanvasMouseUp)
 	options.canvas.addEventListener("mouseleave", resetCanvasPointerState)
 	options.canvas.addEventListener("click", handleCanvasClick)
-	options.canvas.addEventListener("contextmenu", handleCanvasContextMenu, true)
 	options.canvas.addEventListener("wheel", wakeRenderFromCanvasWheel, { passive: true })
 	options.canvas.addEventListener("touchstart", wakeRenderFromCanvasTouch, { passive: true })
 	options.canvas.addEventListener("touchmove", wakeRenderFromCanvasTouch, { passive: true })
@@ -4385,10 +3295,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	window.addEventListener("touchmove", handleCanvasTouchMoveForNavigation, {capture: true, passive: true})
 	window.addEventListener("touchend", handleCanvasTouchEndForNavigation, {capture: true, passive: false})
 	window.addEventListener("touchcancel", handleCanvasTouchCancelForNavigation, true)
-	options.canvas.addEventListener("touchstart", handleCanvasTouchStartForRadialMenu, { passive: true })
-	window.addEventListener("touchmove", handleCanvasTouchMoveForRadialMenu, {capture: true, passive: true})
-	window.addEventListener("touchend", handleCanvasTouchEndForRadialMenu, true)
-	window.addEventListener("touchcancel", handleCanvasTouchEndForRadialMenu, true)
 	document.addEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 	document.addEventListener("mouseup", wakeRenderFromDocumentMouseUp)
 
@@ -4401,13 +3307,12 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		const hasPendingMotion = updateAnimatedRecords(deltaMs)
 		updateManifestationSceneState()
 		applyNavigationFrame(timestamp)
-		syncRadialMenuAnchor()
 
 		updateLabelTrackers()
-		hudRuntime.flushPendingRender()
+		domRuntime.flush()
 		space.updateWorldMatrix()
 		syncViewportClipPlanes()
-		renderer.renderFrame(space, hudRuntime.overlay, viewPoint)
+		renderer.renderFrame(space, domRuntime.overlay, viewPoint)
 		if (shouldContinueBulkRenderLoop({
 			navigationActive: navigationState !== null,
 			pendingMotion: hasPendingMotion,
@@ -4420,9 +3325,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		}
 	}
 
-	hudRuntime = new BulkViewportHudRuntime(options.canvas, renderer, viewPoint, uiFont, requestRenderLoop)
-	hudRuntime.handleSize(options.width, options.height)
-	hudRuntime.addSurface(radialMenuPane, ({w, h}) => ({x: 0, y: 0, w, h}), {zIndex: BULK_RADIAL_MENU_HUD_Z})
 	requestRenderLoop()
 
 	return {
@@ -4436,7 +3338,6 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			options.canvas.removeEventListener("mouseup", handleCanvasMouseUp)
 			options.canvas.removeEventListener("mouseleave", resetCanvasPointerState)
 			options.canvas.removeEventListener("click", handleCanvasClick)
-			options.canvas.removeEventListener("contextmenu", handleCanvasContextMenu, true)
 			options.canvas.removeEventListener("wheel", wakeRenderFromCanvasWheel)
 			options.canvas.removeEventListener("touchstart", wakeRenderFromCanvasTouch)
 			options.canvas.removeEventListener("touchmove", wakeRenderFromCanvasTouch)
@@ -4446,14 +3347,8 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			window.removeEventListener("touchmove", handleCanvasTouchMoveForNavigation, true)
 			window.removeEventListener("touchend", handleCanvasTouchEndForNavigation, true)
 			window.removeEventListener("touchcancel", handleCanvasTouchCancelForNavigation, true)
-			options.canvas.removeEventListener("touchstart", handleCanvasTouchStartForRadialMenu)
-			window.removeEventListener("touchmove", handleCanvasTouchMoveForRadialMenu, true)
-			window.removeEventListener("touchend", handleCanvasTouchEndForRadialMenu, true)
-			window.removeEventListener("touchcancel", handleCanvasTouchEndForRadialMenu, true)
 			document.removeEventListener("mousemove", wakeRenderFromDocumentMouseMove)
 			document.removeEventListener("mouseup", wakeRenderFromDocumentMouseUp)
-				cancelRadialMenuLongPress()
-				setRadialMenuPickTarget(null)
 				setHoveredPickTarget(null)
 				for (const record of transitionBatchRecords.values()) {
 					releaseLineBatchRecord(record)
@@ -4477,7 +3372,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 					torusSurfaceCache,
 					invalidateGeometry,
 				)
-				hudRuntime.dispose()
+				domRuntime.dispose()
 				viewPoint.dispose()
 		},
 		handleForce(_channel: string, _message: unknown) {
@@ -4492,7 +3387,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 			viewPoint.setAspectRatio(width / height)
 			if (rootFitLockedToViewport) applyRootViewportFit({force: viewportSizeChanged})
 			else if (viewportSizeChanged) applyFocusedViewportFit()
-			hudRuntime.handleSize(width, height)
+			domRuntime.resize(width, height)
 			requestRenderLoop(INPUT_RENDER_WAKE_MS)
 		},
 		setVisualLayers(layers: readonly BulkVisualLayer[] | null) {
@@ -4709,6 +3604,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 		rebuildBulkStoreRelationBatch(batchId, paths) {
 			rebuildOneLineBatch(batchId, paths, relationBatchRecords, "Relation", "relation")
 		},
-		hud: hudRuntime,
+		uiDocument: domRuntime.document,
+		captureLastPresentedFramePng: () => renderer.captureLastPresentedFramePng(),
 	}
 }

@@ -412,7 +412,11 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     }, 30_000)
     await waitForAcceptedCaches(restoredPage)
     await expectCanonicalReleaseCaches(restoredPage)
-    expect(restoredNavigations).toBeGreaterThanOrEqual(2)
+    // The disconnected update may commit before this newly opened Window is a
+    // controlled client. In that valid race the initial navigation already
+    // reads the accepted composition and no redundant client.navigate occurs.
+    expect(restoredNavigations).toBeGreaterThanOrEqual(1)
+    expect(restoredNavigations).toBeLessThanOrEqual(2)
   } catch (error) {
     const failureState = browser ? await browserFailureState(browser).catch(String) : null
     throw withServerOutput(error, `${server.output()}\n${browserDiagnostics.join("\n")}\n${JSON.stringify(failureState)}`)

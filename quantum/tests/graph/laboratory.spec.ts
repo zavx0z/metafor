@@ -1,15 +1,15 @@
 import {describe, expect, test} from "bun:test"
 import {validateGraph} from "@metafor/types/metafor/graph"
-import {planStorybookShell} from "@zavx0z/storybook/workbench"
+import {createDocument} from "@zavx0z/dom"
 import {projectBulkGraph} from "../../bulk/graph/projection.ts"
-import {GraphLabState} from "../../storybook/graph/state/lab-state.ts"
+import {createGraphOverview} from "../../storybook/graph/overview.ts"
 import {
   currentGraphFixture,
   reactionGraphFixture,
 } from "../../storybook/graph/fixtures/graph.ts"
 import {
   GRAPH_STORIES,
-  graphStorybookPresentationRoute,
+  graphOverviewInput,
 } from "../../storybook/graph/stories.ts"
 import {
   GRAPH_FIXTURE_CHILD,
@@ -72,57 +72,51 @@ describe("Quantum Graph laboratory fixtures", () => {
 })
 
 describe("Quantum Graph Storybook laboratory", () => {
-  test("keeps registered overviews presentational and rejects unknown paths", async () => {
+  test("keeps registered overviews independent from detail leaves and rejects unknown paths", async () => {
     expect(GRAPH_STORIES.representative).toBe("document/current/complete")
-    expect(graphStorybookPresentationRoute("")).toBe("document/current/complete")
-    expect(graphStorybookPresentationRoute("validation")).toBe("validation/contract/closed")
-    expect(graphStorybookPresentationRoute("reaction")).toBe("reaction/dependencies/complete")
-    expect(graphStorybookPresentationRoute("node-tree")).toBe("node-tree/projection/live")
-    expect(graphStorybookPresentationRoute("identity/same-meta")).toBe("identity/same-meta/reorder")
-    expect(() => graphStorybookPresentationRoute("validation/unknown")).toThrow(
-      "Неизвестный путь лаборатории Graph",
+    for (const route of GRAPH_STORIES.routeTree.overviews) {
+      const overview = createGraphOverview(createDocument(), graphOverviewInput(route))
+      expect(overview.element.getAttribute("data-route"), route).toBe(route)
+      expect(overview.element.querySelector(".graph-json"), route).toBeNull()
+      expect(overview.element.querySelector(".graph-node-tree"), route).toBeNull()
+      overview.dispose()
+    }
+    expect(() => graphOverviewInput("validation/unknown")).toThrow(
+      "Graph overview route is not registered",
     )
     await expect(GRAPH_STORIES.load("validation/unknown")).rejects.toThrow(
-      "Unknown storybook story route",
+      "Unknown Storybook DOM route",
     )
   })
 
-  test("loads real story modules and keeps the latest lazy selection", async () => {
-    const state = await GraphLabState.create(graphStorybookPresentationRoute(""))
-    const first = state.select("validation/contract/closed")
-    const second = state.select("identity/same-meta/reorder")
-    await Promise.all([first, second])
-    expect(state.route).toBe("identity/same-meta/reorder")
-    expect(state.story.apiName).toBe("MetaRuntimeAtomLocator")
-    const source = state.module.source(state.args)
-    expect(source.html).toContain('class="graph-json"')
-    expect(source.css).toContain(".graph-json__result")
-    expect(source.typescript).toContain("insertSameMetaSibling")
+  test("loads exact DOM story factories once and mounts them in caller-owned realms", async () => {
+    const first = GRAPH_STORIES.load("identity/same-meta/reorder")
+    const second = GRAPH_STORIES.load("identity/same-meta/reorder")
+    expect(first).toBe(second)
+    const factory = await first
+    const document = createDocument()
+    const story = factory(document)
+    expect(story.element.ownerDocument).toBe(document)
+    expect(story.args).toEqual({"insert-sibling": true})
+    expect(story.source.html).toContain('class="graph-json"')
+    expect(story.source.css).toContain(".graph-json__result")
+    expect(story.source.typescript).toContain("insertSameMetaSibling")
+    story.dispose()
   })
 
-  test("returning to the committed route cancels a pending lazy selection", async () => {
-    const state = await GraphLabState.create("document/current/complete")
-    const pending = state.select("validation/contract/closed")
-
-    state.invalidateSelection()
-
-    expect(await pending).toBeFalse()
-    expect(state.route).toBe("document/current/complete")
-    expect(state.story.apiName).toBe("Graph")
-  })
-
-  test("reserves the shared StatusBar below the five desktop Workbench regions", () => {
-    expect(planStorybookShell(1920, 1080, {
-      responsive: {compactBelow: null, compactPanels: []},
-    })).toEqual({
-      compact: false,
-      stage: {x: 3, y: 3, w: 1914, h: 1050},
-      catalog: {x: 3, y: 3, w: 210, h: 1050},
-      section: {x: 214, y: 3, w: 160, h: 1050},
-      preview: {x: 375, y: 3, w: 1101, h: 1025},
-      dock: {x: 375, y: 1029, w: 1101, h: 24},
-      info: {x: 1477, y: 3, w: 440, h: 1050},
-      status: {x: 0, y: 1056, w: 1920, h: 24},
-    })
+  test("keeps all Graph route levels declared for exact server delivery", () => {
+    expect(GRAPH_STORIES.routeTree.overviews).toEqual([
+      "",
+      "document",
+      "document/current",
+      "reaction",
+      "reaction/dependencies",
+      "validation",
+      "validation/contract",
+      "node-tree",
+      "node-tree/projection",
+      "identity",
+      "identity/same-meta",
+    ])
   })
 })

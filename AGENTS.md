@@ -151,20 +151,22 @@
 - Для разработки, проверок и Storybook соседнего Engine использовать
   `$engine-dev` из `../engine/.agents/skills/engine-dev`. Engine не получает
   product-, UI- или Nodes-семантику через интеграционную задачу.
-- Для разработки, проверок и Storybook соседнего Layout использовать
-  `$layout-dev` из `../layout/.agents/skills/layout-dev`. Визуальные controls и
-  product composition остаются у UI и MetaFor.
+- Связанный document contour имеет одну цепочку владельцев:
+  `@zavx0z/dom` → `@zavx0z/renderer` → `@zavx0z/renderer-webgpu` →
+  `@engine/core`. Generic Layout и `@ui/elements` выведены из live graph и не
+  используются как fallback; UI controls и product composition остаются у UI
+  и MetaFor.
 - Все package pages семейства Nodes принадлежат единому dev-каталогу
   `@nodes/storybook`: один process/origin, главная `/` и exact routes
   `/core/*`, `/editor/*`, `/layout/*`, `/worker/*`, `/ui/*`. Для их
   lifecycle и browser-проверки использовать единый глобальный `$storybook` с
   exact package `@nodes/storybook`. Package page задаётся только `--route`, а
-  DOM/SVG и WebGPU capabilities определяются fail-closed по typed dev manifest.
-- Для разработки, lifecycle, browser-проверки и профилирования единого каталога
-  package pages `@ui/elements`, `@ui/components`, `@ui/storybook` и `@ui/hud`
-  использовать единый глобальный `$storybook` с exact package
-  `@ui/storybook`. UI-визуальная семантика остаётся у `$ui-dev`, но lifecycle,
-  target и browser commands здесь не дублируются.
+  DOM/SVG и WebGPU capabilities определяются fail-closed по typed dev manifest;
+  `/layout/*` здесь принадлежит живому доменному `@nodes/layout`.
+- Для разработки, lifecycle, browser-проверки и профилирования каталога
+  package pages `@ui/components` использовать единый глобальный `$storybook`
+  с exact package `@ui/storybook`. UI-визуальная семантика остаётся у
+  `$ui-dev`, но lifecycle, target и browser commands здесь не дублируются.
 - Browser evidence в этих package-contours получать только через встроенный
   в `$storybook` background exact-target CDP path. Агент не воспроизводит его CDP
   вручную и не вызывает focus, activate, `Page.bringToFront`, window APIs или

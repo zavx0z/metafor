@@ -22,10 +22,10 @@
     "@bulk/strong": "workspace:*",
     "@bulk/weak": "workspace:*",
     "@engine/core": "link:@engine/core",
-    "@layout/core": "link:@layout/core",
     "@metafor/visual": "workspace:*",
     "@ui/components": "link:@ui/components",
-    "@ui/hud": "link:@ui/hud",
-    "@ui/elements": "link:@ui/elements"
+    "@zavx0z/dom": "link:@zavx0z/dom",
+    "@zavx0z/renderer": "link:@zavx0z/renderer",
+    "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu"
   }
 }

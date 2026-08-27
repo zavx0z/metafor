@@ -54,16 +54,11 @@
   },
   "dependencies": {
     "@engine/core": "link:@engine/core",
-    "@layout/core": "link:@layout/core",
     "@metafor/types": "workspace:*",
     "@nodes/core": "link:@nodes/core",
     "@nodes/editor": "link:@nodes/editor",
-    "@nodes/layout": "link:@nodes/layout",
-    "@nodes/ui": "link:@nodes/ui",
     "@nodes/worker": "link:@nodes/worker",
     "@ui/components": "link:@ui/components",
-    "@ui/elements": "link:@ui/elements",
-    "@ui/hud": "link:@ui/hud",
     "shared": "workspace:*"
   },
   "peerDependencies": {

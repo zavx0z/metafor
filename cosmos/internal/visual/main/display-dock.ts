@@ -1,131 +1,185 @@
-import {HudReturnDock, type HudRect} from "@ui/hud"
-import {UiSurface} from "@layout/core/surface"
+import type {
+  Document,
+  DocumentFragment,
+  HTMLButtonElement,
+  HTMLDivElement,
+} from "@zavx0z/dom"
+import {uiIcons} from "@ui/components/icons"
 
-const DOCK_KEY = "main-display-dock"
-const DOCK_BRIDGE_KEY = "main-display-dock-bridge"
-const BUTTON_KEY = "main-display-dock-button"
+export type DisplayMode = "far" | "near"
 
-type DockGeometry = {
-  island: HudRect
-  button: HudRect
-  hit: HudRect
+export type DisplayDock = Readonly<{
+  root: DocumentFragment
+  container: HTMLDivElement
+  dockButton: HTMLButtonElement
+  returnButton: HTMLButtonElement
+  mode: DisplayMode
+  pinned: boolean
+  expanded: boolean
+  resize(viewportWidth: number): void
+  setMode(mode: DisplayMode): void
+  dispose(): void
+}>
+
+/** Creates the camera-locked navigation dock as an ordinary semantic DOM tree. */
+export function createDisplayDock(
+  document: Document,
+  onReturn: () => void,
+): DisplayDock {
+  if (typeof onReturn !== "function") throw new TypeError("Display dock onReturn must be a function")
+  const root = document.createDocumentFragment()
+  const container = document.createElement("div")
+  const returnButton = document.createElement("button")
+  const returnIcon = document.createElement("img")
+  const dockButton = document.createElement("button")
+  const dockMark = document.createElement("span")
+  let mode: DisplayMode = "far"
+  let pinned = false
+  let expanded = false
+  let disposed = false
+  let viewportWidth = 1
+
+  container.id = "main-display-dock"
+  container.setAttribute("style", containerStyle(viewportWidth, expanded))
+
+  returnButton.type = "button"
+  returnButton.setAttribute("aria-label", "Вернуться к предыдущему обзору")
+  returnButton.setAttribute("style", returnButtonStyle(58))
+  returnIcon.src = uiIcons.chevronLeft
+  returnIcon.alt = ""
+  returnIcon.width = 22
+  returnIcon.height = 22
+  returnButton.appendChild(returnIcon)
+
+  dockButton.type = "button"
+  dockButton.setAttribute("aria-label", "Навигация основной поверхности")
+  dockButton.setAttribute("aria-pressed", "false")
+  dockButton.setAttribute("style", dockButtonStyle)
+  dockMark.setAttribute("style", dockMarkStyle)
+  dockButton.appendChild(dockMark)
+
+  container.append(returnButton, dockButton)
+  root.appendChild(container)
+
+  const synchronize = (): void => {
+    const islandWidth = displayDockWidth(viewportWidth)
+    container.setAttribute("style", containerStyle(viewportWidth, expanded))
+    returnButton.setAttribute("style", expanded
+      ? returnButtonStyle(islandWidth)
+      : `${returnButtonStyle(islandWidth)}; display: none`)
+    dockButton.setAttribute("aria-pressed", pinned ? "true" : "false")
+    dockButton.title = mode === "far"
+      ? "Приблизить основную поверхность"
+      : "Вернуть пространственный обзор"
+    returnButton.title = dockButton.title
+  }
+
+  const setExpanded = (value: boolean): void => {
+    if (disposed || expanded === value) return
+    expanded = value
+    synchronize()
+  }
+
+  const onPointerEnter = (): void => setExpanded(true)
+  const onPointerLeave = (): void => {
+    if (!pinned) setExpanded(false)
+  }
+  const onDockClick = (): void => {
+    pinned = !pinned
+    setExpanded(pinned || expanded)
+    synchronize()
+  }
+  const onReturnClick = (): void => {
+    pinned = false
+    setExpanded(false)
+    synchronize()
+    onReturn()
+  }
+
+  container.addEventListener("pointerenter", onPointerEnter)
+  container.addEventListener("pointerleave", onPointerLeave)
+  dockButton.addEventListener("click", onDockClick)
+  returnButton.addEventListener("click", onReturnClick)
+  synchronize()
+
+  return Object.freeze({
+    root,
+    container,
+    dockButton,
+    returnButton,
+    get mode() { return mode },
+    get pinned() { return pinned },
+    get expanded() { return expanded },
+    resize(value) {
+      if (!Number.isFinite(value) || value < 0) throw new RangeError("Display dock viewport width must be finite and non-negative")
+      viewportWidth = Math.max(1, value)
+      synchronize()
+    },
+    setMode(value) {
+      if (value !== "far" && value !== "near") throw new TypeError("Display mode must be far or near")
+      mode = value
+      synchronize()
+    },
+    dispose() {
+      if (disposed) return
+      disposed = true
+      container.removeEventListener("pointerenter", onPointerEnter)
+      container.removeEventListener("pointerleave", onPointerLeave)
+      dockButton.removeEventListener("click", onDockClick)
+      returnButton.removeEventListener("click", onReturnClick)
+    },
+  })
 }
 
-/** HUD-owned navigation dock for the standard Space display. */
-export class DisplayDockSurface extends UiSurface {
-  readonly #toggleDisplay: () => void
-  #pinned = false
-  #expanded = false
-
-  constructor(toggleDisplay: () => void) {
-    super({bgColor: null, borderColor: null})
-    this.#toggleDisplay = toggleDisplay
-  }
-
-  /** Leaves the rest of the transparent HUD surface to Space camera input. */
-  containsPointer(localX: number, localY: number): boolean {
-    const geometry = this.#geometry()
-    const point = {x: localX, y: localY}
-    return pointInRect(point, geometry.island)
-      || (this.#expanded && pointInRect(point, geometry.hit))
-  }
-
-  override onPointerLeave(): void {
-    super.onPointerLeave()
-    if (this.#pinned) return
-    this.#expanded = false
-    this.requestRender()
-  }
-
-  protected render(): void {
-    const geometry = this.#geometry()
-    const dock = this.hitState(
-      geometry.island.x,
-      geometry.island.y,
-      geometry.island.w,
-      geometry.island.h,
-      DOCK_KEY,
-    )
-    const bridge = this.hitState(
-      geometry.hit.x,
-      geometry.hit.y,
-      geometry.hit.w,
-      geometry.hit.h,
-      DOCK_BRIDGE_KEY,
-    )
-    const button = this.hitState(
-      geometry.button.x,
-      geometry.button.y,
-      geometry.button.w,
-      geometry.button.h,
-      BUTTON_KEY,
-    )
-    this.#expanded = this.#pinned
-      || dock.hovered
-      || dock.pressed
-      || bridge.hovered
-      || bridge.pressed
-      || button.hovered
-      || button.pressed
-
-    if (this.#expanded) {
-      this.hit(geometry.hit.x, geometry.hit.y, geometry.hit.w, geometry.hit.h, () => {}, {
-        key: DOCK_BRIDGE_KEY,
-        cursor: "pointer",
-        activeCursor: "pointer",
-      })
-    }
-
-    HudReturnDock(this, {
-      island: geometry.island,
-      button: geometry.button,
-      expanded: this.#expanded,
-      dockKey: DOCK_KEY,
-      buttonKey: BUTTON_KEY,
-      onDockClick: () => {
-        this.#pinned = !this.#pinned
-        this.#expanded = this.#pinned
-        this.requestRender()
-      },
-      onReturnClick: () => {
-        this.#pinned = false
-        this.#expanded = false
-        this.#toggleDisplay()
-        this.requestRender()
-      },
-    })
-  }
-
-  #geometry(): DockGeometry {
-    const islandW = clamp(this.rectW * 0.075, 58, 88)
-    const islandH = 17
-    const islandX = (this.rectW - islandW) / 2
-    const islandY = this.rectH - 30
-    const size = 38
-    const buttonX = this.rectW / 2 - size / 2
-    const buttonY = islandY - size - 11
-    const hitPad = 16
-
-    return {
-      island: {x: islandX, y: islandY, w: islandW, h: islandH},
-      button: {x: buttonX, y: buttonY, w: size, h: size},
-      hit: {
-        x: Math.min(islandX, buttonX) - hitPad,
-        y: buttonY - hitPad,
-        w: Math.max(islandX + islandW, buttonX + size) - Math.min(islandX, buttonX) + hitPad * 2,
-        h: islandY + islandH - buttonY + hitPad * 2,
-      },
-    }
-  }
+const containerStyle = (viewportWidth: number, expanded: boolean): string => {
+  const islandWidth = displayDockWidth(viewportWidth)
+  return [
+    "position: absolute",
+    `left: ${(viewportWidth - islandWidth) / 2}px`,
+    "bottom: 13px",
+    `width: ${islandWidth}px`,
+    `height: ${expanded ? 82 : 17}px`,
+  ].join("; ")
 }
 
-function pointInRect(point: {x: number; y: number}, rect: HudRect): boolean {
-  return point.x >= rect.x
-    && point.x <= rect.x + rect.w
-    && point.y >= rect.y
-    && point.y <= rect.y + rect.h
-}
+const dockButtonStyle = [
+  "position: absolute",
+  "left: 0",
+  "bottom: 0",
+  "box-sizing: border-box",
+  "width: 100%",
+  "height: 17px",
+  "padding: 0",
+  "display: flex",
+  "align-items: center",
+  "justify-content: center",
+  "background: rgba(8, 132, 255, 0.10)",
+  "border: 1px solid rgba(92, 240, 255, 0.48)",
+  "border-radius: 9px",
+  "color: #dffcff",
+].join("; ")
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value))
-}
+const dockMarkStyle = [
+  "display: block",
+  "width: 32px",
+  "height: 2px",
+  "background: rgba(223, 252, 255, 0.72)",
+  "border-radius: 1px",
+].join("; ")
+
+const returnButtonStyle = (islandWidth: number): string => [
+  "position: absolute",
+  `left: ${(islandWidth - 38) / 2}px`,
+  "top: 0",
+  "box-sizing: border-box",
+  "width: 38px",
+  "height: 38px",
+  "padding: 8px",
+  "background: rgba(8, 132, 255, 0.12)",
+  "border: 1px solid rgba(92, 240, 255, 0.72)",
+  "border-radius: 8px",
+  "color: #dffcff",
+].join("; ")
+
+const displayDockWidth = (viewportWidth: number): number =>
+  Math.max(58, Math.min(88, viewportWidth * 0.075))

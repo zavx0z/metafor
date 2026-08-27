@@ -6,20 +6,19 @@
   "scripts": {
     "storybook": "bun server.ts",
     "build": "bun build.ts",
-    "test": "bun test ../tests/graph/storybook.spec.ts ../tests/graph/node-tree-presentation.spec.ts",
+    "test": "bun test graph/dom-stories.spec.ts ../tests/graph/storybook.spec.ts ../tests/graph/node-tree-presentation.spec.ts bulk/story.spec.ts ../tests/bulk/storybook.spec.ts",
     "typecheck": "tsc --noEmit --pretty false",
     "check": "bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "@engine/core": "link:@engine/core",
-    "@layout/core": "link:@layout/core",
     "@metafor/node-tree": "workspace:*",
-    "@nodes/core": "link:@nodes/core",
-    "@nodes/layout": "link:@nodes/layout",
-    "@nodes/ui": "link:@nodes/ui",
     "@ui/components": "link:@ui/components",
-    "@ui/elements": "link:@ui/elements",
+    "@zavx0z/dom": "link:@zavx0z/dom",
     "@zavx0z/highlighter": "link:@zavx0z/highlighter",
+    "@zavx0z/renderer": "link:@zavx0z/renderer",
+    "@zavx0z/renderer-browser": "link:@zavx0z/renderer-browser",
+    "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
     "@zavx0z/storybook": "link:@zavx0z/storybook"
   },
   "devDependencies": {

@@ -6,16 +6,11 @@
       "name": "metafor",
       "dependencies": {
         "@engine/core": "link:@engine/core",
-        "@layout/core": "link:@layout/core",
         "@metafor/types": "workspace:*",
         "@nodes/core": "link:@nodes/core",
         "@nodes/editor": "link:@nodes/editor",
-        "@nodes/layout": "link:@nodes/layout",
-        "@nodes/ui": "link:@nodes/ui",
         "@nodes/worker": "link:@nodes/worker",
         "@ui/components": "link:@ui/components",
-        "@ui/elements": "link:@ui/elements",
-        "@ui/hud": "link:@ui/hud",
         "shared": "workspace:*",
       },
       "devDependencies": {
@@ -52,11 +47,14 @@
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.16",
+      "version": "0.1.18",
       "dependencies": {
         "@engine/core": "link:@engine/core",
-        "@layout/core": "link:@layout/core",
-        "@ui/hud": "link:@ui/hud",
+        "@ui/components": "link:@ui/components",
+        "@zavx0z/dom": "link:@zavx0z/dom",
+        "@zavx0z/renderer": "link:@zavx0z/renderer",
+        "@zavx0z/renderer-browser": "link:@zavx0z/renderer-browser",
+        "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
       },
     },
     "cosmos/release": {
@@ -124,7 +122,6 @@
         "@nodes/core": "link:@nodes/core",
       },
       "devDependencies": {
-        "@nodes/ui": "link:@nodes/ui",
         "@types/bun": "^1.4.0",
         "typescript": "^7.0.2",
       },
@@ -195,12 +192,12 @@
         "@bulk/types": "workspace:*",
         "@bulk/weak": "workspace:*",
         "@engine/core": "link:@engine/core",
-        "@layout/core": "link:@layout/core",
         "@metafor/types": "workspace:*",
         "@metafor/visual": "workspace:*",
         "@ui/components": "link:@ui/components",
-        "@ui/elements": "link:@ui/elements",
-        "@ui/hud": "link:@ui/hud",
+        "@zavx0z/dom": "link:@zavx0z/dom",
+        "@zavx0z/renderer": "link:@zavx0z/renderer",
+        "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
         "shared": "workspace:*",
       },
     },
@@ -221,7 +218,6 @@
       "version": "0.0.1",
       "dependencies": {
         "@engine/core": "link:@engine/core",
-        "@layout/core": "link:@layout/core",
         "@metafor/types": "workspace:*",
       },
     },
@@ -319,14 +315,13 @@
       "version": "0.0.0",
       "dependencies": {
         "@engine/core": "link:@engine/core",
-        "@layout/core": "link:@layout/core",
         "@metafor/node-tree": "workspace:*",
-        "@nodes/core": "link:@nodes/core",
-        "@nodes/layout": "link:@nodes/layout",
-        "@nodes/ui": "link:@nodes/ui",
         "@ui/components": "link:@ui/components",
-        "@ui/elements": "link:@ui/elements",
+        "@zavx0z/dom": "link:@zavx0z/dom",
         "@zavx0z/highlighter": "link:@zavx0z/highlighter",
+        "@zavx0z/renderer": "link:@zavx0z/renderer",
+        "@zavx0z/renderer-browser": "link:@zavx0z/renderer-browser",
+        "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
         "@zavx0z/storybook": "link:@zavx0z/storybook",
       },
       "devDependencies": {
@@ -379,8 +374,6 @@
 
     "@internal/visual": ["@internal/visual@workspace:cosmos/internal/visual"],
 
-    "@layout/core": ["@layout/core@link:@layout/core", {}],
-
     "@matrix/gravity": ["@matrix/gravity@workspace:quantum/matrix/gravity"],
 
     "@matrix/strong": ["@matrix/strong@workspace:quantum/matrix/strong"],
@@ -405,11 +398,7 @@
 
     "@nodes/editor": ["@nodes/editor@link:@nodes/editor", {}],
 
-    "@nodes/layout": ["@nodes/layout@link:@nodes/layout", {}],
-
     "@nodes/storybook": ["@nodes/storybook@link:@nodes/storybook", {}],
-
-    "@nodes/ui": ["@nodes/ui@link:@nodes/ui", {}],
 
     "@nodes/worker": ["@nodes/worker@link:@nodes/worker", {}],
 
@@ -507,13 +496,17 @@
 
     "@ui/components": ["@ui/components@link:@ui/components", {}],
 
-    "@ui/elements": ["@ui/elements@link:@ui/elements", {}],
-
-    "@ui/hud": ["@ui/hud@link:@ui/hud", {}],
-
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 
+    "@zavx0z/dom": ["@zavx0z/dom@link:@zavx0z/dom", {}],
+
     "@zavx0z/highlighter": ["@zavx0z/highlighter@link:@zavx0z/highlighter", {}],
+
+    "@zavx0z/renderer": ["@zavx0z/renderer@link:@zavx0z/renderer", {}],
+
+    "@zavx0z/renderer-browser": ["@zavx0z/renderer-browser@link:@zavx0z/renderer-browser", {}],
+
+    "@zavx0z/renderer-webgpu": ["@zavx0z/renderer-webgpu@link:@zavx0z/renderer-webgpu", {}],
 
     "@zavx0z/storybook": ["@zavx0z/storybook@link:@zavx0z/storybook", { "bin": { "storybook": "./scripts/storybook.ts", "create-storybook": "./scripts/create-storybook.ts" } }],
 

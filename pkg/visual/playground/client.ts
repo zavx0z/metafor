@@ -390,7 +390,7 @@ const mainAnnotation = createPageAnnotationLayer({
     (() => {
       throw new Error("Visual canvas parent is missing")
     })(),
-  capturePng: () => viewport.hud.renderer.captureLastPresentedFramePng(),
+  capturePng: () => viewport.captureLastPresentedFramePng(),
   surface: () => {
     const slug = readSlug()
     const component = visualComponentForSlug(

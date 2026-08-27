@@ -1,8 +1,8 @@
 /**
 Quantum-owned Storybook application manifest.
 
-The manifest keeps the Graph laboratory under `/graph` while its catalog,
-preview state and lazy experiments remain owned by Quantum.
+The manifest keeps one delivery page while an exact browser bootstrap selects
+the Graph DOM laboratory or the bounded Bulk DOM pipeline.
 
 @packageDocumentation
 */
@@ -15,14 +15,14 @@ import {
 } from "@zavx0z/storybook/app"
 import {createQuantumGraphStorybookPage} from "./graph/page.ts"
 
-/** Creates the single-page Quantum Storybook used by local server and static delivery. */
+/** Creates the DOM-native Quantum Storybook used by local server and static delivery. */
 export function createQuantumStorybookApp(): StorybookAppManifest {
   return defineStorybookApp({
     id: "quantum",
-    title: "Quantum · лаборатория Graph",
-    basePath: "/graph",
+    title: "Quantum · лаборатория",
+    basePath: "",
     home: {
-      path: "/",
+      path: "/graph/",
       label: "Главная",
       ariaLabel: "На главную лаборатории Quantum",
     },
@@ -32,7 +32,7 @@ export function createQuantumStorybookApp(): StorybookAppManifest {
         label: "MetaFor",
         href: "https://github.com/zavx0z/metafor",
       },
-      detail: "лаборатория Graph для сравнения доменных проекций",
+      detail: "лаборатории доменных проекций Quantum",
     },
     head: {
       meta: [{

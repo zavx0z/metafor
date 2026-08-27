@@ -15,25 +15,27 @@ Visual объявляет свои платформенные части по
 Когда release запускает browser-часть visual:
 
 1. visual получает предоставленную приложением область отображения;
-1. `UiRuntime` лениво получает общий default font по URL, который один раз
-   объявляет HTML composition root; custom font полностью обходит этот request;
-1. создаёт общее визуальное пространство Cosmos;
-1. подготавливает основной display и навигацию;
+1. visual получает общий default font по URL, который один раз объявляет HTML
+   composition root;
+1. создаёт semantic documents основной поверхности и навигации через
+   `@zavx0z/dom` (далее — DOM);
+1. `@zavx0z/renderer-browser` (далее — browser renderer) создаёт один Canvas,
+   Engine renderer, Space и ViewPoint для всех visual documents;
+1. помещает основную поверхность в world-space plane, а навигацию — в
+   camera-locked overlay того же кадра;
 1. согласует display с доступной областью Window;
 1. сообщает о готовности визуального environment.
 
 Наблюдаемый результат — пользователь получает готовую поверхность Cosmos, в
 которой может появляться принадлежащее другим владельцам содержимое.
 
-Когда visual размещает несколько UI либо display regions, authoritative child
-slots и retained transform/clip chain принадлежат
-[контракту `@layout/core` (далее — Layout)](https://github.com/zavx0z/layout/blob/main/packages/core/requirements.md#semantic-child-slots),
-а их semantic composition —
-[закону UI-композиции](https://github.com/zavx0z/ui/blob/main/ARCHITECTURE.md#ui-composition-law).
-Layout остаётся единственным владельцем этой механики. visual является
-consumer одного `UiRuntime` и consumer-owned retained parents;
-function-based UI components не создают собственный runtime, parent или scene
-graph.
+Стандартные DOM identity, tree mutation, attributes, `title` и события
+принадлежат [semantic DOM](https://github.com/zavx0z/renderer/blob/main/ARCHITECTURE.md#semantic-dom),
+а CSS/layout/hit projection и WebGPU realization — соответствующим владельцам
+[document rendering pipeline](https://github.com/zavx0z/renderer/blob/main/ARCHITECTURE.md).
+Visual выбирает только Cosmos-композицию, положение поверхностей и переход
+между пространственным и приближённым обзором. Он не создаёт второй semantic
+tree, ручную геометрию controls или параллельный animation loop.
 
 ## Граница ответственности
 

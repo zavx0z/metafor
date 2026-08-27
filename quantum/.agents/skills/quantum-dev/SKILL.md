@@ -81,14 +81,15 @@ quantum/storybook/
 ├── app.ts               один typed Quantum Storybook application
 ├── server.ts            automatic-port package server
 ├── build.ts             local-only static delivery
+├── bootstrap.ts         exact domain entry dispatch
+├── routes.ts            один canonical route tree
 └── <entity>/
     ├── page.ts          consumer-owned page descriptor
-    ├── entry.ts         composition готового Workbench
-    ├── stories.ts       единый typed catalog
-    ├── preview.ts       consumer-owned preview Surface
+    ├── entry.ts         один semantic DOM Workbench и document runtime
+    ├── stories.ts       единый typed DOM catalog
+    ├── overview.ts      owner-owned overview presentation
     ├── fixtures/        воспроизводимые входы экспериментов
-    ├── state/           только UI-состояние лаборатории
-    └── stories/         lazy source/controls/render modules
+    └── stories/         lazy DOM story modules
 ```
 
 Для typed app, server, static build, routes, stories и workbench напрямую
@@ -98,9 +99,11 @@ Quantum. Все обращённые к человеку строки Storybook 
 API names, JSON keys, routes, import specifiers и код сохраняют исходное
 написание.
 
-Consumer использует `defineStorybookStories`, `planStorybookShell`, готовые
-navigation/dock/info surfaces и pathname router. Не создавать параллельные
-HTML/CSS navigation, собственный story contract или второй lab workbench.
+Consumer использует natural subpaths `@zavx0z/storybook/catalog`,
+`@zavx0z/storybook/stories`, `@zavx0z/storybook/workbench` и pathname router.
+Catalog создаётся через `defineStorybookDomCatalog`, а один Workbench — через
+`createStorybookDomWorkbench` в том же `@zavx0z/dom` Document. Не создавать
+параллельную navigation, собственный story contract или второй lab workbench.
 
 Не добавлять compatibility re-exports, import aliases или central facade вокруг
 относительных integration imports.

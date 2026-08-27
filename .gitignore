@@ -28,3 +28,4 @@ pkg/visual/playground/.edge-examples/
 /mass/
 /cluster/
 .tls/
+.idea/

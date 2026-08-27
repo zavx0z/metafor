@@ -6,9 +6,13 @@ import {
 import { Force } from "shared/transport/force"
 import {
 	createBulkViewport,
-	type BulkVisualViewportWithHud,
+	type BulkVisualViewport,
 } from "./web/index.ts"
-import { installBulkHud } from "./hud.ts"
+import {
+	createBrowserBulkFullscreenHost,
+	createBulkHudController,
+	type BulkHudController,
+} from "./dom/hud-controller.ts"
 import {captureBulkViewportCanvas} from "./web/viewport-capture.ts"
 import {BulkPresentedStoreProof} from "./web/observer-snapshot.ts"
 import {readBulkInitialResponse} from "./page-bootstrap.ts"
@@ -30,7 +34,8 @@ type BulkBootWindow = Window & {
 	__METAFOR_BULK_INITIAL_RESPONSE__?: Promise<Response>
 }
 
-let bulkViewport: BulkVisualViewportWithHud | null = null
+let bulkViewport: BulkVisualViewport | null = null
+let bulkHud: BulkHudController | null = null
 let storeRenderer: BulkStoreViewportRenderer | null = null
 const presentedStoreProof = new BulkPresentedStoreProof()
 
@@ -138,7 +143,11 @@ const start = async (): Promise<void> => {
 
 	await viewportPromise
 	if (!bulkViewport) throw new Error("Bulk viewport is not initialized")
-	installBulkHud({viewport: bulkViewport})
+	bulkHud = createBulkHudController({
+		document: bulkViewport.uiDocument,
+		parent: bulkViewport.uiDocument,
+		fullscreen: createBrowserBulkFullscreenHost(bulkCanvas),
+	})
 	mark("renderer-prepare-start")
 	storeRenderer = new BulkStoreViewportRenderer(store, bulkViewport)
 	mark("renderer-prepare-end")
@@ -164,7 +173,7 @@ const start = async (): Promise<void> => {
 			{observerId, store: storeProof},
 			viewport === null
 				? {}
-				: {readPng: () => viewport.hud.renderer.captureLastPresentedFramePng()},
+				: {readPng: () => viewport.captureLastPresentedFramePng()},
 		)
 		const response: BulkViewportCaptureControlResponse = {
 			control: "bulk.viewport.capture.response",
@@ -182,5 +191,12 @@ const start = async (): Promise<void> => {
 	await waitForPresentedFrame()
 	measure("bootstrap-to-scene", "bootstrap-start", "scene-frame-ready")
 }
+
+window.addEventListener("pagehide", () => {
+	bulkHud?.dispose()
+	bulkHud = null
+	bulkViewport?.dispose()
+	bulkViewport = null
+}, {once: true})
 
 void start().catch(showLoaderError)

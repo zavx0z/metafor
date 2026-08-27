@@ -339,40 +339,27 @@ source relations и materialized Atom/Topology/Value разложены по о�
 
 ## Bulk и renderer
 
-Сохранены source-backed world projection, generic viewport, navigation,
-fullscreen и WebGPU renderer. Нижний существующий `HudTimelinePanel`, прежде
-показывавший Atom observer cut, теперь занят открытым по умолчанию causal
-time-документом: компактные Blender-подобные дорожки Force, Mass и Boundary,
-playhead и ромбовидные keyframe-маркеры кадров pause-stack, фактически
-прочитанных из Dark через локальный Oracle Bulk. Заголовок и отдельная боковая
-вкладка времени отсутствуют; timeline прижат к нижнему dock. Отдельная
-самодельная карточка времени поверх сцены запрещена. Нижний control dock
-использует общие `@ui/components`: icon-only Pause, Resume и Step, а рядом
-read-only счётчики количества keyframes и acceptance sequence. Отдельного
-LIVE/PAUSE status chip нет. Dock не импортирует runtime Interpreter. Pause
-закрывает external admission и
-создаёт causal frame на удержанном frontier; Resume освобождает admission и
-очищает disposable stack.
-Цветные иконка и border управляющей кнопки обозначают текущий режим, а не
-доступную противоположную команду: Play выбран только в live, Pause — только на
-удержанном frontier. Управляющие кнопки не показывают tooltip.
-Счётчики подписаны пользовательскими словами `КАДРЫ` и `ТАКТ`, без внутренних
-сокращений KF/SEQ. Три управляющие кнопки образуют центрированную группу;
-`КАДРЫ` находится у её левого края, `ТАКТ` — у правого. В live при пустом
-pause-stack счётчики не рисуются; они появляются только вместе с causal frame и
-исчезают после Resume. Разделителей вокруг группы кнопок нет.
-Левый gutter подписей Force/Mass/Boundary зеркально резервируется справа:
-playhead и keyframe plot геометрически центрированы по viewport, а не по
-оставшейся после подписей ширине.
-Step не испускает Particle из UI и остаётся неактивным без отдельного явного
-следующего input. Выбранный кадр красный, измеренный exact — зелёный,
-degraded — янтарный, overloaded — красный, кадр без capture-метрики — серый.
-На время одного stack/pause/resume RPC управляющие кнопки недоступны, а ответ
-предыдущей отменённой UI-операции не может заменить более новое causal
-состояние.
-Перемещение playhead само по себе не меняет live-мир, 3D, checkpoint или
-Particle history. Недоступность либо malformed ответ time-control RPC
-показывается в панели, а не подменяется вымышленным состоянием.
+Bulk владеет source-backed world projection, generic viewport, navigation,
+fullscreen, causal-time control и WebGPU presentation. Production HUD является
+одним semantic Document: public `@ui/components/hud` (далее — components HUD)
+создаёт stable HudWindow с fullscreen action и вложенной stable Timeline.
+`@zavx0z/renderer` (далее — document renderer) вычисляет CSS/layout/hit state,
+а `@zavx0z/renderer-webgpu` (далее — WebGPU adapter) помещает полученное
+представление в camera-locked overlay существующего Bulk renderer. HUD не
+создаёт второй Canvas, Renderer, Space, ViewPoint или animation loop.
+
+Timeline показывает реально прочитанные из Dark causal frames на дорожках
+Force, Mass и Boundary. В открытом live-состоянии transport-кнопка запрашивает
+Pause; на удержанном frontier та же standard button action запрашивает Resume.
+Previous и Next меняют только выбранный frame в текущем stack. Выбор позиции
+не меняет 3D, checkpoint, Particle history или live-мир. Маркер сохраняет
+полученную resolution `exact`, `degraded`, `overloaded` либо `unknown`.
+
+На время stack/pause/resume causal controls недоступны. Ответ предыдущей
+операции не может заменить более новое causal state. Malformed либо
+недоступный time-control ответ показывается в subtitle HUD, а не заменяется
+вымышленным stack. Fullscreen action использует standard browser fullscreen
+state и отражает его controlled `aria-pressed`.
 
 Bulk Store сохраняет persisted table PK и минимальные FK/placement columns для
 Field, State, Transition, Condition, Process и Reaction, а также runtime
@@ -397,11 +384,9 @@ Impulse, изменения `ViewPoint` или незавершённого ко
 корневая Particle детерминированно переключает наблюдение на материализованный
 Atom без ручной команды из интерфейса.
 
-Causal timeline заменяет прежнее Atom observer-cut представление: Bulk не
-строит и не показывает отдельные дорожки материализованных Atom на общем
-client cursor. Узкий live adapter предоставляет только pause/stack/resume; он не
-заявляет backward reconstruction, isolated execution branch, promotion в live
-contour или завершение `MF-109`.
+Causal timeline читает только pause-stack Dark через узкий live adapter
+`pause/stack/resume`. Он не заявляет backward reconstruction, isolated
+execution branch, promotion в live contour или завершение `MF-109`.
 
 Текущий `ViewPoint` привязан к DOM element. Смысловой контракт должен стать
 platform-neutral, чтобы одна точка наблюдения могла представлять обычный экран,

@@ -4,19 +4,25 @@
 
 ### Связанные репозитории
 
-Template, Engine, Layout, UI и Node являются соседними публичными репозиториями,
-построенными для [MetaFor](https://github.com/zavx0z/metafor). Локальные Bun
-links подключают точный checkout реального владельца без re-export либо
-TypeScript alias; internal identities Engine, Layout, UI и Node отдельно не
-публикуются в npm.
+Template, Renderer, Engine, UI и Node являются соседними публичными
+репозиториями, построенными для [MetaFor](https://github.com/zavx0z/metafor).
+Локальные Bun links подключают точный checkout реального владельца без
+re-export либо TypeScript alias; internal identities Renderer, Engine, UI и
+Node отдельно не публикуются в npm.
+
+Документный runtime использует одну цепочку владельцев:
+`@zavx0z/dom` → `@zavx0z/renderer` → `@zavx0z/renderer-webgpu` →
+`@engine/core`. Generic Layout и `@ui/elements` выведены из production graph;
+доменный `@nodes/layout` остаётся отдельным Node package числовой раскладки и
+routing.
 
 Репозитории располагаются рядом:
 
 ```text
 repozitarium/
 ├── template/
+├── renderer/
 ├── engine/
-├── layout/
 ├── ui/
 ├── node/
 └── metafor/
@@ -34,13 +40,13 @@ cd ../engine
 bun install --frozen-lockfile
 cd packages/core && bun link
 
-cd ../../../layout
+cd ../../../renderer
 bun install --frozen-lockfile
-cd packages/core && bun link
+for package in dom renderer renderer-webgpu renderer-browser; do (cd "packages/$package" && bun link); done
 
-cd ../../../ui
+cd ../ui
 bun install --frozen-lockfile
-for package in elements components hud storybook; do (cd "packages/$package" && bun link); done
+for package in components storybook; do (cd "packages/$package" && bun link); done
 
 cd ../node
 bun install --frozen-lockfile

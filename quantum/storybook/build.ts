@@ -23,19 +23,19 @@ const manifest = await buildStaticStorybook({
 })
 
 console.log(
-  `[Лаборатория Quantum] собрано страниц: ${manifest.pages.length}; каталог: ${outputRoot}; база: /graph/`,
+  `[Лаборатория Quantum] собрано страниц: ${manifest.pages.length}; каталог: ${outputRoot}; routes: /graph/ + /bulk/`,
 )
 
 async function dependencyIdentities(): Promise<readonly StorybookDependencyIdentity[]> {
   const inputs = [
     ["@engine/core", import.meta.resolve("@engine/core/default-font")],
-    ["@layout/core", import.meta.resolve("@layout/core/runtime")],
     ["@metafor/node-tree", import.meta.resolve("@metafor/node-tree/graph")],
-    ["@nodes/core", import.meta.resolve("@nodes/core/node-tree")],
-    ["@nodes/layout", import.meta.resolve("@nodes/layout/types")],
-    ["@nodes/ui", import.meta.resolve("@nodes/ui/node-editor")],
-    ["@ui/workspace", import.meta.resolve("@ui/elements/primitives")],
+    ["@ui/components", import.meta.resolve("@ui/components/code-editor")],
+    ["@zavx0z/dom", import.meta.resolve("@zavx0z/dom")],
     ["@zavx0z/highlighter", import.meta.resolve("@zavx0z/highlighter")],
+    ["@zavx0z/renderer", import.meta.resolve("@zavx0z/renderer")],
+    ["@zavx0z/renderer-browser", import.meta.resolve("@zavx0z/renderer-browser")],
+    ["@zavx0z/renderer-webgpu", import.meta.resolve("@zavx0z/renderer-webgpu")],
     ["@zavx0z/storybook", import.meta.resolve("@zavx0z/storybook/app")],
   ] as const
   return Object.freeze(await Promise.all(inputs.map(async ([name, entry]) => ({

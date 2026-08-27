@@ -146,8 +146,7 @@ export const createStateGraphActivityLab =
       const annotation = createPageAnnotationLayer({
         sourceCanvas: canvas,
         viewer,
-        capturePng: () =>
-          viewport.hud.renderer.captureLastPresentedFramePng(),
+        capturePng: () => viewport.captureLastPresentedFramePng(),
         surface: () => ({
           canvasId: canvas.id,
           kind: "playground-page",

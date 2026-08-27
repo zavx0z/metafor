@@ -1,56 +1,39 @@
+import type {Document} from "@zavx0z/dom"
 import {
-  defineStorybookStoryModule,
-  type StorybookStoryArgs,
-  type StorybookStoryModule,
-} from "@zavx0z/storybook/stories"
+  createGraphJsonStory,
+  type GraphDomStory,
+} from "../dom-story.ts"
 import {
   currentGraphFixture,
   type CurrentGraphView,
 } from "../fixtures/graph.ts"
-import {renderGraphJson} from "./render-json.ts"
-import {graphJsonStorySource} from "./source.ts"
 
-type CurrentGraphArgs = StorybookStoryArgs & Readonly<{
-  view: CurrentGraphView
-}>
+type CurrentGraphArgs = Readonly<{view: CurrentGraphView}>
 
-export function createCurrentGraphStory(): StorybookStoryModule {
-  return defineStorybookStoryModule<CurrentGraphArgs>({
+export function createCurrentGraphStory(document: Document): GraphDomStory<CurrentGraphArgs> {
+  return createGraphJsonStory(document, {
+    id: "quantum-graph-current",
+    title: "Текущий полный Graph",
     defaultArgs: {view: "graph"},
-    controls: [{
+    control: {
+      kind: "select",
       key: "view",
       label: "Проекция",
-      group: "Отображение",
-      kind: "select",
+      description: "Публичный Graph либо независимый состав Bulk projection.",
       options: [
         {value: "graph", label: "Публичный Graph"},
         {value: "bulk", label: "Проекция Bulk"},
       ],
-    }],
-    render(surface, args, frame) {
-      renderGraphJson(
-        surface,
-        frame,
-        "quantum-graph-current",
-        args.view === "graph" ? "Текущий полный Graph" : "Состав проекции Bulk",
-        currentGraphFixture(args.view),
-      )
     },
-    source(args) {
-      const typescript = [
-        'import {createGraphFixture} from "../../../tests/graph/fixture.ts"',
-        'import {projectBulkGraph} from "../../../bulk/graph/projection.ts"',
-        "",
-        "const graph = createGraphFixture()",
-        args.view === "graph"
-          ? "export const result = graph"
-          : "export const result = projectBulkGraph(graph)",
-      ].join("\n")
-      return graphJsonStorySource({
-        id: "quantum-graph-current",
-        title: args.view === "graph" ? "Текущий полный Graph" : "Состав проекции Bulk",
-        typescript,
-      })
-    },
+    value: ({view}) => currentGraphFixture(view),
+    typescript: ({view}) => [
+      'import {createGraphFixture} from "../../../tests/graph/fixture.ts"',
+      'import {projectBulkGraph} from "../../../bulk/graph/projection.ts"',
+      "",
+      "const graph = createGraphFixture()",
+      view === "graph"
+        ? "export const result = graph"
+        : "export const result = projectBulkGraph(graph)",
+    ].join("\n"),
   })
 }

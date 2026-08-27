@@ -33,7 +33,7 @@ import {
   VISUAL_PAYLOAD_CURVE_LAW,
 } from "@metafor/visual/layout/centered-nested"
 import type {Particle} from "shared/protocol/force/particle"
-import type {BulkVisualViewportWithHud} from "./web"
+import type {BulkVisualViewport} from "./web"
 import {
   BULK_STORE_DARK_KIND,
   BULK_STORE_FIELD_KIND,
@@ -494,7 +494,7 @@ export class BulkStoreViewportRenderer implements BulkStoreRenderer {
 
   constructor(
     readonly store: BulkStore,
-    readonly viewport: BulkVisualViewportWithHud,
+    readonly viewport: BulkVisualViewport,
   ) {
     this.#manifest = bulkStoreRenderManifest(store)
   }

@@ -99,9 +99,11 @@ Matrix рождается последней, получает от Boundary о�
 bun install --frozen-lockfile
 ```
 
-Перед установкой внутренние package identities регистрируются через Bun links
-из соседних репозиториев Engine, Layout, UI и Node; точная последовательность
-находится в [руководстве разработки](docs/DEVELOPMENT.md#связанные-репозитории).
+Перед установкой связанные package identities регистрируются через Bun links
+из соседних репозиториев Renderer, Engine, UI и Node. Документный runtime
+образует точную цепочку `@zavx0z/dom` → `@zavx0z/renderer` →
+`@zavx0z/renderer-webgpu` → `@engine/core`; последовательность локальной
+регистрации находится в [руководстве разработки](docs/DEVELOPMENT.md#связанные-репозитории).
 
 Ядро запускается без встроенной Meta. Внешний физический Cluster хранит Galaxy-
 владельцев и их Atom-репозитории:
@@ -154,10 +156,12 @@ bun run typecheck:expect-errors
 
 В рабочем дереве остаются MetaFor, его домены, DSL/Matter, Bulk,
 product-owned Visual и нейтральные runtime fixtures. Переиспользуемые
-[Template](https://github.com/zavx0z/template), [Engine](https://github.com/zavx0z/engine),
-[Layout](https://github.com/zavx0z/layout), [UI](https://github.com/zavx0z/ui)
-и [Node](https://github.com/zavx0z/node) развиваются как отдельная открытая
+[Template](https://github.com/zavx0z/template), [Renderer](https://github.com/zavx0z/renderer),
+[Engine](https://github.com/zavx0z/engine), [UI](https://github.com/zavx0z/ui) и
+[Node](https://github.com/zavx0z/node) развиваются как отдельная открытая
 инфраструктура, построенная для MetaFor и подключённая точными Bun links.
+Generic Layout и `@ui/elements` выведены из production graph; доменный
+`@nodes/layout` остаётся владельцем числовой раскладки Node.
 Прежние product interfaces — Interpreter, Voice, Android, Browser Agent, PTY и
 Tauri — удалены из активной ветки. Их история сохранена в:
 

@@ -208,17 +208,6 @@ export type CanvasTouchTapState = {
   touchId: number
 }
 
-export type BulkWebkitFullscreenDocument = Document & {
-  webkitCancelFullScreen?: () => Promise<void> | void
-  webkitExitFullscreen?: () => Promise<void> | void
-  webkitFullscreenElement?: Element | null
-}
-
-export type BulkWebkitFullscreenElement = Element & {
-  webkitRequestFullScreen?: () => Promise<void> | void
-  webkitRequestFullscreen?: () => Promise<void> | void
-}
-
 export type ViewNavigationState = {
   fallbackFitPoints: Vector3[]
   fallbackFitRadius: number

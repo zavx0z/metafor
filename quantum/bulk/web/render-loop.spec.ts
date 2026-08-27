@@ -2,7 +2,7 @@ import {describe, expect, test} from "bun:test"
 import {shouldContinueBulkRenderLoop} from "./render-loop.ts"
 
 describe("Bulk render loop gate", () => {
-  test("stops after a mounted read-only HUD surface becomes idle", () => {
+  test("stops after the DOM overlay and scene become idle", () => {
     expect(shouldContinueBulkRenderLoop({
       navigationActive: false,
       pendingMotion: false,

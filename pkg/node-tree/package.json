@@ -24,7 +24,6 @@
     "@nodes/core": "link:@nodes/core"
   },
   "devDependencies": {
-    "@nodes/ui": "link:@nodes/ui",
     "@types/bun": "^1.4.0",
     "typescript": "^7.0.2"
   }

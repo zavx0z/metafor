@@ -8,7 +8,6 @@
     "./initial": "./initial.ts",
     "./visual": "./visual.ts",
     "./viewport": "./viewport.ts",
-    "./hud": "./hud.ts",
     "./settings": "./settings.ts",
     "./text": "./text.ts",
     "./gravity": "./gravity.ts",
@@ -17,7 +16,6 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "@engine/core": "link:@engine/core",
-    "@layout/core": "link:@layout/core"
+    "@engine/core": "link:@engine/core"
   }
 }

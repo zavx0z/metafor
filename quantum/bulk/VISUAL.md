@@ -254,18 +254,19 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   радиусу формы относительно package-owned baseline пустого корневого Torus.
   Поэтому выросший от содержимого Torus сохраняет читаемый масштаб подписи, а
   малый Torus не уменьшает её ниже viewport baseline.
-- Меню, HUD, navigation/picking, camera pose, viewport fit,
-  fullscreen, Force impulses, causal timeline с отдельным control dock и
-  capture остаются Bulk-owned поведением и не заменяются вместе с
-  layout/visual law.
-- Для принадлежащих Bulk меню, HUD, navigation и timeline immediate parent
-  выделяет semantic child slots по
-  [законам `LAYOUT-SLOT-001` и `LAYOUT-FLEX-001`](https://github.com/zavx0z/layout/blob/main/packages/core/requirements.md#semantic-child-slots).
-  [Закон UI-композиции](https://github.com/zavx0z/ui/blob/main/ARCHITECTURE.md#ui-composition-law)
-  связывает эти slots с consumer-owned retained parent; Bulk не вычисляет
-  sibling offsets и не создаёт второй component graph. Renderer, picking и
-  primitive scene geometry внутри уже выделенного slot остаются Bulk-owned
-  визуальной геометрией, а не UI child layout.
+- HUD, navigation/picking, camera pose, viewport fit, fullscreen, Force
+  impulses, causal timeline и capture остаются Bulk-owned поведением.
+- Production HUD собирает один semantic Document через public
+  `@ui/components/hud` (далее — components HUD): stable HudWindow с
+  fullscreen action содержит stable Timeline с controlled causal snapshot.
+  Обычные bubbling `click` events выражают fullscreen, pause/resume и выбор
+  позиции; Bulk применяет их к browser fullscreen и Dark causal-time transport,
+  а Timeline только отражает полученный state.
+- `@zavx0z/renderer` (далее — document renderer) вычисляет CSS/layout/hit state
+  HUD, а `@zavx0z/renderer-webgpu` (далее — WebGPU adapter) проецирует его в
+  camera-locked overlay существующего Bulk Renderer. Semantic HUD не создаёт
+  второй canvas, Renderer, Space, ViewPoint или animation loop; CSS располагает
+  одно окно относительно viewport без ручного sibling layout.
 - Canvas, viewport, `Space`, `Renderer`, `ViewPoint`, GPU resources и их
   lifecycle принадлежат Bulk. Shared `Space` может содержать невизуальные
   слои, поэтому `../../pkg/visual` не создаёт и не владеет ни всем `Space`, ни Engine

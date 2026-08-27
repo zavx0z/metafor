@@ -7,7 +7,7 @@ import {BulkStoreViewportRenderer} from "./store-render.ts"
 import {activateBulkStore, applyBulkGluonReplace} from "./store-runtime.ts"
 import {BulkVisualSceneLifecycle} from "./visual.ts"
 import {prepareBulkInitialVisual} from "./visual-initial.ts"
-import type {BulkVisualViewportWithHud} from "./web"
+import type {BulkVisualViewport} from "./web"
 
 const fixture = () => {
   const lifecycle = new BulkVisualSceneLifecycle()
@@ -53,7 +53,7 @@ describe("Bulk Store exact renderer adapter", () => {
       rebuildBulkStoreTransitionBatch() { calls.transition += 1 },
       rebuildBulkStoreRelationBatch() { calls.relation += 1 },
       handleForce() {},
-    } as unknown as BulkVisualViewportWithHud
+    } as unknown as BulkVisualViewport
     const renderer = new BulkStoreViewportRenderer(store, viewport)
     renderer.present()
     const part: Particle = {

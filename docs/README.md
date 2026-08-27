@@ -40,25 +40,27 @@
   локальные Force handlers и принадлежащая `pkg/visual` геометрия.
 * [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
   один полный Bulk scene snapshot.
+* [Документный renderer](https://github.com/zavx0z/renderer/blob/main/ARCHITECTURE.md) —
+  единственная цепочка `@zavx0z/dom` → `@zavx0z/renderer` →
+  `@zavx0z/renderer-webgpu` → `@engine/core`; generic Layout и
+  `@ui/elements` выведены из production graph после zero-import gates.
 * [Engine](https://github.com/zavx0z/engine/blob/main/packages/core/contract.md) —
   координаты и единицы сцены, обычные и скелетные mesh и материалы renderer.
-* [Layout](https://github.com/zavx0z/layout/blob/main/ARCHITECTURE.md) —
-  `UiRuntime`, `UiSurface`, HUD, пространственные Displays, input и FlexBox.
-* [UI elements](https://github.com/zavx0z/ui/blob/main/packages/elements/requirements.md) —
-  визуальные primitives, controlled editing, theme и icons поверх Layout.
 * [UI components](https://github.com/zavx0z/ui/blob/main/packages/components/requirements.md) —
-  универсальные WebGPU-поля и составные controls, пригодные внутри node editor и вне него.
+  универсальные DOM/CSS-поля и составные controls, пригодные внутри node editor и вне него.
 * [Production delivery UI](https://github.com/zavx0z/ui/blob/main/docs/delivery.md) —
   независимые ESM subpath imports и одна module identity каждого связанного package.
 * `@zavx0z/storybook` (далее — shared Storybook) владеет typed route tree,
-  пятизонным FlexBox Workbench с общей нижней StatusBar, package-name lifecycle,
+  semantic DOM Workbench с нижним status footer, package-name lifecycle,
   automatic-port server,
   browser evidence и static manifest для owner-owned Storybook packages.
   [UI Storybook](https://github.com/zavx0z/ui/blob/main/packages/storybook/requirements.md)
   сохраняет собственные catalog pages, routes и acceptance, а
-  `@quantum/storybook` (далее — Quantum Storybook) — Graph laboratory, её
-  package-owned page/stories/preview/fixtures/state и lazy-представление
-  производной NodeTree через настоящий Node Editor.
+  `@quantum/storybook` (далее — Quantum Storybook) сохраняет Graph laboratory
+  с lazy-представлением производной NodeTree и показывает production Bulk HUD
+  через один semantic DOM/renderer pipeline. Exact bootstrap разделяет Graph и
+  Bulk entries внутри одного package/process, не смешивая domain state или
+  catalogs.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.

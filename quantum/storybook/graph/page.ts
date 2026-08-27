@@ -1,14 +1,14 @@
 import {join} from "node:path"
 import type {StorybookPageManifest} from "@zavx0z/storybook/app"
-import {GRAPH_STORIES} from "./stories.ts"
+import {QUANTUM_STORY_ROUTE_TREE} from "../routes.ts"
 
-/** Quantum-owned Graph laboratory page composed by `@quantum/storybook`. */
+/** Quantum delivery page with exact Graph DOM and Bulk DOM dispatch. */
 export function createQuantumGraphStorybookPage(): StorybookPageManifest {
   return {
     id: "graph",
-    title: "Quantum · лаборатория Graph",
+    title: "Quantum · лаборатория",
     mountPath: "/",
-    entrypoint: join(import.meta.dir, "entry.ts"),
+    entrypoint: join(import.meta.dir, "../bootstrap.ts"),
     stylePath: join(import.meta.dir, "style.css"),
     body: {
       kind: "canvas",
@@ -23,6 +23,7 @@ export function createQuantumGraphStorybookPage(): StorybookPageManifest {
       id: "quantum-storybook-canvas",
       evidence: "non-black",
     },
-    routeTree: GRAPH_STORIES.routeTree,
+    routeTree: QUANTUM_STORY_ROUTE_TREE,
+    touch: true,
   }
 }

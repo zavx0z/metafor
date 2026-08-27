@@ -1,51 +1,33 @@
+import type {Document} from "@zavx0z/dom"
 import {
-  defineStorybookStoryModule,
-  type StorybookStoryArgs,
-  type StorybookStoryModule,
-} from "@zavx0z/storybook/stories"
+  createGraphJsonStory,
+  type GraphDomStory,
+} from "../dom-story.ts"
 import {identityGraphFixture} from "../fixtures/graph.ts"
-import {renderGraphJson} from "./render-json.ts"
-import {graphJsonStorySource} from "./source.ts"
 
-type IdentityGraphArgs = StorybookStoryArgs & Readonly<{
-  "insert-sibling": boolean
-}>
+type IdentityGraphArgs = Readonly<{"insert-sibling": boolean}>
 
-export function createIdentityGraphStory(): StorybookStoryModule {
-  return defineStorybookStoryModule<IdentityGraphArgs>({
+export function createIdentityGraphStory(document: Document): GraphDomStory<IdentityGraphArgs> {
+  return createGraphJsonStory(document, {
+    id: "quantum-graph-identity",
+    title: "Путь и идентичность после вставки",
     defaultArgs: {"insert-sibling": true},
-    controls: [{
+    control: {
+      kind: "boolean",
       key: "insert-sibling",
       label: "Вставить соседний Atom",
-      group: "Структура",
-      kind: "boolean",
       description: "Новый Atom той же Meta вставляется перед существующими детьми.",
-    }],
-    render(surface, args, frame) {
-      renderGraphJson(
-        surface,
-        frame,
-        "quantum-graph-identity",
-        "Путь и идентичность после вставки",
-        identityGraphFixture(args["insert-sibling"]),
-      )
     },
-    source(args) {
-      const typescript = [
-        'import {createGraphFixture, insertSameMetaSibling, runtimeFieldAt} from "../../../tests/graph/fixture.ts"',
-        "",
-        'const pointer = "/runtime/roots/0/children/1"',
-        "const before = createGraphFixture()",
-        args["insert-sibling"]
-          ? "const after = insertSameMetaSibling(before)"
-          : "const after = before",
-        'export const result = {before: runtimeFieldAt(before, pointer, "name"), after: runtimeFieldAt(after, pointer, "name")}',
-      ].join("\n")
-      return graphJsonStorySource({
-        id: "quantum-graph-identity",
-        title: "Путь и идентичность после вставки",
-        typescript,
-      })
-    },
+    value: (args) => identityGraphFixture(args["insert-sibling"]),
+    typescript: (args) => [
+      'import {createGraphFixture, insertSameMetaSibling, runtimeFieldAt} from "../../../tests/graph/fixture.ts"',
+      "",
+      'const pointer = "/runtime/roots/0/children/1"',
+      "const before = createGraphFixture()",
+      args["insert-sibling"]
+        ? "const after = insertSameMetaSibling(before)"
+        : "const after = before",
+      'export const result = {before: runtimeFieldAt(before, pointer, "name"), after: runtimeFieldAt(after, pointer, "name")}',
+    ].join("\n"),
   })
 }

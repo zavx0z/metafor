@@ -40,16 +40,16 @@ import {
   type NodeJsonValue,
 } from "@nodes/core/parameter"
 
-/** Renderer-neutral presentation, structurally accepted by `@nodes/ui/projection`. */
+/** Renderer-neutral presentation data for downstream NodeTree adapters. */
 export type GraphNodeTreeParameterPresentation = NodeJsonObject & Readonly<{
   label: string
   field: NodeJsonObject
 }>
 
-/** Frame metadata with the minimum generic UI label. */
+/** Frame metadata with one renderer-neutral label. */
 export type GraphNodeTreeFrameMetadata = NodeJsonObject & Readonly<{label: string}>
 
-/** Node metadata with the minimum generic UI title. */
+/** Node metadata with one renderer-neutral title. */
 export type GraphNodeTreeNodeMetadata = NodeJsonObject & Readonly<{title: string}>
 
 /** Socket metadata using one generic type without MetaFor-specific renderer code. */
