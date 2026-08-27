@@ -71,8 +71,12 @@ describe("Quantum Graph Storybook delivery", () => {
 
     expect(text).toContain("Quantum · лаборатория Graph")
     expect(text).toContain('id="quantum-storybook-canvas"')
-    expect(text).toContain("Создано для")
-    expect(text).toContain("лаборатория Graph для сравнения доменных проекций")
+    expect(text).toContain('<meta name="storybook-status-bar-lead" content="Создано для">')
+    expect(text).toContain('<meta name="storybook-status-bar-owner" content="MetaFor">')
+    expect(text).toContain(
+      '<meta name="storybook-status-bar-detail" content="лаборатория Graph для сравнения доменных проекций">',
+    )
+    expect(text).not.toContain("data-storybook-footer")
     expect(text).not.toContain("Built for MetaFor")
     expect(text).not.toContain("reusable WebGPU UI")
 
@@ -81,6 +85,7 @@ describe("Quantum Graph Storybook delivery", () => {
     const source = await entry!.text()
     expect(source).toContain("quantumStorybook")
     expect(source).toContain("StorybookBackdropSurface")
+    expect(source).toContain("StorybookStatusBarSurface")
     expect(source).toContain("GraphLabState")
     expect(source).toContain("isGraphNodeTreeStoryModule")
     expect(source).toContain("waitForStorybookFrameBoundary")

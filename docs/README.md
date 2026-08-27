@@ -51,7 +51,8 @@
 * [Production delivery UI](https://github.com/zavx0z/ui/blob/main/docs/delivery.md) —
   независимые ESM subpath imports и одна module identity каждого связанного package.
 * `@zavx0z/storybook` (далее — shared Storybook) владеет typed route tree,
-  пятизонным FlexBox Workbench, package-name lifecycle, automatic-port server,
+  пятизонным FlexBox Workbench с общей нижней StatusBar, package-name lifecycle,
+  automatic-port server,
   browser evidence и static manifest для owner-owned Storybook packages.
   [UI Storybook](https://github.com/zavx0z/ui/blob/main/packages/storybook/requirements.md)
   сохраняет собственные catalog pages, routes и acceptance, а

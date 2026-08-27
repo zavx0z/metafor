@@ -3,6 +3,7 @@ import {
   StorybookBackdropSurface,
   StorybookDockSurface,
   StorybookNavigationSurface,
+  StorybookStatusBarSurface,
   StorybookStoryPanelSurface,
   planStorybookShell,
   type StorybookResponsivePolicy,
@@ -97,6 +98,7 @@ async function startGraphStorybook(): Promise<void> {
     })
     const preview = new GraphStoryPreviewSurface()
     preview.setStory(state.story, state.module, state.args)
+    const statusBar = new StorybookStatusBarSurface()
     let nodeTreePreview: GraphNodeTreeStoryPreview | null = null
     let nodeTreeActive = false
     let storyPanel: StorybookStoryPanelSurface
@@ -146,6 +148,7 @@ async function startGraphStorybook(): Promise<void> {
     }))
     runtime.addSurface(dock, ({w, h}) => frames(w, h).dock)
     runtime.addSurface(storyPanel, ({w, h}) => frames(w, h).info)
+    runtime.addSurface(statusBar, ({w, h}) => frames(w, h).status)
     let presentedFrames = 0
 
     const snapshot = (): Readonly<Record<string, unknown>> => Object.freeze({
@@ -162,7 +165,7 @@ async function startGraphStorybook(): Promise<void> {
     })
 
     const publish = (): Readonly<Record<string, unknown>> => {
-      for (const surface of [catalog, sections, dock, preview, storyPanel]) surface.flushPendingRender()
+      for (const surface of [catalog, sections, dock, preview, storyPanel, statusBar]) surface.flushPendingRender()
       nodeTreePreview?.surface.flushPendingRender?.()
       runtime.space.updateWorldMatrix()
       runtime.renderer.renderFrame(runtime.space, runtime.hud, runtime.viewPoint)

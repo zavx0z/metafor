@@ -111,17 +111,18 @@ describe("Quantum Graph Storybook laboratory", () => {
     expect(state.story.apiName).toBe("Graph")
   })
 
-  test("preserves the five desktop Workbench regions pixel-for-pixel", () => {
+  test("reserves the shared StatusBar below the five desktop Workbench regions", () => {
     expect(planStorybookShell(1920, 1080, {
       responsive: {compactBelow: null, compactPanels: []},
     })).toEqual({
       compact: false,
-      stage: {x: 3, y: 3, w: 1914, h: 1074},
-      catalog: {x: 3, y: 3, w: 210, h: 1074},
-      section: {x: 214, y: 3, w: 160, h: 1074},
-      preview: {x: 375, y: 3, w: 1101, h: 1049},
-      dock: {x: 375, y: 1053, w: 1101, h: 24},
-      info: {x: 1477, y: 3, w: 440, h: 1074},
+      stage: {x: 3, y: 3, w: 1914, h: 1050},
+      catalog: {x: 3, y: 3, w: 210, h: 1050},
+      section: {x: 214, y: 3, w: 160, h: 1050},
+      preview: {x: 375, y: 3, w: 1101, h: 1025},
+      dock: {x: 375, y: 1029, w: 1101, h: 24},
+      info: {x: 1477, y: 3, w: 440, h: 1050},
+      status: {x: 0, y: 1056, w: 1920, h: 24},
     })
   })
 })
