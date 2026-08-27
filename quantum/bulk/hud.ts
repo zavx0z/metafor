@@ -8,7 +8,6 @@ import {UiSurface} from "@layout/core/surface"
 import {StatusChip} from "@ui/components/badge"
 import {Button, type ButtonVariant} from "@ui/components/button"
 import {uiIcons} from "@ui/elements/icons"
-import {uiShapeMetrics} from "@ui/elements/shape"
 import {palette, type Tone} from "@ui/elements/theme"
 import {HudSideTab} from "@ui/hud"
 import {HudTimelinePanel} from "@ui/hud/timeline"
@@ -411,7 +410,7 @@ class BulkTimeControlDock extends UiSurface {
 		super({
 			bgColor: palette.bgToolbar,
 			borderColor: null,
-			borderRadiusPx: uiShapeMetrics.panelRadius,
+			borderRadiusPx: 4,
 		})
 		this.node.name = "BulkTimeControlDock"
 		this.model.subscribe(() => this.requestRender())
@@ -449,10 +448,9 @@ class BulkTimeControlDock extends UiSurface {
 			iconSizePx: 14,
 			size: "small",
 			variant: mode.pause.variant,
-			radius: 7,
 			tone: mode.pause.tone,
 			selected: mode.pause.selected,
-			sx: {borderWidth: mode.pause.borderWidth},
+			style: {borderRadius: 7, borderWidth: mode.pause.borderWidth},
 			disabled: !this.model.canPause,
 			action: () => void this.model.pause(),
 		})
@@ -463,10 +461,9 @@ class BulkTimeControlDock extends UiSurface {
 			iconSizePx: 14,
 			size: "small",
 			variant: mode.resume.variant,
-			radius: 7,
 			tone: mode.resume.tone,
 			selected: mode.resume.selected,
-			sx: {borderWidth: mode.resume.borderWidth},
+			style: {borderRadius: 7, borderWidth: mode.resume.borderWidth},
 			disabled: !this.model.canResume,
 			action: () => void this.model.resume(),
 		})
@@ -477,8 +474,8 @@ class BulkTimeControlDock extends UiSurface {
 			iconSizePx: 14,
 			size: "small",
 			variant: "outlined",
-			radius: 7,
 			tone: "neutral",
+			style: {borderRadius: 7},
 			disabled: !this.model.canStep,
 			action: () => {},
 		})
