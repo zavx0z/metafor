@@ -256,9 +256,11 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   малый Torus не уменьшает её ниже viewport baseline.
 - HUD, navigation/picking, camera pose, viewport fit, fullscreen, Force
   impulses, causal timeline и capture остаются Bulk-owned поведением.
-- Production HUD собирает один semantic Document через public
-  `@ui/components/hud` (далее — components HUD): stable HudWindow с
-  fullscreen action содержит stable Timeline с controlled causal snapshot.
+- Production Bulk Experience содержит один semantic Document, принадлежащий
+  HUD. Public `@ui/components/hud` (далее — components HUD) создаёт в нём
+  stable HudWindow с fullscreen action и stable Timeline с controlled causal
+  snapshot. Direct world manifestation остаётся проекцией Bulk Store в Engine
+  Space того же Canvas и не создаёт второй semantic Document.
   Обычные bubbling `click` events выражают fullscreen, pause/resume и выбор
   позиции; Bulk применяет их к browser fullscreen и Dark causal-time transport,
   а Timeline только отражает полученный state.
@@ -271,7 +273,9 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   HUD, а `@zavx0z/renderer-webgpu` (далее — WebGPU adapter) проецирует его в
   camera-locked overlay существующего Bulk Renderer. Semantic HUD не создаёт
   второй canvas, Renderer, Space, ViewPoint или animation loop; CSS располагает
-  одно окно относительно viewport без ручного sibling layout.
+  одно окно относительно viewport без ручного sibling layout. Явная projection
+  boundary сохраняет semantic Element частью Experience Document, а direct
+  world objects — частью Engine projection.
 - Canvas, viewport, `Space`, `Renderer`, `ViewPoint`, GPU resources и их
   lifecycle принадлежат Bulk. Shared `Space` может содержать невизуальные
   слои, поэтому `../../pkg/visual` не создаёт и не владеет ни всем `Space`, ни Engine

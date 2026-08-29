@@ -1,5 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import type {TrueTypeFont} from "@engine/core"
+import {createDocument} from "@zavx0z/dom"
 import {createBulkHudController} from "./hud-controller.ts"
 import {createBulkDomOverlayRuntime} from "./overlay-runtime.ts"
 
@@ -34,9 +35,21 @@ describe("Bulk DOM overlay runtime", () => {
     expect(frame.viewport).toEqual({width: 960, height: 640})
     expect(frame.displayList.length).toBeGreaterThan(0)
     expect(frame.hits.has(controller.element)).toBeTrue()
+    expect(controller.element.ownerDocument).toBe(runtime.document)
     expect(runtime.overlay.content).toBe(runtime.backend.root)
     expect(runtime.backend.root.children.length).toBe(frame.displayList.length)
     expect(requests).toBeGreaterThan(0)
+
+    const foreignParent = createDocument().createElement("div")
+    expect(() => createBulkHudController({
+      document: runtime.document,
+      parent: foreignParent,
+      transport: {
+        async stack() { return [] },
+        async pause() {},
+        async resume() {},
+      },
+    })).toThrow("another Document")
 
     const element = controller.element
     const resized = runtime.resize(720, 480)
@@ -68,6 +81,21 @@ describe("Bulk DOM overlay runtime", () => {
       "new Space()",
       "new ViewPoint()",
     ]) expect(source).not.toContain(forbidden)
+  })
+
+  test("keeps one direct Engine world beside the one Experience HUD projection", async () => {
+    const [viewport, client] = await Promise.all([
+      Bun.file(new URL("../web/index.ts", import.meta.url)).text(),
+      Bun.file(new URL("../client.ts", import.meta.url)).text(),
+    ])
+
+    expect(viewport).toContain("const renderer = new Renderer()")
+    expect(viewport).toContain("const space = new Space()")
+    expect(viewport.match(/new Space\(\)/g)).toHaveLength(1)
+    expect(viewport).toContain("const domRuntime = createBulkDomOverlayRuntime({")
+    expect(viewport).toContain("renderer.renderFrame(space, domRuntime.overlay, viewPoint)")
+    expect(viewport).toContain("uiDocument: domRuntime.document")
+    expect(client).toContain("document: bulkViewport.uiDocument")
   })
 })
 

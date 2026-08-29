@@ -11,10 +11,11 @@ const cosmos = fileURLToPath(new URL("../", import.meta.url))
 setDefaultTimeout(30_000)
 
 test("HAM-005 creates one standard Window environment through internal visual", async () => {
-  const [html, main, visual, displayDock, mainPackage, visualPackage, visualBunfig, packageBuild, server, startupMain] = await Promise.all([
+  const [html, main, visual, experienceDocument, displayDock, mainPackage, visualPackage, visualBunfig, packageBuild, server, startupMain] = await Promise.all([
     Bun.file(join(cosmos, "static/index.html")).text(),
     Bun.file(join(cosmos, "release/main/index.ts")).text(),
     Bun.file(join(cosmos, "internal/visual/main/index.ts")).text(),
+    Bun.file(join(cosmos, "internal/visual/main/experience-document.ts")).text(),
     Bun.file(join(cosmos, "internal/visual/main/display-dock.ts")).text(),
     Bun.file(join(cosmos, "release/package.json")).json() as Promise<{
       dependencies?: Record<string, string>
@@ -67,13 +68,27 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualPackage.dependencies?.["@zavx0z/dom"]).toBe("link:@zavx0z/dom")
   expect(visualPackage.dependencies?.["@zavx0z/renderer-browser"])
     .toBe("link:@zavx0z/renderer-browser")
-  expect(visual).toContain('import {createDocument} from "@zavx0z/dom"')
   expect(visual).toContain("createDocumentSpaceRuntime,")
   expect(visual).toContain('import {GridHelper} from "@engine/core"')
   expect(visual).toContain('import {loadDocumentDefaultFont} from "@engine/core/default-font"')
+  expect(visual).toContain('import {createMainExperienceDocument} from "./experience-document.ts"')
   expect(visual).toContain('import {createDisplayDock, type DisplayMode} from "./display-dock.ts"')
   expect(visual).toContain("export const runtime = await createDocumentSpaceRuntime({")
   expect(visual).toContain("const font = await loadDocumentDefaultFont()")
+  expect(visual).toContain("const experience = createMainExperienceDocument()")
+  expect(visual).toContain("experience.mountOverlay(dock.root)")
+  expect(experienceDocument.match(/createDocument\(\)/g)).toHaveLength(1)
+  expect(experienceDocument).toContain('const root = document.createElement("main")')
+  expect(experienceDocument).toContain("root.appendChild(surface)")
+  expect(experienceDocument).toContain("document.appendChild(root)")
+  expect(experienceDocument).toContain("overlay root belongs to another Document")
+  expect(visual).toContain([
+    "createDocumentSpaceRuntime({",
+    "  canvas,",
+    "  document: experienceDocument,",
+    "  font,",
+    "  styleSheets: [],",
+  ].join("\n"))
   expect(visual).toContain(
     'console.debug("[@internal/visual:main]", "основное visual-окружение создано", {',
   )
@@ -88,8 +103,22 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visual).toContain('const VISUAL_DISPLAY_ID = "main"')
   expect(visual).toContain("runtime.addPlane({")
   expect(visual).toContain("runtime.addOverlay({")
+  expect(visual).toContain("root: dock.container")
   expect(visual).toContain("runtime.setCameraGesturesEnabled(false)")
   expect(visual).toContain("runtime.updatePlane(VISUAL_DISPLAY_ID")
+  const planeRegistration = visual.slice(
+    visual.indexOf("runtime.addPlane({"),
+    visual.indexOf("\n})", visual.indexOf("runtime.addPlane({")),
+  )
+  const overlayRegistration = visual.slice(
+    visual.indexOf("runtime.addOverlay({"),
+    visual.indexOf("\n})", visual.indexOf("runtime.addOverlay({")),
+  )
+  for (const registration of [planeRegistration, overlayRegistration]) {
+    expect(registration).not.toContain("document:")
+    expect(registration).not.toContain("styleSheets:")
+    expect(registration).not.toContain("font,")
+  }
   expect(displayDock).toContain('import type {')
   expect(displayDock).toContain('from "@zavx0z/dom"')
   expect(displayDock).toContain('import {uiIcons} from "@ui/components/icons"')

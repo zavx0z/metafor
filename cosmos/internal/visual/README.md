@@ -17,10 +17,10 @@ Visual объявляет свои платформенные части по
 1. visual получает предоставленную приложением область отображения;
 1. visual получает общий default font по URL, который один раз объявляет HTML
    composition root;
-1. создаёт semantic documents основной поверхности и навигации через
-   `@zavx0z/dom` (далее — DOM);
+1. создаёт через `@zavx0z/dom` (далее — DOM) один semantic Document visual
+   Experience с отдельными roots основной поверхности и навигации;
 1. `@zavx0z/renderer-browser` (далее — browser renderer) создаёт один Canvas,
-   Engine renderer, Space и ViewPoint для всех visual documents;
+   Engine renderer, Space и ViewPoint для этого Document;
 1. помещает основную поверхность в world-space plane, а навигацию — в
    camera-locked overlay того же кадра;
 1. согласует display с доступной областью Window;

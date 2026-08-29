@@ -250,6 +250,6 @@ describe("Bulk DOM HUD production proof", () => {
 		expect(manifest.dependencies["@ui/components"]).toBe("link:@ui/components")
 		expect(manifest.exports["./dom/hud"]).toBeUndefined()
 		expect(Object.values(manifest.exports)).not.toContain("./dom/hud.ts")
-		expect(visual).toContain("Production HUD собирает один semantic Document")
+		expect(visual).toContain("Production Bulk Experience содержит один semantic Document")
 	})
 })

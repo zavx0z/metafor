@@ -2,10 +2,11 @@
 Browser entrypoint готовой визуальной среды Cosmos.
 
 Initial evaluation требует принадлежащий приложению canvas, получает
-Engine-owned default font и создаёт один document SpaceRuntime. Основная
-поверхность является world-space DOM plane, а навигационный dock — отдельным
-camera-locked DOM overlay того же Engine frame. Отсутствующий canvas либо font
-declaration завершает запуск до экспорта готового runtime.
+Engine-owned default font и создаёт один semantic Experience Document в одном
+SpaceRuntime. Основная поверхность является world-space root, а навигационный
+dock — sibling camera-locked overlay root того же Document и Engine frame.
+Отсутствующий canvas либо font declaration завершает запуск до экспорта
+готового runtime.
 
 Пользовательский [закон визуальной среды](../README.md#визуальная-среда-main)
 отделяет эту инфраструктуру от смысла показываемых Quantum/metafor данных.
@@ -17,12 +18,12 @@ declaration завершает запуск до экспорта готовог
 
 import {GridHelper} from "@engine/core"
 import {loadDocumentDefaultFont} from "@engine/core/default-font"
-import {createDocument} from "@zavx0z/dom"
 import {
   createDocumentSpaceRuntime,
   type DocumentSpaceViewPointSnapshot,
 } from "@zavx0z/renderer-browser"
 import {createDisplayDock, type DisplayMode} from "./display-dock.ts"
+import {createMainExperienceDocument} from "./experience-document.ts"
 
 const VISUAL_CANVAS_ID = "visual-canvas"
 const VISUAL_DISPLAY_ID = "main"
@@ -47,8 +48,9 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 }
 
 const font = await loadDocumentDefaultFont()
-const visualDocument = createDocument()
-const surface = visualDocument.createElement("div")
+const experience = createMainExperienceDocument()
+const experienceDocument = experience.document
+const surface = experience.surface
 surface.id = VISUAL_DISPLAY_ID
 surface.title = "Основная поверхность Cosmos"
 surface.setAttribute("style", [
@@ -58,7 +60,6 @@ surface.setAttribute("style", [
   "background: #020617",
   "border: 1px solid #334155",
 ].join("; "))
-visualDocument.appendChild(surface)
 
 const initialViewPoint = Object.freeze({
   position: Object.freeze({
@@ -76,6 +77,9 @@ const initialViewPoint = Object.freeze({
 /** Готовый shared visual runtime после обязательной initial materialization. */
 export const runtime = await createDocumentSpaceRuntime({
   canvas,
+  document: experienceDocument,
+  font,
+  styleSheets: [],
   viewPoint: initialViewPoint,
   cameraGestures: true,
 })
@@ -88,10 +92,7 @@ runtime.space.add(grid)
 const displayViewport = readCanvasViewport(canvas)
 runtime.addPlane({
   id: VISUAL_DISPLAY_ID,
-  document: visualDocument,
   root: surface,
-  styleSheets: [],
-  font,
   viewport: displayViewport,
   worldUnitsPerPixel: displayWorldUnitsPerPixel(displayViewport.height),
   transform: {
@@ -102,8 +103,7 @@ runtime.addPlane({
 
 let displayMode: DisplayMode = "far"
 let farViewPoint = runtime.snapshotViewPoint()
-const dockDocument = createDocument()
-const dock = createDisplayDock(dockDocument, () => {
+const dock = createDisplayDock(experienceDocument, () => {
   if (displayMode === "far") {
     farViewPoint = runtime.snapshotViewPoint()
     runtime.restoreViewPoint(focusedViewPoint(farViewPoint))
@@ -117,13 +117,10 @@ const dock = createDisplayDock(dockDocument, () => {
   dock.setMode(displayMode)
 })
 dock.resize(displayViewport.width)
-dockDocument.appendChild(dock.root)
+experience.mountOverlay(dock.root)
 runtime.addOverlay({
   id: VISUAL_DOCK_ID,
-  document: dockDocument,
-  root: dockDocument,
-  styleSheets: [],
-  font,
+  root: dock.container,
 })
 
 const canvasResizeObserver = new ResizeObserver(() => {
