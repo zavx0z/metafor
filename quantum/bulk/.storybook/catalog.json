@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/zavx0z/storybook/main/schemas/catalog.schema.json",
+  "schemaVersion": 1,
+  "categories": [
+    {
+      "id": "bulk",
+      "label": "Bulk",
+      "route": "bulk",
+      "subjects": [
+        {
+          "id": "hud",
+          "kind": "component",
+          "label": "Bulk HUD",
+          "route": "bulk/hud",
+          "apiName": "createBulkHudDocument",
+          "tags": ["hud", "timeline", "fullscreen", "causal"],
+          "variants": [
+            {
+              "id": "default",
+              "label": "По умолчанию",
+              "route": "bulk/hud/default",
+              "module": {
+                "path": "./stories/hud.ts",
+                "export": "createBulkHudStory"
+              },
+              "resources": {
+                "references": [
+                  "../VISUAL.md",
+                  "../dom/hud.tsx",
+                  "./stories/hud.ts"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

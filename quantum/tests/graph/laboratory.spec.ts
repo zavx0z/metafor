@@ -2,15 +2,13 @@ import {describe, expect, test} from "bun:test"
 import {validateGraph} from "@metafor/types/metafor/graph"
 import {createDocument} from "@zavx0z/dom"
 import {projectBulkGraph} from "../../bulk/graph/projection.ts"
-import {createGraphOverview} from "../../storybook/graph/overview.ts"
+import {createGraphOverview} from "../../../types/.storybook/stories/overview.ts"
 import {
   currentGraphFixture,
   reactionGraphFixture,
-} from "../../storybook/graph/fixtures/graph.ts"
-import {
-  GRAPH_STORIES,
-  graphOverviewInput,
-} from "../../storybook/graph/stories.ts"
+} from "../../../types/.storybook/fixtures/graph.ts"
+import {createIdentityGraphStory} from "../../../types/.storybook/stories/identity.ts"
+import type {GraphDomStoryFactory} from "../../../types/.storybook/stories/dom-story.tsx"
 import {
   GRAPH_FIXTURE_CHILD,
   createGraphFixture,
@@ -71,29 +69,38 @@ describe("Quantum Graph laboratory fixtures", () => {
   })
 })
 
-describe("Quantum Graph Storybook laboratory", () => {
-  test("keeps registered overviews independent from detail leaves and rejects unknown paths", async () => {
-    expect(GRAPH_STORIES.representative).toBe("document/current/complete")
-    for (const route of GRAPH_STORIES.routeTree.overviews) {
-      const overview = createGraphOverview(createDocument(), graphOverviewInput(route))
-      expect(overview.element.getAttribute("data-route"), route).toBe(route)
-      expect(overview.element.querySelector(".graph-json"), route).toBeNull()
-      expect(overview.element.querySelector(".graph-node-tree"), route).toBeNull()
-      overview.dispose()
+describe("Quantum Graph external laboratory", () => {
+  test("keeps package/category/subject overviews independent from detail selection", async () => {
+    const catalog = await graphCatalog()
+    const document = createDocument()
+    const input = {
+      route: "graph/identity",
+      title: "Идентичность · Обзор",
+      summary: "Snapshot-local identity remains observable.",
+      items: [{
+        route: "graph/identity/same-meta",
+        label: "Одинаковая Meta",
+        detail: "MetaRuntimeAtomLocator",
+        representativeRoute: "graph/identity/same-meta/reorder",
+      }],
     }
-    expect(() => graphOverviewInput("validation/unknown")).toThrow(
-      "Graph overview route is not registered",
-    )
-    await expect(GRAPH_STORIES.load("validation/unknown")).rejects.toThrow(
-      "Unknown Storybook DOM route",
-    )
+    const overview = createGraphOverview(document, input, async (owner, route) => {
+      const factory = await graphFactory(catalog, route)
+      return factory(owner)
+    })
+    await overview.ready
+    expect(overview.element.getAttribute("data-route")).toBe("graph/identity")
+    expect(overview.element.querySelectorAll(".graph-json")).toHaveLength(1)
+    expect(overview.element.querySelector("a")).toBeNull()
+    overview.dispose()
+    await expect(graphFactory(catalog, "graph/validation/unknown"))
+      .rejects.toThrow("Unknown Graph story route")
   })
 
-  test("loads exact DOM story factories once and mounts them in caller-owned realms", async () => {
-    const first = GRAPH_STORIES.load("identity/same-meta/reorder")
-    const second = GRAPH_STORIES.load("identity/same-meta/reorder")
-    expect(first).toBe(second)
-    const factory = await first
+  test("loads exact owner factories into caller-owned realms", async () => {
+    const catalog = await graphCatalog()
+    const factory = await graphFactory(catalog, "graph/identity/same-meta/reorder")
+    expect(factory).toBe(createIdentityGraphStory)
     const document = createDocument()
     const story = factory(document)
     expect(story.element.ownerDocument).toBe(document)
@@ -104,19 +111,55 @@ describe("Quantum Graph Storybook laboratory", () => {
     story.dispose()
   })
 
-  test("keeps all Graph route levels declared for exact server delivery", () => {
-    expect(GRAPH_STORIES.routeTree.overviews).toEqual([
-      "",
-      "document",
-      "document/current",
-      "reaction",
-      "reaction/dependencies",
-      "validation",
-      "validation/contract",
-      "node-tree",
-      "node-tree/projection",
-      "identity",
-      "identity/same-meta",
+  test("keeps all Graph overview routes or their explicit package-root remap", async () => {
+    const catalog = await graphCatalog()
+    expect([
+      "graph",
+      ...catalog.categories.flatMap((category) => [
+        category.route,
+        ...category.subjects.map((subject) => subject.route),
+      ]),
+    ]).toEqual([
+      "graph",
+      "graph/document",
+      "graph/document/current",
+      "graph/reaction",
+      "graph/reaction/dependencies",
+      "graph/validation",
+      "graph/validation/contract",
+      "graph/node-tree",
+      "graph/node-tree/projection",
+      "graph/identity",
+      "graph/identity/same-meta",
     ])
   })
 })
+
+type GraphCatalog = Readonly<{
+  categories: readonly Readonly<{
+    route: string
+    subjects: readonly Readonly<{
+      route: string
+      variants: readonly Readonly<{
+        route: string
+        module: Readonly<{path: string; export: string}>
+      }>[]
+    }>[]
+  }>[]
+}>
+
+const graphCatalogUrl = new URL("../../../types/.storybook/catalog.json", import.meta.url)
+
+async function graphCatalog(): Promise<GraphCatalog> {
+  return await Bun.file(graphCatalogUrl).json() as GraphCatalog
+}
+
+async function graphFactory(catalog: GraphCatalog, route: string): Promise<GraphDomStoryFactory> {
+  const variant = catalog.categories.flatMap(({subjects}) =>
+    subjects.flatMap(({variants}) => variants)).find((candidate) => candidate.route === route)
+  if (variant === undefined) throw new Error(`Unknown Graph story route: ${route}`)
+  const loaded = await import(new URL(variant.module.path, graphCatalogUrl).href)
+  const factory = loaded[variant.module.export]
+  if (typeof factory !== "function") throw new Error(`Missing Graph story export: ${route}`)
+  return factory as GraphDomStoryFactory
+}

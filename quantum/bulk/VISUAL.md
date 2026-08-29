@@ -262,6 +262,11 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   Обычные bubbling `click` events выражают fullscreen, pause/resume и выбор
   позиции; Bulk применяет их к browser fullscreen и Dark causal-time transport,
   а Timeline только отражает полученный state.
+- Bulk не переопределяет форму components HUD собственной product-темой.
+  Window header, action buttons, Timeline rows и markers сохраняют компактную
+  Blender 5.2 density, low-radius material roles и standard component states;
+  Bulk добавляет только viewport placement, fullscreen state и causal
+  resolution tones из public `@ui/components/theme`.
 - `@zavx0z/renderer` (далее — document renderer) вычисляет CSS/layout/hit state
   HUD, а `@zavx0z/renderer-webgpu` (далее — WebGPU adapter) проецирует его в
   camera-locked overlay существующего Bulk Renderer. Semantic HUD не создаёт

@@ -46,11 +46,11 @@ for package in dom renderer renderer-webgpu renderer-browser; do (cd "packages/$
 
 cd ../ui
 bun install --frozen-lockfile
-for package in components storybook; do (cd "packages/$package" && bun link); done
+(cd packages/components && bun link)
 
 cd ../node
 bun install --frozen-lockfile
-for package in core editor layout worker ui storybook; do (cd "packages/$package" && bun link); done
+for package in core editor layout worker ui; do (cd "packages/$package" && bun link); done
 
 cd ../metafor
 ```

@@ -161,10 +161,17 @@ Graph и возвращает root как данные ответа. Assembler �
 читает Store другого домена напрямую. Dark Oracle и Boundary остаются
 владельцами своих projections; Dark Force только переносит Oracle RPC.
 
-Quantum Storybook сейчас является исполняемой JSON-лабораторией этого формата:
-он показывает declaration, exact Reaction relation и lazy Mass metadata. Он не
-является автоматическим dependency catalog, не строит node layout и не даёт
-live previews; эти возможности не считаются реализованными.
+Graph laboratory является development-проекцией package `@metafor/types`
+(далее — types): она показывает полный document, exact Reaction relation, lazy
+Mass metadata, closed validation, snapshot-local identity и производную
+NodeTree. External Storybook строит навигацию из owner declaration и лениво
+загружает только выбранное представление; types не создаёт второй Graph Store и
+не становится владельцем domain execution.
+
+Bulk HUD laboratory принадлежит package `bulk` и монтирует production HUD в
+отдельной package realm того же внешнего Workbench. Graph и Bulk имеют
+независимые runtime sessions, diagnostics и revisions, поэтому ошибка одной
+проекции не меняет другую.
 
 При рождении Bulk один раз получает через `Boundary.initialProjection.read`
 согласованный набор необходимых canonical rows и сразу формирует плоский Bulk

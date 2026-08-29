@@ -12,7 +12,7 @@ afterAll(async () => {
 describe("Bulk production DOM boundary", () => {
   test("has zero retained UI imports in source and package manifests", async () => {
     const bulkRoot = new URL("../", import.meta.url)
-    const sources = await Array.fromAsync(new Bun.Glob("**/*.ts").scan({
+    const sources = await Array.fromAsync(new Bun.Glob("**/*.{ts,tsx}").scan({
       cwd: bulkRoot.pathname,
       absolute: true,
       onlyFiles: true,
@@ -60,7 +60,8 @@ describe("Bulk production DOM boundary", () => {
     const bundle = sources.join("\n")
     expect(bundle).toContain("createBulkHudController")
     expect(bundle).toContain("RendererWebGpuScreenOverlay")
-    expect(bundle).toContain("createHudWindow")
+    expect(bundle).toContain("HudWindow")
+    expect(bundle).toContain("Timeline")
     for (const forbidden of [
       "@layout/core",
       "@ui/elements",
@@ -69,6 +70,7 @@ describe("Bulk production DOM boundary", () => {
       "BulkRadialMenuPane",
       "UiSurface",
       "HudTimelinePanel",
+      "createHudWindow",
     ]) expect(bundle).not.toContain(forbidden)
   }, 30_000)
 })

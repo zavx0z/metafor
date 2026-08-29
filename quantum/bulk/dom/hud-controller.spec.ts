@@ -126,7 +126,7 @@ describe("Bulk DOM HUD controller", () => {
       dependencies: Record<string, string>
     }
 
-    expect(source).toContain('from "./hud.ts"')
+    expect(source).toContain('from "./hud.tsx"')
     expect(source).toContain('from "./causal-time.ts"')
     expect(source).toContain('addEventListener("click"')
     for (const forbidden of [

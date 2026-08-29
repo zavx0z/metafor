@@ -50,17 +50,13 @@
   универсальные DOM/CSS-поля и составные controls, пригодные внутри node editor и вне него.
 * [Production delivery UI](https://github.com/zavx0z/ui/blob/main/docs/delivery.md) —
   независимые ESM subpath imports и одна module identity каждого связанного package.
-* `@zavx0z/storybook` (далее — shared Storybook) владеет typed route tree,
-  semantic DOM Workbench с нижним status footer, package-name lifecycle,
-  automatic-port server,
-  browser evidence и static manifest для owner-owned Storybook packages.
-  [UI Storybook](https://github.com/zavx0z/ui/blob/main/packages/storybook/requirements.md)
-  сохраняет собственные catalog pages, routes и acceptance, а
-  `@quantum/storybook` (далее — Quantum Storybook) сохраняет Graph laboratory
-  с lazy-представлением производной NodeTree и показывает production Bulk HUD
-  через один semantic DOM/renderer pipeline. Exact bootstrap разделяет Graph и
-  Bulk entries внутри одного package/process, не смешивая domain state или
-  catalogs.
+* External Storybook владеет одним server/origin, semantic DOM Workbench,
+  declaration graph, независимыми package revisions и browser evidence.
+  MetaFor не устанавливает его: project declaration подключает две owner
+  projections. `@metafor/types` (далее — types) сохраняет Graph laboratory с
+  lazy-представлением производной NodeTree, а package `bulk` показывает
+  production Bulk HUD. Каждая projection получает отдельную package tab/realm и
+  не смешивает domain state или catalog соседнего владельца.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
@@ -85,8 +81,7 @@
   [`@nodes/core`](https://github.com/zavx0z/node/blob/main/packages/core/requirements.md),
   universal authoring-команды —
   [`@nodes/editor`](https://github.com/zavx0z/node/blob/main/packages/editor/requirements.md),
-  единый dev-каталог всех package pages —
-  [`@nodes/storybook`](https://github.com/zavx0z/node/blob/main/packages/storybook/requirements.md),
+  внешняя declaration-композиция package pages принадлежит Node project,
   а алгоритмические законы
   разделены на [общие](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/common.md),
   [adaptive side-selection](https://github.com/zavx0z/node/blob/main/packages/layout/requirements/adaptive.md),

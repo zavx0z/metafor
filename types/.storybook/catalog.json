@@ -1,0 +1,176 @@
+{
+  "$schema": "https://raw.githubusercontent.com/zavx0z/storybook/main/schemas/catalog.schema.json",
+  "schemaVersion": 1,
+  "categories": [
+    {
+      "id": "document",
+      "label": "Документ",
+      "route": "graph/document",
+      "group": {
+        "id": "contract",
+        "label": "Контракт"
+      },
+      "subjects": [
+        {
+          "id": "current",
+          "kind": "document",
+          "label": "Текущее состояние",
+          "route": "graph/document/current",
+          "apiName": "Graph",
+          "tags": ["snapshot", "template", "runtime", "проекция"],
+          "variants": [
+            {
+              "id": "complete",
+              "label": "Полный Graph",
+              "route": "graph/document/current/complete",
+              "module": {
+                "path": "./stories/current.ts",
+                "export": "createCurrentGraphStory"
+              },
+              "resources": {
+                "fixture": "./fixtures/graph.ts",
+                "references": ["./stories/source.ts"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reaction",
+      "label": "Reaction",
+      "route": "graph/reaction",
+      "group": {
+        "id": "contract",
+        "label": "Контракт"
+      },
+      "subjects": [
+        {
+          "id": "dependencies",
+          "kind": "relation",
+          "label": "Зависимости",
+          "route": "graph/reaction/dependencies",
+          "apiName": "RuntimeReactionRelation",
+          "tags": ["reaction", "state", "fields", "mass", "dependencies", "lazy"],
+          "variants": [
+            {
+              "id": "complete",
+              "label": "Полная связь",
+              "route": "graph/reaction/dependencies/complete",
+              "module": {
+                "path": "./stories/reaction.ts",
+                "export": "createReactionGraphStory"
+              },
+              "resources": {
+                "fixture": "./fixtures/graph.ts",
+                "references": ["./stories/source.ts"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validation",
+      "label": "Проверка",
+      "route": "graph/validation",
+      "group": {
+        "id": "contract",
+        "label": "Контракт"
+      },
+      "subjects": [
+        {
+          "id": "contract",
+          "kind": "capability",
+          "label": "Форма документа",
+          "route": "graph/validation/contract",
+          "apiName": "validateGraph",
+          "tags": ["validation", "closed", "issues", "контракт"],
+          "variants": [
+            {
+              "id": "closed",
+              "label": "Закрытая форма",
+              "route": "graph/validation/contract/closed",
+              "module": {
+                "path": "./stories/validation.ts",
+                "export": "createValidationGraphStory"
+              },
+              "resources": {
+                "fixture": "./fixtures/graph.ts",
+                "references": ["./stories/source.ts"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "node-tree",
+      "label": "NodeTree",
+      "route": "graph/node-tree",
+      "group": {
+        "id": "experiments",
+        "label": "Эксперименты"
+      },
+      "subjects": [
+        {
+          "id": "projection",
+          "kind": "projection",
+          "label": "Проекция",
+          "route": "graph/node-tree/projection",
+          "apiName": "createGraphNodeTree",
+          "tags": ["node-tree", "projection", "live", "adapter", "dom"],
+          "variants": [
+            {
+              "id": "live",
+              "label": "Живой Graph",
+              "route": "graph/node-tree/projection/live",
+              "module": {
+                "path": "./stories/node-tree.tsx",
+                "export": "createGraphNodeTreeStory"
+              },
+              "resources": {
+                "fixture": "./fixtures/graph.ts",
+                "references": ["./stories/source.ts"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "identity",
+      "label": "Идентичность",
+      "route": "graph/identity",
+      "group": {
+        "id": "experiments",
+        "label": "Эксперименты"
+      },
+      "subjects": [
+        {
+          "id": "same-meta",
+          "kind": "identity",
+          "label": "Одинаковая Meta",
+          "route": "graph/identity/same-meta",
+          "apiName": "MetaRuntimeAtomLocator",
+          "tags": ["identity", "path", "same-meta", "reorder"],
+          "variants": [
+            {
+              "id": "reorder",
+              "label": "Вставка соседа",
+              "route": "graph/identity/same-meta/reorder",
+              "module": {
+                "path": "./stories/identity.ts",
+                "export": "createIdentityGraphStory"
+              },
+              "resources": {
+                "fixture": "./fixtures/graph.ts",
+                "references": ["./stories/source.ts"]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

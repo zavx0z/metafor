@@ -12,21 +12,22 @@ Quantum состоит из слабосвязанных доменных про
 Для public TSDoc и существующих owner documents соблюдать общие
 [правила документации MetaFor](../../../../.agents/skills/metafor-dev/references/documentation.md).
 Для live product contour или browser-проверки Hamiltonian дополнительно
-использовать `$metafor-dev`. Lifecycle, automatic origin, static build и
-browser evidence exact package `@quantum/storybook` принадлежат единому
-глобальному `$storybook`; этот skill не содержит process scripts, ports или
-generic Storybook rules.
+использовать `$metafor-dev`. MetaFor устанавливает только external declarations:
+Graph laboratory принадлежит `@metafor/types`, а Bulk HUD — package `bulk`.
+Один global Storybook server владеет lifecycle, origin, Workbench, package
+revisions и browser evidence; этот skill не содержит его process scripts или
+ports.
 
-Локальный static artifact собирается через единый skill и не меняет живой
-process:
+Package boundaries проверяются через внешний tool без package-local build:
 
 ```text
-$storybook build @quantum/storybook
+$storybook check /path/to/metafor
+$storybook open @metafor/types graph/node-tree/projection/live
+$storybook open bulk bulk/hud/default
 ```
 
-Сборка принадлежит только локальной лаборатории и записывается в
-`quantum/storybook/dist`. Она не создаёт Pages, deployment или workflow и не
-является разрешением на их запуск.
+Проверка создаёт только tool-owned immutable revisions и не является
+разрешением на Pages, deployment или workflow.
 
 ## Сквозная сущность
 
@@ -36,7 +37,7 @@ $storybook build @quantum/storybook
 ```text
 quantum/<domain>/<entity>/     domain-owned implementation
 quantum/tests/<entity>/        cross-domain verification
-quantum/storybook/<entity>/    dev-only laboratory
+<owner>/.storybook/            owner declaration and dev-only projection
 ```
 
 Создавать доменную директорию только там, где домен действительно представляет
@@ -54,7 +55,7 @@ quantum/storybook/<entity>/    dev-only laboratory
   helpers сущности;
 - не читает Store и private implementation соседнего домена;
 - взаимодействует через принятые Force, RPC и public contracts;
-- не импортирует `quantum/tests` или `quantum/storybook`;
+- не импортирует `quantum/tests` или owner `.storybook` directories;
 - не экспортируется из domain package без настоящего public entrypoint.
 
 Группировать файлы по смысловой ответственности, а не по случайному совпадению
@@ -67,43 +68,26 @@ quantum/storybook/<entity>/    dev-only laboratory
 реальные domain implementations и fixtures. Такие импорты принадлежат только
 integration tests и не создают production dependencies.
 
-`quantum/storybook/<entity>` может теми же относительными путями импортировать
-проекции и изолированные fixtures для сравнения, invalid-state experiments и
-исследования формата. Он не реализует ещё одну копию сущности и не превращает
-candidate-формат в контракт. Принятое поведение должно иметь тест вне
-Storybook.
+Owner `.storybook` projection может импортировать public domain projections и
+изолированные fixtures для сравнения, invalid-state experiments и исследования
+формата. Она не реализует ещё одну копию сущности и не превращает candidate
+format в контракт. Принятое поведение должно иметь test вне Storybook.
 
-Предмет лаборатории разделяется явно:
+Предметы лаборатории разделяются по настоящему package owner:
 
 ```text
-quantum/storybook/
-├── package.json         exact `@quantum/storybook` identity
-├── app.ts               один typed Quantum Storybook application
-├── server.ts            automatic-port package server
-├── build.ts             local-only static delivery
-├── bootstrap.ts         exact domain entry dispatch
-├── routes.ts            один canonical route tree
-└── <entity>/
-    ├── page.ts          consumer-owned page descriptor
-    ├── entry.ts         один semantic DOM Workbench и document runtime
-    ├── stories.ts       единый typed DOM catalog
-    ├── overview.ts      owner-owned overview presentation
-    ├── fixtures/        воспроизводимые входы экспериментов
-    └── stories/         lazy DOM story modules
+types/.storybook/             @metafor/types Graph projection
+quantum/bulk/.storybook/      bulk HUD projection
+.storybook/manifest.json      optional project composition
 ```
 
-Для typed app, server, static build, routes, stories и workbench напрямую
-использовать точные public subpaths `@zavx0z/storybook/*`. Не импортировать
-корневой package, не создавать facade и не копировать общую инфраструктуру в
-Quantum. Все обращённые к человеку строки Storybook пишутся по-русски; точные
-API names, JSON keys, routes, import specifiers и код сохраняют исходное
-написание.
-
-Consumer использует natural subpaths `@zavx0z/storybook/catalog`,
-`@zavx0z/storybook/stories`, `@zavx0z/storybook/workbench` и pathname router.
-Catalog создаётся через `defineStorybookDomCatalog`, а один Workbench — через
-`createStorybookDomWorkbench` в том же `@zavx0z/dom` Document. Не создавать
-параллельную navigation, собственный story contract или второй lab workbench.
+Declarations и catalogs являются versioned JSON data. Runtime adapters
+реализуют plain structural `storybook-runtime/1`, импортируют только production
+owners и не импортируют Storybook даже type-only. Shared external frontend
+создаёт один Workbench и semantic Document в каждой package tab; owner runtime
+монтирует только presentation subtree и публикует source/props/diagnostics.
+Все обращённые к человеку строки пишутся по-русски; точные API names, JSON keys,
+routes, import specifiers и код сохраняют исходное написание.
 
 Не добавлять compatibility re-exports, import aliases или central facade вокруг
 относительных integration imports.
@@ -123,6 +107,6 @@ serialization, ordering, side effects и fail-closed outcomes, когда эти
 3. Для executable TypeScript запустить `bun run typecheck`.
 4. Собрать или запросить browser entry Storybook, чтобы компилировался реальный
    browser graph; source-only unit test недостаточен.
-5. Убедиться, что production entrypoints не достигают `quantum/tests` и
-   `quantum/storybook`.
+5. Убедиться, что production entrypoints не достигают `quantum/tests` и owner
+   `.storybook` directories.
 6. Перечитать diff и выполнить `git diff --check`.

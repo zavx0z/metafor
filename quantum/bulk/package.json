@@ -25,7 +25,9 @@
     "@metafor/visual": "workspace:*",
     "@ui/components": "link:@ui/components",
     "@zavx0z/dom": "link:@zavx0z/dom",
+    "@zavx0z/react": "link:@zavx0z/react",
     "@zavx0z/renderer": "link:@zavx0z/renderer",
-    "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu"
+    "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
+    "@zavx0z/template": "link:@zavx0z/template"
   }
 }

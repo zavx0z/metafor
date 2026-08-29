@@ -1,107 +1,65 @@
 import {describe, expect, test} from "bun:test"
 import {readFile} from "node:fs/promises"
-import {join} from "node:path"
+import {join, resolve} from "node:path"
 import {createDocument} from "@zavx0z/dom"
-import {createQuantumStorybookApp} from "../../storybook/app.ts"
-import {BULK_STORY_ROUTE_TREE} from "../../storybook/bulk/stories.ts"
-import {createBulkHudStory} from "../../storybook/bulk/story.ts"
-import {QUANTUM_STORY_ROUTE_TREE} from "../../storybook/routes.ts"
+import {createBulkHudStory} from "../../bulk/.storybook/stories/hud.ts"
+import {runtime} from "../../bulk/.storybook/runtime.ts"
 
-describe("Quantum DOM Storybook boundary", () => {
-  test("registers one Bulk detail beside the exact Graph delivery routes", () => {
-    expect(BULK_STORY_ROUTE_TREE.leaves).toEqual(["hud/default"])
-    expect(BULK_STORY_ROUTE_TREE.overviews).toEqual(["", "hud"])
-    expect(QUANTUM_STORY_ROUTE_TREE.leaves).toEqual([
-      "graph/document/current/complete",
-      "graph/reaction/dependencies/complete",
-      "graph/validation/contract/closed",
-      "graph/node-tree/projection/live",
-      "graph/identity/same-meta/reorder",
-      "bulk/hud/default",
-    ])
+const repositoryRoot = resolve(import.meta.dir, "../../..")
 
-    const app = createQuantumStorybookApp()
-    expect(app.basePath).toBe("")
-    expect(app.home.path).toBe("/graph/")
-    expect(app.pages).toHaveLength(1)
-    expect(app.pages[0]).toMatchObject({
-      id: "graph",
-      mountPath: "/",
-      capability: "webgpu-diagnostic",
-      touch: true,
-      readiness: {dataset: "quantumStorybook", value: "ready"},
+describe("Bulk external Storybook boundary", () => {
+  test("registers one exact HUD leaf with real category and subject overviews", async () => {
+    const catalog = JSON.parse(await readFile(
+      join(repositoryRoot, "quantum/bulk/.storybook/catalog.json"),
+      "utf8",
+    ))
+    expect(catalog.categories).toHaveLength(1)
+    expect(catalog.categories[0]).toMatchObject({
+      route: "bulk",
+      subjects: [{
+        route: "bulk/hud",
+        variants: [{
+          route: "bulk/hud/default",
+          resources: {
+            references: ["../VISUAL.md", "../dom/hud.tsx", "./stories/hud.ts"],
+          },
+        }],
+      }],
     })
-    expect(app.pages[0]!.entrypoint.endsWith("/storybook/bootstrap.ts")).toBeTrue()
   })
 
-  test("dispatches only canonical Bulk paths to the DOM entry", async () => {
-    const bootstrap = await readFile(join(import.meta.dir, "../../storybook/bootstrap.ts"), "utf8")
-
-    expect(bootstrap).toContain("BULK_STORY_ROUTE_TREE.nodes.map")
-    expect(bootstrap).toContain("storybookRouteTreeUrl(BULK_STORY_ROUTE_TREE")
-    expect(bootstrap).toContain("bulkPathnames.includes(window.location.pathname)")
-    expect(bootstrap).toContain('await import("./bulk/entry.ts")')
-    expect(bootstrap).toContain('await import("./graph/entry.ts")')
-    expect(bootstrap).toContain("window.location.replace(graphPathname)")
-    expect(bootstrap).not.toContain("startsWith")
-  })
-
-  test("composes one semantic Document, shared Workbench and renderer-browser host", async () => {
-    const entry = await readFile(join(import.meta.dir, "../../storybook/bulk/entry.ts"), "utf8")
-    const graph = await readFile(join(import.meta.dir, "../../storybook/graph/entry.ts"), "utf8")
-    const story = createBulkHudStory(createDocument())
-
+  test("mounts production HUD in the external semantic Document", () => {
+    const document = createDocument()
+    const story = createBulkHudStory(document)
     expect(story.element).toBe(story.controller.element)
+    expect(story.element.ownerDocument).toBe(document)
     expect(story.source.typescript).toContain("createBulkHudDocument")
-    expect(entry).toContain('from "@zavx0z/dom"')
-    expect(entry).toContain('from "@zavx0z/renderer-browser"')
-    expect(entry).toContain('from "@zavx0z/storybook/workbench"')
-    expect(entry).toContain("const semanticDocument = createDocument()")
-    expect(entry).toContain("createStorybookDomWorkbench({")
-    expect(entry).toContain("createDocumentCanvasRuntime({")
-    expect(entry).toContain('dataset.quantumStorybookPipeline = "dom-webgpu"')
-    expect(entry).toContain('dataset.quantumStorybook = "ready"')
-    expect(graph).toContain('from "@zavx0z/dom"')
-    expect(graph).toContain('from "@zavx0z/renderer-browser"')
-    expect(graph).toContain('from "@zavx0z/storybook/workbench"')
-    expect(graph).toContain('from "@ui/components/code-editor"')
-    for (const forbidden of [
-      "UiRuntime",
-      "@layout/core",
-      "@ui/elements",
-      "StorybookBackdropSurface",
-      "GraphLabState",
-    ]) expect(entry).not.toContain(forbidden)
-    for (const forbidden of [
-      "UiRuntime",
-      "@layout/core",
-      "@ui/elements",
-      "StorybookBackdropSurface",
-      "GraphLabState",
-      "NodeEditor",
-    ]) expect(graph).not.toContain(forbidden)
-
+    expect(story.source.css).not.toContain("#7edcec")
     story.dispose()
   })
 
-  test("declares exact private dev dependencies without exporting product APIs", async () => {
-    const manifest = JSON.parse(
-      await readFile(join(import.meta.dir, "../../storybook/package.json"), "utf8"),
-    ) as {
-      private?: boolean
-      dependencies?: Record<string, string>
-      exports?: Record<string, string>
-    }
+  test("uses one structural runtime instead of a package-owned shell", async () => {
+    const runtimeSource = await readFile(
+      join(repositoryRoot, "quantum/bulk/.storybook/runtime.ts"),
+      "utf8",
+    )
+    expect(runtime.protocol).toBe("storybook-runtime/1")
+    expect(runtimeSource).toContain("context.mount(next.element)")
+    expect(runtimeSource).toContain("update: show")
+    expect(runtimeSource).not.toContain("@zavx0z/storybook")
+    expect(runtimeSource).not.toContain("createStorybookDomWorkbench")
+    expect(runtimeSource).not.toContain("createDocumentCanvasRuntime")
+    expect(runtimeSource).not.toContain("StorybookRouteTreeRouter")
+  })
 
-    expect(manifest.private).toBeTrue()
-    expect(manifest.dependencies).toMatchObject({
-      "@ui/components": "link:@ui/components",
-      "@zavx0z/dom": "link:@zavx0z/dom",
-      "@zavx0z/renderer": "link:@zavx0z/renderer",
-      "@zavx0z/renderer-browser": "link:@zavx0z/renderer-browser",
-      "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
-      "@zavx0z/storybook": "link:@zavx0z/storybook",
-    })
-    expect(manifest.exports).toBeUndefined()
+  test("keeps Storybook outside production package metadata and exports", async () => {
+    const manifest = JSON.parse(await readFile(
+      join(repositoryRoot, "quantum/bulk/package.json"),
+      "utf8",
+    ))
+    expect(manifest.name).toBe("bulk")
+    expect(Object.keys(manifest.exports)).toEqual([".", "./settings", "./store", "./visual", "./web"])
+    expect(JSON.stringify(manifest)).not.toContain("storybook")
+    expect(await Bun.file(join(repositoryRoot, "quantum/storybook/package.json")).exists()).toBeFalse()
   })
 })

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/zavx0z/storybook/main/schemas/manifest.schema.json",
+  "schemaVersion": 1,
+  "kind": "project",
+  "id": "metafor",
+  "label": "MetaFor",
+  "readme": "../README.md",
+  "packages": [
+    {
+      "declaration": "../types/.storybook/manifest.json"
+    },
+    {
+      "declaration": "../quantum/bulk/.storybook/manifest.json"
+    }
+  ]
+}

@@ -19,7 +19,7 @@ import {
   RendererWebGpuBackend,
   RendererWebGpuScreenOverlay,
 } from "@zavx0z/renderer-webgpu"
-import {bulkHudDocumentCss} from "./hud.ts"
+import {bulkHudDocumentCss} from "./hud.tsx"
 
 export type CreateBulkDomOverlayRuntimeOptions = Readonly<{
   canvas: HTMLCanvasElement
@@ -78,6 +78,7 @@ export function createBulkDomOverlayRuntime(
     (typeof window === "undefined" ? options.canvas : window)
   const capturedPointers = new Set<number>()
   const capturedTouches = new Set<number>()
+  let rendererRevisionOffset = 0
   let currentFrame = interaction.composeFrame(documentRenderer.flush())
   let disposed = false
 
@@ -90,7 +91,10 @@ export function createBulkDomOverlayRuntime(
 
   const flush = (): RenderFrame => {
     assertActive(disposed)
-    currentFrame = interaction.composeFrame(documentRenderer.flush(), performance.now())
+    const rendered = interaction.composeFrame(documentRenderer.flush(), performance.now())
+    currentFrame = rendererRevisionOffset === 0
+      ? rendered
+      : Object.freeze({...rendered, revision: rendered.revision + rendererRevisionOffset})
     backend.applyFrame(currentFrame)
     return currentFrame
   }
@@ -100,6 +104,7 @@ export function createBulkDomOverlayRuntime(
     const next = readViewport(width, height)
     if (next.width !== viewport.width || next.height !== viewport.height) {
       const previous = documentRenderer
+      rendererRevisionOffset = currentFrame.revision
       viewport = next
       documentRenderer = createDocumentRenderer({
         document,

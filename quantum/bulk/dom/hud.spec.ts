@@ -10,7 +10,7 @@ import {
 	bulkHudDocumentCss,
 	bulkHudDocumentDefaultProps,
 	type BulkHudDocumentProps,
-} from "./hud.ts"
+} from "./hud.tsx"
 
 const controlledProps: BulkHudDocumentProps = Object.freeze({
 	title: "Bulk Visual",
@@ -57,7 +57,8 @@ describe("Bulk DOM HUD production proof", () => {
 		expect(root.childNodes).toEqual([window])
 		expect(controller.controllers.window.element).toBe(window)
 		expect(controller.controllers.timeline.element).toBe(timeline)
-		expect(controller.controllers.window.refs.body.childNodes).toEqual([timeline])
+		expect(controller.controllers.window.refs.body.childNodes
+			.filter((node) => node.nodeType === 1)).toEqual([timeline])
 		expect(fullscreenButton).toBe(controller.controllers.window.refs.actionButtons.get("fullscreen")!)
 		expect(fullscreenButton.getAttribute("data-action-key")).toBe("fullscreen")
 		expect(fullscreenButton.getAttribute("aria-pressed")).toBe("false")
@@ -121,7 +122,8 @@ describe("Bulk DOM HUD production proof", () => {
 		expect(fullscreenButton.disabled).toBeTrue()
 		expect(fullscreenButton.textContent).toBe("Выйти из полного экрана")
 		expect(controller.controllers.timeline.refs.currentTime.getAttribute("datetime")).toBe("16")
-		expect(controller.controllers.timeline.refs.currentText.data).toBe("Current 16")
+		expect(controller.controllers.timeline.refs.currentText.data).toBe("16")
+		expect(controller.controllers.timeline.refs.currentTime.getAttribute("aria-label")).toBe("Current 16")
 		expect(forceLabel.data).toBe("Force frontier")
 		expect(frame2.getAttribute("data-tick")).toBe("16")
 		expect(frame2Text.data).toBe("frame 2 · seq 16")
@@ -149,7 +151,7 @@ describe("Bulk DOM HUD production proof", () => {
 		controller.controllers.timeline.refs.currentTime
 			.dispatchEvent(new MouseEvent("click", {bubbles: true}))
 
-		expect(events).toEqual(["click:button", "click:button", "pointerdown:time", "click:time"])
+		expect(events).toEqual(["click:button", "click:button", "pointerdown:li", "click:time"])
 		expect(controller.props).toBe(props)
 		expect(controller.props.fullscreen).toBeFalse()
 		expect(controller.props.causalTimeline.playing).toBeFalse()
@@ -210,7 +212,7 @@ describe("Bulk DOM HUD production proof", () => {
 	})
 
 	test("keeps an exact package-private DOM/UI boundary", async () => {
-		const source = await Bun.file(new URL("./hud.ts", import.meta.url)).text()
+		const source = await Bun.file(new URL("./hud.tsx", import.meta.url)).text()
 		const visual = await Bun.file(new URL("../VISUAL.md", import.meta.url)).text()
 		const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json() as {
 			dependencies: Record<string, string>
@@ -238,7 +240,11 @@ describe("Bulk DOM HUD production proof", () => {
 		]) expect(source).not.toContain(forbidden)
 		expect(bulkHudDocumentCss).toContain(".bulk-hud-document")
 		expect(bulkHudDocumentCss).toContain(".ui-hud-window")
-		expect(bulkHudDocumentCss).toContain(".ui-timeline")
+			expect(bulkHudDocumentCss).toContain(".ui-timeline")
+			expect(bulkHudDocumentCss).toContain("min-height: 140px")
+			expect(bulkHudDocumentCss).toContain("min-height: 106px")
+			expect(bulkHudDocumentCss).not.toContain("#7edcec")
+			expect(bulkHudDocumentCss).not.toContain("min-height: 220px")
 		expect(bulkHudDocumentCss).not.toContain("&")
 		expect(manifest.dependencies["@zavx0z/dom"]).toBe("link:@zavx0z/dom")
 		expect(manifest.dependencies["@ui/components"]).toBe("link:@ui/components")

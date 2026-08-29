@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "readOnlyBaseline": true,
+  "oldPrivatePackage": "@quantum/storybook",
+  "source": {
+    "projectHead": "603d5604ac550b044ad809d5be27190cba9118aa",
+    "dirty": true,
+    "dirtyPathCount": 19,
+    "dirtyFiles": [
+      {
+        "status": " M",
+        "path": "cosmos/internal/visual/main/display-dock.spec.ts",
+        "sha256": "000ce386a02049dbb8bd003c4bad48e514500cb671bb0e75fd990c91b1ab4079"
+      },
+      {
+        "status": " M",
+        "path": "cosmos/internal/visual/main/display-dock.ts",
+        "sha256": "41e9a4f8c43bfc02a640fc2291380d96835ab51dab5fcfe6d93ded895ee67340"
+      },
+      {
+        "status": " M",
+        "path": "cosmos/internal/visual/main/index.ts",
+        "sha256": "6610ab44b366d45e56c7b37f5acbf74e0d2cb232b7754fdd6e32bc32d9bc1d68"
+      },
+      {
+        "status": " M",
+        "path": "cosmos/internal/visual/README.md",
+        "sha256": "e58a03fa7a1cef9534635d61a11e930d547eb90d3f51d4f6c6421c7a5127ad1d"
+      },
+      {
+        "status": " M",
+        "path": "quantum/bulk/dom/hud.spec.ts",
+        "sha256": "b4361ac19f60819837b9e033f2e3475af48e59b1cd32976c35fe445a219e2386"
+      },
+      {
+        "status": " M",
+        "path": "quantum/bulk/dom/hud.ts",
+        "sha256": "c8d22f23c871ce18f29a568c26771dcaac8900bf9f565c178a77516729e67b4a"
+      },
+      {
+        "status": " M",
+        "path": "quantum/bulk/VISUAL.md",
+        "sha256": "e7a5edc88eb71d4b8db72b8b984b35fa99e689589b1f3f971685947f5b72f802"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/bulk/entry.ts",
+        "sha256": "dd2b006641cee3e93cb140f2f1aba3888d164974041d81312fdefbe272c5af6d"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/bulk/story.spec.ts",
+        "sha256": "54edfb37caefbdda027a4d47840fd77c14b920890ffc9eaa4b863404edf1c964"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/bulk/story.ts",
+        "sha256": "275d42257700db21237d259cc6beb2ec8cd652462ca79ca068eeee0448ca4ccc"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/graph/dom-stories.spec.ts",
+        "sha256": "4d2757717518736a2484cba84b3f525d119ebb6d97339939e9cf2928c5452adc"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/graph/dom-story.ts",
+        "sha256": "1cc1634df08fb2553c620b0a9a668ad50e9e2e6c3a3ce094d103fb26d2c51d19"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/graph/entry.ts",
+        "sha256": "44dcc9919eb8572a9c21940b749b26132f304a66647e48dcf2711890d6b85120"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/graph/overview.ts",
+        "sha256": "03160c98548f30d23b5e3411c2dc372c1c37e9377c256ae1db3c328d71d2421d"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/graph/stories.ts",
+        "sha256": "3f5468805fca5050c117f092d3ee0d27e781a748dd239b0a3f1e48d3551795cc"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/graph/stories/node-tree.ts",
+        "sha256": "5e8f68d08874701c7cef76d47e449be0dc41b48bc74c65cd1cc0bcdef5b18561"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/graph/stories/source.ts",
+        "sha256": "724b543a33bf78e34294bf752fc75b58111a4abed61558713ed546e9ba123c76"
+      },
+      {
+        "status": " M",
+        "path": "quantum/storybook/requirements.md",
+        "sha256": "29a62936205884ccc87cff21e82a27e48b55bd32ab11a882c9e33050dc5e8389"
+      },
+      {
+        "status": " M",
+        "path": "quantum/tests/graph/node-tree-presentation.spec.ts",
+        "sha256": "7177f6c3f7ab241a420096de6c3f26aa94794fa8645695c9e23b971d9a2af097"
+      }
+    ],
+    "extraction": "safe current-working-tree Bun import",
+    "authority": "current quantum/storybook source route trees; dist is not authoritative",
+    "sourceFiles": [
+      {
+        "path": "quantum/storybook/app.ts",
+        "sha256": "f429ca3ed6b0720a89752e65911043c71b345b94594a78a5bad082ad8c3ca8a0"
+      },
+      {
+        "path": "quantum/storybook/bootstrap.ts",
+        "sha256": "457e0e9890273b1ba6467c650c7086dcb75f2f94e46b5536405b1534f16b428d"
+      },
+      {
+        "path": "quantum/storybook/bulk/stories.ts",
+        "sha256": "956dc2acd14fa81e3c8a2c0c3bd98f58a8dbdc286af2c182ac73868048cf2005"
+      },
+      {
+        "path": "quantum/storybook/graph/page.ts",
+        "sha256": "2a03ca3f1efe66c4ed2fe5f233bf131ec6360cc54843d13b8dbce6edb3f89043"
+      },
+      {
+        "path": "quantum/storybook/graph/stories.ts",
+        "sha256": "3f5468805fca5050c117f092d3ee0d27e781a748dd239b0a3f1e48d3551795cc"
+      },
+      {
+        "path": "quantum/storybook/routes.ts",
+        "sha256": "9929cb91c12f165d0d9ec56a547471df9de5b3447d467160ab0906fe084c7312"
+      }
+    ]
+  },
+  "routeBase": {
+    "developmentBasePath": "",
+    "staticBasePath": "",
+    "homePath": "/graph/",
+    "domainMountPaths": {
+      "graph": "/graph",
+      "bulk": "/bulk"
+    },
+    "rootBehavior": {
+      "path": "/",
+      "renderedOverview": false,
+      "action": "window.location.replace",
+      "target": "/graph/"
+    },
+    "canonicalRules": {
+      "overviewTrailingSlash": true,
+      "leafTrailingSlash": false,
+      "knownNonCanonicalRedirectStatus": 308,
+      "unknownRouteStatus": 404,
+      "fallbackToFirstLeaf": false
+    }
+  },
+  "leafRoutes": [
+    "graph/document/current/complete",
+    "graph/reaction/dependencies/complete",
+    "graph/validation/contract/closed",
+    "graph/node-tree/projection/live",
+    "graph/identity/same-meta/reorder",
+    "bulk/hud/default"
+  ],
+  "overviewRoutes": [
+    "",
+    "graph",
+    "graph/document",
+    "graph/document/current",
+    "graph/reaction",
+    "graph/reaction/dependencies",
+    "graph/validation",
+    "graph/validation/contract",
+    "graph/node-tree",
+    "graph/node-tree/projection",
+    "graph/identity",
+    "graph/identity/same-meta",
+    "bulk",
+    "bulk/hud"
+  ],
+  "domainRouteTrees": {
+    "graph": {
+      "mountPath": "/graph",
+      "leafRoutes": [
+        "document/current/complete",
+        "reaction/dependencies/complete",
+        "validation/contract/closed",
+        "node-tree/projection/live",
+        "identity/same-meta/reorder"
+      ],
+      "overviewRoutes": [
+        "",
+        "document",
+        "document/current",
+        "reaction",
+        "reaction/dependencies",
+        "validation",
+        "validation/contract",
+        "node-tree",
+        "node-tree/projection",
+        "identity",
+        "identity/same-meta"
+      ]
+    },
+    "bulk": {
+      "mountPath": "/bulk",
+      "leafRoutes": [
+        "hud/default"
+      ],
+      "overviewRoutes": [
+        "",
+        "hud"
+      ]
+    }
+  },
+  "hashes": {
+    "algorithm": "sha256",
+    "routeSerialization": "UTF-8 ordered routes joined by LF with no trailing LF",
+    "leafRoutes": "cbe4b73cc8ae1cf792eb56fb3d5af3028b8a0c9fc4c6325d94393dd34ada0473",
+    "overviewRoutes": "a5599545f2314f6861eb68cda2f5cef75c141d0e19e4a75a3c0612f2146d7450",
+    "combinedRoutes": "86d589e79cea3a3a7c2a2df6f08539db643c520fb1f8db21c3dcbd10b82acd03",
+    "graphLeafRoutes": "00c169130032289829c9c74b9d36a5f7c6360f20513a9def69aaee266ec1048d",
+    "graphOverviewRoutes": "10acccc2e0f050c0ea068be3104a4a997dc5076e9bfc7ae0f169e92ecd117d90",
+    "graphCombinedRoutes": "c66549c35d04b9da3065a76fae8f37d0cfb1112518d6bd12d4ba939911f57828",
+    "bulkLeafRoutes": "0a57a34647b14aa185622bdfdc5c57319789f3d03239de49bb6fb94266b98673",
+    "bulkOverviewRoutes": "356f7a7cc9b3516643bcc97ca899e4d4a3a47efb897e4500e78e4b7d145f346d",
+    "bulkCombinedRoutes": "3b04e2b8c2f7e53acfd521ea68a2bc3eccb12370f0e66ee24e427517e1ebdd60",
+    "sourceFileSerialization": "UTF-8 path, TAB, sha256 records joined by LF with no trailing LF",
+    "sourceFiles": "ad53f645045608b9a59d4b245dc8e04a89ddd0f48efe9a25bc14e0065b10a934",
+    "dirtyFileSerialization": "UTF-8 status, TAB, path, TAB, sha256 records joined by LF with no trailing LF",
+    "dirtyFiles": "73e19308e217cd1c419802b2c97f76300c93484a5437ed3bc817cc177a68d9b5",
+    "ownerResourceSerialization": "UTF-8 kind, TAB, path, TAB, sha256 records joined by LF with no trailing LF",
+    "ownerResources": "b5db750e1e05c52942a331ed90f15e2b12f1f5ec9d4b65f9024570bb3bc563a3"
+  },
+  "ownerResources": [
+    {
+      "kind": "graph-fixture",
+      "path": "quantum/storybook/graph/fixtures/graph.ts",
+      "sha256": "4188beec1aa5cc5e9e69d36d80a978d9d4289db770497c849c89c133192f8aeb"
+    },
+    {
+      "kind": "graph-style",
+      "path": "quantum/storybook/graph/style.css",
+      "sha256": "25f934829dcd7cffbb853a5acc60060ad617ab689c94716a8f0231fc7a22fe52"
+    },
+    {
+      "kind": "bulk-documentation",
+      "path": "quantum/bulk/VISUAL.md",
+      "sha256": "e7a5edc88eb71d4b8db72b8b984b35fa99e689589b1f3f971685947f5b72f802"
+    },
+    {
+      "kind": "bulk-production-style-source",
+      "path": "quantum/bulk/dom/hud.ts",
+      "sha256": "c8d22f23c871ce18f29a568c26771dcaac8900bf9f565c178a77516729e67b4a"
+    },
+    {
+      "kind": "bulk-story-style-source",
+      "path": "quantum/storybook/bulk/story.ts",
+      "sha256": "275d42257700db21237d259cc6beb2ec8cd652462ca79ca068eeee0448ca4ccc"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import {
 import {
   createBulkHudDocument,
   type BulkHudDocumentController,
-} from "./hud.ts"
+} from "./hud.tsx"
 
 const APP_FULLSCREEN_FALLBACK_CLASS = "metafor-app-fullscreen-fallback"
 let appFullscreenFallbackActive = false

@@ -145,9 +145,10 @@
   правила Cosmos поверх общей documentation reference `$metafor-dev`.
 - Для сущности, представленной независимыми проекциями нескольких Quantum-доменов,
   использовать `$quantum-dev` из `quantum/.agents/skills/quantum-dev`. Domain-owned
-  implementations остаются слабосвязанными, а их общие проверки и лаборатория
-  располагаются только на уровне Quantum. Lifecycle и browser evidence
-  `@quantum/storybook` принадлежат единому глобальному `$storybook`.
+  implementations остаются слабосвязанными. Graph laboratory принадлежит
+  `@metafor/types`, а Bulk HUD projection — package `bulk`; MetaFor предоставляет
+  только внешние declarations. Lifecycle и browser evidence принадлежат одному
+  глобальному external Storybook server.
 - Для разработки, проверок и Storybook соседнего Engine использовать
   `$engine-dev` из `../engine/.agents/skills/engine-dev`. Engine не получает
   product-, UI- или Nodes-семантику через интеграционную задачу.
@@ -156,17 +157,15 @@
   `@engine/core`. Generic Layout и `@ui/elements` выведены из live graph и не
   используются как fallback; UI controls и product composition остаются у UI
   и MetaFor.
-- Все package pages семейства Nodes принадлежат единому dev-каталогу
-  `@nodes/storybook`: один process/origin, главная `/` и exact routes
-  `/core/*`, `/editor/*`, `/layout/*`, `/worker/*`, `/ui/*`. Для их
-  lifecycle и browser-проверки использовать единый глобальный `$storybook` с
-  exact package `@nodes/storybook`. Package page задаётся только `--route`, а
-  DOM/SVG и WebGPU capabilities определяются fail-closed по typed dev manifest;
-  `/layout/*` здесь принадлежит живому доменному `@nodes/layout`.
-- Для разработки, lifecycle, browser-проверки и профилирования каталога
-  package pages `@ui/components` использовать единый глобальный `$storybook`
-  с exact package `@ui/storybook`. UI-визуальная семантика остаётся у
-  `$ui-dev`, но lifecycle, target и browser commands здесь не дублируются.
+- Package pages семейства Nodes открываются из внешней declaration-композиции
+  Node project через тот же глобальный Storybook server. Exact package identity
+  и route выбираются отдельно; DOM/SVG и WebGPU capabilities определяются
+  fail-closed по declaration graph, а `/layout/*` принадлежит живому доменному
+  `@nodes/layout`.
+- Для browser-проверки и профилирования package pages `@ui/components`
+  использовать UI project declaration в том же глобальном Storybook server.
+  UI-визуальная семантика остаётся у `$ui-dev`, а lifecycle, target и browser
+  commands здесь не дублируются.
 - Browser evidence в этих package-contours получать только через встроенный
   в `$storybook` background exact-target CDP path. Агент не воспроизводит его CDP
   вручную и не вызывает focus, activate, `Page.bringToFront`, window APIs или

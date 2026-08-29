@@ -8,3 +8,6 @@ depth = 22
 
 [serve.static]
 plugins = ["./scripts/wgsl-text-plugin.ts"]
+
+[test]
+preload = ["./test-preload.ts"]

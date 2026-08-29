@@ -22,7 +22,6 @@
     "quantum/matrix/weak",
     "quantum/energy",
     "quantum/energy/types",
-    "quantum/storybook",
     "quantum/bulk",
     "quantum/bulk/types",
     "quantum/bulk/gravity",
@@ -42,9 +41,7 @@
     "create-metafor/dsl"
   ],
   "devDependencies": {
-    "@nodes/storybook": "link:@nodes/storybook",
     "@zavx0z/highlighter": "link:@zavx0z/highlighter",
-    "@zavx0z/storybook": "link:@zavx0z/storybook",
     "@types/bun": "^1.4.0",
     "@types/node": "^25.5.0",
     "@webgpu/types": "^0.1.68",
@@ -59,6 +56,8 @@
     "@nodes/editor": "link:@nodes/editor",
     "@nodes/worker": "link:@nodes/worker",
     "@ui/components": "link:@ui/components",
+    "@zavx0z/react": "link:@zavx0z/react",
+    "@zavx0z/template": "link:@zavx0z/template",
     "shared": "workspace:*"
   },
   "peerDependencies": {

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/zavx0z/storybook/main/schemas/manifest.schema.json",
+  "schemaVersion": 1,
+  "kind": "package",
+  "id": "bulk",
+  "label": "Bulk HUD",
+  "packageJson": "../package.json",
+  "readme": "./README.md",
+  "runtime": {
+    "module": "./runtime.ts",
+    "export": "runtime"
+  },
+  "catalog": "./catalog.json"
+}

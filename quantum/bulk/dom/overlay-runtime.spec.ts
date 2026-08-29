@@ -41,6 +41,7 @@ describe("Bulk DOM overlay runtime", () => {
     const element = controller.element
     const resized = runtime.resize(720, 480)
     expect(resized.viewport).toEqual({width: 720, height: 480})
+    expect(resized.revision).toBeGreaterThan(frame.revision)
     expect(controller.element).toBe(element)
 
     controller.dispose()
