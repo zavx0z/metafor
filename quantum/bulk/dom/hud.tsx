@@ -12,12 +12,7 @@ import {
   type TimelineProps,
   type TimelineTrack,
 } from "@ui/components/hud"
-import {
-  resolveWidgetColors,
-  rgba8ToColor,
-  uiTheme,
-} from "@ui/components/theme"
-import {createRoot} from "@zavx0z/react"
+import {createRoot, type ComponentRoot} from "@zavx0z/react"
 
 export type BulkHudDocumentProps = Readonly<{
   title: string
@@ -76,6 +71,7 @@ export type BulkHudDocumentControllers = Readonly<{
 
 export type BulkHudDocumentController = Readonly<{
   element: HTMLElement
+  componentRoot: Pick<ComponentRoot, "readStyleSheets">
   refs: BulkHudDocumentRefs
   controllers: BulkHudDocumentControllers
   readonly props: BulkHudDocumentProps
@@ -104,78 +100,64 @@ export const bulkHudDocumentDefaultProps: BulkHudDocumentProps = Object.freeze({
   }),
 })
 
-const selectedHudColors = resolveWidgetColors("regular", {selected: true})
-const unknownHudColors = resolveWidgetColors("toolbarItem")
+const bulkHudRootStyle: CssStyle = css`
+  & {
+    box-sizing: border-box;
+    position: absolute;
+    left: 50%;
+    bottom: 8px;
+    transform: translateX(-50%);
+    display: block;
+    width: 100%;
+    max-width: 640px;
+    min-height: 140px;
+    z-index: 20;
+  }
+  &[data-fullscreen="true"] {
+    --material-editor-outline-active: var(--widget-regular-background-selected);
+  }
+`
 
-export const bulkHudDocumentCss = String.raw`
-.bulk-hud-document {
-  box-sizing: border-box;
-  position: absolute;
-  left: 50%;
-  bottom: 8px;
-  transform: translateX(-50%);
-  display: block;
-  width: 100%;
-  max-width: 640px;
-  min-height: 140px;
-  z-index: 20;
-}
+const bulkHudWindowStyle: CssStyle = css`
+  & { width: 100%; min-height: 140px; }
+`
 
-.bulk-hud-document .ui-hud-window {
-  width: 100%;
-  min-height: 140px;
-}
-
-.bulk-hud-document .ui-hud-window__body {
-  padding: 0;
-}
-
-.bulk-hud-document .ui-timeline {
-  width: 100%;
-  min-height: 106px;
-  border: 0 solid transparent;
-  border-radius: 0;
-}
-
-.bulk-hud-document[data-fullscreen="true"] .ui-hud-window {
-  border-color: ${rgba8ToColor(selectedHudColors.inner)};
-}
-
-.bulk-hud-document .ui-timeline__marker[data-resolution="exact"] {
-  background: ${rgba8ToColor(uiTheme.state.success)};
-}
-
-.bulk-hud-document .ui-timeline__marker[data-resolution="degraded"] {
-  background: ${rgba8ToColor(uiTheme.state.warning)};
-}
-
-.bulk-hud-document .ui-timeline__marker[data-resolution="overloaded"] {
-  background: ${rgba8ToColor(uiTheme.state.error)};
-}
-
-.bulk-hud-document .ui-timeline__marker[data-resolution="unknown"] {
-  background: ${rgba8ToColor(unknownHudColors.inner)};
-}
+const bulkTimelineStyle: CssStyle = css`
+  & {
+    width: 100%;
+    min-height: 106px;
+    border: 0 solid transparent;
+    border-radius: 0;
+  }
 `
 
 function BulkHudOwners(props: Readonly<{value: BulkHudDocumentProps}>) {
   const window = windowProps(props.value)
-  return <HudWindow
-    title={window.title}
-    subtitle={window.subtitle}
-    active={window.active}
-    minimized={window.minimized}
-    actions={window.actions}
+  return <section
+    aria-label={props.value.title}
+    data-bulk-hud=""
+    data-fullscreen={String(props.value.fullscreen)}
+    style={bulkHudRootStyle}
   >
-    <Timeline
-      title={props.value.causalTimeline.title}
-      min={props.value.causalTimeline.min}
-      max={props.value.causalTimeline.max}
-      current={props.value.causalTimeline.current}
-      playing={props.value.causalTimeline.playing}
-      tracks={props.value.causalTimeline.tracks}
-    />
-  </HudWindow>
+    <HudWindow
+      title={window.title}
+      subtitle={window.subtitle}
+      active={window.active}
+      minimized={window.minimized}
+      actions={window.actions}
+      style={bulkHudWindowStyle}
+    >
+      <Timeline
+        title={props.value.causalTimeline.title}
+        min={props.value.causalTimeline.min}
+        max={props.value.causalTimeline.max}
+        current={props.value.causalTimeline.current}
+        playing={props.value.causalTimeline.playing}
+        tracks={props.value.causalTimeline.tracks}
+        style={bulkTimelineStyle}
+      />
+    </HudWindow>
+  </section>
 }
 
 /** Mounts current TSX HUD owners while preserving the existing Bulk controller contract. */
@@ -185,16 +167,10 @@ export function createBulkHudDocument(
 ): BulkHudDocumentController {
   const staging = document.createElement("div")
   const reactRoot = createRoot(staging)
-  const root = document.createElement("section")
   let currentProps = normalizeProps(initialProps)
   reactRoot.render(<BulkHudOwners value={currentProps} />)
-  const owner = requiredElement(
-    [...staging.querySelectorAll("section")].find((element) =>
-      element.getAttribute("aria-label") === currentProps.title),
-    "Bulk HUD TSX owner is missing",
-  )
-  staging.removeChild(owner)
-  root.appendChild(owner)
+  const root = requiredElement(staging.firstElementChild, "Bulk HUD TSX root is missing")
+  staging.removeChild(root)
   const maps = mutableMaps()
   const initial = readRenderedHud(root, currentProps, maps)
   let disposed = false
@@ -272,6 +248,7 @@ export function createBulkHudDocument(
 
   return Object.freeze({
     element: root,
+    componentRoot: reactRoot,
     refs,
     controllers,
     get props() { return currentProps },
@@ -326,11 +303,6 @@ function readRenderedHud(
   props: BulkHudDocumentProps,
   maps: MutableHudMaps,
 ): RenderedHud {
-  root.className = props.fullscreen
-    ? "bulk-hud-document bulk-hud-document--fullscreen"
-    : "bulk-hud-document"
-  root.setAttribute("data-fullscreen", String(props.fullscreen))
-  root.setAttribute("aria-label", props.title)
   const window = requiredElement(root.firstElementChild, "Bulk HUD window is missing")
   const windowHeader = requiredElement(window.querySelector("header"), "Bulk HUD window header is missing")
   const spans = [...windowHeader.children].filter((element) => element.localName === "span")
@@ -368,9 +340,6 @@ function readRenderedHud(
     "Bulk HUD Timeline tracks are missing",
   )
 
-  window.className = `${window.className} ui-hud-window`.trim()
-  body.className = `${body.className} ui-hud-window__body`.trim()
-  timeline.className = `${timeline.className} ui-timeline`.trim()
   synchronizeTimelineMaps(tracksList, maps)
   return Object.freeze({
     window,
@@ -405,7 +374,6 @@ function synchronizeTimelineMaps(tracksList: HTMLElement, maps: MutableHudMaps):
       const markerKey = marker.getAttribute("data-marker-key")!
       const key = `${trackKey}/${markerKey}`
       const button = requiredButton(marker.querySelector("button"), `Bulk HUD marker is missing: ${key}`)
-      marker.className = `${marker.className} ui-timeline__marker`.trim()
       maps.markerItems.set(key, marker)
       maps.markerTimes.set(key, marker)
       maps.markerTexts.set(key, firstText(button, `Bulk HUD marker text is missing: ${key}`))

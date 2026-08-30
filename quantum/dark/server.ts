@@ -11,7 +11,7 @@ import {
 } from "shared/protocol/bulk/browser"
 import type {BulkStoreInitial} from "shared/protocol/bulk/store"
 import {isBulkStoreApplyControl} from "../bulk/store-initial.ts"
-import index from "../bulk/index.html"
+import {registerMetaforTemplatePlugin} from "../../template-plugin.ts"
 import {
   BULK_VIEWPORT_CAPTURE_MAX_CONTROL_BYTES,
 } from "../bulk/capture.ts"
@@ -89,6 +89,9 @@ import {
   checkpointControlStatePath,
   DarkCheckpointControl,
 } from "./checkpoint/control.ts"
+
+registerMetaforTemplatePlugin()
+const {default: index} = await import("../bulk/index.html")
 
 const repositoryState = resolve(import.meta.dir, "..", ".metafor")
 const forceHistoryPath = resolve(

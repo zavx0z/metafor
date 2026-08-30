@@ -10,5 +10,8 @@
     "module": "./runtime.ts",
     "export": "runtime"
   },
+  "authorStyleSheets": [
+    {"specifier": "@ui/components/theme.css"}
+  ],
   "catalog": "./catalog.json"
 }

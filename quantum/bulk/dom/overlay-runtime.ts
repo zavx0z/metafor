@@ -2,7 +2,6 @@ import type {
   Renderer,
   TrueTypeFont,
 } from "@engine/core"
-import {hudCss} from "@ui/components/hud"
 import {createDocument} from "@zavx0z/dom"
 import {
   createDocumentInteractionController,
@@ -19,10 +18,10 @@ import {
   RendererWebGpuBackend,
   RendererWebGpuScreenOverlay,
 } from "@zavx0z/renderer-webgpu"
-import {bulkHudDocumentCss} from "./hud.tsx"
 
 export type CreateBulkDomOverlayRuntimeOptions = Readonly<{
   canvas: HTMLCanvasElement
+  document?: ReturnType<typeof createDocument>
   renderer: Pick<Renderer, "invalidateGeometry">
   font: TrueTypeFont
   width: number
@@ -50,14 +49,12 @@ export type BulkDomOverlayRuntime = Readonly<{
 export function createBulkDomOverlayRuntime(
   options: CreateBulkDomOverlayRuntimeOptions,
 ): BulkDomOverlayRuntime {
-  const document = createDocument()
-  const styleSheets = Object.freeze([hudCss, bulkHudDocumentCss])
+  const document = options.document ?? createDocument()
   let viewport = readViewport(options.width, options.height)
   let documentRenderer: DocumentRenderer = createDocumentRenderer({
     document,
     root: document,
     viewport,
-    styleSheets,
   })
   let requestPresentation = (): void => {}
   const backend = new RendererWebGpuBackend({
@@ -110,7 +107,6 @@ export function createBulkDomOverlayRuntime(
         document,
         root: document,
         viewport,
-        styleSheets,
       })
       overlay.resize(viewport)
       previous.dispose()

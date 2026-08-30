@@ -17,5 +17,8 @@
     "./boundary/value": "./boundary/value.ts",
     "./boundary/topology": "./boundary/topology.ts",
     "./bulk/manifest": "./bulk/manifest.ts"
+  },
+  "devDependencies": {
+    "@ui/components": "link:@ui/components"
   }
 }

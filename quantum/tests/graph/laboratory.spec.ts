@@ -2,7 +2,6 @@ import {describe, expect, test} from "bun:test"
 import {validateGraph} from "@metafor/types/metafor/graph"
 import {createDocument} from "@zavx0z/dom"
 import {projectBulkGraph} from "../../bulk/graph/projection.ts"
-import {createGraphOverview} from "../../../types/.storybook/stories/overview.ts"
 import {
   currentGraphFixture,
   reactionGraphFixture,
@@ -70,33 +69,6 @@ describe("Quantum Graph laboratory fixtures", () => {
 })
 
 describe("Quantum Graph external laboratory", () => {
-  test("keeps package/category/subject overviews independent from detail selection", async () => {
-    const catalog = await graphCatalog()
-    const document = createDocument()
-    const input = {
-      route: "graph/identity",
-      title: "Идентичность · Обзор",
-      summary: "Snapshot-local identity remains observable.",
-      items: [{
-        route: "graph/identity/same-meta",
-        label: "Одинаковая Meta",
-        detail: "MetaRuntimeAtomLocator",
-        representativeRoute: "graph/identity/same-meta/reorder",
-      }],
-    }
-    const overview = createGraphOverview(document, input, async (owner, route) => {
-      const factory = await graphFactory(catalog, route)
-      return factory(owner)
-    })
-    await overview.ready
-    expect(overview.element.getAttribute("data-route")).toBe("graph/identity")
-    expect(overview.element.querySelectorAll(".graph-json")).toHaveLength(1)
-    expect(overview.element.querySelector("a")).toBeNull()
-    overview.dispose()
-    await expect(graphFactory(catalog, "graph/validation/unknown"))
-      .rejects.toThrow("Unknown Graph story route")
-  })
-
   test("loads exact owner factories into caller-owned realms", async () => {
     const catalog = await graphCatalog()
     const factory = await graphFactory(catalog, "graph/identity/same-meta/reorder")
@@ -105,10 +77,15 @@ describe("Quantum Graph external laboratory", () => {
     const story = factory(document)
     expect(story.element.ownerDocument).toBe(document)
     expect(story.args).toEqual({"insert-sibling": true})
-    expect(story.source.html).toContain('class="graph-json"')
-    expect(story.source.css).toContain(".graph-json__result")
+    expect(story.source.html).toContain('data-story="quantum-graph-identity"')
+    expect(story.componentRoot.readStyleSheets().styleSheets.length).toBeGreaterThan(0)
     expect(story.source.typescript).toContain("insertSameMetaSibling")
     story.dispose()
+  })
+
+  test("fails closed for a route without an exact owner factory", async () => {
+    await expect(graphFactory(await graphCatalog(), "graph/validation/unknown"))
+      .rejects.toThrow("Unknown Graph story route")
   })
 
   test("keeps all Graph overview routes or their explicit package-root remap", async () => {

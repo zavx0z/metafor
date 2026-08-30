@@ -6,12 +6,8 @@ import {
   type HTMLInputElement,
   type HTMLSelectElement,
 } from "@zavx0z/dom"
-import {
-  createGraphOverview,
-  type GraphOverviewInput,
-} from "./stories/overview.ts"
 import type {GraphDomStory, GraphDomStoryFactory} from "./stories/dom-story.tsx"
-import {graphDomStoryCss} from "./stories/source.ts"
+import {runtime} from "./runtime.ts"
 
 type Catalog = Readonly<{
   categories: readonly Readonly<{
@@ -21,6 +17,11 @@ type Catalog = Readonly<{
       route: string
       label: string
       apiName: string
+      presentation: Readonly<{
+        protocol: "story-presentation/1"
+        projection: "display" | "world" | "hud"
+        widgets: readonly string[]
+      }>
       variants: readonly Readonly<{
         route: string
         label: string
@@ -52,7 +53,13 @@ describe("MetaFor Graph external stories", () => {
     ])
     for (const category of catalog.categories) {
       for (const subject of category.subjects) {
+        expect(subject.presentation).toEqual({
+          protocol: "story-presentation/1",
+          projection: "display",
+          widgets: ["props", "source", "diagnostics"],
+        })
         for (const variant of subject.variants) {
+          expect("presentation" in variant).toBeFalse()
           expect(variant.resources).toEqual({
             fixture: "./fixtures/graph.ts",
             references: ["./stories/source.ts"],
@@ -71,8 +78,9 @@ describe("MetaFor Graph external stories", () => {
         expect(story.element.ownerDocument, route).toBe(document)
         expect(story.element.parentNode, route).toBeNull()
         expect(story.source.html.length, route).toBeGreaterThan(40)
-        expect(story.source.css.length, route).toBeGreaterThan(40)
+        expect(Object.keys(story.source).sort(), route).toEqual(["html", "typescript"])
         expect(story.source.typescript.length, route).toBeGreaterThan(40)
+        expect(story.componentRoot.readStyleSheets().styleSheets.length, route).toBeGreaterThan(0)
       } finally {
         story.dispose()
       }
@@ -83,7 +91,7 @@ describe("MetaFor Graph external stories", () => {
     const catalog = await readCatalog()
     const current = await loadStory(catalog, createDocument(), "graph/document/current/complete")
     const currentRoot = current.element
-    const select = current.element.querySelector('[data-control-key="view"]') as HTMLSelectElement
+    const select = current.element.querySelector('[data-control-key="view"] select') as HTMLSelectElement
     select.value = "bulk"
     select.dispatchEvent(new Event("change", {bubbles: true}))
     expect(current.element).toBe(currentRoot)
@@ -94,7 +102,7 @@ describe("MetaFor Graph external stories", () => {
     const validation = await loadStory(catalog, createDocument(), "graph/validation/contract/closed")
     const validationRoot = validation.element
     const checkbox = validation.element.querySelector(
-      '[data-control-key="include-revision"]',
+      '[data-control-key="include-revision"] input',
     ) as HTMLInputElement
     checkbox.checked = false
     checkbox.dispatchEvent(new Event("change", {bubbles: true}))
@@ -105,50 +113,43 @@ describe("MetaFor Graph external stories", () => {
     validation.dispose()
   })
 
-  test("preserves bounded aggregate overview resources without navigation links", async () => {
-    const catalog = await readCatalog()
-    for (const input of graphOverviewInputs(catalog)) {
-      const story = createGraphOverview(
-        createDocument(),
-        input,
-        (document, route) => loadStory(catalog, document, route),
-      )
-      try {
-        await story.ready
-        expect(story.element.className, input.route).toContain("graph-overview")
-        expect(story.element.getAttribute("data-route"), input.route).toBe(input.route)
-        expect(story.element.querySelectorAll(".graph-overview__item"), input.route)
-          .toHaveLength(input.items.length)
-        expect(story.children, input.route).toHaveLength(input.items.length)
-        expect(
-          story.element.querySelectorAll(".graph-json").length
-            + story.element.querySelectorAll(".graph-node-tree").length,
-          input.route,
-        ).toBe(input.items.length)
-        expect(story.element.querySelector("a"), input.route).toBeNull()
-        expect(story.source.typescript.length, input.route).toBeGreaterThan(40)
-      } finally {
-        story.dispose()
-      }
+  test("publishes one runtime/3 atomic presentation without legacy transports", async () => {
+    const manifest = await Bun.file(new URL("./manifest.json", import.meta.url)).json() as {
+      authorStyleSheets?: unknown
     }
-  })
-
-  test("keeps WIP production styles in the owner runtime without a legacy shell", async () => {
-    const runtime = await Bun.file(new URL("./runtime.ts", import.meta.url)).text()
+    const runtimeSource = await Bun.file(new URL("./runtime.ts", import.meta.url)).text()
     const source = await Bun.file(new URL("./stories/source.ts", import.meta.url)).text()
+    const domStory = await Bun.file(new URL("./stories/dom-story.tsx", import.meta.url)).text()
+    const nodeTree = await Bun.file(new URL("./stories/node-tree.tsx", import.meta.url)).text()
 
-    expect(runtime).toContain('import {codeEditorCss} from "@ui/components/code-editor"')
-    expect(runtime).toContain("update: show")
-    expect(runtime).toContain("context.mount(next.element)")
-    expect(runtime).toContain("current.dispose()")
-    expect(runtime).not.toContain("@zavx0z/storybook")
-    expect(runtime).not.toContain("StorybookRouteTreeRouter")
-    expect(runtime).not.toContain("createStorybookDomWorkbench")
-    expect(runtime).not.toContain("createDocumentCanvasRuntime")
-    expect(source).not.toContain('import {codeEditorCss} from "@ui/components/code-editor"')
-    expect(graphDomStoryCss).not.toContain("border-left: 3px solid")
-    expect(graphDomStoryCss).toContain("border-color:")
-    expect(graphDomStoryCss).toContain("border-radius: 0")
+    expect(runtime.protocol).toBe("storybook-runtime/3")
+    expect(manifest.authorStyleSheets).toEqual([
+      {specifier: "@ui/components/theme.css"},
+    ])
+    expect(runtimeSource).toContain("update: show")
+    expect(runtimeSource).toContain("context.present")
+    expect(runtimeSource).toContain('protocol: "story-presentation/1"')
+    expect(runtimeSource).toContain("componentRoot: next.componentRoot")
+    expect(runtimeSource).toContain("values: Object.freeze({props: next.args})")
+    expect(runtimeSource).toContain("current.dispose()")
+    expect(runtimeSource).not.toContain("styleSheets:")
+    expect(runtimeSource).not.toContain("context.mount")
+    expect(runtimeSource).not.toContain("publishInspector")
+    expect(runtimeSource).not.toContain("publishSource")
+    expect(runtimeSource).not.toContain("publishProps")
+    expect(runtimeSource).not.toContain("@zavx0z/storybook")
+    expect(runtimeSource).not.toContain("StorybookRouteTreeRouter")
+    expect(runtimeSource).not.toContain("createStorybookDomWorkbench")
+    expect(runtimeSource).not.toContain("createDocumentCanvasRuntime")
+    for (const owner of [source, domStory, nodeTree]) {
+      expect(owner).not.toContain("checkboxStyles")
+      expect(owner).not.toContain("codeEditorCss")
+      expect(owner).not.toContain("listStyles")
+      expect(owner).not.toContain("paneStyles")
+      expect(owner).not.toContain("resolveWidgetColors")
+      expect(owner).not.toContain("rgba8ToColor")
+      expect(owner).not.toContain('from "@zavx0z/template"')
+    }
   })
 })
 
@@ -173,45 +174,4 @@ async function loadStory(
   const factory = loaded[variant.module.export]
   if (typeof factory !== "function") throw new Error(`Graph story export is missing: ${route}`)
   return (factory as GraphDomStoryFactory)(document)
-}
-
-function graphOverviewInputs(catalog: Catalog): GraphOverviewInput[] {
-  const rootItems = catalog.categories.map((category) => ({
-    route: category.route,
-    label: category.label,
-    detail: "Graph laboratory category",
-    representativeRoute: category.subjects[0]!.variants[0]!.route,
-  }))
-  return [
-    {
-      route: "graph",
-      title: "Graph · Обзор лаборатории",
-      summary: "Независимые проверяемые представления public Graph.",
-      items: rootItems,
-    },
-    ...catalog.categories.flatMap((category): GraphOverviewInput[] => [
-      {
-        route: category.route,
-        title: `${category.label} · Обзор`,
-        summary: "Реальные предметы категории показаны явно.",
-        items: category.subjects.map((subject) => ({
-          route: subject.route,
-          label: subject.label,
-          detail: subject.apiName,
-          representativeRoute: subject.variants[0]!.route,
-        })),
-      },
-      ...category.subjects.map((subject): GraphOverviewInput => ({
-        route: subject.route,
-        title: `${subject.label} · Обзор`,
-        summary: "Все варианты предмета показаны явно.",
-        items: subject.variants.map((variant) => ({
-          route: variant.route,
-          label: variant.label,
-          detail: "Точный Graph scenario",
-          representativeRoute: variant.route,
-        })),
-      })),
-    ]),
-  ]
 }

@@ -82,10 +82,12 @@ quantum/bulk/.storybook/      bulk HUD projection
 ```
 
 Declarations и catalogs являются versioned JSON data. Runtime adapters
-реализуют plain structural `storybook-runtime/1`, импортируют только production
+реализуют plain structural `storybook-runtime/3`, импортируют только production
 owners и не импортируют Storybook даже type-only. Shared external frontend
 создаёт один Workbench и semantic Document в каждой package tab; owner runtime
-монтирует только presentation subtree и публикует source/props/diagnostics.
+атомарно передаёт `story-presentation/1` с presentation subtree, точным
+`ComponentRoot`, source и выбранными values. Component CSS читается из этого
+root, а global author resources объявляются package manifest specifiers.
 Все обращённые к человеку строки пишутся по-русски; точные API names, JSON keys,
 routes, import specifiers и код сохраняют исходное написание.
 

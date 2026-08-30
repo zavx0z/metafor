@@ -1,8 +1,5 @@
 import {describe, expect, test} from "bun:test"
 import {createDocument, Event} from "@zavx0z/dom"
-import {checkboxStyles} from "@ui/components/checkbox"
-import {listStyles} from "@ui/components/list"
-import {paneStyles} from "@ui/components/pane"
 import {createGraphNodeTreeStory} from "../../../types/.storybook/stories/node-tree.tsx"
 
 describe("Quantum Graph NodeTree DOM presentation", () => {
@@ -11,7 +8,7 @@ describe("Quantum Graph NodeTree DOM presentation", () => {
     try {
       const snapshot = story.snapshot()
       expect(story.element.localName).toBe("section")
-      expect(story.element.className).toBe("graph-node-tree")
+      expect(story.element.className).toBe("")
       expect(story.element.getAttribute("data-projection")).toBe("graph-live")
       expect(snapshot).toMatchObject({revision: 0, topologyRevision: 0})
       expect(snapshot.frames).toHaveLength(7)
@@ -26,12 +23,12 @@ describe("Quantum Graph NodeTree DOM presentation", () => {
       expect(story.refs.nodeElements.has("atom:1")).toBeTrue()
       expect(story.refs.linkElements.has("link-condition:example%2Fgraph-root/idle/running/mode")).toBeTrue()
       expect(story.refs.linkElements.has("reaction:remember:1:2")).toBeTrue()
-      expect(story.refs.incremented.hasAttribute(checkboxStyles.root.attributeName)).toBeTrue()
-      expect(story.refs.frameElements.get("frame:runtime")
-        ?.hasAttribute(paneStyles.root.attributeName)).toBeTrue()
-      expect(story.refs.nodeElements.get("atom:1")
-        ?.hasAttribute(paneStyles.root.attributeName)).toBeTrue()
-      expect(story.refs.links.hasAttribute(listStyles.root.attributeName)).toBeTrue()
+      expect(story.refs.incremented.localName).toBe("input")
+      expect(story.refs.incremented.getAttribute("type")).toBe("checkbox")
+      expect(story.refs.frameElements.get("frame:runtime")?.localName).toBe("section")
+      expect(story.refs.nodeElements.get("atom:1")?.localName).toBe("article")
+      expect(story.refs.links.localName).toBe("ul")
+      expect(story.componentRoot.readStyleSheets().styleSheets.length).toBeGreaterThan(0)
     } finally {
       story.dispose()
     }
@@ -69,6 +66,9 @@ describe("Quantum Graph NodeTree DOM presentation", () => {
     expect(source).toContain('from "@metafor/node-tree/graph"')
     expect(source).toContain('from "@zavx0z/dom"')
     expect(source).toContain('from "@ui/components/checkbox"')
+    expect(source).toContain("data-frame-id")
+    expect(source).toContain("data-node-id")
+    expect(source).toContain("data-link-id")
     expect(source).toContain("tree.snapshot()")
     expect(source).toContain("reconcileGraphNodeTree")
     for (const forbidden of [
@@ -78,6 +78,9 @@ describe("Quantum Graph NodeTree DOM presentation", () => {
       "@ui/elements",
       "NodeEditor",
       "UiSurface",
+      "checkboxStyles",
+      "listStyles",
+      "paneStyles",
     ]) expect(source).not.toContain(forbidden)
   })
 })

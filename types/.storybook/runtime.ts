@@ -1,22 +1,22 @@
-import {codeEditorCss} from "@ui/components/code-editor"
 import type {
   Document,
-  HTMLElement,
   Node,
 } from "@zavx0z/dom"
-import {
-  graphDomStoryCss,
-  type GraphDomStorySource,
-} from "./stories/source.ts"
+import type {GraphDomStorySource} from "./stories/source.ts"
 import type {GraphDomStory, GraphDomStoryFactory} from "./stories/dom-story.tsx"
 
 type GraphRuntimeContext = Readonly<{
   document: Document
   signal: AbortSignal
-  mount(node: Node): void
-  publishInspector(value: unknown): void
-  publishSource(value: unknown): void
-  publishProps(value: unknown): void
+  projection: "display"
+  present(value: Readonly<{
+    protocol: "story-presentation/1"
+    node: Node
+    componentRoot: Readonly<{readStyleSheets(): unknown}>
+    source: GraphDomStorySource
+    values?: Readonly<Record<string, unknown>>
+  }>): void
+  reportDiagnostic(value: unknown): void
   requestRender(): void
 }>
 
@@ -28,60 +28,40 @@ type GraphRuntimeStoryInput = Readonly<{
 
 /** Structural runtime for one persistent Graph package realm. */
 export const runtime = Object.freeze({
-  protocol: "storybook-runtime/1",
+  protocol: "storybook-runtime/3",
   create(context: GraphRuntimeContext) {
+    if (context.projection !== "display") {
+      throw new Error(`MetaFor Graph Storybook requires display projection: ${String(context.projection)}`)
+    }
     let current: GraphDomStory | null = null
-    let currentRoute = ""
     let disposed = false
 
-    const publish = (): void => {
-      if (current === null) return
-      context.publishInspector(Object.freeze({
-        route: currentRoute,
-        kind: "Graph laboratory",
-      }))
-      context.publishSource(current.source)
-      context.publishProps(current.args)
-      context.requestRender()
-    }
-    const onMutation = (): void => publish()
-    const unbind = (story: GraphDomStory): void => {
-      for (const type of ["input", "change", "click"]) {
-        story.element.removeEventListener(type, onMutation)
-      }
-    }
-    const bind = (story: GraphDomStory): void => {
-      for (const type of ["input", "change", "click"]) {
-        story.element.addEventListener(type, onMutation)
-      }
-    }
     const show = (input: GraphRuntimeStoryInput): void => {
       assertActive(disposed)
+      exactRoute(input.route)
+      if (context.signal.aborted || input.signal.aborted) return
       const factory = graphStoryFactory(input.story)
       const next = factory(context.document)
-      if (input.signal.aborted) {
+      if (context.signal.aborted || input.signal.aborted) {
         next.dispose()
         return
       }
       if (current !== null) {
-        unbind(current)
         current.dispose()
       }
       current = next
-      currentRoute = exactRoute(input.route)
-      bind(next)
-      context.mount(next.element)
-      publish()
+      context.present(Object.freeze({
+        protocol: "story-presentation/1",
+        node: next.element,
+        componentRoot: next.componentRoot,
+        source: next.source,
+        values: Object.freeze({props: next.args}),
+      }))
     }
     const unmount = (): void => {
       if (current === null) return
-      unbind(current)
       current.dispose()
       current = null
-      currentRoute = ""
-      context.publishInspector(null)
-      context.publishSource(null)
-      context.publishProps(null)
     }
     const dispose = (): void => {
       if (disposed) return
@@ -92,7 +72,6 @@ export const runtime = Object.freeze({
     context.signal.addEventListener("abort", dispose, {once: true})
 
     return Object.freeze({
-      styleSheets: Object.freeze([codeEditorCss, graphDomStoryCss]),
       mount: show,
       update: show,
       unmount,

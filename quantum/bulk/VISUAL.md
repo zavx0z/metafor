@@ -268,7 +268,7 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   Window header, action buttons, Timeline rows и markers сохраняют компактную
   Blender 5.2 density, low-radius material roles и standard component states;
   Bulk добавляет только viewport placement, fullscreen state и causal
-  resolution tones из public `@ui/components/theme`.
+  resolution tones из public CSS resource `@ui/components/theme.css`.
 - `@zavx0z/renderer` (далее — document renderer) вычисляет CSS/layout/hit state
   HUD, а `@zavx0z/renderer-webgpu` (далее — WebGPU adapter) проецирует его в
   camera-locked overlay существующего Bulk Renderer. Semantic HUD не создаёт

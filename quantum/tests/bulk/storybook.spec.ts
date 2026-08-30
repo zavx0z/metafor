@@ -18,6 +18,11 @@ describe("Bulk external Storybook boundary", () => {
       route: "bulk",
       subjects: [{
         route: "bulk/hud",
+        presentation: {
+          protocol: "story-presentation/1",
+          projection: "hud",
+          widgets: ["props", "source", "diagnostics"],
+        },
         variants: [{
           route: "bulk/hud/default",
           resources: {
@@ -34,7 +39,8 @@ describe("Bulk external Storybook boundary", () => {
     expect(story.element).toBe(story.controller.element)
     expect(story.element.ownerDocument).toBe(document)
     expect(story.source.typescript).toContain("createBulkHudDocument")
-    expect(story.source.css).not.toContain("#7edcec")
+    expect(Object.keys(story.source).sort()).toEqual(["html", "typescript"])
+    expect(story.componentRoot.readStyleSheets().styleSheets.length).toBeGreaterThan(0)
     story.dispose()
   })
 
@@ -43,9 +49,17 @@ describe("Bulk external Storybook boundary", () => {
       join(repositoryRoot, "quantum/bulk/.storybook/runtime.ts"),
       "utf8",
     )
-    expect(runtime.protocol).toBe("storybook-runtime/1")
-    expect(runtimeSource).toContain("context.mount(next.element)")
+    expect(runtime.protocol).toBe("storybook-runtime/3")
+    expect(runtimeSource).toContain("context.present")
+    expect(runtimeSource).toContain('protocol: "story-presentation/1"')
     expect(runtimeSource).toContain("update: show")
+    for (const legacy of [
+      "context.mount",
+      "publishInspector",
+      "publishSource",
+      "publishProps",
+      "styleSheets:",
+    ]) expect(runtimeSource).not.toContain(legacy)
     expect(runtimeSource).not.toContain("@zavx0z/storybook")
     expect(runtimeSource).not.toContain("createStorybookDomWorkbench")
     expect(runtimeSource).not.toContain("createDocumentCanvasRuntime")

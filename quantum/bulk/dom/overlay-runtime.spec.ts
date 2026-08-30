@@ -8,11 +8,10 @@ describe("Bulk DOM overlay runtime", () => {
   test("projects the HUD into the existing renderer overlay and resizes in place", async () => {
     const canvas = new FakeCanvas(960, 640) as unknown as HTMLCanvasElement
     let requests = 0
-    let invalidations = 0
     const runtime = createBulkDomOverlayRuntime({
       canvas,
       renderer: {
-        invalidateGeometry() { invalidations += 1 },
+        invalidateGeometry() {},
       },
       font: fakeFont(),
       width: 960,
@@ -36,6 +35,7 @@ describe("Bulk DOM overlay runtime", () => {
     expect(frame.displayList.length).toBeGreaterThan(0)
     expect(frame.hits.has(controller.element)).toBeTrue()
     expect(controller.element.ownerDocument).toBe(runtime.document)
+    expect(controller.presentation.componentRoot.readStyleSheets().styleSheets.length).toBeGreaterThan(0)
     expect(runtime.overlay.content).toBe(runtime.backend.root)
     expect(runtime.backend.root.children.length).toBe(frame.displayList.length)
     expect(requests).toBeGreaterThan(0)
@@ -61,7 +61,6 @@ describe("Bulk DOM overlay runtime", () => {
     runtime.flush()
     expect(runtime.frame.displayList).toEqual([])
     runtime.dispose()
-    expect(invalidations).toBeGreaterThan(0)
     expect(() => runtime.flush()).toThrow("disposed")
   })
 
@@ -80,6 +79,8 @@ describe("Bulk DOM overlay runtime", () => {
       "new Renderer()",
       "new Space()",
       "new ViewPoint()",
+      "styleSheets",
+      "bulkHudDocumentCss",
     ]) expect(source).not.toContain(forbidden)
   })
 

@@ -41,6 +41,8 @@ describe("Bulk Store split page bootstrap", () => {
     const html = await Bun.file(new URL("./index.html", import.meta.url)).text()
 
     expect(html).toContain('id="bulk-loader"')
+    expect(html).toContain('id="ui-theme-stylesheet"')
+    expect(html).toContain('href="@ui/components/theme.css"')
     expect(html).toContain('fetch("/initial"')
     expect(html).toContain('__METAFOR_BULK_INITIAL_RESPONSE__')
     expect(html).not.toContain('id="bulk-initial"')

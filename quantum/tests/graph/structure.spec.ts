@@ -51,17 +51,29 @@ describe("Quantum Graph weak coupling", () => {
     const catalog = readFileSync(join(root, "catalog.json"), "utf8")
     expect(catalog).toContain('"path": "./stories/node-tree.tsx"')
     expect(catalog).toContain('"export": "createGraphNodeTreeStory"')
+    expect(catalog).toContain('"protocol": "story-presentation/1"')
+    expect(catalog).toContain('"projection": "display"')
+    expect(catalog).toContain('"widgets": ["props", "source", "diagnostics"]')
     expect(existsSync(join(root, "fixtures", "graph.ts"))).toBe(true)
     expect(existsSync(join(root, "stories", "dom-story.tsx"))).toBe(true)
-    expect(existsSync(join(root, "stories", "overview.ts"))).toBe(true)
+    expect(existsSync(join(root, "stories", "overview.ts"))).toBe(false)
     expect(existsSync(join(root, "state", "lab-state.ts"))).toBe(false)
     expect(existsSync(join(root, "preview.ts"))).toBe(false)
     expect(existsSync(join(root, "body.html"))).toBe(false)
     expect(existsSync(join(root, "routes.ts"))).toBe(false)
     expect(existsSync(join(root, "story.ts"))).toBe(false)
     const runtime = readFileSync(join(root, "runtime.ts"), "utf8")
-    expect(runtime).toContain("context.mount(next.element)")
+    expect(runtime).toContain('protocol: "storybook-runtime/3"')
+    expect(runtime).toContain("context.present")
+    expect(runtime).toContain('protocol: "story-presentation/1"')
     expect(runtime).toContain("update: show")
+    for (const legacy of [
+      "context.mount",
+      "publishInspector",
+      "publishSource",
+      "publishProps",
+      "styleSheets:",
+    ]) expect(runtime).not.toContain(legacy)
     expect(runtime).not.toContain("planStorybookShell")
     expect(runtime).not.toContain("UiRuntime")
     expect(runtime).not.toContain("StorybookNavigationSurface")
@@ -69,7 +81,8 @@ describe("Quantum Graph weak coupling", () => {
     expect(nodeTree).toContain("createGraphNodeTree")
     expect(nodeTree).toContain("reconcileGraphNodeTree")
     expect(nodeTree).toContain("tree.snapshot()")
-    expect(nodeTree).toContain('document.createElement("section")')
+    expect(nodeTree).toContain("createRoot(staging)")
+    expect(nodeTree).toContain("return <section")
   })
 })
 
@@ -78,7 +91,8 @@ function typescriptFiles(root: string): string[] {
     const path = join(root, entry.name)
     return entry.isDirectory()
       ? typescriptFiles(path)
-      : entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".spec.ts")
+      : entry.isFile() && (entry.name.endsWith(".ts") || entry.name.endsWith(".tsx")) &&
+        !entry.name.endsWith(".spec.ts")
         ? [path]
         : []
   })

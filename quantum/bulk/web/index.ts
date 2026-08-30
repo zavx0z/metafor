@@ -416,7 +416,9 @@ const createWorkspaceGrid = (): GridHelper => {
 const clampBulkNumber = (value: number, min: number, max: number): number =>
 	Math.max(min, Math.min(max, value))
 
-export const createBulkViewport = async (options: BulkViewportOptions): Promise<BulkVisualViewport> => {
+export const createBulkViewport = async (
+	options: BulkViewportOptions & Readonly<{uiDocument?: BulkDomOverlayRuntime["document"]}>,
+): Promise<BulkVisualViewport> => {
 	const renderer = new Renderer()
 	await renderer.init(options.canvas)
 	if (!renderer.canvas) {
@@ -666,6 +668,7 @@ export const createBulkViewport = async (options: BulkViewportOptions): Promise<
 	}
 	const domRuntime = createBulkDomOverlayRuntime({
 		canvas: options.canvas,
+		...(options.uiDocument === undefined ? {} : {document: options.uiDocument}),
 		renderer,
 		font: uiFont,
 		width: options.width,

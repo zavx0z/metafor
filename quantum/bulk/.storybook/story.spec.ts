@@ -1,10 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {createDocument} from "@zavx0z/dom"
 import {
-  bulkHudOverviewCss,
-  bulkHudStoryCss,
   bulkHudStoryDefaultProps,
-  createBulkHudOverview,
   createBulkHudStory,
 } from "./stories/hud.ts"
 import {runtime} from "./runtime.ts"
@@ -15,14 +12,16 @@ describe("Quantum Bulk HUD DOM story", () => {
 
     expect(story.element).toBe(story.controller.element)
     expect(story.element.localName).toBe("section")
-    expect(story.element.className).toBe("bulk-hud-document")
+    expect(story.element.className).toBe("")
+    expect(story.element.getAttribute("data-bulk-hud")).toBe("")
     expect(story.props).toEqual(bulkHudStoryDefaultProps)
     expect(story.controller.refs.fullscreenButton.textContent).toBe("Полный экран")
     expect(story.controller.controllers.timeline.refs.trackElements.size).toBe(3)
     expect(story.source.html).toContain('<section aria-label="Bulk Visual"')
     expect(story.source.html).toContain('data-action-key="fullscreen"')
     expect(story.source.html).toContain('data-track-key="force"')
-    expect(story.source.css).toBe(bulkHudStoryCss)
+    expect(Object.keys(story.source).sort()).toEqual(["html", "typescript"])
+    expect(story.componentRoot.readStyleSheets().styleSheets.length).toBeGreaterThan(0)
     expect(story.source.typescript).toContain("createBulkHudDocument(document, props)")
     expect(story.source.typescript).not.toContain("UiRuntime")
 
@@ -71,36 +70,37 @@ describe("Quantum Bulk HUD DOM story", () => {
     expect(() => story.update(bulkHudStoryDefaultProps)).toThrow("BulkHudStory is disposed")
   })
 
-  test("owns semantic root and HUD overview presentations without substituting a detail", () => {
-    const root = createBulkHudOverview(createDocument(), "")
-    const hud = createBulkHudOverview(createDocument(), "hud")
-
-    expect(root.element.localName).toBe("section")
-    expect(root.element.getAttribute("data-route")).toBe("")
-    expect(root.element.textContent).toContain("Bulk · Обзор")
-    expect(hud.element.getAttribute("data-route")).toBe("hud")
-    expect(hud.element.textContent).toContain("Bulk HUD · Обзор")
-    expect(root.element.querySelectorAll(".bulk-hud-document")).toHaveLength(1)
-    expect(hud.element.querySelectorAll(".bulk-hud-document")).toHaveLength(1)
-    expect(hud.element.querySelectorAll(".bulk-hud-overview__item")).toHaveLength(1)
-    expect(hud.element.querySelector("a")).toBeNull()
-    expect(hud.source.css).toBe(bulkHudOverviewCss)
-    expect(hud.source.typescript).toContain("createBulkHudDocument")
-    expect(hud.source.typescript).not.toContain("createList")
-    expect(hud.source.css).not.toContain("#7edcec")
-    root.dispose()
-    hud.dispose()
-  })
-
   test("keeps the story package-owned and free of retained runtime owners", async () => {
     const source = await Bun.file(new URL("./stories/hud.ts", import.meta.url)).text()
     const runtimeSource = await Bun.file(new URL("./runtime.ts", import.meta.url)).text()
 
     expect(source).toContain('from "../../dom/hud.tsx"')
-    expect(source).toContain('from "@ui/components/hud"')
+    const manifest = await Bun.file(new URL("./manifest.json", import.meta.url)).json() as {
+      authorStyleSheets?: unknown
+    }
+    const catalog = await Bun.file(new URL("./catalog.json", import.meta.url)).json() as {
+      categories: readonly Readonly<{subjects: readonly Readonly<{presentation?: unknown; variants: readonly object[]}>[]}>[]
+    }
+    expect(manifest.authorStyleSheets).toEqual([{specifier: "@ui/components/theme.css"}])
+    expect(catalog.categories[0]?.subjects[0]?.presentation).toEqual({
+      protocol: "story-presentation/1",
+      projection: "hud",
+      widgets: ["props", "source", "diagnostics"],
+    })
+    expect(catalog.categories[0]?.subjects[0]?.variants.every((variant) =>
+      !("presentation" in variant))).toBeTrue()
     expect(runtimeSource).toContain("update: show")
-    expect(runtimeSource).toContain("context.mount(next.element)")
+    expect(runtime.protocol).toBe("storybook-runtime/3")
+    expect(runtimeSource).toContain("context.present")
+    expect(runtimeSource).toContain('protocol: "story-presentation/1"')
+    expect(runtimeSource).toContain("componentRoot: next.componentRoot")
+    expect(runtimeSource).toContain("values: Object.freeze({props: next.props})")
     expect(runtimeSource).toContain("current.dispose()")
+    expect(runtimeSource).not.toContain("context.mount")
+    expect(runtimeSource).not.toContain("publishInspector")
+    expect(runtimeSource).not.toContain("publishSource")
+    expect(runtimeSource).not.toContain("publishProps")
+    expect(runtimeSource).not.toContain("styleSheets:")
     expect(runtimeSource).not.toContain("@zavx0z/storybook")
     expect(runtimeSource).not.toContain("StorybookRouteTreeRouter")
     expect(runtimeSource).not.toContain("createStorybookDomWorkbench")
@@ -120,15 +120,19 @@ describe("Quantum Bulk HUD DOM story", () => {
 
   test("replaces only the owner preview inside one external runtime session", async () => {
     const document = createDocument()
-    const mounted: unknown[] = []
+    const presentations: Readonly<Record<string, unknown>>[] = []
     const lifetime = new AbortController()
     let disposed = 0
     const factory = () => {
       const element = document.createElement("section")
+      const componentRoot = Object.freeze({
+        readStyleSheets: () => Object.freeze({revision: 0, styleSheets: Object.freeze([])}),
+      })
       return {
         element,
-        props: Object.freeze({version: mounted.length}),
-        source: Object.freeze({html: "<section></section>", css: "", typescript: ""}),
+        componentRoot,
+        props: Object.freeze({version: presentations.length}),
+        source: Object.freeze({html: "<section></section>", typescript: ""}),
         update() {},
         dispose() { disposed += 1 },
       }
@@ -136,21 +140,39 @@ describe("Quantum Bulk HUD DOM story", () => {
     const session = runtime.create({
       document,
       signal: lifetime.signal,
-      mount(node: unknown) { mounted.push(node) },
-      publishInspector() {},
-      publishSource() {},
-      publishProps() {},
+      projection: "hud",
+      present(value: Readonly<Record<string, unknown>>) { presentations.push(value) },
+      reportDiagnostic() {},
       requestRender() {},
     } as never)
     const routeSignal = new AbortController()
     session.mount({route: "bulk/hud/default", story: factory, signal: routeSignal.signal})
     session.update?.({route: "bulk/hud/default", story: factory, signal: routeSignal.signal})
-    expect(mounted).toHaveLength(2)
+    expect(presentations).toHaveLength(2)
+    expect(presentations.map(({protocol}) => protocol)).toEqual([
+      "story-presentation/1",
+      "story-presentation/1",
+    ])
+    expect(presentations.map(({values}) => values)).toEqual([
+      {props: {version: 0}},
+      {props: {version: 1}},
+    ])
     expect(disposed).toBe(1)
     session.unmount()
     expect(disposed).toBe(2)
     session.dispose()
     session.dispose()
     expect(disposed).toBe(2)
+  })
+
+  test("rejects a display projection for the HUD-owned runtime", () => {
+    expect(() => runtime.create({
+      document: createDocument(),
+      signal: new AbortController().signal,
+      projection: "display",
+      present() {},
+      reportDiagnostic() {},
+      requestRender() {},
+    } as never)).toThrow("requires hud projection")
   })
 })

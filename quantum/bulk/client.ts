@@ -5,6 +5,11 @@ import {
 } from "shared/protocol/bulk/capture"
 import { Force } from "shared/transport/force"
 import {
+	createBrowserLinkedAuthorStyleSheetHost,
+	type BrowserLinkedAuthorStyleSheetHost,
+} from "@zavx0z/renderer-browser"
+import {createDocument} from "@zavx0z/dom"
+import {
 	createBulkViewport,
 	type BulkVisualViewport,
 } from "./web/index.ts"
@@ -28,6 +33,8 @@ import {isBulkStoreApplyControl} from "./store-initial.ts"
 
 const bulkCanvas = document.getElementById("bulk-canvas") as HTMLCanvasElement | null
 if (bulkCanvas === null) throw new Error("bulk-canvas not found")
+const bulkThemeStyleSheet = document.getElementById("ui-theme-stylesheet") as HTMLLinkElement | null
+if (bulkThemeStyleSheet === null) throw new Error("ui-theme-stylesheet not found")
 const bulkLoader = document.getElementById("bulk-loader") as HTMLDivElement | null
 const bulkLoaderStatus = document.getElementById("bulk-loader-status") as HTMLDivElement | null
 type BulkBootWindow = Window & {
@@ -36,6 +43,7 @@ type BulkBootWindow = Window & {
 
 let bulkViewport: BulkVisualViewport | null = null
 let bulkHud: BulkHudController | null = null
+let bulkAuthorStyleSheets: BrowserLinkedAuthorStyleSheetHost | null = null
 let storeRenderer: BulkStoreViewportRenderer | null = null
 const presentedStoreProof = new BulkPresentedStoreProof()
 
@@ -100,11 +108,26 @@ const initBulkViewport = async (): Promise<void> => {
 	mark("viewport-start")
 	await waitForVisibleDocument()
 	const rect = bulkCanvas.getBoundingClientRect()
-	bulkViewport = await createBulkViewport({
+	const uiDocument = createDocument()
+	const themeHost = createBrowserLinkedAuthorStyleSheetHost({
 		canvas: bulkCanvas,
-		width: Math.max(1, Math.floor(rect.width)),
-		height: Math.max(1, Math.floor(rect.height)),
+		document: uiDocument,
+		sources: [{id: "@ui/components/theme.css", link: bulkThemeStyleSheet}],
 	})
+	bulkAuthorStyleSheets = themeHost
+	try {
+		await themeHost.ready
+		bulkViewport = await createBulkViewport({
+			canvas: bulkCanvas,
+			height: Math.max(1, Math.floor(rect.height)),
+			uiDocument,
+			width: Math.max(1, Math.floor(rect.width)),
+		})
+	} catch (error) {
+		themeHost.dispose()
+		if (bulkAuthorStyleSheets === themeHost) bulkAuthorStyleSheets = null
+		throw error
+	}
 	const resizeBulkViewport = (): void => {
 		if (!bulkViewport) return
 		const rect = bulkCanvas.getBoundingClientRect()
@@ -197,6 +220,8 @@ window.addEventListener("pagehide", () => {
 	bulkHud = null
 	bulkViewport?.dispose()
 	bulkViewport = null
+	bulkAuthorStyleSheets?.dispose()
+	bulkAuthorStyleSheets = null
 }, {once: true})
 
 void start().catch(showLoaderError)

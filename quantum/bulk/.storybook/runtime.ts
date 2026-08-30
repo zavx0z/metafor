@@ -3,17 +3,21 @@ import type {
   Node,
 } from "@zavx0z/dom"
 import {
-  bulkHudStoryCss,
   type BulkHudDomStory,
 } from "./stories/hud.ts"
 
 type BulkRuntimeContext = Readonly<{
   document: Document
   signal: AbortSignal
-  mount(node: Node): void
-  publishInspector(value: unknown): void
-  publishSource(value: unknown): void
-  publishProps(value: unknown): void
+  projection: "hud"
+  present(value: Readonly<{
+    protocol: "story-presentation/1"
+    node: Node
+    componentRoot: Readonly<{readStyleSheets(): unknown}>
+    source: Readonly<{html: string; typescript: string}>
+    values?: Readonly<Record<string, unknown>>
+  }>): void
+  reportDiagnostic(value: unknown): void
   requestRender(): void
 }>
 
@@ -27,57 +31,40 @@ type BulkStoryFactory = (document: Document) => BulkHudDomStory
 
 /** Structural runtime for the independently updateable Bulk package tab. */
 export const runtime = Object.freeze({
-  protocol: "storybook-runtime/1",
+  protocol: "storybook-runtime/3",
   create(context: BulkRuntimeContext) {
+    if (context.projection !== "hud") {
+      throw new Error(`Bulk Storybook requires hud projection: ${String(context.projection)}`)
+    }
     let current: BulkHudDomStory | null = null
-    let currentRoute = ""
     let disposed = false
 
-    const publish = (): void => {
-      if (current === null) return
-      context.publishInspector(Object.freeze({route: currentRoute, kind: "Bulk HUD"}))
-      context.publishSource(current.source)
-      context.publishProps(current.props)
-      context.requestRender()
-    }
-    const onMutation = (): void => publish()
-    const unbind = (story: BulkHudDomStory): void => {
-      for (const type of ["input", "change", "click"]) {
-        story.element.removeEventListener(type, onMutation)
-      }
-    }
-    const bind = (story: BulkHudDomStory): void => {
-      for (const type of ["input", "change", "click"]) {
-        story.element.addEventListener(type, onMutation)
-      }
-    }
     const show = (input: BulkRuntimeStoryInput): void => {
       assertActive(disposed)
+      exactRoute(input.route)
+      if (context.signal.aborted || input.signal.aborted) return
       const factory = bulkStoryFactory(input.story)
       const next = factory(context.document)
-      if (input.signal.aborted) {
+      if (context.signal.aborted || input.signal.aborted) {
         next.dispose()
         return
       }
       if (current !== null) {
-        unbind(current)
         current.dispose()
       }
       current = next
-      currentRoute = exactRoute(input.route)
-      bind(next)
-      context.mount(next.element)
-      publish()
+      context.present(Object.freeze({
+        protocol: "story-presentation/1",
+        node: next.element,
+        componentRoot: next.componentRoot,
+        source: next.source,
+        values: Object.freeze({props: next.props}),
+      }))
     }
     const unmount = (): void => {
       if (current === null) return
-      unbind(current)
       current.dispose()
       current = null
-      currentRoute = ""
-      context.publishInspector(null)
-      context.publishSource(null)
-      context.publishProps(null)
     }
     const dispose = (): void => {
       if (disposed) return
@@ -88,7 +75,6 @@ export const runtime = Object.freeze({
     context.signal.addEventListener("abort", dispose, {once: true})
 
     return Object.freeze({
-      styleSheets: Object.freeze([bulkHudStoryCss]),
       mount: show,
       update: show,
       unmount,

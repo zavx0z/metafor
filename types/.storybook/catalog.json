@@ -18,6 +18,7 @@
           "route": "graph/document/current",
           "apiName": "Graph",
           "tags": ["snapshot", "template", "runtime", "проекция"],
+          "presentation": {"protocol": "story-presentation/1", "projection": "display", "widgets": ["props", "source", "diagnostics"]},
           "variants": [
             {
               "id": "complete",
@@ -52,6 +53,7 @@
           "route": "graph/reaction/dependencies",
           "apiName": "RuntimeReactionRelation",
           "tags": ["reaction", "state", "fields", "mass", "dependencies", "lazy"],
+          "presentation": {"protocol": "story-presentation/1", "projection": "display", "widgets": ["props", "source", "diagnostics"]},
           "variants": [
             {
               "id": "complete",
@@ -86,6 +88,7 @@
           "route": "graph/validation/contract",
           "apiName": "validateGraph",
           "tags": ["validation", "closed", "issues", "контракт"],
+          "presentation": {"protocol": "story-presentation/1", "projection": "display", "widgets": ["props", "source", "diagnostics"]},
           "variants": [
             {
               "id": "closed",
@@ -120,6 +123,7 @@
           "route": "graph/node-tree/projection",
           "apiName": "createGraphNodeTree",
           "tags": ["node-tree", "projection", "live", "adapter", "dom"],
+          "presentation": {"protocol": "story-presentation/1", "projection": "display", "widgets": ["props", "source", "diagnostics"]},
           "variants": [
             {
               "id": "live",
@@ -154,6 +158,7 @@
           "route": "graph/identity/same-meta",
           "apiName": "MetaRuntimeAtomLocator",
           "tags": ["identity", "path", "same-meta", "reorder"],
+          "presentation": {"protocol": "story-presentation/1", "projection": "display", "widgets": ["props", "source", "diagnostics"]},
           "variants": [
             {
               "id": "reorder",

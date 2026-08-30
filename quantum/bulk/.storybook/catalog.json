@@ -14,6 +14,7 @@
           "route": "bulk/hud",
           "apiName": "createBulkHudDocument",
           "tags": ["hud", "timeline", "fullscreen", "causal"],
+          "presentation": {"protocol": "story-presentation/1", "projection": "hud", "widgets": ["props", "source", "diagnostics"]},
           "variants": [
             {
               "id": "default",

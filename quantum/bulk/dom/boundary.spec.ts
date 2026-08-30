@@ -25,6 +25,7 @@ describe("Bulk production DOM boundary", () => {
     for (const path of productionSources) {
       const source = await Bun.file(path).text()
       for (const specifier of forbidden) expect(source, path).not.toContain(specifier)
+      expect(source, path).not.toMatch(/from\s+["']@ui\/components\/theme["']/u)
     }
 
     const bulkManifest = await Bun.file(new URL("../package.json", import.meta.url)).json() as {
@@ -39,6 +40,8 @@ describe("Bulk production DOM boundary", () => {
       expect(typesManifest.dependencies[specifier]).toBeUndefined()
     }
     expect(typesManifest.exports["./hud"]).toBeUndefined()
+    expect(bulkManifest.dependencies["@zavx0z/renderer-browser"])
+      .toBe("link:@zavx0z/renderer-browser")
     expect(await Bun.file(new URL("../types/hud.ts", import.meta.url)).exists()).toBeFalse()
   })
 
@@ -62,6 +65,7 @@ describe("Bulk production DOM boundary", () => {
     expect(bundle).toContain("RendererWebGpuScreenOverlay")
     expect(bundle).toContain("HudWindow")
     expect(bundle).toContain("Timeline")
+    expect(bundle).toContain("createBrowserLinkedAuthorStyleSheetHost")
     for (const forbidden of [
       "@layout/core",
       "@ui/elements",

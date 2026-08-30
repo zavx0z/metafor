@@ -3,39 +3,23 @@ import {
   reconcileGraphNodeTree,
   type GraphNodeTree,
 } from "@metafor/node-tree/graph"
-import {
-  type Document,
-  type HTMLElement,
-  type HTMLInputElement,
-  type Text,
+import type {
+  Document,
+  HTMLElement,
+  HTMLInputElement,
 } from "@zavx0z/dom"
-import type {GraphDomStory} from "./dom-story.tsx"
 import {Checkbox} from "@ui/components/checkbox"
-import {listStyles} from "@ui/components/list"
-import {paneStyles} from "@ui/components/pane"
-import {createRoot} from "@zavx0z/react"
+import {
+  createRoot,
+  useState,
+} from "@zavx0z/react"
+import type {GraphDomStory} from "./dom-story.tsx"
 import {createGraphFixture} from "../../../quantum/tests/graph/fixture.ts"
 import {graphNodeTreeStorySource} from "./source.ts"
 
 export type GraphNodeTreeStoryArgs = Readonly<{incremented: boolean}>
 
-type FrameRecord = Readonly<{
-  element: HTMLElement
-  title: Text
-  nodes: HTMLElement
-}>
-
-type NodeRecord = Readonly<{
-  element: HTMLElement
-  title: Text
-  parameters: HTMLElement
-  sockets: HTMLElement
-}>
-
-type LinkRecord = Readonly<{
-  element: HTMLElement
-  text: Text
-}>
+type GraphNodeTreeSnapshot = ReturnType<GraphNodeTree["snapshot"]>
 
 export type GraphNodeTreeDomRefs = Readonly<{
   root: HTMLElement
@@ -51,92 +35,302 @@ export type GraphNodeTreeDomRefs = Readonly<{
 export type GraphNodeTreeDomStory = GraphDomStory<GraphNodeTreeStoryArgs> & Readonly<{
   tree: GraphNodeTree
   refs: GraphNodeTreeDomRefs
-  snapshot(): ReturnType<GraphNodeTree["snapshot"]>
+  snapshot(): GraphNodeTreeSnapshot
 }>
 
-/** Presents the actual derived GraphNodeTree as one stable semantic DOM tree. */
+type GraphNodeTreePresentationProps = Readonly<{
+  tree: GraphNodeTree
+  initialIncremented: boolean
+  onArgsChange(args: GraphNodeTreeStoryArgs): void
+}>
+
+function GraphNodeTreePresentation(props: GraphNodeTreePresentationProps) {
+  const [incremented, setIncremented] = useState(props.initialIncremented)
+  const snapshot = props.tree.snapshot()
+  const onChange = (nextChecked: boolean): void => {
+    reconcileGraphNodeTree(props.tree, graphFixture(nextChecked))
+    const next = Object.freeze({incremented: nextChecked})
+    props.onArgsChange(next)
+    setIncremented(nextChecked)
+  }
+  return <section
+    data-projection="graph-live"
+    data-revision={String(snapshot.revision)}
+    data-topology-revision={String(snapshot.topologyRevision)}
+    style={css`
+      & {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        gap: 4px;
+        padding: 6px;
+        overflow: auto;
+        background: var(--space-node-navigation-background);
+        color: var(--widget-box-content);
+      }
+    `}
+  >
+    <header style={css`
+      & {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 28px;
+        gap: 4px;
+      }
+    `}>
+      <h2 style={css`
+        & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-md); }
+      `}>Graph · NodeTree projection</h2>
+      <label
+        data-control-key="incremented"
+        style={css`
+          & {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 4px;
+            background: var(--space-node-header-background);
+            font-size: var(--font-size-xs);
+          }
+        `}
+      >
+        <Checkbox
+          checked={incremented}
+          title="Изменить runtime count"
+          onChange={onChange}
+          style={css`& { flex-shrink: 0; }`}
+        />
+        Изменить runtime count
+      </label>
+    </header>
+    <dl data-story-region="stats" style={css`
+      & {
+        display: flex;
+        flex-direction: row;
+        gap: 6px;
+        margin: 0;
+        padding: 4px;
+        background: var(--space-node-execution-background);
+      }
+    `}>
+      <GraphNodeTreeStat label="Revision" value={snapshot.revision} />
+      <GraphNodeTreeStat label="Topology" value={snapshot.topologyRevision} />
+      <GraphNodeTreeStat label="Frames" value={snapshot.frames.length} />
+      <GraphNodeTreeStat label="Nodes" value={snapshot.nodes.length} />
+      <GraphNodeTreeStat label="Links" value={snapshot.links.length} />
+    </dl>
+    <div data-story-region="frames" style={css`
+      & {
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 4px;
+        overflow-x: auto;
+      }
+    `}>
+      {snapshot.frames.map((frame) => <GraphNodeTreeFrame
+        key={frame.id}
+        frame={frame}
+        nodes={snapshot.nodes.filter((node) => node.frameId === frame.id)}
+      />)}
+    </div>
+    <ul data-story-region="links" aria-label="Graph links" style={css`
+      & {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-height: 96px;
+        margin: 0;
+        padding: 2px;
+        overflow-y: auto;
+        border: var(--border-width-control) solid var(--widget-regular-outline);
+        border-radius: 4px;
+        background: var(--widget-text-background);
+      }
+    `}>
+      {snapshot.links.map((link) => <GraphNodeTreeLink key={link.id} link={link} />)}
+    </ul>
+  </section>
+}
+
+function GraphNodeTreeStat(props: Readonly<{label: string; value: number}>) {
+  return <div style={css`& { display: flex; flex-direction: row; gap: 2px; }`}>
+    <dt style={css`
+      & { display: block; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
+    `}>{props.label}</dt>
+    <dd style={css`
+      & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-2xs); }
+    `}>{String(props.value)}</dd>
+  </div>
+}
+
+type GraphFrame = GraphNodeTreeSnapshot["frames"][number]
+type GraphNode = GraphNodeTreeSnapshot["nodes"][number]
+type GraphLink = GraphNodeTreeSnapshot["links"][number]
+type GraphParameter = GraphNode["parameters"][number]
+type GraphSocket = GraphNode["sockets"][number]
+
+function GraphNodeTreeFrame(props: Readonly<{frame: GraphFrame; nodes: readonly GraphNode[]}>) {
+  return <section
+    data-frame-id={props.frame.id}
+    data-parent-frame-id={props.frame.parentFrameId}
+    style={css`
+      & {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        width: 240px;
+        min-height: 88px;
+        gap: 3px;
+        padding: 4px;
+        overflow: hidden;
+        border: var(--border-width-control) solid var(--widget-box-outline);
+        border-radius: 4px;
+        background: var(--widget-box-background);
+        color: var(--widget-box-content);
+      }
+    `}
+  >
+    <h3 style={css`
+      & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-xs); }
+    `}>{props.frame.metadata?.label ?? props.frame.id} · {props.frame.id}</h3>
+    <div style={css`& { display: flex; flex-direction: column; gap: 3px; }`}>
+      {props.nodes.map((node) => <GraphNodeTreeNode key={node.id} node={node} />)}
+    </div>
+  </section>
+}
+
+function GraphNodeTreeNode(props: Readonly<{node: GraphNode}>) {
+  return <article
+    data-node-id={props.node.id}
+    style={css`
+      & {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 4px;
+        overflow: hidden;
+        border: var(--border-width-control) solid var(--widget-regular-background-selected);
+        border-radius: 0;
+        background: var(--widget-box-background);
+        color: var(--widget-box-content);
+      }
+    `}
+  >
+    <h4 style={css`
+      & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-xs); }
+    `}>{props.node.metadata?.title ?? props.node.id} · {props.node.id}</h4>
+    <ul aria-label={`Parameters for ${props.node.id}`} style={css`
+      & {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-height: 96px;
+        margin: 0;
+        padding: 2px;
+        overflow-y: auto;
+        color: var(--widget-list-content);
+      }
+    `}>
+      {props.node.parameters.map((parameter) => <GraphNodeTreeParameter
+        key={parameter.id}
+        parameter={parameter}
+      />)}
+    </ul>
+    <ul aria-label={`Sockets for ${props.node.id}`} style={css`
+      & {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-height: 96px;
+        margin: 0;
+        padding: 2px;
+        overflow-y: auto;
+        color: var(--widget-list-content);
+      }
+    `}>
+      {props.node.sockets.map((socket) => <GraphNodeTreeSocket
+        key={socket.id}
+        socket={socket}
+      />)}
+    </ul>
+  </article>
+}
+
+function GraphNodeTreeParameter(props: Readonly<{parameter: GraphParameter}>) {
+  return <li
+    data-parameter-id={props.parameter.id}
+    style={css`
+      & { display: block; min-height: 24px; padding: 2px 6px; font-size: var(--font-size-xs); }
+    `}
+  >{props.parameter.presentation.label}: {displayValue(props.parameter.value)}</li>
+}
+
+function GraphNodeTreeSocket(props: Readonly<{socket: GraphSocket}>) {
+  return <li
+    data-socket-id={props.socket.id}
+    style={css`
+      & { display: block; min-height: 24px; padding: 2px 6px; font-size: var(--font-size-xs); }
+    `}
+  >{props.socket.direction} · {props.socket.metadata?.label ?? props.socket.id}</li>
+}
+
+function GraphNodeTreeLink(props: Readonly<{link: GraphLink}>) {
+  return <li
+    data-link-id={props.link.id}
+    style={css`
+      & {
+        display: block;
+        min-height: 24px;
+        padding: 2px 6px;
+        color: var(--widget-list-content);
+        font-size: var(--font-size-xs);
+      }
+    `}
+  >{props.link.metadata?.label ?? props.link.id}: {props.link.from.nodeId}/{props.link.from.socketId} → {props.link.to.nodeId}/{props.link.to.socketId}</li>
+}
+
+/** Presents the actual derived GraphNodeTree as one retained TSX ComponentRoot. */
 export function createGraphNodeTreeStory(document: Document): GraphNodeTreeDomStory {
   const tree = createGraphNodeTree(graphFixture(false))
+  const staging = document.createElement("div")
+  const componentRoot = createRoot(staging)
   let currentArgs: GraphNodeTreeStoryArgs = Object.freeze({incremented: false})
   let disposed = false
-  const root = document.createElement("section")
-  const header = document.createElement("header")
-  const heading = document.createElement("h2")
-  const control = document.createElement("label")
-  const controlHost = document.createElement("span")
-  const controlRoot = createRoot(controlHost)
-  const renderControl = (checked: boolean): HTMLInputElement => {
-    controlRoot.render(<Checkbox
-      checked={checked}
-      title="Изменить runtime count"
-      onChange={(nextChecked) => {
-      if (disposed) return
-      const next = Object.freeze({incremented: nextChecked})
-      reconcileGraphNodeTree(tree, graphFixture(next.incremented))
-      currentArgs = next
-      sync()
-      renderControl(next.incremented)
-    }}
-    />)
-    const element = controlHost.querySelector("input") as HTMLInputElement | null
-    if (element === null) throw new Error("Graph NodeTree checkbox did not mount")
-    element.className = `${element.className} graph-node-tree__control-input`.trim()
-    element.setAttribute("data-control-key", "incremented")
-    return element
+  componentRoot.render(<GraphNodeTreePresentation
+    tree={tree}
+    initialIncremented={false}
+    onArgsChange={(next) => { currentArgs = next }}
+  />)
+  const element = staging.firstElementChild as HTMLElement | null
+  if (element === null || element.getAttribute("data-projection") !== "graph-live") {
+    componentRoot.unmount()
+    tree.dispose()
+    throw new Error("Graph NodeTree story did not mount")
   }
-  const incremented = renderControl(false)
-  const stats = document.createElement("dl")
-  const frames = document.createElement("div")
-  const links = document.createElement("ul")
-  const frameRecords = new Map<string, FrameRecord>()
-  const nodeRecords = new Map<string, NodeRecord>()
-  const linkRecords = new Map<string, LinkRecord>()
-  const frameElements = new Map<string, HTMLElement>()
-  const nodeElements = new Map<string, HTMLElement>()
-  const linkElements = new Map<string, HTMLElement>()
+  staging.removeChild(element)
+  const refs = graphNodeTreeRefs(element)
 
-  root.className = "graph-node-tree"
-  root.setAttribute("data-projection", "graph-live")
-  header.className = "graph-node-tree__header"
-  heading.append("Graph · NodeTree projection")
-  control.className = "graph-node-tree__control"
-  control.append(controlHost, "Изменить runtime count")
-  header.append(heading, control)
-  stats.className = "graph-node-tree__stats"
-  frames.className = "graph-node-tree__frames"
-  links.className = "graph-node-tree__links"
-  links.setAttribute(listStyles.root.attributeName, "")
-  root.append(header, stats, frames, links)
-
-  const sync = (): void => {
-    const snapshot = tree.snapshot()
-    root.setAttribute("data-revision", String(snapshot.revision))
-    root.setAttribute("data-topology-revision", String(snapshot.topologyRevision))
-    syncStats(document, stats, snapshot)
-    syncFrames(document, frames, frameRecords, frameElements, snapshot)
-    syncNodes(document, frameRecords, nodeRecords, nodeElements, snapshot)
-    syncLinks(document, links, linkRecords, linkElements, snapshot)
-  }
-  sync()
-
-  const refs: GraphNodeTreeDomRefs = Object.freeze({
-    root,
-    incremented,
-    stats,
-    frames,
-    links,
-    frameElements,
-    nodeElements,
-    linkElements,
-  })
   return Object.freeze({
-    element: root,
+    element,
+    componentRoot,
     tree,
     refs,
     get args() { return currentArgs },
     get source() {
       const snapshot = tree.snapshot()
       return graphNodeTreeStorySource({
+        element,
         incremented: currentArgs.incremented,
         revision: snapshot.revision,
         topologyRevision: snapshot.topologyRevision,
@@ -149,170 +343,37 @@ export function createGraphNodeTreeStory(document: Document): GraphNodeTreeDomSt
     dispose() {
       if (disposed) return
       disposed = true
-      controlRoot.unmount()
+      componentRoot.unmount()
       tree.dispose()
     },
   })
 }
 
-function syncStats(
-  document: Document,
-  stats: HTMLElement,
-  snapshot: ReturnType<GraphNodeTree["snapshot"]>,
-): void {
-  stats.replaceChildren(
-    stat(document, "Revision", snapshot.revision),
-    stat(document, "Topology", snapshot.topologyRevision),
-    stat(document, "Frames", snapshot.frames.length),
-    stat(document, "Nodes", snapshot.nodes.length),
-    stat(document, "Links", snapshot.links.length),
-  )
-}
-
-function stat(document: Document, label: string, value: number): HTMLElement {
-  const wrapper = document.createElement("div")
-  const term = document.createElement("dt")
-  const description = document.createElement("dd")
-  wrapper.className = "graph-node-tree__stat"
-  term.append(label)
-  description.append(String(value))
-  wrapper.append(term, description)
-  return wrapper
-}
-
-function syncFrames(
-  document: Document,
-  host: HTMLElement,
-  records: Map<string, FrameRecord>,
-  elements: Map<string, HTMLElement>,
-  snapshot: ReturnType<GraphNodeTree["snapshot"]>,
-): void {
-  const retained = new Set(snapshot.frames.map(({id}) => id))
-  removeMissing(records, elements, retained)
-  const ordered: HTMLElement[] = []
-  for (const frame of snapshot.frames) {
-    let record = records.get(frame.id)
-    if (record === undefined) {
-      const element = document.createElement("section")
-      const titleElement = document.createElement("h3")
-      const title = document.createTextNode("")
-      const nodes = document.createElement("div")
-      element.className = "graph-node-tree__frame"
-      element.setAttribute(paneStyles.root.attributeName, "")
-      element.setAttribute("data-frame-id", frame.id)
-      titleElement.appendChild(title)
-      nodes.className = "graph-node-tree__nodes"
-      element.append(titleElement, nodes)
-      record = Object.freeze({element, title, nodes})
-      records.set(frame.id, record)
-      elements.set(frame.id, element)
-    }
-    record.element.setAttribute("data-parent-frame-id", frame.parentFrameId ?? "")
-    record.title.data = `${frame.metadata?.label ?? frame.id} · ${frame.id}`
-    ordered.push(record.element)
+function graphNodeTreeRefs(root: HTMLElement): GraphNodeTreeDomRefs {
+  const incremented = root.querySelector('[data-control-key="incremented"] input') as HTMLInputElement | null
+  const stats = root.querySelector('[data-story-region="stats"]') as HTMLElement | null
+  const frames = root.querySelector('[data-story-region="frames"]') as HTMLElement | null
+  const links = root.querySelector('[data-story-region="links"]') as HTMLElement | null
+  if (incremented === null || stats === null || frames === null || links === null) {
+    throw new Error("Graph NodeTree story refs are incomplete")
   }
-  host.replaceChildren(...ordered)
+  return Object.freeze({
+    root,
+    incremented,
+    stats,
+    frames,
+    links,
+    frameElements: indexedElements(root, "data-frame-id"),
+    nodeElements: indexedElements(root, "data-node-id"),
+    linkElements: indexedElements(root, "data-link-id"),
+  })
 }
 
-function syncNodes(
-  document: Document,
-  frames: ReadonlyMap<string, FrameRecord>,
-  records: Map<string, NodeRecord>,
-  elements: Map<string, HTMLElement>,
-  snapshot: ReturnType<GraphNodeTree["snapshot"]>,
-): void {
-  const retained = new Set(snapshot.nodes.map(({id}) => id))
-  removeMissing(records, elements, retained)
-  const byFrame = new Map<string, HTMLElement[]>()
-  for (const node of snapshot.nodes) {
-    let record = records.get(node.id)
-    if (record === undefined) {
-      const element = document.createElement("article")
-      const titleElement = document.createElement("h4")
-      const title = document.createTextNode("")
-      const parameters = document.createElement("ul")
-      const sockets = document.createElement("ul")
-      element.className = "graph-node-tree__node"
-      element.setAttribute(paneStyles.root.attributeName, "")
-      element.setAttribute("data-node-id", node.id)
-      titleElement.appendChild(title)
-      parameters.className = "graph-node-tree__parameters"
-      parameters.setAttribute(listStyles.root.attributeName, "")
-      sockets.className = "graph-node-tree__sockets"
-      sockets.setAttribute(listStyles.root.attributeName, "")
-      element.append(titleElement, parameters, sockets)
-      record = Object.freeze({element, title, parameters, sockets})
-      records.set(node.id, record)
-      elements.set(node.id, element)
-    }
-    record.title.data = `${node.metadata?.title ?? node.id} · ${node.id}`
-    record.parameters.replaceChildren(...node.parameters.map((parameter) => {
-      const item = document.createElement("li")
-      item.className = "graph-node-tree__parameter"
-      item.setAttribute(listStyles.item.attributeName, "")
-      item.setAttribute("role", "option")
-      item.setAttribute("data-parameter-id", parameter.id)
-      item.append(`${parameter.presentation.label}: ${displayValue(parameter.value)}`)
-      return item
-    }))
-    record.sockets.replaceChildren(...node.sockets.map((socket) => {
-      const item = document.createElement("li")
-      item.className = "graph-node-tree__socket"
-      item.setAttribute(listStyles.item.attributeName, "")
-      item.setAttribute("role", "option")
-      item.setAttribute("data-socket-id", socket.id)
-      item.append(`${socket.direction} · ${socket.metadata?.label ?? socket.id}`)
-      return item
-    }))
-    const frameId = node.frameId ?? ""
-    const collection = byFrame.get(frameId) ?? []
-    collection.push(record.element)
-    byFrame.set(frameId, collection)
-  }
-  for (const [frameId, record] of frames) record.nodes.replaceChildren(...(byFrame.get(frameId) ?? []))
-}
-
-function syncLinks(
-  document: Document,
-  host: HTMLElement,
-  records: Map<string, LinkRecord>,
-  elements: Map<string, HTMLElement>,
-  snapshot: ReturnType<GraphNodeTree["snapshot"]>,
-): void {
-  const retained = new Set(snapshot.links.map(({id}) => id))
-  removeMissing(records, elements, retained)
-  const ordered: HTMLElement[] = []
-  for (const link of snapshot.links) {
-    let record = records.get(link.id)
-    if (record === undefined) {
-      const element = document.createElement("li")
-      const text = document.createTextNode("")
-      element.className = "graph-node-tree__link"
-      element.setAttribute(listStyles.item.attributeName, "")
-      element.setAttribute("role", "option")
-      element.setAttribute("data-link-id", link.id)
-      element.appendChild(text)
-      record = Object.freeze({element, text})
-      records.set(link.id, record)
-      elements.set(link.id, element)
-    }
-    record.text.data = `${link.metadata?.label ?? link.id}: ${link.from.nodeId}/${link.from.socketId} → ${link.to.nodeId}/${link.to.socketId}`
-    ordered.push(record.element)
-  }
-  host.replaceChildren(...ordered)
-}
-
-function removeMissing<RecordValue extends Readonly<{element: HTMLElement}>>(
-  records: Map<string, RecordValue>,
-  elements: Map<string, HTMLElement>,
-  retained: ReadonlySet<string>,
-): void {
-  for (const [id, record] of records) {
-    if (retained.has(id)) continue
-    record.element.remove()
-    records.delete(id)
-    elements.delete(id)
-  }
+function indexedElements(root: HTMLElement, attribute: string): ReadonlyMap<string, HTMLElement> {
+  return new Map([...root.querySelectorAll(`[${attribute}]`)].map((element) => [
+    element.getAttribute(attribute)!,
+    element as HTMLElement,
+  ]))
 }
 
 function displayValue(value: unknown): string {

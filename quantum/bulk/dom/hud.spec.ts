@@ -7,7 +7,6 @@ import {
 } from "@zavx0z/dom"
 import {
 	createBulkHudDocument,
-	bulkHudDocumentCss,
 	bulkHudDocumentDefaultProps,
 	type BulkHudDocumentProps,
 } from "./hud.tsx"
@@ -51,10 +50,11 @@ describe("Bulk DOM HUD production proof", () => {
 		expect(controller.element).toBe(root)
 		expect(root).toBeInstanceOf(HTMLElement)
 		expect(root.localName).toBe("section")
-		expect(root.className).toBe("bulk-hud-document")
+		expect(root.className).toBe("")
+		expect(root.getAttribute("data-bulk-hud")).toBe("")
 		expect(root.getAttribute("data-fullscreen")).toBe("false")
 		expect(root.getAttribute("aria-label")).toBe("Bulk Visual")
-		expect(root.childNodes).toEqual([window])
+		expect([...root.children]).toEqual([window])
 		expect(controller.controllers.window.element).toBe(window)
 		expect(controller.controllers.timeline.element).toBe(timeline)
 		expect(controller.controllers.window.refs.body.childNodes
@@ -65,6 +65,15 @@ describe("Bulk DOM HUD production proof", () => {
 		expect(fullscreenButton.textContent).toBe("Полный экран")
 		expect(controller.controllers.timeline.props).toEqual(bulkHudDocumentDefaultProps.causalTimeline)
 		expect(controller.props).toEqual(bulkHudDocumentDefaultProps)
+		const styleSheets = controller.componentRoot.readStyleSheets().styleSheets
+		expect(styleSheets.length).toBeGreaterThan(0)
+		const cssText = styleSheets.map(({cssText}) => cssText).join("\n")
+		expect(cssText).toContain("bottom:8px")
+		expect(cssText).toContain("min-height:140px")
+		expect(cssText).toContain("--material-editor-outline-active:var(--widget-regular-background-selected)")
+		expect(window.getAttribute("style")).toContain("min-height: 140px")
+		expect(timeline.getAttribute("style")).toContain("min-height: 106px")
+		expect(timeline.getAttribute("style")).toContain("border: 0 solid transparent")
 	})
 
 	test("updates fullscreen and causal snapshot without replacing composite identities", () => {
@@ -117,7 +126,7 @@ describe("Bulk DOM HUD production proof", () => {
 		expect(controller.controllers.timeline.refs.markerTimes.get("force/frame-2")).toBe(frame2)
 		expect(controller.controllers.timeline.refs.markerTexts.get("force/frame-2")).toBe(frame2Text)
 		expect(root.getAttribute("data-fullscreen")).toBe("true")
-		expect(root.className).toContain("--fullscreen")
+		expect(root.className).toBe("")
 		expect(fullscreenButton.getAttribute("aria-pressed")).toBe("true")
 		expect(fullscreenButton.disabled).toBeTrue()
 		expect(fullscreenButton.textContent).toBe("Выйти из полного экрана")
@@ -213,6 +222,7 @@ describe("Bulk DOM HUD production proof", () => {
 
 	test("keeps an exact package-private DOM/UI boundary", async () => {
 		const source = await Bun.file(new URL("./hud.tsx", import.meta.url)).text()
+		const overlay = await Bun.file(new URL("./overlay-runtime.ts", import.meta.url)).text()
 		const visual = await Bun.file(new URL("../VISUAL.md", import.meta.url)).text()
 		const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json() as {
 			dependencies: Record<string, string>
@@ -238,14 +248,15 @@ describe("Bulk DOM HUD production proof", () => {
 			"Story",
 			"source:",
 		]) expect(source).not.toContain(forbidden)
-		expect(bulkHudDocumentCss).toContain(".bulk-hud-document")
-		expect(bulkHudDocumentCss).toContain(".ui-hud-window")
-			expect(bulkHudDocumentCss).toContain(".ui-timeline")
-			expect(bulkHudDocumentCss).toContain("min-height: 140px")
-			expect(bulkHudDocumentCss).toContain("min-height: 106px")
-			expect(bulkHudDocumentCss).not.toContain("#7edcec")
-			expect(bulkHudDocumentCss).not.toContain("min-height: 220px")
-		expect(bulkHudDocumentCss).not.toContain("&")
+		expect(source).toContain("const bulkHudRootStyle: CssStyle = css`")
+		expect(source).toContain('&[data-fullscreen="true"]')
+		expect(source).toContain("--material-editor-outline-active: var(--widget-regular-background-selected)")
+		expect(source).toContain("const bulkHudWindowStyle: CssStyle = css`")
+		expect(source).toContain("const bulkTimelineStyle: CssStyle = css`")
+		expect(source).not.toContain("bulkHudDocumentCss")
+		expect(source).not.toContain("String.raw")
+		expect(overlay).not.toContain("styleSheets")
+		expect(overlay).not.toContain("bulkHudDocumentCss")
 		expect(manifest.dependencies["@zavx0z/dom"]).toBe("link:@zavx0z/dom")
 		expect(manifest.dependencies["@ui/components"]).toBe("link:@ui/components")
 		expect(manifest.exports["./dom/hud"]).toBeUndefined()
