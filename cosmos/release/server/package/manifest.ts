@@ -7,7 +7,15 @@ import {
   type PackageEnvironment,
 } from "../../../shared/package/environment"
 import {artifactIntegrity} from "../../../shared/package/integrity"
-import {packageArtifactPath, packageBuildCommand} from "./command"
+import {
+  packageArtifactPath,
+  packageBuildCommand,
+  packageProgrammaticBuildPlan,
+} from "./command"
+import {
+  readPackageBuildConfigurations,
+  type PackageBuildEnvironmentConfiguration,
+} from "./config"
 import {
   type BuildablePackage,
   type PackageBuildArtifact,
@@ -16,14 +24,20 @@ import {
   type PackageOwner,
 } from "../shared/contracts"
 import {cosmosRoot} from "../shared/paths"
+import {packageExportGraph} from "./export-graph"
+import {
+  packageBuildEntrypoints,
+  packageBuildSourceKind,
+  validatePackageBuildSourceOutputs,
+} from "./source"
 
-interface PackageLocation {
+export interface PackageSourceLocation {
   root: string
   manifest: string
 }
 
 const repositoryRoot = dirname(cosmosRoot)
-const packageLocations = new Map<BuildablePackage, Promise<PackageLocation>>()
+const packageLocations = new Map<BuildablePackage, Promise<PackageSourceLocation>>()
 
 /** Возвращает свежий env-specific package build contract. */
 export async function packageOwner(
@@ -39,17 +53,34 @@ export async function packageOwner(
 
 /** Возвращает свежие проверенные build contracts всех объявленных env. */
 export async function packageOwners(name: BuildablePackage): Promise<PackageOwner[]> {
-  const location = await packageLocation(name)
+  const location = await packageSourceLocation(name)
   const manifest = await packageManifest(location.manifest)
   if (manifest.name !== name)
     throw new Error(`Resolved package ${String(manifest.name)} does not match ${name}`)
 
   const environments = packageEnvironmentExports(manifest)
+  const version = packageVersion(manifest.version, name)
+  const exportGraph = await packageExportGraph(location.root, manifest)
+  const buildConfigurations = await readPackageBuildConfigurations(
+    location.root,
+    manifest,
+    environments.map(({env}) => env),
+  )
   const artifacts = new Map<string, PackageEnvironment>()
   const owners: PackageOwner[] = []
 
   for (const environment of environments) {
-    const contract = await environmentOwner(name, location, manifest, environment)
+    const contract = await environmentOwner(
+      name,
+      location,
+      manifest,
+      environment,
+      version,
+      exportGraph
+        .filter(({env}) => env === environment.env)
+        .map(({artifact, source}) => ({artifact, source})),
+      buildConfigurations.get(environment.env),
+    )
     const previous = artifacts.get(contract.artifact)
     if (previous !== undefined)
       throw new Error(`${name} env ${previous} and ${environment.env} share build outfile`)
@@ -64,7 +95,9 @@ export async function packageOwners(name: BuildablePackage): Promise<PackageOwne
 export async function packageArtifact(path: string): Promise<PackageBuildArtifact | null> {
   const type = path.endsWith(".map")
     ? "application/json; charset=utf-8"
-    : "text/javascript; charset=utf-8"
+    : path.endsWith(".js")
+      ? "text/javascript; charset=utf-8"
+      : Bun.file(path).type || "application/octet-stream"
   const artifact = Bun.file(path, {type})
   if (!await artifact.exists() || artifact.size === 0) return null
   const integrity = await artifactIntegrity(await artifact.arrayBuffer())
@@ -106,7 +139,8 @@ export function packageEnvironmentExports(manifest: PackageManifest): PackageEnv
   return environments
 }
 
-async function packageLocation(name: BuildablePackage) {
+/** Resolves one Cosmos-owned package without requiring a current environment. */
+export async function packageSourceLocation(name: BuildablePackage) {
   let location = packageLocations.get(name)
   if (!location) {
     location = findPackage(name).catch((error: unknown) => {
@@ -118,7 +152,7 @@ async function packageLocation(name: BuildablePackage) {
   return await location
 }
 
-async function findPackage(name: BuildablePackage): Promise<PackageLocation> {
+async function findPackage(name: BuildablePackage): Promise<PackageSourceLocation> {
   if (!/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name))
     throw new Error(`Invalid Cosmos package name ${name}`)
 
@@ -134,9 +168,12 @@ async function findPackage(name: BuildablePackage): Promise<PackageLocation> {
 
 async function environmentOwner(
   name: BuildablePackage,
-  location: PackageLocation,
+  location: PackageSourceLocation,
   manifest: PackageManifest,
   environment: PackageEnvironmentExport,
+  version: string,
+  sources: PackageOwner["sources"],
+  configuration?: PackageBuildEnvironmentConfiguration,
 ): Promise<PackageOwner> {
   const scripts = record(manifest.scripts, `${name} scripts must be an object`)
   const buildName = `build:${environment.env}`
@@ -163,6 +200,24 @@ async function environmentOwner(
     || !command.includes(`--target=${environment.target}`))
     throw new Error(`${name} ${buildName} must target ${environment.target}`)
 
+  const rootSource = sources.find(({artifact}) => artifact === ".")
+  if (rootSource?.source !== environment.entrypoint)
+    throw new Error(`${name} ${buildName} root source must match ${environment.condition}`)
+  if (packageBuildSourceKind(environment.entrypoint) !== "script")
+    throw new Error(`${name} ${buildName} root source must be JavaScript-family code`)
+  if (new Set(sources.map(({source}) => source)).size !== sources.length)
+    throw new Error(`${name} ${buildName} must not expose one source under multiple artifact keys`)
+  validatePackageBuildSourceOutputs(environment.env, sources)
+  const entrypoints = packageBuildEntrypoints(sources)
+  if (entrypoints.length === 0) throw new Error(`${name} ${buildName} has no buildable entrypoint`)
+  if ((configuration?.plugins.length ?? 0) > 0 || sources.length > 1) {
+    packageProgrammaticBuildPlan(
+      build,
+      "production",
+      entrypoints.length > 1 ? "multi" : "single",
+    )
+  }
+
   await requirePackageSource(
     location.root,
     environment.entrypoint,
@@ -180,8 +235,12 @@ async function environmentOwner(
     env: environment.env,
     entrypoint: environment.entrypoint,
     artifact: packageArtifactPath(location.root, build),
+    sources: Object.freeze(sources),
     build,
+    loaders: configuration?.loaders ?? Object.freeze({}),
+    plugins: configuration?.plugins ?? Object.freeze([]),
     typecheck: "typecheck",
+    version,
     headers,
   }
 }
@@ -210,6 +269,12 @@ function packageConditionScope(name: string) {
   const match = /^@([a-z0-9][a-z0-9._-]*)\/[a-z0-9][a-z0-9._-]*$/i.exec(name)
   if (!match) throw new Error(`Invalid Cosmos package name ${name}`)
   return match[1]!
+}
+
+function packageVersion(value: unknown, name: string) {
+  if (typeof value !== "string" || !/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(value))
+    throw new Error(`${name} version must be canonical SemVer`)
+  return value
 }
 
 function record(value: unknown, message: string): Record<string, unknown> {

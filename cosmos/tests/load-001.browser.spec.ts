@@ -357,11 +357,11 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
       "полный candidate composition проверен",
       "release runtime candidate подготовлен",
       "canonical cleanup завершён",
+      "перезагрузка Window начата",
+      "перезагрузка Window завершена",
       "transaction завершена",
       "release service запущен",
       "release service очищен",
-      "перезагрузка Window начата",
-      "перезагрузка Window завершена",
     ])
     expectDiagnosticOrder(startupDiagnostics, [
       "основное visual-окружение создано",

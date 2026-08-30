@@ -33,6 +33,8 @@ import {
   browserPackageUrl,
   parseBrowserPackageUrl,
 } from "../shared/package/url"
+import {packageArtifactIdentityHeaders} from "../release/shared/artifact-integrity"
+import {browserPackageArtifactUrl} from "../release/shared/artifact-url"
 import {cachedPackageIdentity} from "../release/service/cache/current"
 import {resolveCosmosRoot} from "../release/server/shared/paths"
 
@@ -345,6 +347,39 @@ test("server delta omits unchanged entries and separates update from removal", (
   })
 })
 
+test("server delta installs eager artifacts but retains already fetched lazy artifacts of the target version", () => {
+  const root = {
+    name: "@internal/visual",
+    env: "main" as const,
+    version: "1.2.3",
+    sha256: "a".repeat(64),
+    size: 42,
+  }
+  const theme = {
+    ...root,
+    artifact: "./theme.css" as const,
+    sha256: "b".repeat(64),
+    size: 84,
+  }
+  const lazy = {
+    ...root,
+    artifact: "./.cosmos/main/components/inspector.js" as const,
+    sha256: "c".repeat(64),
+    size: 126,
+  }
+  const oldLazy = {...lazy, version: "1.2.2"}
+
+  expect(releaseDelta([root, theme], [root, lazy, oldLazy])).toEqual({
+    update: [theme],
+    remove: [{
+      name: oldLazy.name,
+      env: oldLazy.env,
+      artifact: oldLazy.artifact,
+      version: oldLazy.version,
+    }],
+  })
+})
+
 test("Worker reports only canonical cache entries with verified actual bytes", async () => {
   const bytes = new TextEncoder().encode("export const value = 1")
   const identity = {
@@ -370,6 +405,23 @@ test("Worker reports only canonical cache entries with verified actual bytes", a
     new Request("http://127.0.0.1:4444/@internal/visual?env=main"),
     response.clone(),
   )).toBeNull()
+
+  const themeBytes = new TextEncoder().encode(":root { --surface: black; }")
+  const theme = {
+    ...identity,
+    artifact: "./theme.css" as const,
+    ...await artifactIntegrity(themeBytes.buffer as ArrayBuffer),
+  }
+  const themeRequest = new Request(`http://127.0.0.1:4444${browserPackageArtifactUrl(
+    theme.name,
+    theme.env,
+    theme.artifact,
+    theme.version,
+  )}`)
+  const themeResponse = new Response(themeBytes, {
+    headers: packageArtifactIdentityHeaders(theme),
+  })
+  expect(await cachedPackageIdentity("internal", themeRequest, themeResponse)).toEqual(theme)
 })
 
 test("successful publication notification contains no release state", () => {

@@ -65,11 +65,27 @@ interfaces и владельцев.
 
 ## Release и artifacts
 
-Одна package version охватывает все объявленные platform parts. Изменение
-исполняемой part или её canonical JavaScript bytes требует новой package
-version и полного набора exact artifacts этой версии. Artifact identity
-содержит package, environment, version, SHA-256 и byte size; разные способы
-хранения или доставки не меняют identity.
+Одна package version охватывает весь public artifact graph всех объявленных
+platform parts. Единственный author-facing источник графа — стандартный
+`package.json#exports`: корневые conditions задают platform parts, public
+subpaths — lazy code и static artifacts, а shared chunks выводятся из одной
+сборки. Не добавлять resource manifest, registry либо второй state protocol.
+
+Обычные зависимости связывать в artifacts Cosmos package; отдельной частью
+release dependency остаётся только как самостоятельный release package. Не
+добавлять Cosmos declarations или adapters в UI, Engine и других owners ради
+сборки consumer package.
+
+При нескольких code entrypoints одного environment собирать их одной операцией
+со splitting и загружать dynamic branches network-lazy. Сохранять graph
+предшественника до завершения runtime handover. Root intent, фактический browser
+current, установка/удаление delta, namespace caches и одна восстанавливаемая
+transaction остаются тем же release lifecycle.
+
+Package-local compiler plugins допустимы только как способ сборки конкретного
+environment и не объявляют artifacts или plugin-specific options в Cosmos
+config. Перед изменением build contract читать точную
+[процедуру public artifact graph и plugins](../../../../.agents/skills/metafor-dev/references/development.md#package-artifact-build).
 
 Documentation-only Cosmos diff
 [определяется общей классификацией изменения MetaFor](../../../../.agents/skills/metafor-dev/references/documentation.md#проверка-изменения)

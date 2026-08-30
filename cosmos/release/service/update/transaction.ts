@@ -1,5 +1,5 @@
-import type {BrowserPackageIdentity} from "../../../shared/package/integrity"
-import {browserPackageUrl} from "../../../shared/package/url"
+import type {BrowserPackageArtifactIdentity} from "../../shared/artifact-integrity"
+import {browserPackageIdentityUrl} from "../../shared/artifact-url"
 
 /** Единственный технический Cache Storage package update. */
 export const transactionCache = "transaction"
@@ -49,7 +49,7 @@ export async function beginTransaction() {
 }
 
 /** Возвращает ранее подготовленный exact response. */
-export async function preparedPackage(entry: BrowserPackageIdentity) {
+export async function preparedPackage(entry: BrowserPackageArtifactIdentity) {
   if (!await transactionExists()) return
   return await (await caches.open(transactionCache)).match(
     exactRequest(entry),
@@ -58,7 +58,7 @@ export async function preparedPackage(entry: BrowserPackageIdentity) {
 }
 
 /** Сохраняет verified response только внутри фиксированной transaction. */
-export async function preparePackage(entry: BrowserPackageIdentity, response: Response) {
+export async function preparePackage(entry: BrowserPackageArtifactIdentity, response: Response) {
   await (await caches.open(transactionCache)).put(exactRequest(entry), response)
 }
 
@@ -67,9 +67,9 @@ export async function commitTransaction() {
   await caches.delete(transactionCache)
 }
 
-function exactRequest(entry: BrowserPackageIdentity) {
+function exactRequest(entry: BrowserPackageArtifactIdentity) {
   return new Request(
-    new URL(browserPackageUrl(entry.name, entry.env, entry.version), location.origin),
+    new URL(browserPackageIdentityUrl(entry), location.origin),
     {cache: "no-store"},
   )
 }

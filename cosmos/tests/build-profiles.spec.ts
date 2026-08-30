@@ -170,7 +170,7 @@ test("build executor resolves package contracts without a module registry", asyn
   }
   expect(await buildablePackage("@internal/missing")).toBeNull()
   expect(await buildablePackage("@internal/visual", "worker")).toBeNull()
-  expect(source).toContain("Map<BuildablePackage, Promise<PackageLocation>>")
+  expect(source).toContain("Map<BuildablePackage, Promise<PackageSourceLocation>>")
   expect(source).not.toContain("const packageOwners")
 })
 

@@ -32,6 +32,49 @@ internal-пакеты) и `@metafor/*` (далее — metafor-пакеты). In
 выбранные packages и их parts, а зависимости удовлетворяются выбранными
 версиями.
 
+<a id="публичный-граф-artifacts"></a>
+
+## Публичный граф artifacts
+
+Каждый package объявляет весь свой публичный граф стандартным
+`package.json#exports`. Корневые conditional exports задают platform parts, а
+public subpaths — отдельно загружаемые code units, styles, WebAssembly и другие
+принадлежащие package файлы. Общие chunks являются производным результатом
+одной сборки этого графа, а не вторым описанием состава.
+
+Обычные package dependencies связываются в готовые artifacts владельца.
+Отдельным участником выпуска dependency остаётся только когда он сам объявлен
+release package; прочие owners не получают Cosmos-specific metadata или
+runtime adapters. Package-local compiler plugin может изменить только способ
+получения outputs и не объявляет artifacts, environments или состав выпуска.
+
+Одна package version охватывает весь опубликованный граф во всех объявленных
+environments. Release считает новую версию подготовленной только после
+проверки полного server-side графа immutable outputs и его dependency closure.
+Root intent по-прежнему задаёт желаемый состав, а фактически полученные browser
+artifacts — текущее состояние конкретной среды. Установка и удаление различий,
+восстановление и owner caches сохраняют прежний единый release lifecycle; новый
+граф не создаёт отдельный resource manifest, cache или state protocol.
+
+## Ленивая загрузка и handover
+
+Несколько public code units одного environment собираются вместе. Общий код
+публикуется один раз, а branches, доступные только через динамический import,
+загружаются из сети при первом использовании. Отсутствие ещё не запрошенного
+lazy artifact в browser cache не является неполным выпуском; offline first use
+такого artifact закономерно требует, чтобы он уже был получен ранее.
+
+Перед переключением release проверяет eager closure нового runtime. Artifacts
+действующего предшественника остаются доступны, пока он завершает уже принятую
+работу и может обратиться к своим lazy branches. Только после handover release
+удаляет больше не принадлежащие действующему графу entries и завершает ту же
+восстанавливаемую транзакцию.
+
+Изменение читаемой формы artifact identity сначала доставляется отдельным
+полным выпуском reader-а при прежнем составе. Writer начинает публиковать новую
+форму только после подтверждённой активации reader-а. Частичный candidate и
+параллельный compatibility protocol не заменяют эту последовательность.
+
 <a id="обновление-browser-release"></a>
 
 ## Как сменяется выпуск

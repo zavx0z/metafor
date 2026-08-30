@@ -86,7 +86,7 @@ test("LOAD-001 keeps release policy and WebSocket outside immutable startup", as
   expect(transaction).toContain('transactionCache = "transaction"')
   expect(transaction).toContain('transactionMarkerPath = "/transaction"')
   expect(releaseLoader).toContain("requiredCacheOwner(entry.name)")
-  expect(releaseLoader).toContain("browserPackageUrl(entry.name, entry.env, entry.version)")
+  expect(releaseLoader).toContain("browserPackageIdentityUrl(entry)")
   expect(transaction).not.toContain("entry.cache")
   expect(transaction).not.toContain("entry.endpoint")
   expect(releaseLoader).not.toContain("entry.cache")

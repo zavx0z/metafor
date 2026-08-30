@@ -143,10 +143,19 @@ browser release membership. Runtime dependency участника обязан �
 том же membership, а выбранная version — удовлетворять его workspace range.
 Не обходить эту проверку ручным удалением либо несовместимым version bump.
 
-Source во всех средах импортирует один bare package specifier, например
-`@internal/visual`. Env не добавлять в specifier и не оформлять package
-subpath. Разные entrypoints одного package объявлять стандартным conditional
-`exports` корневого subpath `"."`:
+<a id="package-artifact-build"></a>
+
+### Public artifact graph и package build
+
+Source во всех средах импортирует package без environment в specifier,
+например `@internal/visual`. Корневую part package импортировать по bare
+specifier, а public lazy code и static artifacts — по обычному package subpath.
+Environment выбирается только condition и не кодируется в имени subpath.
+
+`package.json#exports` является единственным author-facing public artifact
+graph. Корневой subpath `"."` объявляет platform parts. Другие subpaths
+объявляют public code entrypoints, styles, WebAssembly и остальные файлы,
+которые package разрешает загружать отдельно:
 
 ```json
 {
@@ -154,14 +163,108 @@ subpath. Разные entrypoints одного package объявлять ста
     ".": {
       "internal:main": "./main/index.ts",
       "internal:server": "./server/index.ts"
+    },
+    "./components/*": {
+      "internal:main": "./main/components/*.tsx"
+    },
+    "./theme.css": "./shared/theme.css",
+    "./kernel.wasm": {
+      "internal:main": "./main/kernel.wasm",
+      "internal:server": "./server/kernel.wasm"
     }
   }
 }
 ```
 
-Condition всегда имеет вид `<scope>:<env>`, а entrypoint — только
-`./<env>/index.ts`. Package объявляет только поддерживаемые branches. `default`
-fallback не добавлять: builder и TypeScript выбирают нужную condition.
+Condition всегда имеет вид `<scope>:<env>`. Корневая part сохраняет точный
+entrypoint `./<env>/index.ts`. Conditionless string target дополнительного
+subpath относится ко всем environments, уже явно объявленным корневыми
+conditional exports package. Condition map нужен, когда environments или их
+targets различаются; расширение файла само environment не определяет.
+Расширение patterns разворачивается в конечный набор package-local files.
+Package объявляет только поддерживаемые branches. `default` fallback не
+добавлять: builder и TypeScript выбирают нужную condition. Target обязан
+оставаться внутри package root, существовать и не создавать второй public
+identity для тех же bytes внутри одного environment.
+
+Public code entrypoints одного environment выводятся один раз из `exports` и не
+повторяются списком в `bunfig.toml` или build script. Canonical root entrypoint
+остаётся в `scripts.build:<env>` и владеет обычными Bun flags. Если применимый
+граф содержит только root, прежний direct `bun build` с `--outfile` работает
+без изменений. Если code entrypoints несколько, script выбирает `--outdir` и
+`--splitting`; Cosmos проверяет root и flags, затем передаёт весь выведенный
+набор entrypoints одной операции `Bun.build`. Точное output naming должно давать
+однозначное соответствие public roots и outputs. Multi-entry package
+публикуется только после того, как executor проверяет это соответствие и весь
+output import graph; отдельный naming convention этот контракт не навязывает.
+
+Статически достижимая closure активного root готовится вместе с ним. Code,
+доступный только через dynamic `import()`, остаётся network-lazy и получает
+exact immutable artifact при первом обращении. Никогда не запрошенный lazy
+artifact не считается отсутствующим current cache entry. При смене версии old
+chunks не удаляются до завершения handover прежнего runtime; затем cleanup
+идёт вперёд через прежние owner caches и фиксированную transaction.
+
+Обычные direct dependencies, не являющиеся отдельными участниками Cosmos
+release, связываются в outputs package. В частности, consumer сам включает UI,
+Engine и другие library dependencies; эти owners не получают Cosmos fields,
+routes или build adapters. Отдельный `@internal/*` либо `@metafor/*` package
+остаётся внешней release part только когда входит в root membership и dependency
+closure.
+
+Package может подключить compiler plugin для отдельного environment в своём
+`bunfig.toml`:
+
+```toml
+[cosmos.package-build.environments.main]
+plugins = ["./build/template.plugin.ts"]
+```
+
+`plugins` — необязательный ordered массив непустых уникальных module specifiers.
+Package-relative specifier обязан оставаться внутри real package root. Bare
+specifier обязан быть public export прямой `dependency` или `devDependency`
+package. После resolution дубликаты запрещены. Неизвестный environment, key,
+тип значения, отсутствующий module и private dependency path отклоняются до
+build.
+
+Каждый module default-export-ит один настоящий `BunPlugin` с непустым `name` и
+функцией `setup`. Plugin-specific factories и options остаются в
+package-owned wrapper module; в TOML не добавляются records, options, schema,
+protocol или entrypoints. Например, wrapper для production TSX сам импортирует
+`createTemplateJsxBunPlugin` из `@zavx0z/template/bun`, задаёт принадлежащие
+package source roots и default-export-ит полученный plugin.
+
+Без `cosmos.package-build` действует прежний direct CLI path. При наличии
+plugins release всё равно разбирает и проверяет тот же `build:<env>`: root
+entrypoint, conditions, target, format, external/packages, production flags и
+output остаются package-owned. Executor лишь передаёт проверенные параметры и
+ordered plugins в `Bun.build`; произвольный runner либо shell lifecycle этим
+полем не разрешается. Plugin участвует только в сборке и не создаёт artifact
+graph, route, cache, version или release state.
+
+Стандартная таблица Bun `[loader]` остаётся независимой от Cosmos table. Direct
+legacy CLI читает её как прежде; programmatic multi/plugin adapter передаёт те
+же проверенные loaders каждому environment. Наличие только `[loader]` не
+переводит root-only package с прямого CLI path.
+
+Build outputs и их import relations являются производным результатом одной
+сборки, а не сохраняемым release manifest. Package version и root caret
+dependencies остаются единственным desired intent; browser current по-прежнему
+собирается из фактически сохранённых exact artifacts, server отвечает только
+`update/remove`, а прежние namespace caches и одна transaction применяют
+различия. Новый public file требует изменения только `exports`, source и
+package version, но не ручного cache allowlist или второго resources registry.
+
+Первичное включение non-root wire shape выполняется двумя полными releases.
+Сначала публикуется только новая `@cosmos/release`, пока composition всех
+остальных packages остаётся root-only; нужно дождаться exact current и
+активации нового `service` reader. Лишь после этого отдельной package version
+добавляются non-root exports и публикуется их полный eager graph. Не объединять
+эти шаги: прежний strict reader не принимает поле `artifact`, а отправка только
+roots нового multi-output package создала бы запрещённый неполный candidate.
+Compatibility protocol, `/2` и временный resource manifest для этого не
+добавляются.
+
 Поддерживаемые env и цели:
 
 | Env | Исполнение | Target |
@@ -195,23 +298,37 @@ package version и полного набора объявленных artifacts 
 заменяется ради совпадения с текущим TSDoc; при следующем изменении executable
 JavaScript новая version снова публикует согласованные JavaScript и map.
 
-Direct production-команда `build:<env>` повторяет `./<env>/index.ts`, выбирает
-condition `<scope>:<env>` и точный target. Bun `1.4.0` не разрешает bare package specifier как CLI build
-entrypoint, поэтому команда повторяет source path branch `exports`; release
-server принимает её только при точном совпадении. Bare imports внутри source и
-готового ESM artifact при этом сохраняются.
+Direct production-команда `build:<env>` повторяет canonical
+`./<env>/index.ts`, выбирает condition `<scope>:<env>` и точный target. Bun
+`1.4.0` не разрешает bare package specifier как CLI build entrypoint, поэтому
+команда повторяет source path root branch `exports`; release server принимает
+её только при точном совпадении. Bare imports внутри source сохраняются, а
+обычные library dependencies связываются в готовый artifact graph.
 
-Package-owned `--outfile` определяет внутренний путь artifact. Outfile разных
-env одного package не должен совпадать; обязательного `dist/<env>` layout нет.
-Release server кеширует только найденные root и manifest path, а содержимое
-`package.json` перечитывает и проверяет перед каждым typecheck/build.
+В legacy single-entry режиме package-owned `--outfile` определяет внутренний
+путь artifact. Outfile разных env одного package не должен совпадать;
+обязательного `dist/<env>` layout нет. Multi-entry режим использует
+package-owned `--outdir` и splitting; entrypoints при этом принадлежат
+`exports`, а не отдельному списку. Release server кеширует только найденные root
+и manifest path, а содержимое `package.json` и build configuration перечитывает
+и проверяет перед каждым typecheck/build.
+
+`--outfile`/`--outdir` описывают package build, но не immutable release storage.
+Новая version хранит root по canonical `(package root, version, env)`, а public
+subpath — в отдельной version-scoped директории exact artifact key. Поэтому
+смена build output или удаление текущего export не меняет адрес уже
+опубликованных bytes. Reader сначала принимает прежний legacy root path и
+сравнивает его integrity; writer затем создаёт canonical hardlink только при
+полном совпадении. Два payload-файла одного public key/version и другие bytes
+под прежней version отклоняются как immutable conflict.
 
 Изменение executable source, исполняемого состава или canonical JavaScript
 bytes package требует новой версии и нового immutable artifact; прежний
 versioned artifact не заменять другими bytes.
-Window composition packages собираются с внешними package dependencies и
-сохраняют bare imports; transport URL, conditional browser adapter или имя
-отдельной зависимости в source build adapter не добавлять.
+Cosmos packages связывают обычные package dependencies в собственные outputs.
+Transport URL, conditional browser adapter или имя отдельной library dependency
+в source build adapter не добавлять. Bare import остаётся runtime package edge
+только для dependency, которая сама входит в Cosmos release membership.
 Named public types browser package доступны зависимому workspace package сразу
 из source и не требуют build или generated declaration. Side-effect type
 entrypoint допустим только для package без public exports; он не должен скрывать
@@ -246,14 +363,17 @@ Service Worker перехватывает стабильный package URL, но
 по точному versioned endpoint в cache владельца: `@cosmos/release` —
 `release`, `@internal/*` — `internal`, `@metafor/*` — `metafor`. Имя отдельного
 package в правила кэширования не добавлять. После commit каждый canonical owner cache
-содержит ровно одну exact entry на `(package, env)` и не содержит stable либо
-state entries.
+содержит ровно одну exact root entry на `(package, env)`, а также уже полученные
+exact subpath и chunk entries действующей версии. Никогда не запрошенный
+network-lazy artifact не материализуется только ради полноты cache. Stable и
+state entries в owner caches не сохраняются.
 
-Из обычных `/assets/*` Worker сохраняет только объявленный HTML composition
-root runtime font `/assets/fonts/jetbrains-mono-bold.ttf`. Inert meta ничего не
-загружает: первый `UiRuntime` без custom font получает URL лениво через Engine,
-а custom font полностью обходит default request. PWA screenshots, manifest
-icons и favicon не входят в offline contract и не занимают Cache Storage.
+Существующий HTML composition font
+`/assets/fonts/jetbrains-mono-bold.ttf` остаётся совместимым legacy asset.
+Новые package-owned styles, WebAssembly, images и другие runtime files не
+добавлять в ручной `/assets/*` allowlist: они принадлежат public artifact graph
+package. PWA screenshots, Web App Manifest icons и favicon остаются вне package
+release graph и не занимают его Cache Storage.
 
 Во время обновления на origin существует не более одного технического Cache
 Storage с точным именем `transaction`. Его первой entry всегда становится
@@ -261,8 +381,10 @@ marker `/transaction`; delta, desired composition и IDs в marker не хран
 Worker сохраняет там только проверенные `update` artifacts, добавляет все
 candidates в canonical caches без old deletion и повторно проверяет полный
 candidate composition. После этого cleanup идёт только вперёд; старый
-`@cosmos/release:service` удаляется последним из old entries,
-а `transaction` — последней durable операцией после final verification.
+`@cosmos/release:service` удаляется последним из old executable roots. Lazy
+chunks предшественника остаются доступны до завершения runtime handover и
+уничтожения прежнего runtime; после их cleanup и final verification
+`transaction` удаляется последней durable операцией.
 
 После остановки release заново собирает canonical current и получает fresh
 delta от server. Startup не открывает `transaction`, не разбирает delta и не ждёт
@@ -273,11 +395,15 @@ state keys, UUID storages и migration-ветки в действующем sour
 Startup передаёт release один замороженный dependency object только вниз, а
 release factory возвращает отдельный inert runtime с `start`, `fetch`,
 `message`, `destroy`. При self-update новый runtime готовится после проверки
-всех canonical candidates и до cleanup, но запускается только после final
-verification и удаления `transaction`. Затем startup направляет новые events
-ему, ждёт in-flight events прежнего runtime и вызывает его `destroy`, который
-закрывает RPC, timers и AbortController. Registration не удаляется; release
-один раз навигирует каждый Window.
+всех canonical candidates и до необратимого cleanup. При смене artifact graph
+действующий release после установки новых roots и eager closure навигирует
+Window, сохраняя exact lazy bytes предшественника до завершения этой навигации.
+Затем он удаляет old lazy entries, выполняет final verification и удаляет
+`transaction`; только после durable commit startup активирует подготовленный
+service runtime, ждёт его predecessor events и вызывает `destroy`, закрывающий
+RPC, timers и AbortController. В legacy single-root release old lazy chunks
+отсутствуют, но Window handover всё равно предшествует commit: при его ошибке
+marker сохраняется и recovery повторяет навигацию. Registration не удаляется.
 
 Пример:
 

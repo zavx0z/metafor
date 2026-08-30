@@ -1,5 +1,11 @@
-import {browserPackageCache, parseBrowserPackageUrl} from "../../../shared/package/url"
+import {browserPackageCache} from "../../../shared/package/url"
+import {parseBrowserPackageArtifactUrl} from "../../shared/artifact-url"
 import type {ReleaseLoader} from "../runtime"
+import {
+  cacheReleaseArtifact,
+  readReleaseArtifact,
+  releaseArtifactNetworkRequest,
+} from "../cache/artifact"
 
 const startupResources = [
   "/",
@@ -20,19 +26,29 @@ export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
   /** Возвращает cached response либо network fallback для browser request. */
   const cacheFirst = async (request: Request) => {
     const url = new URL(request.url)
-    const browserPackage = parseBrowserPackageUrl(url)
-    const packageOwner = browserPackageCache(browserPackage?.name ?? null)
+    if (url.origin !== location.origin) return await fetch(request)
+    const browserArtifact = parseBrowserPackageArtifactUrl(url)
+    const packageOwner = browserPackageCache(browserArtifact?.name ?? null)
     const owner = packageOwner === "startup" ? null : packageOwner
     const cacheName = owner ?? "startup"
     const cache = await caches.open(cacheName)
     const response = request.mode === "navigate"
       ? await cache.match("/", {ignoreVary: true})
-      : await loader.read(cacheName, request)
+      : browserArtifact?.artifact === undefined
+        ? await loader.read(cacheName, request)
+        : owner === null
+          ? undefined
+          : await readReleaseArtifact(owner, browserArtifact)
     if (response) return response
 
     try {
-      const network = await fetch(request)
-      if (network.ok && (owner !== null || runtimeAssets.has(url.pathname)))
+      const networkRequest = browserArtifact?.artifact !== undefined && owner !== null
+        ? await releaseArtifactNetworkRequest(owner, browserArtifact, request)
+        : request
+      const network = await fetch(networkRequest)
+      if (network.ok && browserArtifact?.artifact !== undefined && owner !== null)
+        await cacheReleaseArtifact(owner, browserArtifact, network.clone())
+      else if (network.ok && (owner !== null || runtimeAssets.has(url.pathname)))
         await loader.cache(cacheName, request, network.clone())
       return network
     } catch (error) {

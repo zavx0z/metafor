@@ -13,9 +13,6 @@ test.serial("release RPC diagnostics expose no-op and suppress reconnect spam", 
           applied.push(delta)
           return []
         },
-        restartBrowser: async () => {
-          throw new Error("No-op delta must not restart Window")
-        },
       })
 
       const initial = globals.sockets[0]
@@ -68,7 +65,6 @@ test.serial("release RPC diagnostics report one connection failure until recover
       const rpc = startRpc({
         currentPackages: async () => [],
         applyDelta: async () => [],
-        restartBrowser: async () => {},
       })
 
       globals.sockets[0]?.fail()
@@ -102,7 +98,6 @@ test.serial("release RPC diagnostics preserve the exact synchronization failure"
         applyDelta: async () => {
           throw new Error("candidate digest mismatch")
         },
-        restartBrowser: async () => {},
       })
       const connection = globals.sockets[0]
       if (!connection) throw new Error("Initial RPC socket was not created")

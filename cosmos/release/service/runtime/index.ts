@@ -43,10 +43,10 @@ export default function releaseService(
           return await updateRelease(dependencies.loader, delta, {
             prepare: dependencies.runtime.prepare,
             activate: dependencies.runtime.activate,
+            restartBrowser: navigateWindows,
             signal: abort.signal,
           })
         },
-        restartBrowser: navigateWindows,
       })
       cleanups.push(() => rpc?.destroy())
       await cache.cacheStartup()

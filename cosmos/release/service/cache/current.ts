@@ -1,16 +1,20 @@
 import {
   artifactIntegrity,
-  verifyPackageResponse,
-  type BrowserPackageIdentity,
 } from "../../../shared/package/integrity"
 import {
+  verifyPackageArtifactResponse,
+  type BrowserPackageArtifactIdentity,
+} from "../../shared/artifact-integrity"
+import {
+  browserPackageIdentityUrl,
+  parseBrowserPackageArtifactUrl,
+} from "../../shared/artifact-url"
+import {
   browserPackageCache,
-  browserPackageUrl,
-  parseBrowserPackageUrl,
 } from "../../../shared/package/url"
 
 /** Точная версия package в browser release. */
-export interface ReleasePackage extends BrowserPackageIdentity {}
+export interface ReleasePackage extends BrowserPackageArtifactIdentity {}
 
 const codeCaches = ["release", "internal", "metafor"] as const
 
@@ -31,8 +35,7 @@ export async function currentReleasePackages(): Promise<ReleasePackage[]> {
   }
 
   return packages.sort((left, right) =>
-    browserPackageUrl(left.name, left.env, left.version)
-      .localeCompare(browserPackageUrl(right.name, right.env, right.version)))
+    browserPackageIdentityUrl(left).localeCompare(browserPackageIdentityUrl(right)))
 }
 
 /** Проверяет одну фактическую cache entry и не принимает повреждённую metadata/body. */
@@ -41,7 +44,7 @@ export async function cachedPackageIdentity(
   request: Request,
   response: Response,
 ): Promise<ReleasePackage | null> {
-  const parsed = parseBrowserPackageUrl(new URL(request.url))
+  const parsed = parseBrowserPackageArtifactUrl(new URL(request.url))
   if (
     parsed === null
     || parsed.version === null
@@ -50,11 +53,12 @@ export async function cachedPackageIdentity(
   const identity = {
     name: parsed.name,
     env: parsed.env,
+    ...(parsed.artifact === undefined ? {} : {artifact: parsed.artifact}),
     version: parsed.version,
     ...await artifactIntegrity(await response.clone().arrayBuffer()),
   }
   try {
-    await verifyPackageResponse(response, identity)
+    await verifyPackageArtifactResponse(response, identity)
     return identity
   } catch {
     return null

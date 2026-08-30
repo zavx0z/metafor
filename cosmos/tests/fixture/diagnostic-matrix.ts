@@ -77,10 +77,19 @@ export const diagnosticStories: DiagnosticStory[] = [
         "artifact", "command", "env", "package", "profile", "root",
       ]),
       checkpoint("debug", "[@cosmos/release:server:build]", "сборка artifact завершена", [
-        "artifact", "env", "exitCode", "package",
+        "env", "exitCode", "outputs", "package",
       ]),
       checkpoint("debug", "[@cosmos/release:server:build]", "сборка artifact завершилась с ошибкой", [
         "env", "error", "exitCode", "package",
+      ]),
+      checkpoint("error", "[@cosmos/release:server:build-adapter]", "Bun build diagnostic", [
+        "message",
+      ]),
+      checkpoint("error", "[@cosmos/release:server:build-adapter]", "isolated package build failed", [
+        "error",
+      ]),
+      checkpoint("error", "[@cosmos/release:server:build-adapter]", "package build request invalid", [
+        "error",
       ]),
       checkpoint("debug", "[@cosmos/release:server:update]", "публикация отменена с восстановлением root", [
         "packages", "reason",
@@ -102,6 +111,8 @@ export const diagnosticStories: DiagnosticStory[] = [
       {file: "publication.spec.ts", test: "production publication diagnostics preserve success and rollback order"},
       {file: "build-profiles.spec.ts", test: "parallel env builds run one package typecheck"},
       {file: "build-profiles.spec.ts", test: "failed package typecheck prevents every env build"},
+      {file: "package-build-plugins.spec.ts", test: "isolated plugin adapter rejects a module without default Bun plugin"},
+      {file: "package-build-plugins.spec.ts", test: "isolated plugin adapter fails closed when a plugin mutates build outputs"},
     ],
   },
   {
@@ -123,10 +134,10 @@ export const diagnosticStories: DiagnosticStory[] = [
     id: "browser-artifact-delivery",
     checkpoints: [
       checkpoint("debug", "[@cosmos/release:server:delivery]", "browser artifact доставлен", [
-        "env", "package", "status", "version",
+        "artifact", "env", "package", "status", "version",
       ]),
       checkpoint("debug", "[@cosmos/release:server:delivery]", "browser artifact не найден", [
-        "env", "package", "status", "version",
+        "artifact", "env", "package", "status", "version",
       ]),
     ],
     proofs: [
@@ -203,6 +214,12 @@ export const diagnosticStories: DiagnosticStory[] = [
         "env", "name", "version",
       ]),
       checkpoint("debug", "[@cosmos/release:service:activate]", "canonical cleanup завершён", ["removed"]),
+      checkpoint("debug", "[@cosmos/release:service:activate]", "canonical root cleanup завершён", [
+        "deferred", "removed",
+      ]),
+      checkpoint("debug", "[@cosmos/release:service:activate]", "lazy cleanup после Window handover завершён", [
+        "removed",
+      ]),
       checkpoint("debug", "[@cosmos/release:service:activate]", "transaction завершена", [
         "changed", "mode",
       ]),
@@ -210,6 +227,7 @@ export const diagnosticStories: DiagnosticStory[] = [
     proofs: [
       {file: "transaction.spec.ts", test: "UPD-003 keeps a complete old or new composition after every durable mutation"},
       {file: "transaction.spec.ts", test: "UPD-003 prepares release runtime before cleanup and activates it only after durable commit"},
+      {file: "transaction.spec.ts", test: "lazy artifacts of the predecessor survive until Window handover"},
       {file: "load-001.browser.spec.ts", test: "UPD-003 keeps canonical caches unchanged and resumes one fixed transaction"},
     ],
   },

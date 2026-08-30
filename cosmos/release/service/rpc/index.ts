@@ -10,7 +10,6 @@ import type {ReleasePackage} from "../cache/current"
 export interface RpcBindings {
   currentPackages(): Promise<ReleasePackage[]>
   applyDelta(delta: ReleaseDelta): Promise<string[]>
-  restartBrowser(): Promise<void>
 }
 
 interface SynchronizationState {
@@ -87,7 +86,6 @@ export function startRpc(bindings: RpcBindings) {
       })
       return
     }
-    await bindings.restartBrowser()
   }
 
   const connect = () => {

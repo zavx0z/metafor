@@ -45,8 +45,11 @@ export async function startReleaseServer(
         return new Response(file)
       },
       "/@cosmos/:module": {GET: getPackage},
+      "/@cosmos/:module/*": {GET: getPackage},
       "/@internal/:module": {GET: getPackage},
+      "/@internal/:module/*": {GET: getPackage},
       "/@metafor/:module": {GET: getPackage},
+      "/@metafor/:module/*": {GET: getPackage},
       "/code": {
         GET: getRelease,
         POST: (request: Request, current: Bun.Server<RpcSocketData>) => publishRelease(request, {

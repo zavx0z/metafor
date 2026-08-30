@@ -23,6 +23,11 @@ export {
   packageSourceMapResponse,
 } from "./package/build"
 export {packageBuildCommand} from "./package/command"
+export {packageExportGraph} from "./package/export-graph"
+export type {
+  PackageExportArtifact,
+  PackageExportsManifest,
+} from "./package/export-graph"
 export {acceptsBrotli} from "./package/response"
 export {
   browserPackageSourceMapUrl,
@@ -81,6 +86,36 @@ export {
   packageEnvironmentBuildTarget,
   packageEnvironments,
 } from "../../shared/package/environment"
+export {
+  generatedPackageArtifactPrefix,
+  isGeneratedPackageArtifactKey,
+  isPackageArtifactKey,
+  isPackageExportSubpath,
+  packageArtifactWireValue,
+  readPackageArtifactKey,
+  rootPackageArtifact,
+} from "../shared/artifact"
+export type {
+  GeneratedPackageArtifactKey,
+  NonRootPackageArtifactKey,
+  PackageArtifactKey,
+  PackageExportSubpath,
+  PublicPackageArtifactKey,
+} from "../shared/artifact"
+export {
+  packageArtifactIdentityHeaders,
+  verifyPackageArtifactResponse,
+} from "../shared/artifact-integrity"
+export type {BrowserPackageArtifactIdentity} from "../shared/artifact-integrity"
+export {
+  browserPackageArtifactSlot,
+  browserPackageArtifactUrl,
+  browserPackageGeneratedPublicPath,
+  browserPackageIdentitySlot,
+  browserPackageIdentityUrl,
+  parseBrowserPackageArtifactUrl,
+} from "../shared/artifact-url"
+export type {BrowserPackageArtifactUrl} from "../shared/artifact-url"
 export {getPackage, getRelease} from "./http/delivery"
 export {packageEnvironmentExports, packageOwner, packageOwners} from "./package/manifest"
 export {
@@ -101,6 +136,7 @@ export {
 } from "./rpc"
 export type {RpcSocketData} from "./rpc"
 export {
+  releasedPackageArtifactResponse,
   releasedPackageResponse,
   releasedPackageSourceMapResponse,
   releasedPackages,

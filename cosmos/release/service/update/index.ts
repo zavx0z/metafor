@@ -1,13 +1,19 @@
-import {verifyPackageResponse} from "../../../shared/package/integrity"
+import {verifyPackageArtifactResponse} from "../../shared/artifact-integrity"
 import {
   browserPackageCache,
-  browserPackageSlot,
-  browserPackageUrl,
-  parseBrowserPackageUrl,
 } from "../../../shared/package/url"
+import {
+  browserPackageIdentitySlot,
+  browserPackageIdentityUrl,
+  parseBrowserPackageArtifactUrl,
+} from "../../shared/artifact-url"
 import type {ReleaseDelta} from "../../shared/protocol"
 import type {ReleaseLoader, ReleaseRuntime} from "../runtime/contract"
-import {currentReleasePackages, type ReleasePackage} from "../cache/current"
+import {
+  cachedPackageIdentity,
+  currentReleasePackages,
+  type ReleasePackage,
+} from "../cache/current"
 import {
   beginTransaction,
   commitTransaction,
@@ -32,6 +38,7 @@ export async function updateRelease(
   handover?: Readonly<{
     prepare(request: Request): Promise<ReleaseRuntime>
     activate(candidate: ReleaseRuntime): Promise<void>
+    restartBrowser?(): Promise<void>
     signal?: AbortSignal
   }>,
 ) {
@@ -47,6 +54,10 @@ export async function updateRelease(
     console.debug("[@cosmos/release:service:activate]", "canonical cleanup завершён", {
       removed,
     })
+    const restartBrowser = handover?.restartBrowser
+    if (!restartBrowser)
+      throw new Error("Transaction recovery requires browser handover")
+    await restartBrowser()
     await verifyFinalComposition(candidate)
     await commitTransaction()
     console.debug("[@cosmos/release:service:activate]", "transaction завершена", {
@@ -69,7 +80,7 @@ export async function updateRelease(
     const cached = await preparedPackage(entry)
     if (cached) {
       try {
-        await verifyPackageResponse(cached, entry)
+        await verifyPackageArtifactResponse(cached, entry)
         console.debug("[@cosmos/release:service:prepare]", "exact artifact подготовлен", {
           env: entry.env,
           name: entry.name,
@@ -87,7 +98,7 @@ export async function updateRelease(
       request,
       handover?.signal ? {signal: handover.signal} : undefined,
     )
-    const response = await verifyPackageResponse(startup.verify(network), entry)
+    const response = await verifyPackageArtifactResponse(startup.verify(network), entry)
     await preparePackage(entry, response)
     console.debug("[@cosmos/release:service:prepare]", "exact artifact подготовлен", {
       env: entry.env,
@@ -102,7 +113,7 @@ export async function updateRelease(
     const response = await preparedPackage(entry)
     if (!response)
       throw new Error(`Prepared artifact ${entry.name}:${entry.env}@${entry.version} отсутствует`)
-    await verifyPackageResponse(response, entry)
+    await verifyPackageArtifactResponse(response, entry)
 
     const owner = requiredCacheOwner(entry.name)
     const cache = await caches.open(owner)
@@ -110,7 +121,7 @@ export async function updateRelease(
     const installed = await cache.match(exact, {ignoreVary: true})
     if (installed) {
       try {
-        await verifyPackageResponse(installed, entry)
+        await verifyPackageArtifactResponse(installed, entry)
         continue
       } catch {
         // Тот же exact URL не считается candidate без проверенных bytes.
@@ -118,7 +129,7 @@ export async function updateRelease(
     }
 
     await cache.put(exact, response)
-    changed.add(browserPackageSlot(entry.name, entry.env))
+    changed.add(browserPackageIdentitySlot(entry))
   }
 
   let runtimeCandidate: ReleaseRuntime | null = null
@@ -143,13 +154,48 @@ export async function updateRelease(
     }
 
     const removals = await canonicalCleanup(candidate)
-    for (const entry of removals) {
+    const immediate = removals.filter(({deferUntilHandover}) => !deferUntilHandover)
+    const deferred = removals.filter(({deferUntilHandover}) => deferUntilHandover)
+    const rootChanged = [...delta.update, ...delta.remove]
+      .some(({artifact}) => artifact === undefined)
+    const needsWindowHandover = rootChanged || deferred.length > 0
+    const restartBrowser = handover?.restartBrowser
+    let restartBeforeCommit: (() => Promise<void>) | null = null
+    if (needsWindowHandover) {
+      if (!restartBrowser)
+        throw new Error("Root or lazy artifact cleanup requires browser handover")
+      restartBeforeCommit = restartBrowser
+    }
+    for (const entry of immediate) {
       await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
       changed.add(entry.slot ?? entry.request.url)
     }
-    console.debug("[@cosmos/release:service:activate]", "canonical cleanup завершён", {
-      removed: removals.map(({owner, request}) => ({cache: owner, source: request.url})),
-    })
+    if (deferred.length === 0) {
+      console.debug("[@cosmos/release:service:activate]", "canonical cleanup завершён", {
+        removed: immediate.map(({owner, request}) => ({cache: owner, source: request.url})),
+      })
+    } else {
+      console.debug("[@cosmos/release:service:activate]", "canonical root cleanup завершён", {
+        deferred: deferred.map(({owner, request}) => ({cache: owner, source: request.url})),
+        removed: immediate.map(({owner, request}) => ({cache: owner, source: request.url})),
+      })
+    }
+
+    let browserRestarted = false
+    if (restartBeforeCommit) {
+      await restartBeforeCommit()
+      browserRestarted = true
+      const afterHandover = await canonicalCleanup(candidate)
+      for (const entry of afterHandover) {
+        await (await caches.open(entry.owner)).delete(entry.request, {ignoreVary: true})
+        changed.add(entry.slot ?? entry.request.url)
+      }
+      if (afterHandover.length > 0) {
+        console.debug("[@cosmos/release:service:activate]", "lazy cleanup после Window handover завершён", {
+          removed: afterHandover.map(({owner, request}) => ({cache: owner, source: request.url})),
+        })
+      }
+    }
 
     await verifyFinalComposition(candidate)
     await commitTransaction()
@@ -162,6 +208,7 @@ export async function updateRelease(
       await handover.activate(runtimeCandidate)
       runtimeActivated = true
     }
+    if (!browserRestarted && changed.size > 0) await handover?.restartBrowser?.()
     return [...changed]
   } catch (error) {
     if (runtimeCandidate && !runtimeActivated) await runtimeCandidate.destroy().catch(() => {})
@@ -176,51 +223,68 @@ function deriveCandidateComposition(current: ReleasePackage[], delta: ReleaseDel
 
   for (const entry of current) {
     if (removed.has(exactRequest(entry).url)) continue
-    const slot = browserPackageSlot(entry.name, entry.env)
+    const slot = browserPackageIdentitySlot(entry)
     const existing = candidate.get(slot)
     if (existing && exactRequest(existing).url !== exactRequest(entry).url)
       throw new Error(`Fresh delta оставляет несколько candidates для ${slot}`)
     candidate.set(slot, entry)
   }
 
-  for (const entry of delta.update) candidate.set(browserPackageSlot(entry.name, entry.env), entry)
+  for (const entry of delta.update) candidate.set(browserPackageIdentitySlot(entry), entry)
   return [...candidate.values()]
 }
 
 /** До cleanup доказывает наличие и bytes всех candidates, не запрещая old overlap. */
 async function verifyCandidateComposition(candidate: ReleasePackage[]) {
+  const roots = targetRootVersions(candidate)
+  for (const entry of candidate) {
+    if (
+      entry.artifact !== undefined
+      && roots.get(rootRuntimeSlot(entry)) !== entry.version
+    ) throw new Error(
+      `Artifact ${entry.name}:${entry.env}:${entry.artifact}@${entry.version} has no matching root`,
+    )
+  }
   for (const expected of candidate) await verifyCanonicalEntry(expected)
 }
 
 /** После cleanup доказывает ровно одну exact entry на каждый target slot. */
 async function verifyFinalComposition(candidate: ReleasePackage[]) {
-  const expected = new Map(candidate.map((entry) => [browserPackageSlot(entry.name, entry.env), entry]))
-  const actual = new Map<string, Request[]>()
+  const expected = new Map(candidate.map((entry) => [browserPackageIdentitySlot(entry), entry]))
+  const targetVersions = targetRootVersions(candidate)
+  const seen = new Set<string>()
   const available = new Set(await caches.keys())
 
   for (const owner of codeCaches) {
     if (!available.has(owner)) continue
-    for (const request of await (await caches.open(owner)).keys()) {
-      const parsed = parseBrowserPackageUrl(new URL(request.url))
-      if (parsed === null || parsed.version === null) continue
+    const cache = await caches.open(owner)
+    for (const request of await cache.keys()) {
+      const parsed = parseBrowserPackageArtifactUrl(new URL(request.url))
+      if (parsed === null || parsed.version === null)
+        throw new Error(`Final canonical cache ${owner} contains invalid entry ${request.url}`)
       if (requiredCacheOwner(parsed.name) !== owner)
         throw new Error(`Canonical entry ${request.url} находится в чужом cache ${owner}`)
-      const slot = browserPackageSlot(parsed.name, parsed.env)
-      const entries = actual.get(slot) ?? []
-      entries.push(request)
-      actual.set(slot, entries)
+      const slot = browserPackageIdentitySlot(parsed)
+      const expectedEntry = expected.get(slot)
+      if (expectedEntry !== undefined) {
+        if (seen.has(slot) || request.url !== exactRequest(expectedEntry).url)
+          throw new Error(`Final package slot ${slot} не содержит одну candidate entry`)
+        seen.add(slot)
+        await verifyCanonicalEntry(expectedEntry)
+        continue
+      }
+      if (
+        parsed.artifact === undefined
+        || targetVersions.get(rootRuntimeSlot(parsed)) !== parsed.version
+      ) throw new Error(`Final canonical composition contains stale entry ${request.url}`)
+      const response = await cache.match(request, {ignoreVary: true})
+      if (!response || await cachedPackageIdentity(owner, request, response) === null)
+        throw new Error(`Final lazy artifact ${request.url} has invalid identity`)
     }
   }
 
-  if (actual.size !== expected.size)
+  if (seen.size !== expected.size)
     throw new Error("Final canonical composition не совпадает с candidate composition")
-
-  for (const [slot, entry] of expected) {
-    const entries = actual.get(slot)
-    if (entries?.length !== 1 || entries[0]?.url !== exactRequest(entry).url)
-      throw new Error(`Final package slot ${slot} не содержит одну candidate entry`)
-    await verifyCanonicalEntry(entry)
-  }
 }
 
 async function verifyCanonicalEntry(expected: ReleasePackage) {
@@ -228,35 +292,48 @@ async function verifyCanonicalEntry(expected: ReleasePackage) {
   const response = await (await caches.open(owner)).match(exactRequest(expected), {ignoreVary: true})
   if (!response)
     throw new Error(`Candidate ${expected.name}:${expected.env}@${expected.version} отсутствует`)
-  await verifyPackageResponse(response, expected)
+  await verifyPackageArtifactResponse(response, expected)
 }
 
 /** Локально замыкает cleanup на фактических canonical keys, включая invalid stale bytes. */
 async function canonicalCleanup(candidate: ReleasePackage[]) {
   const keep = new Set(candidate.map((entry) =>
     canonicalKey(requiredCacheOwner(entry.name), exactRequest(entry).url)))
+  const targetVersions = targetRootVersions(candidate)
   const available = new Set(await caches.keys())
   const removals: Array<{
     owner: string
     request: Request
     slot: string | null
     serviceWorkerRelease: boolean
+    deferUntilHandover: boolean
   }> = []
 
   for (const owner of codeCaches) {
     if (!available.has(owner)) continue
-    for (const request of await (await caches.open(owner)).keys()) {
-      const parsed = parseBrowserPackageUrl(new URL(request.url))
+    const cache = await caches.open(owner)
+    for (const request of await cache.keys()) {
+      const parsed = parseBrowserPackageArtifactUrl(new URL(request.url))
       if (
         parsed !== null
         && parsed.version !== null
         && keep.has(canonicalKey(owner, request.url))
       ) continue
+      if (
+        parsed?.artifact !== undefined
+        && parsed.version !== null
+        && targetVersions.get(rootRuntimeSlot(parsed)) === parsed.version
+      ) {
+        const response = await cache.match(request, {ignoreVary: true})
+        if (response && await cachedPackageIdentity(owner, request, response) !== null) continue
+      }
       removals.push({
         owner,
         request,
         serviceWorkerRelease: parsed !== null && isServiceWorkerRelease(parsed),
-        slot: parsed === null ? null : browserPackageSlot(parsed.name, parsed.env),
+        deferUntilHandover: parsed?.artifact !== undefined
+          && targetVersions.get(rootRuntimeSlot(parsed)) !== parsed.version,
+        slot: parsed === null ? null : browserPackageIdentitySlot(parsed),
       })
     }
   }
@@ -280,13 +357,28 @@ function canonicalKey(owner: string, url: string) {
   return `${owner}\u0000${url}`
 }
 
-function isServiceWorkerRelease(entry: Pick<ReleasePackage, "name" | "env">) {
-  return entry.name === "@cosmos/release" && entry.env === "service"
+function rootRuntimeSlot(entry: Pick<ReleasePackage, "name" | "env">) {
+  return browserPackageIdentitySlot({name: entry.name, env: entry.env})
 }
 
-function exactRequest(entry: Pick<ReleasePackage, "name" | "env" | "version">) {
+function targetRootVersions(candidate: ReleasePackage[]) {
+  return new Map(candidate.flatMap((entry) =>
+    entry.artifact === undefined
+      ? [[rootRuntimeSlot(entry), entry.version] as const]
+      : []))
+}
+
+function isServiceWorkerRelease(entry: Pick<ReleasePackage, "name" | "env" | "artifact">) {
+  return entry.name === "@cosmos/release"
+    && entry.env === "service"
+    && entry.artifact === undefined
+}
+
+function exactRequest(
+  entry: Pick<ReleasePackage, "name" | "env" | "artifact" | "version">,
+) {
   return new Request(
-    new URL(browserPackageUrl(entry.name, entry.env, entry.version), location.origin),
+    new URL(browserPackageIdentityUrl(entry), location.origin),
     {cache: "no-store"},
   )
 }

@@ -2,9 +2,9 @@ import {
   parseReleaseCurrentMessage,
   releaseDeltaMessage,
 } from "../../shared/protocol"
-import type {ReleasedPackage} from "../shared/contracts"
+import type {BrowserPackageArtifactIdentity} from "../../shared/artifact-integrity"
 import {releaseDelta} from "../release/delta"
-import {releasedPackages} from "../release/state"
+import {readDesiredBrowserArtifacts} from "../release/desired"
 
 /** Данные одного подключённого release env `service`. */
 export interface RpcSocketData {
@@ -35,7 +35,8 @@ export function openRpc(socket: Bun.ServerWebSocket<RpcSocketData>) {
 export async function messageRpc(
   socket: Bun.ServerWebSocket<RpcSocketData>,
   message: string | Buffer,
-  desired: () => Promise<ReleasedPackage[]> = releasedPackages,
+  desired: () => Promise<BrowserPackageArtifactIdentity[]> | readonly BrowserPackageArtifactIdentity[] =
+    readDesiredBrowserArtifacts,
 ) {
   const current = parseReleaseCurrentMessage(parseMessage(message))
   if (current === null) {
@@ -44,7 +45,7 @@ export async function messageRpc(
   }
 
   try {
-    const response = releaseDeltaMessage(releaseDelta(await desired(), current.current))
+    const response = releaseDeltaMessage(releaseDelta([...(await desired())], current.current))
     socket.send(JSON.stringify(response))
     if (Bun.env.NODE_ENV === "development") {
       console.debug("[@cosmos/release:server:rpc:update]", "состояние browser cache сверено", {

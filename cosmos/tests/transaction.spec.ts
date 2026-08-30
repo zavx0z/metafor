@@ -6,6 +6,11 @@ import {
   type BrowserPackageIdentity,
 } from "../shared/package/integrity"
 import {browserPackageCache, browserPackageUrl} from "../shared/package/url"
+import {
+  packageArtifactIdentityHeaders,
+  type BrowserPackageArtifactIdentity,
+} from "../release/shared/artifact-integrity"
+import {browserPackageIdentityUrl} from "../release/shared/artifact-url"
 import {releaseDelta} from "../release/server/release/delta"
 import {currentReleasePackages} from "../release/service/cache/current"
 import {updateRelease} from "../release/service/update"
@@ -37,7 +42,7 @@ test.serial("UPD-003 keeps a complete old or new composition after every durable
     await captureDiagnostics(async () => {
       await withServiceWorkerGlobals(interrupted.storage, interrupted.network, async () => {
         const current = await currentReleasePackages()
-        await updateRelease(loader, releaseDelta(interrupted.next, current))
+        await updateRelease(loader, releaseDelta(interrupted.next, current), quietHandover)
       })
     })
     await expectNewComposition(interrupted.storage, interrupted.next)
@@ -93,7 +98,7 @@ test.serial("UPD-003 treats a stale update for an installed exact entry as a no-
   const network = new Map([[exactUrl(installed.identity), installed.response]])
   const {result: changed} = await captureDiagnostics(async () =>
     await withServiceWorkerGlobals(storage, network, async () =>
-      await updateRelease(loader, {update: [installed.identity], remove: []})))
+      await updateRelease(loader, {update: [installed.identity], remove: []}, quietHandover)))
 
   expect(changed).toEqual([])
   expect((await release.keys()).map(({url}) => url)).toEqual([exactUrl(installed.identity)])
@@ -126,13 +131,17 @@ test.serial("UPD-003 prepares release runtime before cleanup and activates it on
           expect(await state.storage.keys()).not.toContain("transaction")
           await expectNewComposition(state.storage, state.next)
         },
+        async restartBrowser() {
+          lifecycle.push("restart")
+          expect(await state.storage.keys()).toContain("transaction")
+        },
       })
     })
   })
 
   const service = state.next.find(({name, env}) =>
     name === "@cosmos/release" && env === "service")!
-  expect(lifecycle).toEqual([`prepare:${exactUrl(service)}`, "activate"])
+  expect(lifecycle).toEqual([`prepare:${exactUrl(service)}`, "restart", "activate"])
   expect(diagnostics.map(({event}) => event)).toEqual([
     "transaction начата",
     "exact artifact подготовлен",
@@ -183,6 +192,7 @@ test.serial("UPD-003 remove-only recovery prepares the installed target release 
           return inertRuntime([])
         },
         async activate() {},
+        async restartBrowser() {},
       })
     })
   })
@@ -199,6 +209,139 @@ test.serial("UPD-003 remove-only recovery prepares the installed target release 
     "transaction завершена",
   ])
   expect(diagnostics[0]?.details).toEqual(expect.objectContaining({mode: "recovery"}))
+})
+
+test.serial("lazy artifacts of the predecessor survive until Window handover", async () => {
+  const previousRoot = await artifact("@internal/visual", "main", "1.0.0", "old root")
+  const nextRoot = await artifact("@internal/visual", "main", "1.1.0", "new root")
+  const previousLazy = await nonRootArtifact(
+    "./.cosmos/entry/old.js",
+    "1.0.0",
+    "old lazy",
+  )
+  const nextLazy = await nonRootArtifact(
+    "./.cosmos/entry/new.js",
+    "1.1.0",
+    "new lazy",
+  )
+  const theme = await nonRootArtifact("./theme.css", "1.1.0", "new theme")
+  const storage = new MemoryCacheStorage()
+  const internal = await storage.open("internal")
+  await internal.put(exactUrl(previousRoot.identity), previousRoot.response)
+  await internal.put(exactUrl(previousLazy.identity), previousLazy.response)
+  storage.resetMutations()
+
+  const desired = [nextRoot.identity, theme.identity]
+  const current = [previousRoot.identity, previousLazy.identity]
+  const network = new Map([
+    [exactUrl(nextRoot.identity), nextRoot.response],
+    [exactUrl(theme.identity), theme.response],
+  ])
+  let handovers = 0
+
+  await withServiceWorkerGlobals(storage, network, async () => {
+    await updateRelease(loader, releaseDelta(desired, current), {
+      async prepare() { throw new Error("Service runtime handover is not expected") },
+      async activate() { throw new Error("Service runtime activation is not expected") },
+      async restartBrowser() {
+        handovers += 1
+        expect(await internal.match(exactUrl(previousRoot.identity))).toBeUndefined()
+        expect(await internal.match(exactUrl(previousLazy.identity))).toBeInstanceOf(Response)
+        expect(await storage.keys()).toContain("transaction")
+        await internal.put(exactUrl(nextLazy.identity), nextLazy.response)
+      },
+    })
+  })
+
+  expect(handovers).toBe(1)
+  expect(await internal.match(exactUrl(previousLazy.identity))).toBeUndefined()
+  expect(await internal.match(exactUrl(nextLazy.identity))).toBeInstanceOf(Response)
+  expect(await storage.keys()).not.toContain("transaction")
+})
+
+test.serial("artifact delta fails closed without a matching package root", async () => {
+  const orphan = await nonRootArtifact("./theme.css", "1.1.0", "orphan theme")
+  const storage = new MemoryCacheStorage()
+  const network = new Map([[exactUrl(orphan.identity), orphan.response]])
+
+  await withServiceWorkerGlobals(storage, network, async () => {
+    await expect(updateRelease(loader, {update: [orphan.identity], remove: []}))
+      .rejects.toThrow("has no matching root")
+  })
+})
+
+test.serial("marker recovery restarts Window while a clean empty delta remains inert", async () => {
+  const storage = new MemoryCacheStorage()
+  let restarts = 0
+  let failRestart = false
+  const handover = {
+    async prepare() { throw new Error("Service runtime handover is not expected") },
+    async activate() { throw new Error("Service runtime activation is not expected") },
+    async restartBrowser() {
+      restarts += 1
+      if (failRestart) {
+        failRestart = false
+        throw new Error("injected Window handover failure")
+      }
+    },
+  }
+
+  await withServiceWorkerGlobals(storage, new Map(), async () => {
+    expect(await updateRelease(loader, {update: [], remove: []}, handover)).toEqual([])
+    expect(restarts).toBe(0)
+
+    await (await storage.open("transaction"))
+      .put(`${origin}/transaction`, new Response(null, {status: 204}))
+    failRestart = true
+    await expect(updateRelease(loader, {update: [], remove: []}, handover))
+      .rejects.toThrow("injected Window handover failure")
+    expect(await storage.keys()).toContain("transaction")
+    expect(await updateRelease(loader, {update: [], remove: []}, handover))
+      .toEqual(["transaction"])
+  })
+
+  expect(restarts).toBe(2)
+  expect(await storage.keys()).not.toContain("transaction")
+})
+
+test.serial("corrupt target lazy is removed before Window restart and can be repaired", async () => {
+  const visualRoot = await artifact("@internal/visual", "main", "1.1.0", "visual root")
+  const validLazy = await nonRootArtifact(
+    "./.cosmos/entry/current.js",
+    "1.1.0",
+    "valid current lazy",
+  )
+  const previous = await artifact("@internal/other", "main", "1.0.0", "old other")
+  const next = await artifact("@internal/other", "main", "1.1.0", "new other")
+  const storage = new MemoryCacheStorage()
+  const internal = await storage.open("internal")
+  await internal.put(exactUrl(visualRoot.identity), visualRoot.response)
+  await internal.put(exactUrl(previous.identity), previous.response)
+  await internal.put(exactUrl(validLazy.identity), new Response("corrupt", {
+    headers: validLazy.response.headers,
+  }))
+  storage.resetMutations()
+  const network = new Map([[exactUrl(next.identity), next.response]])
+  let restarts = 0
+
+  await withServiceWorkerGlobals(storage, network, async () => {
+    const current = await currentReleasePackages()
+    await updateRelease(loader, releaseDelta(
+      [visualRoot.identity, next.identity],
+      current,
+    ), {
+      async prepare() { throw new Error("Service runtime handover is not expected") },
+      async activate() { throw new Error("Service runtime activation is not expected") },
+      async restartBrowser() {
+        restarts += 1
+        expect(await internal.match(exactUrl(validLazy.identity))).toBeUndefined()
+        await internal.put(exactUrl(validLazy.identity), validLazy.response)
+      },
+    })
+  })
+
+  expect(restarts).toBe(1)
+  expect(await internal.match(exactUrl(validLazy.identity))).toBeInstanceOf(Response)
 })
 
 test.serial("UPD-003 startup uses Cache order and fails closed on a damaged first release", async () => {
@@ -242,6 +385,12 @@ const loader = {
     return response
   },
 } as Parameters<typeof updateRelease>[0]
+
+const quietHandover = {
+  async prepare() { return inertRuntime([]) },
+  async activate() {},
+  async restartBrowser() {},
+}
 
 async function fixture() {
   const previousArtifacts = await Promise.all([
@@ -296,7 +445,7 @@ async function runUpdate(state: Awaited<ReturnType<typeof fixture>>) {
   await captureDiagnostics(async () => {
     await withServiceWorkerGlobals(state.storage, state.network, async () => {
       try {
-        await updateRelease(loader, state.delta)
+        await updateRelease(loader, state.delta, quietHandover)
       } catch (caught) {
         error = caught
       }
@@ -342,8 +491,34 @@ async function artifact(
   }
 }
 
-function exactUrl(entry: Pick<BrowserPackageIdentity, "name" | "env" | "version">) {
-  return `${origin}${browserPackageUrl(entry.name, entry.env, entry.version)}`
+async function nonRootArtifact(
+  artifact: "./theme.css" | `./.cosmos/${string}`,
+  version: string,
+  source: string,
+) {
+  const bytes = new TextEncoder().encode(source)
+  const identity: BrowserPackageArtifactIdentity = {
+    name: "@internal/visual",
+    env: "main",
+    artifact,
+    version,
+    ...await artifactIntegrity(bytes.buffer as ArrayBuffer),
+  }
+  return {
+    identity,
+    response: new Response(bytes, {
+      headers: {
+        "Content-Type": artifact.endsWith(".css") ? "text/css" : "text/javascript",
+        ...packageArtifactIdentityHeaders(identity),
+      },
+    }),
+  }
+}
+
+function exactUrl(
+  entry: Pick<BrowserPackageArtifactIdentity, "name" | "env" | "artifact" | "version">,
+) {
+  return `${origin}${browserPackageIdentityUrl(entry)}`
 }
 
 async function withServiceWorkerGlobals<T>(

@@ -2,25 +2,37 @@ import {
   isBrowserPackageEnvironment,
   type BrowserPackageEnvironment,
 } from "../../shared/package/environment"
-import {isSha256, type BrowserPackageIdentity} from "../../shared/package/integrity"
-import {browserPackageCache, browserPackageSlot, browserPackageUrl} from "../../shared/package/url"
+import {
+  readPackageArtifactKey,
+  rootPackageArtifact,
+  type NonRootPackageArtifactKey,
+} from "./artifact"
+import {isSha256} from "../../shared/package/integrity"
+import type {BrowserPackageArtifactIdentity} from "./artifact-integrity"
+import {browserPackageCache} from "../../shared/package/url"
+import {
+  browserPackageIdentitySlot,
+  browserPackageIdentityUrl,
+} from "./artifact-url"
 
 /** Exact cache entry, которую server должен удалить из browser release. */
 export interface ReleaseRemoval {
   name: string
   env: BrowserPackageEnvironment
+  /** Omitted for the historical root artifact. */
+  artifact?: NonRootPackageArtifactKey
   version: string
 }
 
 /** Единственный ответ server: только отличия current от desired. */
 export interface ReleaseDelta {
-  update: BrowserPackageIdentity[]
+  update: BrowserPackageArtifactIdentity[]
   remove: ReleaseRemoval[]
 }
 
 export interface ReleaseCurrentMessage {
   type: "release-current"
-  current: BrowserPackageIdentity[]
+  current: BrowserPackageArtifactIdentity[]
 }
 
 export interface ReleaseDeltaMessage extends ReleaseDelta {
@@ -44,7 +56,7 @@ export function parseReleaseChangedMessage(value: unknown): ReleaseChangedMessag
 
 /** Формирует полный фактический current state одного browser profile. */
 export function releaseCurrentMessage(
-  current: BrowserPackageIdentity[],
+  current: BrowserPackageArtifactIdentity[],
 ): ReleaseCurrentMessage {
   return {type: "release-current", current}
 }
@@ -70,23 +82,24 @@ export function parseReleaseDeltaMessage(value: unknown): ReleaseDeltaMessage | 
   const update = packageIdentities(value.update, true)
   const remove = releaseRemovals(value.remove)
   if (update === null || remove === null) return null
-  const updated = new Set(update.map(({name, env, version}) =>
-    browserPackageUrl(name, env, version)))
-  if (remove.some(({name, env, version}) => updated.has(browserPackageUrl(name, env, version))))
+  const updated = new Set(update.map(browserPackageIdentityUrl))
+  if (remove.some((entry) => updated.has(browserPackageIdentityUrl(entry))))
     return null
   return releaseDeltaMessage({update, remove})
 }
 
 function packageIdentities(value: unknown, uniqueSlots: boolean) {
   if (!Array.isArray(value)) return null
-  const identities: BrowserPackageIdentity[] = []
+  const identities: BrowserPackageArtifactIdentity[] = []
   const entries = new Set<string>()
   const slots = new Set<string>()
 
   for (const entry of value) {
-    if (!recordWithKeys(entry, ["name", "env", "version", "sha256", "size"])) return null
+    if (!recordWithOptionalArtifact(entry, ["name", "env", "version", "sha256", "size"])) return null
+    const artifact = readPackageArtifactKey(entry.artifact)
     if (
-      typeof entry.name !== "string"
+      artifact === null
+      || typeof entry.name !== "string"
       || typeof entry.env !== "string"
       || !isBrowserPackageEnvironment(entry.env)
       || typeof entry.version !== "string"
@@ -100,17 +113,27 @@ function packageIdentities(value: unknown, uniqueSlots: boolean) {
 
     let exact: string
     try {
-      exact = browserPackageUrl(entry.name, entry.env, entry.version)
+      exact = browserPackageIdentityUrl({
+        name: entry.name,
+        env: entry.env,
+        ...(artifact === rootPackageArtifact ? {} : {artifact}),
+        version: entry.version,
+      })
     } catch {
       return null
     }
-    const slot = browserPackageSlot(entry.name, entry.env)
+    const slot = browserPackageIdentitySlot({
+      name: entry.name,
+      env: entry.env,
+      ...(artifact === rootPackageArtifact ? {} : {artifact}),
+    })
     if (entries.has(exact) || uniqueSlots && slots.has(slot)) return null
     entries.add(exact)
     slots.add(slot)
     identities.push({
       name: entry.name,
       env: entry.env,
+      ...(artifact === rootPackageArtifact ? {} : {artifact}),
       version: entry.version,
       sha256: entry.sha256,
       size: entry.size,
@@ -126,9 +149,11 @@ function releaseRemovals(value: unknown) {
   const entries = new Set<string>()
 
   for (const entry of value) {
-    if (!recordWithKeys(entry, ["name", "env", "version"])) return null
+    if (!recordWithOptionalArtifact(entry, ["name", "env", "version"])) return null
+    const artifact = readPackageArtifactKey(entry.artifact)
     if (
-      typeof entry.name !== "string"
+      artifact === null
+      || typeof entry.name !== "string"
       || typeof entry.env !== "string"
       || !isBrowserPackageEnvironment(entry.env)
       || typeof entry.version !== "string"
@@ -137,13 +162,23 @@ function releaseRemovals(value: unknown) {
     ) return null
     let exact: string
     try {
-      exact = browserPackageUrl(entry.name, entry.env, entry.version)
+      exact = browserPackageIdentityUrl({
+        name: entry.name,
+        env: entry.env,
+        ...(artifact === rootPackageArtifact ? {} : {artifact}),
+        version: entry.version,
+      })
     } catch {
       return null
     }
     if (entries.has(exact)) return null
     entries.add(exact)
-    removals.push({name: entry.name, env: entry.env, version: entry.version})
+    removals.push({
+      name: entry.name,
+      env: entry.env,
+      ...(artifact === rootPackageArtifact ? {} : {artifact}),
+      version: entry.version,
+    })
   }
 
   return removals
@@ -153,4 +188,11 @@ function recordWithKeys(value: unknown, keys: string[]): value is Record<string,
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false
   const actual = Object.keys(value)
   return actual.length === keys.length && keys.every((key) => actual.includes(key))
+}
+
+function recordWithOptionalArtifact(value: unknown, keys: string[]): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false
+  const actual = Object.keys(value)
+  const expected = (value as Record<string, unknown>).artifact === undefined ? keys : [...keys, "artifact"]
+  return actual.length === expected.length && expected.every((key) => actual.includes(key))
 }

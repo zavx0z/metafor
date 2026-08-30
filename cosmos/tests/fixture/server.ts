@@ -82,8 +82,11 @@ const server = Bun.serve<RpcSocketData>({
       return new Response(file)
     },
     "/@cosmos/:module": {GET: fixtureArtifactResponse},
+    "/@cosmos/:module/*": {GET: fixtureArtifactResponse},
     "/@internal/:module": {GET: fixtureArtifactResponse},
+    "/@internal/:module/*": {GET: fixtureArtifactResponse},
     "/@metafor/:module": {GET: fixtureArtifactResponse},
+    "/@metafor/:module/*": {GET: fixtureArtifactResponse},
     "/code": {
       GET: async (request: Request) => {
         const url = new URL(request.url)
