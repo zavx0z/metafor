@@ -13,6 +13,7 @@ import puppeteer, {
   type WebWorker,
 } from "puppeteer-core"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
+import type {NonRootPackageArtifactKey} from "../release/shared/artifact"
 
 setDefaultTimeout(180_000)
 
@@ -49,6 +50,9 @@ type ServerMode = "production-fixture" | "update" | FixtureFault
 interface FixtureArtifact {
   name: "@cosmos/startup" | "@cosmos/release" | "@internal/visual"
   env: "main" | "service"
+  artifact?: NonRootPackageArtifactKey
+  load?: "eager" | "lazy"
+  type?: string
   version: string
   path: string
 }
@@ -80,7 +84,14 @@ beforeAll(async () => {
   if (failure) throw new Error(
     `Browser fixture build failed for ${failure.plan.name}:${failure.plan.env}: ${failure.result.stderr}`,
   )
-  fixtureArtifacts = results.map(({plan, path}) => ({...plan, path}))
+  fixtureArtifacts = results.flatMap(({plan, artifacts}) =>
+    artifacts.map(({artifact, load, path, type}) => ({
+      ...plan,
+      ...(artifact === undefined ? {} : {artifact}),
+      ...(load === undefined ? {} : {load}),
+      ...(type === undefined ? {} : {type}),
+      path,
+    })))
 })
 
 afterAll(async () => {
@@ -95,11 +106,7 @@ async function buildBrowserFixtures(
     path: string
   }>,
 ) {
-  const input = fixtures.map(({plan, path}) => ({
-    name: plan.name,
-    env: plan.env,
-    path,
-  }))
+  const input = fixtures.map(({plan, path}) => ({...plan, path}))
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
     "--conditions=cosmos:server",
@@ -107,7 +114,28 @@ async function buildBrowserFixtures(
     "-e",
     `import {buildPackage} from "./release/server"
 const plans=${JSON.stringify(input)}
-console.log(JSON.stringify(await Promise.all(plans.map(async ({name,env,path})=>({name,env,path,result:await buildPackage(name,{env,artifact:path})})))))`,
+console.log(JSON.stringify(await Promise.all(plans.map(async ({name,env,version,path})=>{
+  const result = name === "@internal/visual" && env === "main"
+    ? await buildPackage(name,{env,outdir:path + ".outputs",version})
+    : await buildPackage(name,{env,artifact:path})
+  const artifacts = []
+  if (result.success && name === "@internal/visual" && env === "main") {
+    const root = result.outputs.find(({artifact})=>artifact === ".")
+    const outputs = result.outputs.filter(({kind})=>kind !== "sourcemap")
+    const eager = outputs.filter(({artifact,load})=>artifact !== "." && load === "eager")
+    if (!root || eager.length === 0) throw new Error("Visual fixture outputs are incomplete")
+    await Bun.write(path,Bun.file(root.path))
+    artifacts.push({path,load:root.load})
+    for (const [index,output] of outputs.filter(({artifact})=>artifact !== ".").entries()) {
+      const artifactPath = path + ".artifact-" + index
+      await Bun.write(artifactPath,Bun.file(output.path))
+      artifacts.push({artifact:output.artifact,load:output.load,path:artifactPath,type:output.type})
+    }
+  } else {
+    artifacts.push({path})
+  }
+  return {name,env,path,result,artifacts}
+}))))`,
   ], {
     cwd: cosmos,
     env: {...process.env, NODE_ENV: "development"},
@@ -127,12 +155,19 @@ console.log(JSON.stringify(await Promise.all(plans.map(async ({name,env,path})=>
     env: FixtureArtifact["env"]
     path: string
     result: {success: boolean, stderr: string}
+    artifacts: Array<{
+      artifact?: NonRootPackageArtifactKey
+      load?: "eager" | "lazy"
+      path: string
+      type?: string
+    }>
   }>
-  return results.map(({name, env, path, result}) => ({
+  return results.map(({name, env, path, result, artifacts}) => ({
     plan: fixtures.find((fixture) =>
       fixture.plan.name === name && fixture.plan.env === env && fixture.path === path)!.plan,
     path,
     result,
+    artifacts,
   }))
 }
 
@@ -356,9 +391,10 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
       "transaction начата",
       "полный candidate composition проверен",
       "release runtime candidate подготовлен",
-      "canonical cleanup завершён",
+      "canonical root cleanup завершён",
       "перезагрузка Window начата",
       "перезагрузка Window завершена",
+      "lazy cleanup после Window handover завершён",
       "transaction завершена",
       "release service запущен",
       "release service очищен",
@@ -1095,7 +1131,8 @@ async function waitForAcceptedCaches(page: Page) {
             })
             const match = matches[0]
             return matches.length === 1 && match
-              ? await cache.match(match, {ignoreVary: true})
+              && await cache.match(match, {ignoreVary: true})
+              ? match
               : undefined
           }
           const [releaseMain, releaseService, visual] = await Promise.all([
@@ -1103,6 +1140,24 @@ async function waitForAcceptedCaches(page: Page) {
             cachedPackage("@cosmos/release", "service", releases),
             cachedPackage("@internal/visual", "main", internal),
           ])
+          const visualVersion = visual === undefined
+            ? null
+            : new URL(visual.url).searchParams.get("version")
+          const themeRequests = (await internal.keys()).filter((request) => {
+            const url = new URL(request.url)
+            return url.pathname === "/@internal/visual/theme.css"
+              && url.searchParams.get("env") === "main"
+              && [...url.searchParams.keys()].join(",") === "env,version"
+          })
+          const themeLinks = [...document.querySelectorAll<HTMLLinkElement>(
+            'link[rel="stylesheet"]',
+          )].filter((link) => {
+            const url = new URL(link.href)
+            return url.pathname === "/@internal/visual/theme.css"
+              && url.searchParams.get("env") === "main"
+              && url.searchParams.get("version") === visualVersion
+              && link.sheet !== null
+          })
           return Boolean(
             await startup.match("/")
             && await startup.match("/@cosmos/startup?env=main")
@@ -1110,6 +1165,10 @@ async function waitForAcceptedCaches(page: Page) {
             && releaseMain
             && releaseService
             && visual
+            && themeRequests.length === 1
+            && new URL(themeRequests[0]!.url).searchParams.get("version") === visualVersion
+            && await internal.match(themeRequests[0]!, {ignoreVary: true})
+            && themeLinks.length === 1
             && !(await caches.keys()).includes("transaction")
             && navigator.serviceWorker.controller
           )
@@ -1194,6 +1253,22 @@ async function expectCanonicalReleaseCaches(page: Page) {
       new RegExp(`^/${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\?env=${env}&version=\\d+\\.\\d+\\.\\d+$`),
     )
   }
+  const visualRoot = snapshot.internal?.find((path) => {
+    const url = new URL(path, "http://cache.test")
+    return url.pathname === "/@internal/visual"
+      && url.searchParams.get("env") === "main"
+  })
+  const visualVersion = visualRoot === undefined
+    ? null
+    : new URL(visualRoot, "http://cache.test").searchParams.get("version")
+  const themeEntries = snapshot.internal?.filter((path) => {
+    const url = new URL(path, "http://cache.test")
+    return url.pathname === "/@internal/visual/theme.css"
+      && url.searchParams.get("env") === "main"
+  }) ?? []
+  expect(themeEntries).toHaveLength(1)
+  expect(new URL(themeEntries[0]!, "http://cache.test").searchParams.get("version"))
+    .toBe(visualVersion)
   expect(Object.values(snapshot).flat()).not.toContain("/transaction")
 }
 

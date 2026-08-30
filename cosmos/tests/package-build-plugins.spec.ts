@@ -15,10 +15,15 @@ const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
 setDefaultTimeout(30_000)
 
-test("packages without Cosmos plugin config preserve direct Bun commands", async () => {
+test("legacy packages stay direct while Visual main owns one compiler plugin", async () => {
   for (const name of ["@cosmos/startup", "@cosmos/release", "@internal/visual"]) {
     for (const owner of await packageOwners(name)) {
-      expect(owner.plugins).toEqual([])
+      if (name === "@internal/visual" && owner.env === "main") {
+        expect(owner.plugins).toHaveLength(1)
+        expect(owner.plugins[0]).toEndWith("/cosmos/internal/visual/build/template.plugin.ts")
+      } else {
+        expect(owner.plugins).toEqual([])
+      }
       expect(owner.loaders).toEqual(name === "@internal/visual" ? {".wgsl": "text"} : {})
       expect(packageBuildCommand(owner.build, "production").join(" ")).toBe(owner.build)
     }

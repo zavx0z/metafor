@@ -52,9 +52,11 @@
         "@engine/core": "link:@engine/core",
         "@ui/components": "link:@ui/components",
         "@zavx0z/dom": "link:@zavx0z/dom",
+        "@zavx0z/react": "link:@zavx0z/react",
         "@zavx0z/renderer": "link:@zavx0z/renderer",
         "@zavx0z/renderer-browser": "link:@zavx0z/renderer-browser",
         "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
+        "@zavx0z/template": "link:@zavx0z/template",
       },
     },
     "cosmos/release": {

@@ -26,6 +26,7 @@ import {artifactResponse} from "./response"
 import {cosmosRoot} from "../shared/paths"
 import {
   browserPackageSourceMapUrl,
+  canonicalizeInlineSourceMap,
   externalizeSourceMap,
   sourceMapArtifact,
 } from "./source-map"
@@ -380,6 +381,15 @@ async function adapterBuildOutputs(
       if (output.kind !== "entry-point" && output.kind !== "chunk") continue
       if (!output.path.endsWith(".js")) continue
       await externalizeSourceMap(output.path)
+    }
+  } else if (Bun.env.NODE_ENV === "development") {
+    const canonicalized = new Set<string>()
+    for (const {output} of bindings) {
+      if (canonicalized.has(output.path)) continue
+      if (output.kind !== "entry-point" && output.kind !== "chunk") continue
+      if (!output.path.endsWith(".js")) continue
+      canonicalized.add(output.path)
+      await canonicalizeInlineSourceMap(output.path)
     }
   }
 

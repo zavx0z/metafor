@@ -31,6 +31,7 @@ export type {
 export {acceptsBrotli} from "./package/response"
 export {
   browserPackageSourceMapUrl,
+  canonicalizeInlineSourceMap,
   canonicalExecutableSource,
   externalizeSourceMap,
   parseBrowserPackageSourceMapUrl,

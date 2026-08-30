@@ -1,12 +1,14 @@
 /**
 Browser entrypoint готовой визуальной среды Cosmos.
 
-Initial evaluation требует принадлежащий приложению canvas, получает
-Engine-owned default font и создаёт один semantic Experience Document в одном
-SpaceRuntime. Основная поверхность является world-space root, а навигационный
-dock — sibling camera-locked overlay root того же Document и Engine frame.
-Отсутствующий canvas либо font declaration завершает запуск до экспорта
-готового runtime.
+Initial evaluation требует принадлежащий приложению canvas, создаёт один
+semantic Experience Document и подключает к нему exact linked public theme.
+Только после готовности native stylesheet и Engine-owned default font он
+создаёт один SpaceRuntime. Основная поверхность является world-space root, а
+compiled production Button dock — sibling camera-locked overlay root того же
+Document и Engine frame. Отсутствующий canvas, package version, font declaration
+либо stylesheet завершает запуск до экспорта готового runtime и освобождает
+созданный stylesheet host.
 
 Пользовательский [закон визуальной среды](../README.md#визуальная-среда-main)
 отделяет эту инфраструктуру от смысла показываемых Quantum/metafor данных.
@@ -19,15 +21,18 @@ dock — sibling camera-locked overlay root того же Document и Engine fra
 import {GridHelper} from "@engine/core"
 import {loadDocumentDefaultFont} from "@engine/core/default-font"
 import {
+  createBrowserLinkedAuthorStyleSheetHost,
   createDocumentSpaceRuntime,
+  type DocumentSpaceRuntime,
   type DocumentSpaceViewPointSnapshot,
 } from "@zavx0z/renderer-browser"
-import {createDisplayDock, type DisplayMode} from "./display-dock.ts"
+import {createDisplayDock, type DisplayDock, type DisplayMode} from "./display-dock.tsx"
 import {createMainExperienceDocument} from "./experience-document.ts"
 
 const VISUAL_CANVAS_ID = "visual-canvas"
 const VISUAL_DISPLAY_ID = "main"
 const VISUAL_DOCK_ID = "main-display-dock"
+const VISUAL_THEME_ID = "@internal/visual/theme.css"
 const VISUAL_DISPLAY_CENTER_MM = Object.freeze({x: 0, y: 0, z: 900})
 const VISUAL_DISPLAY_NEAR_DISTANCE_MM = 600
 const VISUAL_DISPLAY_FAR_DISTANCE_MM = 1_600
@@ -42,14 +47,18 @@ const VISUAL_DISPLAY_QUATERNION = Object.freeze({
 /** Точный browser environment этого platform entrypoint. */
 export const environment = "main" as const
 
-const canvas = globalThis.document.getElementById(VISUAL_CANVAS_ID)
-if (!(canvas instanceof HTMLCanvasElement)) {
+const canvasElement = globalThis.document.getElementById(VISUAL_CANVAS_ID)
+if (!(canvasElement instanceof HTMLCanvasElement)) {
   throw new Error(`Window visual canvas #${VISUAL_CANVAS_ID} is missing`)
 }
+const canvas: HTMLCanvasElement = canvasElement
 
-const font = await loadDocumentDefaultFont()
 const experience = createMainExperienceDocument()
 const experienceDocument = experience.document
+const packageVersion = import.meta.env.COSMOS_PACKAGE_VERSION
+if (typeof packageVersion !== "string" || packageVersion.length === 0) {
+  throw new Error("Window visual package version is missing")
+}
 const surface = experience.surface
 surface.id = VISUAL_DISPLAY_ID
 surface.title = "Основная поверхность Cosmos"
@@ -74,72 +83,156 @@ const initialViewPoint = Object.freeze({
   far: 5_000,
 }) satisfies DocumentSpaceViewPointSnapshot
 
-/** Готовый shared visual runtime после обязательной initial materialization. */
-export const runtime = await createDocumentSpaceRuntime({
-  canvas,
-  document: experienceDocument,
-  font,
-  styleSheets: [],
-  viewPoint: initialViewPoint,
-  cameraGestures: true,
-})
+const {
+  canvasResizeObserver,
+  dock,
+  documentRuntime,
+  grid,
+  themeHost,
+  themeLink,
+} = await initializeVisual()
 
-const grid = new GridHelper(2400, 24)
-grid.name = "SpaceFloorGrid"
-grid.frustumCulled = false
-runtime.space.add(grid)
+let visualDisposed = false
+const disposeVisual = (): void => {
+  if (visualDisposed) return
+  visualDisposed = true
+  canvasResizeObserver.disconnect()
+  dock.dispose()
+  documentRuntime.space.remove(grid)
+  documentRuntime.dispose()
+  themeHost.dispose()
+  themeLink.remove()
+}
 
-const displayViewport = readCanvasViewport(canvas)
-runtime.addPlane({
-  id: VISUAL_DISPLAY_ID,
-  root: surface,
-  viewport: displayViewport,
-  worldUnitsPerPixel: displayWorldUnitsPerPixel(displayViewport.height),
-  transform: {
-    position: VISUAL_DISPLAY_CENTER_MM,
-    quaternion: VISUAL_DISPLAY_QUATERNION,
+/**
+Готовый shared visual runtime после обязательной initial materialization.
+
+`dispose()` освобождает component roots и runtime до linked stylesheet host.
+*/
+export const runtime = Object.freeze(Object.create(
+  Object.getPrototypeOf(documentRuntime),
+  {
+    ...Object.getOwnPropertyDescriptors(documentRuntime),
+    dispose: Object.freeze({
+      configurable: false,
+      enumerable: true,
+      value: disposeVisual,
+      writable: false,
+    }),
   },
-})
-
-let displayMode: DisplayMode = "far"
-let farViewPoint = runtime.snapshotViewPoint()
-const dock = createDisplayDock(experienceDocument, () => {
-  if (displayMode === "far") {
-    farViewPoint = runtime.snapshotViewPoint()
-    runtime.restoreViewPoint(focusedViewPoint(farViewPoint))
-    runtime.setCameraGesturesEnabled(false)
-    displayMode = "near"
-  } else {
-    runtime.restoreViewPoint(farViewPoint)
-    runtime.setCameraGesturesEnabled(true)
-    displayMode = "far"
-  }
-  dock.setMode(displayMode)
-})
-dock.resize(displayViewport.width)
-experience.mountOverlay(dock.root)
-runtime.addOverlay({
-  id: VISUAL_DOCK_ID,
-  root: dock.container,
-})
-
-const canvasResizeObserver = new ResizeObserver(() => {
-  const viewport = readCanvasViewport(canvas)
-  dock.resize(viewport.width)
-  runtime.updatePlane(VISUAL_DISPLAY_ID, {
-    viewport,
-    worldUnitsPerPixel: displayWorldUnitsPerPixel(viewport.height),
-  })
-})
-canvasResizeObserver.observe(canvas)
-runtime.render()
+)) as DocumentSpaceRuntime
 
 console.debug("[@internal/visual:main]", "основное visual-окружение создано", {
-  space: runtime.space,
-  viewPoint: runtime.viewPoint,
-  display: runtime.getPlane(VISUAL_DISPLAY_ID)?.plane,
-  dock: runtime.getOverlay(VISUAL_DOCK_ID)?.overlay,
+  space: documentRuntime.space,
+  viewPoint: documentRuntime.viewPoint,
+  display: documentRuntime.getPlane(VISUAL_DISPLAY_ID)?.plane,
+  dock: documentRuntime.getOverlay(VISUAL_DOCK_ID)?.overlay,
 })
+
+async function initializeVisual() {
+  const themeLink = globalThis.document.createElement("link")
+  themeLink.rel = "stylesheet"
+  themeLink.href = `/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`
+  globalThis.document.head.append(themeLink)
+  let themeHost: ReturnType<typeof createBrowserLinkedAuthorStyleSheetHost> | null = null
+  let documentRuntime: DocumentSpaceRuntime | null = null
+  let grid: GridHelper | null = null
+  let dock: DisplayDock | null = null
+  let canvasResizeObserver: ResizeObserver | null = null
+
+  try {
+    const linkedThemeHost = createBrowserLinkedAuthorStyleSheetHost({
+      canvas,
+      document: experienceDocument,
+      sources: [{id: VISUAL_THEME_ID, link: themeLink}],
+    })
+    themeHost = linkedThemeHost
+    const [font] = await Promise.all([
+      loadDocumentDefaultFont(),
+      linkedThemeHost.ready,
+    ])
+    const createdRuntime = await createDocumentSpaceRuntime({
+      canvas,
+      document: experienceDocument,
+      font,
+      styleSheets: [],
+      viewPoint: initialViewPoint,
+      cameraGestures: true,
+    })
+    documentRuntime = createdRuntime
+
+    const createdGrid = new GridHelper(2400, 24)
+    grid = createdGrid
+    createdGrid.name = "SpaceFloorGrid"
+    createdGrid.frustumCulled = false
+    createdRuntime.space.add(createdGrid)
+
+    const displayViewport = readCanvasViewport(canvas)
+    createdRuntime.addPlane({
+      id: VISUAL_DISPLAY_ID,
+      root: surface,
+      viewport: displayViewport,
+      worldUnitsPerPixel: displayWorldUnitsPerPixel(displayViewport.height),
+      transform: {
+        position: VISUAL_DISPLAY_CENTER_MM,
+        quaternion: VISUAL_DISPLAY_QUATERNION,
+      },
+    })
+
+    let displayMode: DisplayMode = "far"
+    let farViewPoint = createdRuntime.snapshotViewPoint()
+    const mountedDock = createDisplayDock(experienceDocument, () => {
+      if (displayMode === "far") {
+        farViewPoint = createdRuntime.snapshotViewPoint()
+        createdRuntime.restoreViewPoint(focusedViewPoint(farViewPoint))
+        createdRuntime.setCameraGesturesEnabled(false)
+        displayMode = "near"
+      } else {
+        createdRuntime.restoreViewPoint(farViewPoint)
+        createdRuntime.setCameraGesturesEnabled(true)
+        displayMode = "far"
+      }
+      mountedDock.setMode(displayMode)
+    })
+    dock = mountedDock
+    mountedDock.resize(displayViewport.width)
+    experience.mountOverlay(mountedDock.root)
+    createdRuntime.addOverlay({
+      id: VISUAL_DOCK_ID,
+      root: mountedDock.container,
+    })
+
+    const resizeObserver = new ResizeObserver(() => {
+      const viewport = readCanvasViewport(canvas)
+      mountedDock.resize(viewport.width)
+      createdRuntime.updatePlane(VISUAL_DISPLAY_ID, {
+        viewport,
+        worldUnitsPerPixel: displayWorldUnitsPerPixel(viewport.height),
+      })
+    })
+    canvasResizeObserver = resizeObserver
+    resizeObserver.observe(canvas)
+    createdRuntime.render()
+    return Object.freeze({
+      canvasResizeObserver: resizeObserver,
+      dock: mountedDock,
+      documentRuntime: createdRuntime,
+      grid: createdGrid,
+      themeHost: linkedThemeHost,
+      themeLink,
+    })
+  } catch (error) {
+    canvasResizeObserver?.disconnect()
+    dock?.dispose()
+    if (documentRuntime !== null) {
+      if (grid !== null) documentRuntime.space.remove(grid)
+      documentRuntime.dispose()
+    }
+    themeHost?.dispose()
+    themeLink.remove()
+    throw error
+  }
+}
 
 function readCanvasViewport(owner: HTMLCanvasElement): Readonly<{width: number; height: number}> {
   const rect = owner.getBoundingClientRect()

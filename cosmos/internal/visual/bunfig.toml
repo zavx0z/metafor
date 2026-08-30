@@ -1,2 +1,5 @@
 [loader]
 ".wgsl" = "text"
+
+[cosmos.package-build.environments.main]
+plugins = ["./build/template.plugin.ts"]

@@ -1,19 +1,21 @@
+import {dirname, join} from "node:path"
 import {
+  buildPackage,
   closeRpc,
   messageRpc,
   openRpc,
+  packageArtifactIdentityHeaders,
   packageChanges,
+  parseBrowserPackageArtifactUrl,
   releaseChangedMessage,
   rpcServiceTopic,
   upgradeRpc,
+  type BrowserPackageArtifactIdentity,
+  type NonRootPackageArtifactKey,
   type RpcSocketData,
   type ReleasablePackage,
-  type ReleasedPackage,
   type VersionChange,
 } from "../../release/server"
-import {
-  parseBrowserPackageUrl,
-} from "../../shared/package/url"
 import {artifactIntegrity, packageIdentityHeaders} from "../../shared/package/integrity"
 import type {BrowserPackageEnvironment} from "../../shared/package/environment"
 
@@ -22,6 +24,24 @@ type Fault =
   | "release-service-http-once"
   | "update-build-failure-once"
   | "update-fetch-failure-once"
+
+type FixtureArtifactConfig = Readonly<{
+  name: string
+  env: BrowserPackageEnvironment
+  artifact?: NonRootPackageArtifactKey
+  load?: "eager" | "lazy"
+  type?: string
+  version: string
+  path: string
+  revision: number
+}>
+
+type FixtureReleasePlan = Readonly<{
+  name: ReleasablePackage
+  change: VersionChange
+  previousVersion: string
+  version: string
+}>
 
 const fault = (process.env.LOAD_TEST_FAULT ?? "none") as Fault
 const port = Number(process.env.LOAD_TEST_PORT)
@@ -40,15 +60,17 @@ const revisions: Record<ReleasablePackage, number> = {
 }
 const versions = new Map<ReleasablePackage, string>()
 const environments = new Map<ReleasablePackage, BrowserPackageEnvironment[]>()
-for (const {name, env, version} of artifactConfig.values()) {
+for (const {name, env, artifact, version} of artifactConfig.values()) {
   if (name !== "@cosmos/release" && name !== "@internal/visual") continue
   const previousVersion = versions.get(name)
   if (previousVersion !== undefined && previousVersion !== version)
     throw new Error(`Fixture package ${name} mixes versions ${previousVersion} and ${version}`)
   versions.set(name, version)
-  const packageEnvironments = environments.get(name) ?? []
-  packageEnvironments.push(env)
-  environments.set(name, packageEnvironments)
+  if (artifact === undefined) {
+    const packageEnvironments = environments.get(name) ?? []
+    packageEnvironments.push(env)
+    environments.set(name, packageEnvironments)
+  }
 }
 let buildRequests = 0
 let updateFetchFailures = 0
@@ -125,6 +147,26 @@ const server = Bun.serve<RpcSocketData>({
         const success = results.every((result) => result.success)
         if (!success) return Response.json({success, results, packages: []}, {status: 422})
 
+        let staged: FixtureArtifactConfig[]
+        try {
+          staged = (await Promise.all(plans.map(stageFixturePackage))).flat()
+        } catch (error) {
+          const result = results.at(-1)
+          if (result) {
+            result.success = false
+            result.exitCode = 1
+            result.stderr = String(error)
+          }
+          return Response.json({success: false, results, packages: []}, {status: 422})
+        }
+        for (const artifact of staged) {
+          artifactConfig.set(artifactKey(
+            artifact.name,
+            artifact.env,
+            artifact.artifact,
+            artifact.version,
+          ), artifact)
+        }
         for (const plan of plans) {
           versions.set(plan.name, plan.version)
           revisions[plan.name] = (revisions[plan.name] ?? 0) + 1
@@ -167,39 +209,105 @@ const server = Bun.serve<RpcSocketData>({
 
 console.info(JSON.stringify({event: "ready", port: server.port, fault}))
 
+async function stageFixturePackage(
+  plan: FixtureReleasePlan,
+): Promise<FixtureArtifactConfig[]> {
+  const revision = (revisions[plan.name] ?? 0) + 1
+  if (plan.name !== "@internal/visual") {
+    const current = [...artifactConfig.values()].filter(({name, version}) =>
+      name === plan.name && version === plan.previousVersion)
+    if (current.length !== (environments.get(plan.name) ?? []).length) {
+      throw new Error(`Fixture roots are incomplete for ${plan.name}:${plan.previousVersion}`)
+    }
+    return current.map((artifact) => Object.freeze({
+      ...artifact,
+      version: plan.version,
+      revision,
+    }))
+  }
+
+  const currentRoot = artifactConfig.get(artifactKey(
+    plan.name,
+    "main",
+    undefined,
+    plan.previousVersion,
+  ))
+  if (!currentRoot) throw new Error(`Visual fixture root is missing for ${plan.previousVersion}`)
+  const outdir = join(
+    dirname(currentRoot.path),
+    `visual-${port}-${buildRequests}-${plan.version.replaceAll(".", "-")}`,
+  )
+  const build = await buildPackage(plan.name, {
+    env: "main",
+    outdir,
+    version: plan.version,
+  })
+  if (!build.success) {
+    throw new Error(`Visual fixture build failed for ${plan.version}: ${build.stderr}`)
+  }
+  const outputs = build.outputs.filter(({kind}) => kind !== "sourcemap")
+  const roots = outputs.filter(({artifact}) => artifact === ".")
+  const eagerNonRoots = outputs.filter(({artifact, load}) => artifact !== "." && load === "eager")
+  if (roots.length !== 1 || eagerNonRoots.length === 0) {
+    throw new Error(`Visual fixture outputs are incomplete for ${plan.version}`)
+  }
+  return outputs.map((output) => Object.freeze({
+    name: plan.name,
+    env: "main" as const,
+    ...(output.artifact === "."
+      ? {}
+      : {artifact: output.artifact as NonRootPackageArtifactKey}),
+    ...(output.load === undefined ? {} : {load: output.load}),
+    ...(output.type === undefined ? {} : {type: output.type}),
+    version: plan.version,
+    path: output.path,
+    revision,
+  }))
+}
+
 async function artifactResponse(
   module: ReleasablePackage,
   env: BrowserPackageEnvironment,
+  artifact?: NonRootPackageArtifactKey,
+  version = versions.get(module)!,
 ) {
-  const artifact = artifactConfig.get(artifactKey(module, env))
-  if (!artifact) return new Response(null, {status: 404})
-  const original = await Bun.file(artifact.path).text()
-  const revision = revisions[module] ?? 0
-  const source = revision === 0
+  const configured = artifactConfig.get(artifactKey(module, env, artifact, version))
+  if (!configured) return new Response(null, {status: 404})
+  const original = await Bun.file(configured.path).text()
+  const revision = configured.revision
+  const source = revision === 0 || artifact !== undefined
     ? original
     : `${original}\nconsole.info(${JSON.stringify(`fixture ${module} ${revision}`)})`
   const integrity = await artifactIntegrity(new TextEncoder().encode(source).buffer as ArrayBuffer)
-  const headers = artifactHeaders(env)
-  for (const [header, value] of Object.entries(packageIdentityHeaders({
+  const identity: BrowserPackageArtifactIdentity = {
     name: module,
     env,
-    version: versions.get(module)!,
+    ...(artifact === undefined ? {} : {artifact}),
+    version,
     ...integrity,
-  }))) headers.set(header, value)
+  }
+  const headers = artifactHeaders(env, configured.type)
+  for (const [header, value] of Object.entries(packageArtifactIdentityHeaders(identity))) {
+    headers.set(header, value)
+  }
   return new Response(source, {headers})
 }
 
 async function fixtureArtifactResponse(request: Request) {
   const url = new URL(request.url)
-  const artifact = parseBrowserPackageUrl(url)
+  const artifact = parseBrowserPackageArtifactUrl(url)
   if (artifact === null) return new Response(null, {status: 404})
-  const configured = artifactConfig.get(artifactKey(artifact.name, artifact.env))
+  const selectedVersion = artifact.name === "@cosmos/startup"
+    ? artifact.version ?? initialArtifactVersion(artifact.name, artifact.env, artifact.artifact)
+    : artifact.version ?? versions.get(artifact.name as ReleasablePackage)
+  if (selectedVersion === undefined) return new Response(null, {status: 404})
+  const configured = artifactConfig.get(artifactKey(
+    artifact.name,
+    artifact.env,
+    artifact.artifact,
+    selectedVersion,
+  ))
   if (!configured) return new Response(null, {status: 404})
-  const currentVersion = artifact.name === "@cosmos/startup"
-    ? configured.version
-    : versions.get(artifact.name as ReleasablePackage)
-  if (artifact.version !== null && artifact.version !== currentVersion)
-    return new Response(null, {status: 404})
 
   switch (artifact.name) {
     case "@cosmos/startup":
@@ -207,7 +315,7 @@ async function fixtureArtifactResponse(request: Request) {
     case "@cosmos/release": {
       if (artifact.env === "main") {
         requests.releaseMain += 1
-        return await artifactResponse(artifact.name, artifact.env)
+        return await artifactResponse(artifact.name, artifact.env, undefined, selectedVersion)
       }
       requests.releaseService += 1
       if (fault === "release-service-http-once" && requests.releaseService === 1) {
@@ -226,11 +334,16 @@ async function fixtureArtifactResponse(request: Request) {
         await Bun.sleep(500)
         return new Response("Update artifact unavailable", {status: 503})
       }
-      return await artifactResponse(artifact.name, artifact.env)
+      return await artifactResponse(artifact.name, artifact.env, undefined, selectedVersion)
     }
     case "@internal/visual":
       requests.internalVisual += 1
-      return await artifactResponse(artifact.name, artifact.env)
+      return await artifactResponse(
+        artifact.name,
+        artifact.env,
+        artifact.artifact,
+        selectedVersion,
+      )
     default:
       return new Response(null, {status: 404})
   }
@@ -246,8 +359,21 @@ async function staticArtifactResponse(
   })
 }
 
-async function fixturePackages(): Promise<ReleasedPackage[]> {
-  return (await Promise.all([...versions].map(([name]) => fixturePackageEnvironments(name)))).flat()
+async function fixturePackages(): Promise<BrowserPackageArtifactIdentity[]> {
+  const roots = (await Promise.all([...versions].map(([name]) =>
+    fixturePackageEnvironments(name)))).flat()
+  const publicArtifacts = await Promise.all([...artifactConfig.values()].flatMap((artifact) =>
+    artifact.artifact === undefined
+      || artifact.name !== "@internal/visual"
+      || artifact.version !== versions.get("@internal/visual")
+      || artifact.load !== "eager"
+      ? []
+      : [fixtureArtifactIdentity(
+          artifact.name,
+          artifact.env,
+          artifact.artifact,
+        )]))
+  return [...roots, ...publicArtifacts]
 }
 
 async function fixturePackageEnvironments(name: ReleasablePackage) {
@@ -257,7 +383,7 @@ async function fixturePackageEnvironments(name: ReleasablePackage) {
 async function fixturePackage(
   name: ReleasablePackage,
   env: BrowserPackageEnvironment,
-): Promise<ReleasedPackage> {
+): Promise<BrowserPackageArtifactIdentity> {
   const version = versions.get(name)!
   const response = await artifactResponse(name, env)
   const sha256 = response.headers.get("X-Package-SHA256")
@@ -271,6 +397,20 @@ async function fixturePackage(
     sha256,
     size,
   }
+}
+
+async function fixtureArtifactIdentity(
+  name: ReleasablePackage,
+  env: BrowserPackageEnvironment,
+  artifact: NonRootPackageArtifactKey,
+): Promise<BrowserPackageArtifactIdentity> {
+  const version = versions.get(name)!
+  const response = await artifactResponse(name, env, artifact)
+  const sha256 = response.headers.get("X-Package-SHA256")
+  const size = Number(response.headers.get("X-Package-Size"))
+  if (sha256 === null || !Number.isSafeInteger(size) || size <= 0)
+    throw new Error(`Fixture identity is missing for ${name}:${env}:${artifact}`)
+  return {name, env, artifact, version, sha256, size}
 }
 
 function changedVersion(version: string, change: VersionChange) {
@@ -293,18 +433,40 @@ function parseArtifactConfig(value: string | undefined) {
   const entries = JSON.parse(value) as Array<{
     name: string
     env: BrowserPackageEnvironment
+    artifact?: NonRootPackageArtifactKey
+    load?: "eager" | "lazy"
+    type?: string
     version: string
     path: string
   }>
-  return new Map(entries.map((entry) => [artifactKey(entry.name, entry.env), entry]))
+  return new Map<string, FixtureArtifactConfig>(entries.map((entry) => [
+    artifactKey(entry.name, entry.env, entry.artifact, entry.version),
+    Object.freeze({...entry, revision: 0}),
+  ]))
 }
 
-function artifactKey(name: string, env: BrowserPackageEnvironment) {
-  return `${name}\u0000${env}`
+function initialArtifactVersion(
+  name: string,
+  env: BrowserPackageEnvironment,
+  artifact?: NonRootPackageArtifactKey,
+) {
+  return [...artifactConfig.values()].find((configured) =>
+    configured.name === name
+    && configured.env === env
+    && configured.artifact === artifact)?.version
 }
 
-function artifactHeaders(env: BrowserPackageEnvironment) {
-  const headers = new Headers(javascriptHeaders)
+function artifactKey(
+  name: string,
+  env: BrowserPackageEnvironment,
+  artifact: string | undefined,
+  version: string,
+) {
+  return `${name}\u0000${env}\u0000${artifact ?? "."}\u0000${version}`
+}
+
+function artifactHeaders(env: BrowserPackageEnvironment, type?: string) {
+  const headers = new Headers({"Content-Type": type ?? javascriptHeaders["Content-Type"]})
   if (env === "service") {
     headers.set("Content-Security-Policy", "script-src 'unsafe-eval'")
     headers.set("Service-Worker-Allowed", "/")

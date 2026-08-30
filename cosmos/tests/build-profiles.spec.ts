@@ -452,8 +452,11 @@ test("development keeps debug and source maps while production drops both", asyn
     expect(development.sources.internalVisual).toContain("[@internal/visual:main]")
     expect(development.releaseServer).toContain("Bun.serve")
     expect(development.releaseServer).toContain("process.send")
-    for (const artifact of Object.values(development.sources))
+    for (const [name, artifact] of Object.entries(development.sources)) {
+      if (name === "internalVisual") continue
       expect(artifact).not.toContain("sourceMappingURL=data:application/json")
+    }
+    expect(development.sources.internalVisual).toContain("sourceMappingURL=data:application/json")
     for (const artifact of Object.values(development.sources))
       expect(artifact).not.toContain("//# debugId=")
     expect(development.sourceMaps.every(Boolean)).toBeTrue()
@@ -553,15 +556,18 @@ async function build(mode: "development" | "production") {
     releaseMain: join(directory, "release-main.js"),
     releaseService: join(directory, "release-service.js"),
     releaseServer: join(directory, "release-server.js"),
-    internalVisual: join(directory, "visual-main.js"),
+    internalVisual: join(directory, "visual-main"),
     internalVisualServer: join(directory, "visual-server.js"),
   }
+  const {version: visualVersion} = await Bun.file(
+    join(cosmos, "internal/visual/package.json"),
+  ).json() as {version: string}
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
     "--conditions=cosmos:server",
     "--conditions=internal:server",
     "-e",
-    `import {buildPackage} from "@cosmos/release"; const artifacts = ${JSON.stringify(artifacts)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/startup", {env:"server",artifact:artifacts.startupServer}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",artifact:artifacts.internalVisual}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
+    `import {buildPackage} from "@cosmos/release"; const artifacts = ${JSON.stringify(artifacts)}; const visualVersion = ${JSON.stringify(visualVersion)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/startup", {env:"server",artifact:artifacts.startupServer}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",outdir:artifacts.internalVisual,version:visualVersion}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
   ], {
     cwd: cosmos,
     env: {...process.env, NODE_ENV: mode},
@@ -580,6 +586,7 @@ async function build(mode: "development" | "production") {
       env: PackageEnvironment
       success: boolean
       exitCode: number | null
+      outputs: Array<{artifact?: string, path: string}>
     }>
     expect(exitCode).toBe(0)
     expect(result.map(({env, success, exitCode: buildExitCode}) => ({env, success, exitCode: buildExitCode})))
@@ -593,16 +600,20 @@ async function build(mode: "development" | "production") {
         {env: "main", success: true, exitCode: 0},
         {env: "server", success: true, exitCode: 0},
       ])
+    const visualRoot = result[6]?.outputs.find(({artifact}) => artifact === ".")
+    if (!visualRoot) throw new Error("Visual root output is missing")
     return {
       releaseServer: await Bun.file(artifacts.releaseServer).text(),
       sources: {
-        internalVisual: await Bun.file(artifacts.internalVisual).text(),
+        internalVisual: await Bun.file(visualRoot.path).text(),
         releaseMain: await Bun.file(artifacts.releaseMain).text(),
         startupMain: await Bun.file(artifacts.startupMain).text(),
         releaseService: await Bun.file(artifacts.releaseService).text(),
       },
       sourceMaps: await Promise.all(
-        Object.values(artifacts).map((artifact) => Bun.file(`${artifact}.map`).exists()),
+        Object.entries(artifacts)
+          .filter(([name]) => name !== "internalVisual")
+          .map(([, artifact]) => Bun.file(`${artifact}.map`).exists()),
       ),
     }
   } finally {

@@ -45,7 +45,9 @@ test("release tests direct every mutation to test-owned temporary fixtures", asy
   expect(publication).toContain("release-workspace-process.ts")
   expect(release).not.toContain("recoverPublication")
   expect(ham005).toContain('artifact: join(directory, "release-main.js")')
-  expect(ham005).toContain('artifact: join(directory, "visual-main.js")')
+  expect(ham005).toContain('const visualOutdir = join(directory, "visual-main")')
+  expect(ham005).toContain("outdir: visualOutdir")
+  expect(ham005).toContain("version: visualVersion")
 })
 
 async function productionSources() {

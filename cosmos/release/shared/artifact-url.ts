@@ -27,12 +27,12 @@ export interface BrowserPackageArtifactUrl extends BrowserPackageUrl {
 }
 
 /**
- * Formats one canonical browser artifact URL.
- *
- * Root delegates to the historical formatter. Public exports add their exact
- * subpath and retain canonical `env`, then `version` query order. Generated
- * outputs are exact-only below a version-pinned `.cosmos` path.
- */
+Formats one canonical browser artifact URL.
+
+Root delegates to the historical formatter. Public exports add their exact
+subpath and retain canonical `env`, then `version` query order. Generated
+outputs are exact-only below a version-pinned `.cosmos` path.
+*/
 export function browserPackageArtifactUrl(
   name: string,
   env: BrowserPackageEnvironment,

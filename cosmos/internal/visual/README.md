@@ -19,8 +19,11 @@ Visual объявляет свои платформенные части по
    composition root;
 1. создаёт через `@zavx0z/dom` (далее — DOM) один semantic Document visual
    Experience с отдельными roots основной поверхности и навигации;
-1. `@zavx0z/renderer-browser` (далее — browser renderer) создаёт один Canvas,
-   Engine renderer, Space и ViewPoint для этого Document;
+1. загружает стандартным browser link собственную public theme, собранную из
+   UI-owner source, и переносит её правила в тот же semantic Document;
+1. `@zavx0z/renderer-browser` (далее — browser renderer) использует один
+   Canvas приложения и создаёт один Engine renderer, Space и ViewPoint для
+   этого Document;
 1. помещает основную поверхность в world-space plane, а навигацию — в
    camera-locked overlay того же кадра;
 1. согласует display с доступной областью Window;
@@ -46,6 +49,11 @@ Visual владеет созданием визуальной среды и её
 Binary default font принадлежит Engine. Visual не хранит его копию и не
 передаёт font path отдельным surfaces или UI packages; release server только
 публикует выбранный composition URL и сохраняет его в runtime offline cache.
+
+Theme source и production controls принадлежат `@ui/components` (далее — UI
+components). Visual не копирует их CSS и не делает UI components отдельным
+участником Cosmos release: visual связывает эту обычную dependency в свои
+public artifacts и подключает один stylesheet к своему Experience.
 
 Точные side effects, public exports и ошибки запуска принадлежат внутрикодовой
 TSDoc visual entrypoints.

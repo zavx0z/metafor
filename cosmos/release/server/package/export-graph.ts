@@ -33,14 +33,14 @@ interface ExportDeclaration {
 }
 
 /**
- * Expands standard package exports into a deterministic environment artifact graph.
- *
- * Conditional targets select one exact environment. A conditionless target is
- * shared by every environment declared elsewhere in the same exports object.
- * File extension never selects an environment: one shared source may be built
- * separately for browser and Bun. Wildcards are expanded from the package
- * filesystem without following symbolic links.
- */
+Expands standard package exports into a deterministic environment artifact graph.
+
+Conditional targets select one exact environment. A conditionless target is
+shared by every environment declared elsewhere in the same exports object.
+File extension never selects an environment: one shared source may be built
+separately for browser and Bun. Wildcards are expanded from the package
+filesystem without following symbolic links.
+*/
 export async function packageExportGraph(
   packageRoot: string,
   manifest: PackageExportsManifest,

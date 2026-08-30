@@ -1,21 +1,77 @@
-import {expect, test} from "bun:test"
-import {createDocument, Event} from "@zavx0z/dom"
+import {afterAll, beforeAll, expect, test} from "bun:test"
+import {mkdtemp, rm, symlink} from "node:fs/promises"
+import {join, resolve} from "node:path"
+import {tmpdir} from "node:os"
+import {pathToFileURL} from "node:url"
+import {
+  createDocument,
+  Event,
+  readDocumentCompiledStyleSheets,
+} from "@zavx0z/dom"
 import {createDocumentRenderer} from "@zavx0z/renderer"
-import {createDisplayDock} from "./display-dock.ts"
+import visualTemplatePlugin from "../build/template.plugin.ts"
+import type {createDisplayDock as CreateDisplayDock} from "./display-dock.tsx"
 
-test("display dock uses ordinary DOM hover, title and click semantics", () => {
+type CompiledDisplayDockModule = Readonly<{
+  createDisplayDock: typeof CreateDisplayDock
+}>
+
+let outputDirectory = ""
+let compiled: CompiledDisplayDockModule
+
+beforeAll(async () => {
+  outputDirectory = await mkdtemp(join(tmpdir(), "metafor-visual-display-dock-"))
+  await symlink(
+    resolve(import.meta.dir, "../../../..", "node_modules"),
+    join(outputDirectory, "node_modules"),
+    "dir",
+  )
+  const result = await Bun.build({
+    entrypoints: [join(import.meta.dir, "display-dock.tsx")],
+    outdir: outputDirectory,
+    target: "bun",
+    format: "esm",
+    external: [
+      "@zavx0z/dom",
+      "@zavx0z/react",
+      "@zavx0z/template/compiled",
+    ],
+    plugins: [visualTemplatePlugin],
+  })
+  if (!result.success) throw new Error("Visual display dock did not compile")
+  const output = result.outputs.find(({kind}) => kind === "entry-point")
+  if (output === undefined) throw new Error("Visual display dock emitted no entrypoint")
+  compiled = await import(
+    `${pathToFileURL(output.path).href}?visual-dock=${Date.now()}`
+  ) as CompiledDisplayDockModule
+})
+
+afterAll(async () => {
+  if (outputDirectory !== "") await rm(outputDirectory, {recursive: true, force: true})
+})
+
+test("display dock keeps production Button identity across hover and navigation state", () => {
   const document = createDocument()
   let returns = 0
-  const dock = createDisplayDock(document, () => { returns += 1 })
+  const dock = compiled.createDisplayDock(document, () => { returns += 1 })
 
-  expect(dock.root.firstChild).toBe(dock.container)
+  expect(dock.root.querySelector("#main-display-dock")).toBe(dock.container)
+  expect([...dock.container.querySelectorAll("button")]).toEqual([
+    dock.returnButton,
+    dock.dockButton,
+  ])
   expect(dock.expanded).toBeFalse()
-  expect(dock.returnButton.getAttribute("style")).toContain("display: none")
   expect(dock.dockButton.title).toBe("Приблизить основную поверхность")
+  expect(dock.dockButton.getAttribute("aria-pressed")).toBe("false")
   dock.resize(1_000)
-  expect(dock.container.getAttribute("style")).toContain("left: 462.5px")
-  expect(dock.container.getAttribute("style")).toContain("width: 75px")
   document.appendChild(dock.root)
+
+  const adopted = readDocumentCompiledStyleSheets(document).styleSheets
+  const compiledCss = adopted.map(({cssText}) => cssText).join("\n")
+  expect(compiledCss).toContain('[data-expanded="true"]')
+  expect(compiledCss).toContain("--widget-regular-background")
+  expect(compiledCss).toContain(":hover")
+
   const renderer = createDocumentRenderer({
     document,
     root: document,
@@ -23,9 +79,14 @@ test("display dock uses ordinary DOM hover, title and click semantics", () => {
   })
   expect(renderer.flush().boxByNode.has(dock.returnButton)).toBeFalse()
 
+  const container = dock.container
+  const returnButton = dock.returnButton
+  const dockButton = dock.dockButton
   dock.container.dispatchEvent(new Event("pointerenter"))
   expect(dock.expanded).toBeTrue()
-  expect(dock.returnButton.getAttribute("style")).not.toContain("display: none")
+  expect(dock.container).toBe(container)
+  expect(dock.returnButton).toBe(returnButton)
+  expect(dock.dockButton).toBe(dockButton)
   const expandedFrame = renderer.flush()
   expect(expandedFrame.boxByNode.get(dock.container)).toMatchObject({
     x: 462.5,
@@ -53,7 +114,10 @@ test("display dock uses ordinary DOM hover, title and click semantics", () => {
   expect(dock.pinned).toBeFalse()
   expect(dock.expanded).toBeFalse()
 
+  renderer.dispose()
   dock.dispose()
   dock.dockButton.click()
   expect(dock.pinned).toBeFalse()
+  expect(document.querySelector("#main-display-dock")).toBeNull()
+  expect(readDocumentCompiledStyleSheets(document).styleSheets).toEqual([])
 })

@@ -41,6 +41,22 @@ export async function externalizeSourceMap(artifact: string) {
   ])
 }
 
+/** Keeps an inline development map while removing Bun's random debug identity. */
+export async function canonicalizeInlineSourceMap(artifact: string) {
+  const source = await Bun.file(artifact).text()
+  const marker = "//# sourceMappingURL=data:application/json;base64,"
+  const markerIndex = source.lastIndexOf(marker)
+  if (markerIndex === -1) throw new Error(`Inline source map is missing: ${artifact}`)
+  const encoded = source.slice(markerIndex + marker.length).split(/\r?\n/, 1)[0]?.trim()
+  if (!encoded) throw new Error(`Inline source map payload is missing: ${artifact}`)
+  const parsed = JSON.parse(Buffer.from(encoded, "base64").toString("utf8")) as Record<string, unknown>
+  if (parsed.version !== 3) throw new Error(`Source map has unsupported version: ${artifact}`)
+  delete parsed.debugId
+  const canonicalMap = Buffer.from(JSON.stringify(parsed)).toString("base64")
+  const executable = canonicalExecutableSource(source.slice(0, markerIndex)).trimEnd()
+  await Bun.write(artifact, `${executable}\n${marker}${canonicalMap}\n`)
+}
+
 /** Формирует canonical URL внешней source map без отдельного package slot. */
 export function browserPackageSourceMapUrl(
   name: string,
