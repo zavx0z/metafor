@@ -12,9 +12,9 @@
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"
   },
   "dependencies": {
-    "@cosmos/release": "workspace:^0.1.20",
+    "@cosmos/release": "workspace:^0.1.21",
     "@cosmos/startup": "workspace:*",
-    "@internal/visual": "workspace:^0.1.18"
+    "@internal/visual": "workspace:^0.1.19"
   },
   "devDependencies": {
     "@engine/core": "link:@engine/core",
