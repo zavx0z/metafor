@@ -37,22 +37,29 @@ export const runtime = Object.freeze({
       throw new Error(`Bulk Storybook requires hud projection: ${String(context.projection)}`)
     }
     let current: BulkHudDomStory | null = null
+    let unsubscribeCurrent: (() => void) | null = null
+    let operation = 0
     let disposed = false
 
-    const show = (input: BulkRuntimeStoryInput): void => {
+    const show = async (input: BulkRuntimeStoryInput): Promise<void> => {
       assertActive(disposed)
       exactRoute(input.route)
       if (context.signal.aborted || input.signal.aborted) return
+      const epoch = ++operation
       const factory = bulkStoryFactory(input.story)
       const next = factory(context.document)
-      if (context.signal.aborted || input.signal.aborted) {
+      await next.ready
+      if (disposed || context.signal.aborted || input.signal.aborted || epoch !== operation) {
         next.dispose()
         return
       }
       if (current !== null) {
+        unsubscribeCurrent?.()
+        unsubscribeCurrent = null
         current.dispose()
       }
       current = next
+      unsubscribeCurrent = next.subscribe(context.requestRender)
       context.present(Object.freeze({
         protocol: "story-presentation/1",
         node: next.element,
@@ -60,9 +67,13 @@ export const runtime = Object.freeze({
         source: next.source,
         values: Object.freeze({props: next.props}),
       }))
+      context.requestRender()
     }
     const unmount = (): void => {
+      operation += 1
       if (current === null) return
+      unsubscribeCurrent?.()
+      unsubscribeCurrent = null
       current.dispose()
       current = null
     }

@@ -26,19 +26,34 @@ describe("Bulk external Storybook boundary", () => {
         variants: [{
           route: "bulk/hud/default",
           resources: {
-            references: ["../VISUAL.md", "../dom/hud.tsx", "./stories/hud.ts"],
+            references: [
+              "../VISUAL.md",
+              "../dom/hud-controller.ts",
+              "../dom/hud.tsx",
+              "./stories/hud.ts",
+            ],
           },
         }],
       }],
     })
   })
 
-  test("mounts production HUD in the external semantic Document", () => {
+  test("mounts the interactive production HUD in the external semantic Document", async () => {
     const document = createDocument()
+    const workbench = document.createElement("main")
+    document.appendChild(workbench)
     const story = createBulkHudStory(document)
+    await story.ready
     expect(story.element).toBe(story.controller.element)
     expect(story.element.ownerDocument).toBe(document)
-    expect(story.source.typescript).toContain("createBulkHudDocument")
+    expect(document.documentElement).toBe(workbench)
+    expect(story.source.typescript).toContain("createBulkHudController")
+    const toggle = story.controller.presentation.controllers.playback.refs.toggleButton
+    expect(toggle.getAttribute("aria-label")).toBe("Продолжить causal time")
+    toggle.click()
+    await eventually(() => story.controller.time.state === "open")
+    expect(toggle.getAttribute("aria-label")).toBe("Приостановить causal time")
+    expect(story.props.causalTime.timeline.frameCurrent).toBe(0)
     expect(Object.keys(story.source).sort()).toEqual(["html", "typescript"])
     expect(story.componentRoot.readStyleSheets().styleSheets.length).toBeGreaterThan(0)
     story.dispose()
@@ -77,3 +92,11 @@ describe("Bulk external Storybook boundary", () => {
     expect(await Bun.file(join(repositoryRoot, "quantum/storybook/package.json")).exists()).toBeFalse()
   })
 })
+
+async function eventually(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) return
+    await new Promise<void>((resolve) => setTimeout(resolve, 0))
+  }
+  throw new Error("Expected asynchronous HUD story state was not reached")
+}

@@ -12,7 +12,7 @@
           "kind": "component",
           "label": "Bulk HUD",
           "route": "bulk/hud",
-          "apiName": "createBulkHudDocument",
+          "apiName": "createBulkHudController",
           "tags": ["hud", "timeline", "fullscreen", "causal"],
           "presentation": {"protocol": "story-presentation/1", "projection": "hud", "widgets": ["props", "source", "diagnostics"]},
           "variants": [
@@ -27,6 +27,7 @@
               "resources": {
                 "references": [
                   "../VISUAL.md",
+                  "../dom/hud-controller.ts",
                   "../dom/hud.tsx",
                   "./stories/hud.ts"
                 ]

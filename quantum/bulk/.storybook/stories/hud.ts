@@ -6,12 +6,16 @@ import type {
 } from "@zavx0z/dom"
 import type {ComponentRoot} from "@zavx0z/react"
 import {
-  createBulkHudDocument,
-  type BulkHudDocumentController,
+  createBulkHudController,
+  type BulkFullscreenHost,
+  type BulkHudController,
+} from "../../dom/hud-controller.ts"
+import {
   type BulkHudDocumentProps,
 } from "../../dom/hud.tsx"
 import {
   buildBulkCausalTimePresentation,
+  type BulkCausalTimeTransport,
   readBulkTimeFrames,
 } from "../../dom/causal-time.ts"
 
@@ -23,47 +27,92 @@ export type BulkHudStorySource = Readonly<{
 export type BulkHudDomStory = Readonly<{
   element: HTMLElement
   componentRoot: Pick<ComponentRoot, "readStyleSheets">
-  controller: BulkHudDocumentController
+  controller: BulkHudController
+  ready: Promise<void>
   props: BulkHudDocumentProps
   source: BulkHudStorySource
-  update(props: BulkHudDocumentProps): void
+  subscribe(listener: () => void): () => void
   dispose(): void
 }>
 
+const bulkHudStoryFrames = readBulkTimeFrames([
+  {id: 1, frontier: {acceptanceSequence: 4}, resolution: "exact"},
+  {id: 2, frontier: {acceptanceSequence: 16}, resolution: "degraded"},
+])
+
 export const bulkHudStoryDefaultProps: BulkHudDocumentProps = Object.freeze({
   title: "Bulk Visual",
-  subtitle: "Causal projection",
+  subtitle: `Keyframes: ${bulkHudStoryFrames.length}`,
   fullscreen: false,
   fullscreenDisabled: false,
-  causalTime: buildBulkCausalTimePresentation(readBulkTimeFrames([
-    {id: 1, frontier: {acceptanceSequence: 4}, resolution: "exact"},
-    {id: 2, frontier: {acceptanceSequence: 16}, resolution: "degraded"},
-  ]), 1, "paused"),
+  causalTime: buildBulkCausalTimePresentation(bulkHudStoryFrames, 1, "paused"),
 })
 
 export function createBulkHudStory(
   document: Document,
-  initialProps: BulkHudDocumentProps = bulkHudStoryDefaultProps,
 ): BulkHudDomStory {
-  const controller = createBulkHudDocument(document, initialProps)
-  let currentProps = controller.props
+  const listeners = new Set<() => void>()
+  const notify = (): void => {
+    for (const listener of listeners) listener()
+  }
+  const transport = createBulkHudStoryTransport()
+  const fullscreen = createBulkHudStoryFullscreenHost()
+  const presentationHost = document.createElement("div")
+  const controller = createBulkHudController({
+    document,
+    parent: presentationHost,
+    transport,
+    fullscreen,
+  })
+  const unsubscribeTime = controller.time.subscribe(notify)
+  const unsubscribeFullscreen = fullscreen.subscribe(notify)
+  const ready = controller.ready.then(notify)
   let disposed = false
 
   return Object.freeze({
     element: controller.element,
-    componentRoot: controller.componentRoot,
+    componentRoot: controller.presentation.componentRoot,
     controller,
-    get props() { return currentProps },
-    get source() { return bulkHudSource(controller.element, currentProps) },
-    update(props) {
+    ready,
+    get props() { return controller.presentation.props },
+    get source() { return bulkHudSource(controller.element, controller.presentation.props) },
+    subscribe(listener) {
       if (disposed) throw new Error("BulkHudStory is disposed")
-      controller.update(props)
-      currentProps = controller.props
+      listeners.add(listener)
+      return () => listeners.delete(listener)
     },
     dispose() {
       if (disposed) return
       disposed = true
+      unsubscribeTime()
+      unsubscribeFullscreen()
+      listeners.clear()
       controller.dispose()
+    },
+  })
+}
+
+function createBulkHudStoryTransport(): BulkCausalTimeTransport {
+  let frames: readonly unknown[] = bulkHudStoryFrames
+  return Object.freeze({
+    async stack() { return frames },
+    async pause() { frames = bulkHudStoryFrames },
+    async resume() { frames = Object.freeze([]) },
+  })
+}
+
+function createBulkHudStoryFullscreenHost(): BulkFullscreenHost {
+  const listeners = new Set<() => void>()
+  let fullscreen = false
+  return Object.freeze({
+    active: () => fullscreen,
+    async toggle() {
+      fullscreen = !fullscreen
+      for (const listener of listeners) listener()
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
     },
   })
 }
@@ -73,12 +122,36 @@ function bulkHudSource(root: HTMLElement, props: BulkHudDocumentProps): BulkHudS
     html: serializeElement(root),
     typescript: [
       'import {createDocument} from "@zavx0z/dom"',
-      'import {createBulkHudDocument} from "../../dom/hud.tsx"',
+      'import {createBulkHudController} from "../../dom/hud-controller.ts"',
       "",
       "const document = createDocument()",
-      `const props = ${JSON.stringify(props, null, 2)}`,
-      "const controller = createBulkHudDocument(document, props)",
-      "document.appendChild(controller.element)",
+      'const presentationHost = document.createElement("div")',
+      `const storyFrames = ${JSON.stringify(bulkHudStoryFrames, null, 2)}`,
+      "let frames: readonly unknown[] = storyFrames",
+      "let fullscreen = false",
+      "const fullscreenListeners = new Set<() => void>()",
+      "const controller = createBulkHudController({",
+      "  document,",
+      "  parent: presentationHost,",
+      "  transport: {",
+      "    async stack() { return frames },",
+      "    async pause() { frames = storyFrames },",
+      "    async resume() { frames = [] },",
+      "  },",
+      "  fullscreen: {",
+      "    active: () => fullscreen,",
+      "    async toggle() {",
+      "      fullscreen = !fullscreen",
+      "      for (const listener of fullscreenListeners) listener()",
+      "    },",
+      "    subscribe(listener) {",
+      "      fullscreenListeners.add(listener)",
+      "      return () => fullscreenListeners.delete(listener)",
+      "    },",
+      "  },",
+      "})",
+      "await controller.ready",
+      `// Current frame: ${props.causalTime.timeline.frameCurrent}`,
     ].join("\n"),
   })
 }
