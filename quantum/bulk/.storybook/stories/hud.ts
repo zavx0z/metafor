@@ -10,6 +10,10 @@ import {
   type BulkHudDocumentController,
   type BulkHudDocumentProps,
 } from "../../dom/hud.tsx"
+import {
+  buildBulkCausalTimePresentation,
+  readBulkTimeFrames,
+} from "../../dom/causal-time.ts"
 
 export type BulkHudStorySource = Readonly<{
   html: string
@@ -31,18 +35,10 @@ export const bulkHudStoryDefaultProps: BulkHudDocumentProps = Object.freeze({
   subtitle: "Causal projection",
   fullscreen: false,
   fullscreenDisabled: false,
-  causalTimeline: Object.freeze({
-    title: "Время · causal stack",
-    min: 0,
-    max: 24,
-    current: 16,
-    playing: false,
-    tracks: Object.freeze([
-      causalTrack("force", "Force"),
-      causalTrack("mass", "Mass"),
-      causalTrack("boundary", "Boundary"),
-    ]),
-  }),
+  causalTime: buildBulkCausalTimePresentation(readBulkTimeFrames([
+    {id: 1, frontier: {acceptanceSequence: 4}, resolution: "exact"},
+    {id: 2, frontier: {acceptanceSequence: 16}, resolution: "degraded"},
+  ]), 1, "paused"),
 })
 
 export function createBulkHudStory(
@@ -69,17 +65,6 @@ export function createBulkHudStory(
       disposed = true
       controller.dispose()
     },
-  })
-}
-
-function causalTrack(key: string, label: string) {
-  return Object.freeze({
-    key,
-    label,
-    markers: Object.freeze([
-      Object.freeze({key: "frame-1", tick: 4, label: "frame 1", selected: false}),
-      Object.freeze({key: "frame-2", tick: 16, label: "frame 2", selected: true}),
-    ]),
   })
 }
 

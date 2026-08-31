@@ -147,7 +147,7 @@ describe("MetaFor external Storybook delivery", () => {
     expect(graphSources).toContain('from "@ui/components/checkbox"')
     expect(bulkSources).toContain('from "../../dom/hud.tsx"')
     expect(bulkOwner).toContain('from "@ui/components/hud"')
-    expect(bulkOwner).toContain("const bulkHudRootStyle: CssStyle = css`")
+    expect(bulkOwner).toContain("style={css`")
     expect(graphSources).not.toContain("@zavx0z/storybook")
     expect(bulkSources).not.toContain("@zavx0z/storybook")
   })

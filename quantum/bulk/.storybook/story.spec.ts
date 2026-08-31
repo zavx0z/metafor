@@ -1,6 +1,10 @@
 import {describe, expect, test} from "bun:test"
 import {createDocument} from "@zavx0z/dom"
 import {
+  buildBulkCausalTimePresentation,
+  readBulkTimeFrames,
+} from "../dom/causal-time.ts"
+import {
   bulkHudStoryDefaultProps,
   createBulkHudStory,
 } from "./stories/hud.ts"
@@ -16,10 +20,10 @@ describe("Quantum Bulk HUD DOM story", () => {
     expect(story.element.getAttribute("data-bulk-hud")).toBe("")
     expect(story.props).toEqual(bulkHudStoryDefaultProps)
     expect(story.controller.refs.fullscreenButton.textContent).toBe("Полный экран")
-    expect(story.controller.controllers.timeline.refs.trackElements.size).toBe(3)
+    expect(story.controller.controllers.channels.refs.channelElements.size).toBe(3)
     expect(story.source.html).toContain('<section aria-label="Bulk Visual"')
     expect(story.source.html).toContain('data-action-key="fullscreen"')
-    expect(story.source.html).toContain('data-track-key="force"')
+    expect(story.source.html).toContain('data-channel-key="force"')
     expect(Object.keys(story.source).sort()).toEqual(["html", "typescript"])
     expect(story.componentRoot.readStyleSheets().styleSheets.length).toBeGreaterThan(0)
     expect(story.source.typescript).toContain("createBulkHudDocument(document, props)")
@@ -32,39 +36,27 @@ describe("Quantum Bulk HUD DOM story", () => {
     const story = createBulkHudStory(createDocument())
     const root = story.element
     const button = story.controller.refs.fullscreenButton
-    const forceTrack = story.controller.controllers.timeline.refs.trackElements.get("force")!
-    const frame2 = story.controller.controllers.timeline.refs.markerTimes.get("force/frame-2")!
+    const forceChannel = story.controller.controllers.channels.refs.channelElements.get("force")!
+    const frame2 = story.controller.controllers.channels.refs.pointItems.get("force/frame-2")!
 
     story.update({
       ...story.props,
       title: "Bulk Visual · Fullscreen",
       fullscreen: true,
-      causalTimeline: {
-        ...story.props.causalTimeline,
-        current: 20,
-        tracks: [
-          story.props.causalTimeline.tracks[2]!,
-          {
-            ...story.props.causalTimeline.tracks[0]!,
-            label: "Force frontier",
-            markers: [
-              {key: "frame-2", tick: 20, label: "frame 2 · 20", selected: true},
-              story.props.causalTimeline.tracks[0]!.markers[0]!,
-            ],
-          },
-          story.props.causalTimeline.tracks[1]!,
-        ],
-      },
+      causalTime: buildBulkCausalTimePresentation(readBulkTimeFrames([
+        {id: 1, frontier: {acceptanceSequence: 4}, resolution: "exact"},
+        {id: 2, frontier: {acceptanceSequence: 20}, resolution: "overloaded"},
+      ]), 1, "paused"),
     })
 
     expect(story.element).toBe(root)
     expect(story.controller.refs.fullscreenButton).toBe(button)
-    expect(story.controller.controllers.timeline.refs.trackElements.get("force")).toBe(forceTrack)
-    expect(story.controller.controllers.timeline.refs.markerTimes.get("force/frame-2")).toBe(frame2)
+    expect(story.controller.controllers.channels.refs.channelElements.get("force")).toBe(forceChannel)
+    expect(story.controller.controllers.channels.refs.pointItems.get("force/frame-2")).toBe(frame2)
     expect(button.getAttribute("aria-pressed")).toBe("true")
     expect(story.source.html).toContain('aria-label="Bulk Visual · Fullscreen"')
-    expect(story.source.html).toContain('data-tick="20"')
-    expect(story.source.typescript).toContain('"current": 20')
+    expect(story.source.html).toContain('data-frame="20"')
+    expect(story.source.typescript).toContain('"frameCurrent": 20')
 
     story.dispose()
     expect(() => story.update(bulkHudStoryDefaultProps)).toThrow("BulkHudStory is disposed")
