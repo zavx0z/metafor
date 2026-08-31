@@ -1,266 +1,245 @@
 import {describe, expect, test} from "bun:test"
 import {
-	createDocument,
-	HTMLElement,
-	MouseEvent,
-	PointerEvent,
+  createDocument,
+  HTMLElement,
 } from "@zavx0z/dom"
 import {
-	createBulkHudDocument,
-	bulkHudDocumentDefaultProps,
-	type BulkHudDocumentProps,
+  buildBulkCausalTimePresentation,
+  readBulkTimeFrames,
+} from "./causal-time.ts"
+import {
+  createBulkHudDocument,
+  bulkHudDocumentDefaultProps,
+  type BulkHudDocumentProps,
 } from "./hud.tsx"
 
+const controlledFrames = readBulkTimeFrames([
+  {id: 1, frontier: {acceptanceSequence: 4}, resolution: "exact"},
+  {id: 2, frontier: {acceptanceSequence: 10}, resolution: "degraded"},
+])
+
 const controlledProps: BulkHudDocumentProps = Object.freeze({
-	title: "Bulk Visual",
-	subtitle: "Causal projection",
-	fullscreen: false,
-	fullscreenDisabled: false,
-	causalTimeline: Object.freeze({
-		title: "Время · causal stack",
-		min: 0,
-		max: 20,
-		current: 10,
-		playing: false,
-		tracks: Object.freeze([
-			Object.freeze({
-				key: "force",
-				label: "Force",
-				markers: Object.freeze([
-					Object.freeze({key: "frame-1", tick: 4, label: "frame 1", selected: false}),
-					Object.freeze({key: "frame-2", tick: 10, label: "frame 2", selected: true}),
-				]),
-			}),
-			Object.freeze({
-				key: "boundary",
-				label: "Boundary",
-				markers: Object.freeze([
-					Object.freeze({key: "frame-2", tick: 10, label: "frame 2", selected: true}),
-				]),
-			}),
-		]),
-	}),
+  title: "Bulk Visual",
+  subtitle: "Causal projection",
+  fullscreen: false,
+  fullscreenDisabled: false,
+  causalTime: buildBulkCausalTimePresentation(controlledFrames, 1, "paused"),
 })
 
 describe("Bulk DOM HUD production proof", () => {
-	test("composes exact public HudWindow and Timeline controllers into one stable root", () => {
-		const controller = createBulkHudDocument(createDocument())
-		const {root, window, fullscreenButton, timeline} = controller.refs
+  test("composes exact Timeline and Button owners inside separate Bulk causal controllers", () => {
+    const controller = createBulkHudDocument(createDocument())
+    const {root, window, fullscreenButton, timeline, playback, channels} = controller.refs
 
-		expect(controller.element).toBe(root)
-		expect(root).toBeInstanceOf(HTMLElement)
-		expect(root.localName).toBe("section")
-		expect(root.className).toBe("")
-		expect(root.getAttribute("data-bulk-hud")).toBe("")
-		expect(root.getAttribute("data-fullscreen")).toBe("false")
-		expect(root.getAttribute("aria-label")).toBe("Bulk Visual")
-		expect([...root.children]).toEqual([window])
-		expect(controller.controllers.window.element).toBe(window)
-		expect(controller.controllers.timeline.element).toBe(timeline)
-		expect(controller.controllers.window.refs.body.childNodes
-			.filter((node) => node.nodeType === 1)).toEqual([timeline])
-		expect(fullscreenButton).toBe(controller.controllers.window.refs.actionButtons.get("fullscreen")!)
-		expect(fullscreenButton.getAttribute("data-action-key")).toBe("fullscreen")
-		expect(fullscreenButton.getAttribute("aria-pressed")).toBe("false")
-		expect(fullscreenButton.textContent).toBe("Полный экран")
-		expect(controller.controllers.timeline.props).toEqual(bulkHudDocumentDefaultProps.causalTimeline)
-		expect(controller.props).toEqual(bulkHudDocumentDefaultProps)
-		const styleSheets = controller.componentRoot.readStyleSheets().styleSheets
-		expect(styleSheets.length).toBeGreaterThan(0)
-		const cssText = styleSheets.map(({cssText}) => cssText).join("\n")
-		expect(cssText).toContain("bottom:8px")
-		expect(cssText).toContain("min-height:140px")
-		expect(cssText).toContain("--material-editor-outline-active:var(--widget-regular-background-selected)")
-		expect(window.getAttribute("style")).toContain("min-height: 140px")
-		expect(timeline.getAttribute("style")).toContain("min-height: 106px")
-		expect(timeline.getAttribute("style")).toContain("border: 0 solid transparent")
-	})
+    expect(controller.element).toBe(root)
+    expect(root).toBeInstanceOf(HTMLElement)
+    expect(root.localName).toBe("section")
+    expect(root.className).toBe("")
+    expect(root.getAttribute("data-bulk-hud")).toBe("")
+    expect(root.getAttribute("data-fullscreen")).toBe("false")
+    expect(root.getAttribute("aria-label")).toBe("Bulk Visual")
+    expect([...root.children]).toEqual([window])
+    expect(controller.controllers.window.element).toBe(window)
+    expect(controller.controllers.timeline.element).toBe(timeline)
+    expect(controller.controllers.playback.element).toBe(playback)
+    expect(controller.controllers.channels.element).toBe(channels)
+    expect(fullscreenButton).toBe(controller.controllers.window.refs.actionButtons.get("fullscreen")!)
+    expect(fullscreenButton.getAttribute("data-action-key")).toBe("fullscreen")
+    expect(fullscreenButton.getAttribute("aria-pressed")).toBe("false")
+    expect(fullscreenButton.textContent).toBe("Полный экран")
+    expect(playback.parentElement).toBe(timeline.parentElement)
+    expect(channels.parentElement).toBe(timeline.parentElement)
+    expect(timeline.querySelector('[aria-label="Timeline transport"]')).toBeNull()
+    expect(timeline.querySelector('[aria-label="Timeline tracks"]')).toBeNull()
+    expect(timeline.querySelector('[aria-label="Summary keyframes"]')).not.toBeNull()
+    expect(timeline.querySelector('[aria-label="Timeline markers"]')).not.toBeNull()
+    expect(controller.controllers.timeline.props).toEqual(bulkHudDocumentDefaultProps.causalTime.timeline)
+    expect(controller.props).toEqual(bulkHudDocumentDefaultProps)
 
-	test("updates fullscreen and causal snapshot without replacing composite identities", () => {
-		const controller = createBulkHudDocument(createDocument(), controlledProps)
-		const root = controller.element
-		const window = controller.refs.window
-		const timeline = controller.refs.timeline
-		const fullscreenButton = controller.refs.fullscreenButton
-		const forceTrack = controller.controllers.timeline.refs.trackElements.get("force")!
-		const forceLabel = controller.controllers.timeline.refs.trackLabelTexts.get("force")!
-		const frame2 = controller.controllers.timeline.refs.markerTimes.get("force/frame-2")!
-		const frame2Text = controller.controllers.timeline.refs.markerTexts.get("force/frame-2")!
+    const cssText = controller.componentRoot.readStyleSheets().styleSheets
+      .map(({cssText}) => cssText).join("\n")
+    expect(cssText).toContain("bottom:8px")
+    expect(cssText).toContain("min-height:280px")
+    expect(cssText).toContain("border-top:var(--border-width-control) solid var(--widget-regular-outline)")
+    expect(cssText).toContain("--material-editor-outline-active:var(--widget-regular-background-selected)")
+  })
 
-		controller.update({
-			title: "Bulk Visual · Fullscreen",
-			subtitle: "Causal snapshot",
-			fullscreen: true,
-			fullscreenDisabled: true,
-			causalTimeline: {
-				title: "Время · paused frontier",
-				min: 0,
-				max: 24,
-				current: 16,
-				playing: false,
-				tracks: [
-					{
-						key: "boundary",
-						label: "Boundary",
-						markers: [{key: "frame-2", tick: 16, label: "frame 2", selected: true}],
-					},
-					{
-						key: "force",
-						label: "Force frontier",
-						markers: [
-							{key: "frame-2", tick: 16, label: "frame 2 · seq 16", selected: true},
-							{key: "frame-1", tick: 4, label: "frame 1", selected: false},
-						],
-					},
-				],
-			},
-		})
+  test("updates one neutral Timeline and separate causal channels without replacing identities", () => {
+    const controller = createBulkHudDocument(createDocument(), controlledProps)
+    const root = controller.element
+    const window = controller.refs.window
+    const timeline = controller.refs.timeline
+    const playback = controller.refs.playback
+    const channels = controller.refs.channels
+    const fullscreenButton = controller.refs.fullscreenButton
+    const forceChannel = controller.controllers.channels.refs.channelElements.get("force")!
+    const frame2Keyframe = controller.controllers.timeline.refs.keyframeItems.get("frame-2")!
+    const frame2Point = controller.controllers.channels.refs.pointItems.get("force/frame-2")!
+    const nextFrames = readBulkTimeFrames([
+      {id: 1, frontier: {acceptanceSequence: 4}, resolution: "exact"},
+      {id: 2, frontier: {acceptanceSequence: 16}, resolution: "overloaded"},
+    ])
 
-		expect(controller.element).toBe(root)
-		expect(controller.refs.window).toBe(window)
-		expect(controller.refs.timeline).toBe(timeline)
-		expect(controller.refs.fullscreenButton).toBe(fullscreenButton)
-		expect(controller.controllers.window.refs.actionButtons.get("fullscreen")).toBe(fullscreenButton)
-		expect(controller.controllers.timeline.refs.trackElements.get("force")).toBe(forceTrack)
-		expect(controller.controllers.timeline.refs.trackLabelTexts.get("force")).toBe(forceLabel)
-		expect(controller.controllers.timeline.refs.markerTimes.get("force/frame-2")).toBe(frame2)
-		expect(controller.controllers.timeline.refs.markerTexts.get("force/frame-2")).toBe(frame2Text)
-		expect(root.getAttribute("data-fullscreen")).toBe("true")
-		expect(root.className).toBe("")
-		expect(fullscreenButton.getAttribute("aria-pressed")).toBe("true")
-		expect(fullscreenButton.disabled).toBeTrue()
-		expect(fullscreenButton.textContent).toBe("Выйти из полного экрана")
-		expect(controller.controllers.timeline.refs.currentTime.getAttribute("datetime")).toBe("16")
-		expect(controller.controllers.timeline.refs.currentText.data).toBe("16")
-		expect(controller.controllers.timeline.refs.currentTime.getAttribute("aria-label")).toBe("Current 16")
-		expect(forceLabel.data).toBe("Force frontier")
-		expect(frame2.getAttribute("data-tick")).toBe("16")
-		expect(frame2Text.data).toBe("frame 2 · seq 16")
-	})
+    controller.update({
+      title: "Bulk Visual · Fullscreen",
+      subtitle: "Causal snapshot",
+      fullscreen: true,
+      fullscreenDisabled: true,
+      causalTime: buildBulkCausalTimePresentation(nextFrames, 1, "paused"),
+    })
 
-	test("keeps standard bubbling observable without changing controlled state", () => {
-		const document = createDocument()
-		const host = document.createElement("div")
-		const controller = createBulkHudDocument(document, controlledProps)
-		document.appendChild(host)
-		host.appendChild(controller.element)
-		const props = controller.props
-		const events: string[] = []
-		host.addEventListener("click", (event) => {
-			events.push(`${event.type}:${(event.target as HTMLElement).localName}`)
-		})
-		host.addEventListener("pointerdown", (event) => {
-			events.push(`${event.type}:${(event.target as HTMLElement).localName}`)
-		})
+    expect(controller.element).toBe(root)
+    expect(controller.refs.window).toBe(window)
+    expect(controller.refs.timeline).toBe(timeline)
+    expect(controller.refs.playback).toBe(playback)
+    expect(controller.refs.channels).toBe(channels)
+    expect(controller.refs.fullscreenButton).toBe(fullscreenButton)
+    expect(controller.controllers.channels.refs.channelElements.get("force")).toBe(forceChannel)
+    expect(controller.controllers.timeline.refs.keyframeItems.get("frame-2")).toBe(frame2Keyframe)
+    expect(controller.controllers.channels.refs.pointItems.get("force/frame-2")).toBe(frame2Point)
+    expect(root.getAttribute("data-fullscreen")).toBe("true")
+    expect(fullscreenButton.getAttribute("aria-pressed")).toBe("true")
+    expect(fullscreenButton.disabled).toBeTrue()
+    expect(fullscreenButton.textContent).toBe("Выйти из полного экрана")
+    expect(controller.controllers.timeline.refs.currentOutput.getAttribute("aria-label"))
+      .toBe("Current frame 16")
+    expect(controller.controllers.timeline.refs.currentText.data).toBe("16")
+    expect(frame2Keyframe.getAttribute("data-frame")).toBe("16")
+    expect(frame2Point.getAttribute("data-frame")).toBe("16")
+    expect(frame2Point.getAttribute("data-resolution")).toBe("overloaded")
+    expect(controller.controllers.playback.refs.toggleButton.textContent).toBe("Продолжить")
+  })
 
-		controller.refs.fullscreenButton.click()
-		controller.controllers.timeline.refs.playButton.click()
-		controller.controllers.timeline.refs.markerTimes.get("force/frame-2")!
-			.dispatchEvent(new PointerEvent("pointerdown", {bubbles: true}))
-		controller.controllers.timeline.refs.currentTime
-			.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+  test("keeps ordinary bubbling intent without changing controlled presentation state", () => {
+    const document = createDocument()
+    const host = document.createElement("div")
+    const controller = createBulkHudDocument(document, controlledProps)
+    document.appendChild(host)
+    host.appendChild(controller.element)
+    const props = controller.props
+    const events: string[] = []
+    host.addEventListener("click", (event) => {
+      events.push(`${event.type}:${(event.target as HTMLElement).localName}`)
+    })
 
-		expect(events).toEqual(["click:button", "click:button", "pointerdown:li", "click:time"])
-		expect(controller.props).toBe(props)
-		expect(controller.props.fullscreen).toBeFalse()
-		expect(controller.props.causalTimeline.playing).toBeFalse()
-		expect(controller.refs.fullscreenButton.getAttribute("aria-pressed")).toBe("false")
-	})
+    controller.refs.fullscreenButton.click()
+    controller.controllers.playback.refs.toggleButton.click()
+    controller.controllers.timeline.refs.keyframeButtons.get("frame-1")!.click()
+    controller.controllers.channels.refs.pointButtons.get("force/frame-2")!.click()
 
-	test("validates the complete snapshot before child mutation and disposes in place", () => {
-		const document = createDocument()
-		const host = document.createElement("div")
-		const controller = createBulkHudDocument(document, controlledProps)
-		document.appendChild(host)
-		host.appendChild(controller.element)
-		const props = controller.props
-		const title = controller.controllers.window.refs.titleText.data
-		const current = controller.controllers.timeline.refs.currentTime.getAttribute("datetime")
-		const tracks = [...controller.controllers.timeline.refs.tracksList.childNodes]
+    expect(events).toEqual([
+      "click:button",
+      "click:button",
+      "click:button",
+      "click:button",
+    ])
+    expect(controller.props).toBe(props)
+    expect(controller.props.fullscreen).toBeFalse()
+    expect(controller.props.causalTime.playback.playing).toBeFalse()
+  })
 
-		expect(() => controller.update({
-			...controller.props,
-			fullscreen: true,
-			causalTimeline: {...controller.props.causalTimeline, max: 0},
-		})).toThrow("Bulk HUD causalTimeline max must be greater than min")
-		expect(() => controller.update({
-			...controller.props,
-			causalTimeline: {
-				...controller.props.causalTimeline,
-				tracks: [
-					{key: "same", label: "A", markers: []},
-					{key: "same", label: "B", markers: []},
-				],
-			},
-		})).toThrow("Bulk HUD causalTimeline track key must be unique: same")
-		expect(() => controller.update({
-			...controller.props,
-			causalTimeline: {
-				...controller.props.causalTimeline,
-				tracks: [{
-					key: "force",
-					label: "Force",
-					markers: [{key: "late", tick: 21, label: "Late", selected: false}],
-				}],
-			},
-		})).toThrow("Bulk HUD causalTimeline marker is outside the range: force/late")
+  test("validates the complete coordinated snapshot before mutation and disposes in place", () => {
+    const document = createDocument()
+    const host = document.createElement("div")
+    const controller = createBulkHudDocument(document, controlledProps)
+    document.appendChild(host)
+    host.appendChild(controller.element)
+    const props = controller.props
+    const current = controller.controllers.timeline.refs.currentOutput.getAttribute("aria-label")
+    const channels = [...controller.controllers.channels.refs.channelsList.childNodes]
 
-		expect(controller.props).toBe(props)
-		expect(controller.refs.fullscreenButton.getAttribute("aria-pressed")).toBe("false")
-		expect(controller.controllers.window.refs.titleText.data).toBe(title)
-		expect(controller.controllers.timeline.refs.currentTime.getAttribute("datetime")).toBe(current)
-		expect(controller.controllers.timeline.refs.tracksList.childNodes).toEqual(tracks)
+    expect(() => controller.update({
+      ...controller.props,
+      causalTime: {
+        ...controller.props.causalTime,
+        timeline: {...controller.props.causalTime.timeline, frameEnd: 0},
+      },
+    })).toThrow("frameEnd must be greater than frameStart")
+    expect(() => controller.update({
+      ...controller.props,
+      causalTime: {
+        ...controller.props.causalTime,
+        channels: {
+          ...controller.props.causalTime.channels,
+          channels: [
+            controller.props.causalTime.channels.channels[0]!,
+            controller.props.causalTime.channels.channels[0]!,
+          ],
+        },
+      },
+    })).toThrow("Bulk HUD causal channel key must be unique: force")
+    const force = controller.props.causalTime.channels.channels[0]!
+    expect(() => controller.update({
+      ...controller.props,
+      causalTime: {
+        ...controller.props.causalTime,
+        channels: {
+          ...controller.props.causalTime.channels,
+          channels: [{
+            ...force,
+            points: [{...force.points[0]!, frame: 5}, force.points[1]!],
+          }],
+        },
+      },
+    })).toThrow("diverges from the summary timeline")
 
-		controller.dispose()
-		controller.dispose()
-		expect(controller.element.parentNode).toBe(host)
-		expect(controller.refs.timeline.parentNode).toBe(controller.controllers.window.refs.body)
-		expect(() => controller.update(props)).toThrow("BulkHudDocument controller is disposed")
-		expect(() => controller.controllers.window.update(controller.controllers.window.props))
-			.toThrow("HudWindow controller is disposed")
-	})
+    expect(controller.props).toBe(props)
+    expect(controller.controllers.timeline.refs.currentOutput.getAttribute("aria-label")).toBe(current)
+    expect(controller.controllers.channels.refs.channelsList.childNodes).toEqual(channels)
 
-	test("keeps an exact package-private DOM/UI boundary", async () => {
-		const source = await Bun.file(new URL("./hud.tsx", import.meta.url)).text()
-		const overlay = await Bun.file(new URL("./overlay-runtime.ts", import.meta.url)).text()
-		const visual = await Bun.file(new URL("../VISUAL.md", import.meta.url)).text()
-		const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json() as {
-			dependencies: Record<string, string>
-			exports: Record<string, string>
-		}
+    controller.dispose()
+    controller.dispose()
+    expect(controller.element.parentNode).toBe(host)
+    expect(() => controller.update(props)).toThrow("BulkHudDocument controller is disposed")
+  })
 
-		expect(source).toContain('from "@zavx0z/dom"')
-		expect(source).toContain('from "@ui/components/hud"')
-		for (const forbidden of [
-			'from "../hud.ts"',
-			'from "../viewport',
-			"@engine/core",
-			"@layout/core",
-			"@ui/elements",
-			"@ui/hud",
-			"@zavx0z/renderer",
-			["@zavx0z", "storybook"].join("/"),
-			"UiSurface",
-			"dispatchEvent",
-			"addEventListener",
-			"onClick",
-			"onChange",
-			"Story",
-			"source:",
-		]) expect(source).not.toContain(forbidden)
-		expect(source).toContain("const bulkHudRootStyle: CssStyle = css`")
-		expect(source).toContain('&[data-fullscreen="true"]')
-		expect(source).toContain("--material-editor-outline-active: var(--widget-regular-background-selected)")
-		expect(source).toContain("const bulkHudWindowStyle: CssStyle = css`")
-		expect(source).toContain("const bulkTimelineStyle: CssStyle = css`")
-		expect(source).not.toContain("bulkHudDocumentCss")
-		expect(source).not.toContain("String.raw")
-		expect(overlay).not.toContain("styleSheets")
-		expect(overlay).not.toContain("bulkHudDocumentCss")
-		expect(manifest.dependencies["@zavx0z/dom"]).toBe("link:@zavx0z/dom")
-		expect(manifest.dependencies["@ui/components"]).toBe("link:@ui/components")
-		expect(manifest.exports["./dom/hud"]).toBeUndefined()
-		expect(Object.values(manifest.exports)).not.toContain("./dom/hud.ts")
-		expect(visual).toContain("Production Bulk Experience содержит один semantic Document")
-	})
+  test("keeps an exact package-private DOM/UI boundary without Timeline compatibility transport", async () => {
+    const source = await Bun.file(new URL("./hud.tsx", import.meta.url)).text()
+    const controller = await Bun.file(new URL("./hud-controller.ts", import.meta.url)).text()
+    const overlay = await Bun.file(new URL("./overlay-runtime.ts", import.meta.url)).text()
+    const visual = await Bun.file(new URL("../VISUAL.md", import.meta.url)).text()
+    const manifest = await Bun.file(new URL("../package.json", import.meta.url)).json() as {
+      dependencies: Record<string, string>
+      exports: Record<string, string>
+    }
+
+    expect(source).toContain('from "@zavx0z/dom"')
+    expect(source).toContain('from "@ui/components/button"')
+    expect(source).toContain('from "@ui/components/hud"')
+    expect(source).toContain("function BulkPlayback")
+    expect(source).toContain("function BulkCausalChannels")
+    expect(source).toContain("frameStart={timeline.frameStart}")
+    expect(source).toContain("keyframes={timeline.keyframes}")
+    expect(source).toContain("markers={timeline.markers}")
+    for (const forbidden of [
+      "TimelineTrack",
+      "Timeline transport",
+      "Timeline tracks",
+      "min={timeline",
+      "max={timeline",
+      "current={timeline",
+      "tracks={timeline",
+      "@engine/core",
+      "@layout/core",
+      "@ui/elements",
+      "@ui/hud",
+      "@zavx0z/renderer",
+      "addEventListener",
+      "onClick",
+      "onChange",
+    ]) expect(source).not.toContain(forbidden)
+    expect(controller).toContain('addEventListener("click"')
+    expect(controller).toContain("controllers.playback.refs")
+    expect(controller).toContain("time.selectFrame(id)")
+    expect(source).toContain('data-bulk-causal-channels=""')
+    expect(source).toContain('data-bulk-causal-time=""')
+    expect(source).not.toContain("bulkHudDocumentCss")
+    expect(source).not.toContain("String.raw")
+    expect(overlay).not.toContain("styleSheets")
+    expect(manifest.dependencies["@zavx0z/dom"]).toBe("link:@zavx0z/dom")
+    expect(manifest.dependencies["@ui/components"]).toBe("link:@ui/components")
+    expect(manifest.exports["./dom/hud"]).toBeUndefined()
+    expect(Object.values(manifest.exports)).not.toContain("./dom/hud.ts")
+    expect(visual).toContain("Production Bulk Experience содержит один semantic Document")
+  })
 })

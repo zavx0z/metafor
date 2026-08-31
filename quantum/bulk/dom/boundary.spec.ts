@@ -65,6 +65,8 @@ describe("Bulk production DOM boundary", () => {
     expect(bundle).toContain("RendererWebGpuScreenOverlay")
     expect(bundle).toContain("HudWindow")
     expect(bundle).toContain("Timeline")
+    expect(bundle).toContain("Causal playback")
+    expect(bundle).toContain("Causal channels")
     expect(bundle).toContain("createBrowserLinkedAuthorStyleSheetHost")
     for (const forbidden of [
       "@layout/core",

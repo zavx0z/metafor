@@ -6,7 +6,7 @@ import {
 } from "./hud-controller.ts"
 
 describe("Bulk DOM HUD controller", () => {
-  test("binds standard HUD buttons to causal transport without replacing identities", async () => {
+  test("binds Bulk playback and frame selection outside the neutral Timeline", async () => {
     const document = createDocument()
     const host = document.createElement("div")
     document.appendChild(host)
@@ -35,17 +35,18 @@ describe("Bulk DOM HUD controller", () => {
     })
     const root = controller.element
     const timeline = controller.presentation.refs.timeline
-    const playButton = controller.presentation.controllers.timeline.refs.playButton
-    const firstTrack = controller.presentation.controllers.timeline.refs.trackElements
+    const toggleButton = controller.presentation.controllers.playback.refs.toggleButton
+    const firstChannels = controller.presentation.controllers.channels.refs.channelElements
 
     await controller.ready
     expect(controller.element).toBe(root)
     expect(controller.presentation.refs.timeline).toBe(timeline)
-    expect(controller.presentation.controllers.timeline.refs.trackElements).toBe(firstTrack)
+    expect(controller.presentation.controllers.channels.refs.channelElements).toBe(firstChannels)
     expect(root.parentNode).toBe(host)
     expect(controller.time.state).toBe("open")
-    expect(playButton.disabled).toBeFalse()
-    expect(playButton.getAttribute("aria-pressed")).toBe("true")
+    expect(toggleButton.disabled).toBeFalse()
+    expect(toggleButton.getAttribute("aria-pressed")).toBe("true")
+    expect(toggleButton.textContent).toBe("Пауза")
     expect(controller.presentation.controllers.window.refs.subtitleText.data)
       .toBe("Пауза создаёт первый keyframe")
 
@@ -53,27 +54,33 @@ describe("Bulk DOM HUD controller", () => {
     host.addEventListener("click", (event) => {
       bubbled.push((event.target as HTMLElement).localName)
     })
-    playButton.click()
+    toggleButton.click()
     await eventually(() => controller.time.state === "paused")
 
     expect(calls).toEqual(["stack", "pause", "stack"])
     expect(bubbled).toEqual(["button"])
     expect(controller.presentation.refs.timeline).toBe(timeline)
-    expect(controller.presentation.controllers.timeline.refs.trackElements.get("force")).toBeDefined()
-    expect(controller.presentation.controllers.timeline.refs.markerTimes.get("force/frame-2")
-      ?.getAttribute("data-tick")).toBe("16")
-    expect(controller.presentation.controllers.timeline.refs.markerItems.get("force/frame-1")
+    expect(controller.presentation.controllers.channels.refs.channelElements.get("force")).toBeDefined()
+    expect(controller.presentation.controllers.timeline.refs.keyframeItems.get("frame-2")
+      ?.getAttribute("data-frame")).toBe("16")
+    expect(controller.presentation.controllers.channels.refs.pointItems.get("force/frame-1")
       ?.getAttribute("data-resolution")).toBe("exact")
-    expect(controller.presentation.controllers.timeline.refs.markerItems.get("force/frame-2")
+    expect(controller.presentation.controllers.channels.refs.pointItems.get("force/frame-2")
       ?.getAttribute("data-resolution")).toBe("degraded")
-    expect(playButton.getAttribute("aria-pressed")).toBe("false")
+    expect(toggleButton.getAttribute("aria-pressed")).toBe("false")
+    expect(toggleButton.textContent).toBe("Продолжить")
 
-    controller.presentation.controllers.timeline.refs.previousButton.click()
+    controller.presentation.controllers.playback.refs.previousButton.click()
     expect(controller.time.playhead).toBe(0)
-    expect(controller.presentation.controllers.timeline.refs.markerItems.get("force/frame-1")
-      ?.getAttribute("aria-current")).toBe("true")
+    expect(controller.presentation.controllers.timeline.refs.keyframeButtons.get("frame-1")
+      ?.getAttribute("aria-pressed")).toBe("true")
 
-    playButton.click()
+    controller.presentation.controllers.timeline.refs.keyframeButtons.get("frame-2")!.click()
+    expect(controller.time.playhead).toBe(1)
+    controller.presentation.controllers.channels.refs.pointButtons.get("force/frame-1")!.click()
+    expect(controller.time.playhead).toBe(0)
+
+    toggleButton.click()
     await eventually(() => controller.time.state === "open")
     expect(calls).toEqual(["stack", "pause", "stack", "resume"])
     expect(controller.time.frames).toEqual([])

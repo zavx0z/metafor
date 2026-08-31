@@ -1,12 +1,13 @@
 import type {
   Document as SemanticDocument,
+  Element as SemanticElement,
+  Event as SemanticEvent,
   HTMLElement as SemanticHTMLElement,
   Node as SemanticNode,
 } from "@zavx0z/dom"
 import {
-  BULK_TIME_TRACKS,
   BulkCausalTimeModel,
-  buildBulkCausalTimeline,
+  buildBulkCausalTimePresentation,
   type BulkCausalTimeTransport,
 } from "./causal-time.ts"
 import {
@@ -70,25 +71,14 @@ export function createBulkHudController(
   const time = new BulkCausalTimeModel(options.transport ?? bulkCausalTimeHttpTransport)
   const presentation = createBulkHudDocument(options.document, presentationProps(time, fullscreen))
   const fullscreenButton = presentation.refs.fullscreenButton
-  const previousButton = presentation.controllers.timeline.refs.previousButton
-  const playButton = presentation.controllers.timeline.refs.playButton
-  const nextButton = presentation.controllers.timeline.refs.nextButton
+  const previousButton = presentation.controllers.playback.refs.previousButton
+  const toggleButton = presentation.controllers.playback.refs.toggleButton
+  const nextButton = presentation.controllers.playback.refs.nextButton
   let disposed = false
 
   const render = (): void => {
     if (disposed) return
     presentation.update(presentationProps(time, fullscreen))
-    const hasFrames = time.frames.length > 0
-    previousButton.disabled = !hasFrames
-    nextButton.disabled = !hasFrames
-    playButton.disabled = !time.canPause && !time.canResume
-    for (const {key: trackKey} of BULK_TIME_TRACKS) {
-      for (const frame of time.frames) {
-        presentation.controllers.timeline.refs.markerItems
-          .get(`${trackKey}/frame-${frame.id}`)
-          ?.setAttribute("data-resolution", frame.resolution ?? "unknown")
-      }
-    }
   }
   const onFullscreen = (): void => {
     void fullscreen.toggle().then(render).catch((error) => {
@@ -98,17 +88,23 @@ export function createBulkHudController(
   }
   const onPrevious = (): void => time.selectRelativeFrame(-1)
   const onNext = (): void => time.selectRelativeFrame(1)
-  const onPlay = (): void => {
+  const onToggle = (): void => {
     if (time.canPause) void time.pause()
     else if (time.canResume) void time.resume()
+  }
+  const onFrameSelect = (event: SemanticEvent): void => {
+    const id = frameIdFromTarget(event.target, event.currentTarget)
+    if (id !== null) time.selectFrame(id)
   }
 
   const unsubscribeTime = time.subscribe(render)
   const unsubscribeFullscreen = fullscreen.subscribe(render)
   fullscreenButton.addEventListener("click", onFullscreen)
   previousButton.addEventListener("click", onPrevious)
-  playButton.addEventListener("click", onPlay)
+  toggleButton.addEventListener("click", onToggle)
   nextButton.addEventListener("click", onNext)
+  presentation.refs.timeline.addEventListener("click", onFrameSelect)
+  presentation.refs.channels.addEventListener("click", onFrameSelect)
   parent.appendChild(presentation.element)
   render()
   const ready = time.open()
@@ -123,8 +119,10 @@ export function createBulkHudController(
       disposed = true
       fullscreenButton.removeEventListener("click", onFullscreen)
       previousButton.removeEventListener("click", onPrevious)
-      playButton.removeEventListener("click", onPlay)
+      toggleButton.removeEventListener("click", onToggle)
       nextButton.removeEventListener("click", onNext)
+      presentation.refs.timeline.removeEventListener("click", onFrameSelect)
+      presentation.refs.channels.removeEventListener("click", onFrameSelect)
       unsubscribeTime()
       unsubscribeFullscreen()
       time.dispose()
@@ -194,12 +192,37 @@ const presentationProps = (
   subtitle: time.message,
   fullscreen: fullscreen.active(),
   fullscreenDisabled: false,
-  causalTimeline: buildBulkCausalTimeline(
+  causalTime: buildBulkCausalTimePresentation(
     time.frames,
     time.playhead,
-    time.state === "open",
+    time.state,
   ),
 })
+
+const frameIdFromTarget = (target: unknown, boundary: unknown): number | null => {
+  let element = semanticElement(target)
+  const boundaryElement = semanticElement(boundary)
+  while (element !== null) {
+    const key = element.getAttribute("data-keyframe-key") ??
+      element.getAttribute("data-marker-key") ??
+      element.getAttribute("data-channel-point-key")
+    if (key !== null) {
+      const match = /^frame-([1-9][0-9]*)$/.exec(key)
+      if (match !== null) {
+        const id = Number(match[1])
+        return Number.isSafeInteger(id) ? id : null
+      }
+    }
+    if (element === boundaryElement) break
+    element = element.parentElement
+  }
+  return null
+}
+
+const semanticElement = (value: unknown): SemanticElement | null =>
+  value !== null && typeof value === "object" && "getAttribute" in value
+    ? value as SemanticElement
+    : null
 
 const responseError = async (response: Response): Promise<string> => {
   const text = await response.text()

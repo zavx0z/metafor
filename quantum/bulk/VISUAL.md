@@ -258,17 +258,21 @@ Graph Store, Manifest, ReadyScene и второго scene Store в browser path 
   impulses, causal timeline и capture остаются Bulk-owned поведением.
 - Production Bulk Experience содержит один semantic Document, принадлежащий
   HUD. Public `@ui/components/hud` (далее — components HUD) создаёт в нём
-  stable HudWindow с fullscreen action и stable Timeline с controlled causal
-  snapshot. Direct world manifestation остаётся проекцией Bulk Store в Engine
-  Space того же Canvas и не создаёт второй semantic Document.
-  Обычные bubbling `click` events выражают fullscreen, pause/resume и выбор
-  позиции; Bulk применяет их к browser fullscreen и Dark causal-time transport,
-  а Timeline только отражает полученный state.
+  stable HudWindow и neutral Timeline с playback, visible и preview ranges,
+  текущей позицией, общей строкой causal keyframes и отдельными scene markers.
+  Product playback-команды и строки Force, Mass и Boundary принадлежат отдельной
+  Bulk composition из точных Buttons и semantic DOM того же Document, а не
+  Timeline. Direct world manifestation остаётся проекцией Bulk Store в Engine
+  Space того же Canvas и не создаёт второй semantic Document. Обычные bubbling
+  `click` events выражают fullscreen, pause/resume и выбор causal frame; Bulk
+  применяет их к browser fullscreen и Dark causal-time transport, а neutral
+  Timeline и product channels только отражают один полученный snapshot.
 - Bulk не переопределяет форму components HUD собственной product-темой.
-  Window header, action buttons, Timeline rows и markers сохраняют компактную
-  Blender 5.2 density, low-radius material roles и standard component states;
-  Bulk добавляет только viewport placement, fullscreen state и causal
-  resolution tones из public CSS resource `@ui/components/theme.css`.
+  Window header, action buttons, Timeline summary и markers сохраняют компактную
+  Blender 5.2 density, low-radius material roles и standard component states.
+  Bulk добавляет viewport placement, fullscreen state, компактную causal-channel
+  геометрию и resolution tones из public CSS resource
+  `@ui/components/theme.css`.
 - `@zavx0z/renderer` (далее — document renderer) вычисляет CSS/layout/hit state
   HUD, а `@zavx0z/renderer-webgpu` (далее — WebGPU adapter) проецирует его в
   camera-locked overlay существующего Bulk Renderer. Semantic HUD не создаёт

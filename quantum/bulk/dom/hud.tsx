@@ -4,22 +4,31 @@ import type {
   HTMLElement,
   Text,
 } from "@zavx0z/dom"
+import {Button} from "@ui/components/button"
 import {
   HudWindow,
   Timeline,
   type HudWindowProps,
+  type TimelineKeyframe,
   type TimelineMarker,
-  type TimelineProps,
-  type TimelineTrack,
 } from "@ui/components/hud"
 import {createRoot, type ComponentRoot} from "@zavx0z/react"
+import {
+  buildBulkCausalTimePresentation,
+  type BulkCausalChannel,
+  type BulkCausalChannelPoint,
+  type BulkCausalChannelsProps,
+  type BulkCausalPlaybackProps,
+  type BulkCausalTimelineProps,
+  type BulkCausalTimePresentation,
+} from "./causal-time.ts"
 
 export type BulkHudDocumentProps = Readonly<{
   title: string
   subtitle: string
   fullscreen: boolean
   fullscreenDisabled: boolean
-  causalTimeline: TimelineProps
+  causalTime: BulkCausalTimePresentation
 }>
 
 export type BulkHudDocumentRefs = Readonly<{
@@ -27,6 +36,8 @@ export type BulkHudDocumentRefs = Readonly<{
   window: HTMLElement
   fullscreenButton: HTMLButtonElement
   timeline: HTMLElement
+  playback: HTMLElement
+  channels: HTMLElement
 }>
 
 type BulkHudWindowProps = Omit<HudWindowProps, "children">
@@ -40,33 +51,51 @@ export type BulkHudWindowController = Readonly<{
     actionButtons: ReadonlyMap<string, HTMLButtonElement>
   }>
   readonly props: BulkHudWindowProps
-  update(props: BulkHudWindowProps): void
-  dispose(): void
 }>
 
 export type BulkTimelineController = Readonly<{
   element: HTMLElement
   refs: Readonly<{
-    currentTime: HTMLElement
+    currentOutput: HTMLElement
     currentText: Text
-    tracksList: HTMLElement
-    previousButton: HTMLButtonElement
-    playButton: HTMLButtonElement
-    nextButton: HTMLButtonElement
-    trackElements: ReadonlyMap<string, HTMLElement>
-    trackLabelTexts: ReadonlyMap<string, Text>
-    markerItems: ReadonlyMap<string, HTMLElement>
-    markerTimes: ReadonlyMap<string, HTMLElement>
-    markerTexts: ReadonlyMap<string, Text>
+    keyframesList: HTMLElement
+    markersList: HTMLElement
+    keyframeItems: ReadonlyMap<string, HTMLElement>
+    keyframeButtons: ReadonlyMap<string, HTMLButtonElement>
+    sceneMarkerItems: ReadonlyMap<string, HTMLElement>
+    sceneMarkerButtons: ReadonlyMap<string, HTMLButtonElement>
   }>
-  readonly props: TimelineProps
-  update(props: TimelineProps): void
-  dispose(): void
+  readonly props: BulkCausalTimelineProps
+}>
+
+export type BulkPlaybackController = Readonly<{
+  element: HTMLElement
+  refs: Readonly<{
+    previousButton: HTMLButtonElement
+    toggleButton: HTMLButtonElement
+    nextButton: HTMLButtonElement
+  }>
+  readonly props: BulkCausalPlaybackProps
+}>
+
+export type BulkCausalChannelsController = Readonly<{
+  element: HTMLElement
+  refs: Readonly<{
+    channelsList: HTMLElement
+    channelElements: ReadonlyMap<string, HTMLElement>
+    channelLabelTexts: ReadonlyMap<string, Text>
+    pointItems: ReadonlyMap<string, HTMLElement>
+    pointButtons: ReadonlyMap<string, HTMLButtonElement>
+    pointTexts: ReadonlyMap<string, Text>
+  }>
+  readonly props: BulkCausalChannelsProps
 }>
 
 export type BulkHudDocumentControllers = Readonly<{
   window: BulkHudWindowController
   timeline: BulkTimelineController
+  playback: BulkPlaybackController
+  channels: BulkCausalChannelsController
 }>
 
 export type BulkHudDocumentController = Readonly<{
@@ -84,52 +113,156 @@ export const bulkHudDocumentDefaultProps: BulkHudDocumentProps = Object.freeze({
   subtitle: "Наблюдаемая проекция",
   fullscreen: false,
   fullscreenDisabled: false,
-  causalTimeline: Object.freeze({
-    title: "Время · causal stack",
-    min: 0,
-    max: 1,
-    current: 0,
-    playing: true,
-    tracks: Object.freeze([
-      Object.freeze({
-        key: "causal",
-        label: "Causal frontier",
-        markers: Object.freeze([]),
-      }),
-    ]),
-  }),
+  causalTime: buildBulkCausalTimePresentation([], 0, "open"),
 })
 
-const bulkHudRootStyle: CssStyle = css`
-  & {
-    box-sizing: border-box;
-    position: absolute;
-    left: 50%;
-    bottom: 8px;
-    transform: translateX(-50%);
-    display: block;
-    width: 100%;
-    max-width: 640px;
-    min-height: 140px;
-    z-index: 20;
-  }
-  &[data-fullscreen="true"] {
-    --material-editor-outline-active: var(--widget-regular-background-selected);
-  }
-`
+function BulkPlayback(props: Readonly<{value: BulkCausalPlaybackProps}>) {
+  return <nav
+    aria-label="Causal playback"
+    style={css`
+      & {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        gap: 4px;
+        min-height: 22px;
+      }
+    `}
+  >
+    <Button
+      label="Назад"
+      aria-label="Предыдущий causal frame"
+      disabled={props.value.previousDisabled}
+      size="small"
+      style={css`& { width: auto; min-width: 64px; height: 22px; padding: 2px 8px; }`}
+    />
+    <Button
+      label={props.value.playing ? "Пауза" : "Продолжить"}
+      aria-label={props.value.playing ? "Приостановить causal time" : "Продолжить causal time"}
+      disabled={props.value.toggleDisabled}
+      selected={props.value.playing}
+      size="small"
+      style={css`& { width: auto; min-width: 64px; height: 22px; padding: 2px 8px; }`}
+    />
+    <Button
+      label="Вперёд"
+      aria-label="Следующий causal frame"
+      disabled={props.value.nextDisabled}
+      size="small"
+      style={css`& { width: auto; min-width: 64px; height: 22px; padding: 2px 8px; }`}
+    />
+  </nav>
+}
 
-const bulkHudWindowStyle: CssStyle = css`
-  & { width: 100%; min-height: 140px; }
-`
+function BulkCausalPointView(props: Readonly<{
+  channelLabel: string
+  point: BulkCausalChannelPoint
+}>) {
+  const point = props.point
+  return <li
+    data-channel-point-key={point.key}
+    data-frame={String(point.frame)}
+    data-resolution={point.resolution}
+    style={css`& { display: block; list-style: none; }`}
+  >
+    <Button
+      label={String(point.frame)}
+      aria-label={`${props.channelLabel} ${point.label} at ${point.frame}`}
+      title={`${props.channelLabel} · ${point.label} · ${point.resolution}`}
+      selected={point.selected}
+      tone={point.resolution === "overloaded"
+        ? "error"
+        : point.resolution === "degraded" ? "warning" : "neutral"}
+      size="small"
+      style={css`& { width: auto; min-width: 28px; height: 18px; padding: 1px 4px; font-size: var(--font-size-2xs); }`}
+    />
+  </li>
+}
 
-const bulkTimelineStyle: CssStyle = css`
-  & {
-    width: 100%;
-    min-height: 106px;
-    border: 0 solid transparent;
-    border-radius: 0;
-  }
-`
+function BulkCausalChannelView(props: Readonly<{channel: BulkCausalChannel}>) {
+  const channel = props.channel
+  return <li
+    data-channel-key={channel.key}
+    style={css`& { display: flex; flex-direction: row; align-items: center; min-height: 22px; gap: 4px; list-style: none; }`}
+  >
+    <span data-channel-label="" style={css`
+      & { display: inline; width: 68px; flex-shrink: 0; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
+    `}>{channel.label}</span>
+    <ol aria-label={`${channel.label} causal frames`} style={css`
+      & { display: flex; flex-direction: row; align-items: center; flex-grow: 1; gap: 3px; min-width: 0; margin: 0; padding: 0; overflow: clip; }
+    `}>
+      {channel.points.map((point) => <BulkCausalPointView
+        key={point.key}
+        channelLabel={channel.label}
+        point={point}
+      />)}
+    </ol>
+  </li>
+}
+
+function BulkCausalChannels(props: Readonly<{value: BulkCausalChannelsProps}>) {
+  return <section
+    aria-label={props.value.title}
+    data-bulk-causal-channels=""
+    style={css`
+      & {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 2px;
+        border-top: var(--border-width-control) solid var(--widget-regular-outline);
+        color: var(--widget-toolbar-content);
+      }
+    `}
+  >
+    <header style={css`
+      & { display: flex; align-items: center; min-height: 20px; padding: 2px 6px; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
+    `}><span>{props.value.title}</span></header>
+    <ul aria-label="Causal channels" style={css`
+      & { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; }
+    `}>
+      {props.value.channels.map((channel) => <BulkCausalChannelView
+        key={channel.key}
+        channel={channel}
+      />)}
+    </ul>
+  </section>
+}
+
+function BulkCausalTimeProjection(props: Readonly<{value: BulkCausalTimePresentation}>) {
+  const timeline = props.value.timeline
+  return <section
+    aria-label="Bulk causal time"
+    data-bulk-causal-time=""
+    style={css`
+      & {
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 4px;
+      }
+    `}
+  >
+    <BulkPlayback value={props.value.playback} />
+    <Timeline
+      title={timeline.title}
+      frameStart={timeline.frameStart}
+      frameEnd={timeline.frameEnd}
+      frameCurrent={timeline.frameCurrent}
+      visibleStart={timeline.visibleStart}
+      visibleEnd={timeline.visibleEnd}
+      previewStart={timeline.previewStart}
+      previewEnd={timeline.previewEnd}
+      keyframes={timeline.keyframes}
+      markers={timeline.markers}
+      style={css`& { width: 100%; min-height: 112px; border: 0 solid transparent; border-radius: 0; }`}
+    />
+    <BulkCausalChannels value={props.value.channels} />
+  </section>
+}
 
 function BulkHudOwners(props: Readonly<{value: BulkHudDocumentProps}>) {
   const window = windowProps(props.value)
@@ -137,7 +270,23 @@ function BulkHudOwners(props: Readonly<{value: BulkHudDocumentProps}>) {
     aria-label={props.value.title}
     data-bulk-hud=""
     data-fullscreen={String(props.value.fullscreen)}
-    style={bulkHudRootStyle}
+    style={css`
+      & {
+        box-sizing: border-box;
+        position: absolute;
+        left: 50%;
+        bottom: 8px;
+        transform: translateX(-50%);
+        display: block;
+        width: 100%;
+        max-width: 640px;
+        min-height: 280px;
+        z-index: 20;
+      }
+      &[data-fullscreen="true"] {
+        --material-editor-outline-active: var(--widget-regular-background-selected);
+      }
+    `}
   >
     <HudWindow
       title={window.title}
@@ -145,22 +294,14 @@ function BulkHudOwners(props: Readonly<{value: BulkHudDocumentProps}>) {
       active={window.active}
       minimized={window.minimized}
       actions={window.actions}
-      style={bulkHudWindowStyle}
+      style={css`& { width: 100%; min-height: 280px; }`}
     >
-      <Timeline
-        title={props.value.causalTimeline.title}
-        min={props.value.causalTimeline.min}
-        max={props.value.causalTimeline.max}
-        current={props.value.causalTimeline.current}
-        playing={props.value.causalTimeline.playing}
-        tracks={props.value.causalTimeline.tracks}
-        style={bulkTimelineStyle}
-      />
+      <BulkCausalTimeProjection value={props.value.causalTime} />
     </HudWindow>
   </section>
 }
 
-/** Mounts current TSX HUD owners while preserving the existing Bulk controller contract. */
+/** Mounts the Bulk-owned causal controls around the exact neutral UI Timeline owner. */
 export function createBulkHudDocument(
   document: Document,
   initialProps: BulkHudDocumentProps = bulkHudDocumentDefaultProps,
@@ -174,76 +315,87 @@ export function createBulkHudDocument(
   const maps = mutableMaps()
   const initial = readRenderedHud(root, currentProps, maps)
   let disposed = false
-  let windowDisposed = false
-  let timelineDisposed = false
 
   const update = (nextProps: BulkHudDocumentProps): void => {
     assertActive(disposed, "BulkHudDocument controller")
     const next = normalizeProps(nextProps)
     reactRoot.render(<BulkHudOwners value={next} />)
     const rendered = readRenderedHud(root, next, maps)
-    if (rendered.window !== initial.window ||
-      rendered.timeline !== initial.timeline ||
-      rendered.fullscreenButton !== initial.fullscreenButton ||
+    if (
+      rendered.window !== initial.window ||
       rendered.body !== initial.body ||
-      rendered.currentTime !== initial.currentTime ||
-      rendered.tracksList !== initial.tracksList) {
+      rendered.fullscreenButton !== initial.fullscreenButton ||
+      rendered.timeProjection !== initial.timeProjection ||
+      rendered.timeline !== initial.timeline ||
+      rendered.currentOutput !== initial.currentOutput ||
+      rendered.keyframesList !== initial.keyframesList ||
+      rendered.markersList !== initial.markersList ||
+      rendered.playback !== initial.playback ||
+      rendered.previousButton !== initial.previousButton ||
+      rendered.toggleButton !== initial.toggleButton ||
+      rendered.nextButton !== initial.nextButton ||
+      rendered.channels !== initial.channels ||
+      rendered.channelsList !== initial.channelsList
+    ) {
       throw new Error("Bulk HUD TSX owner replaced a stable controller identity")
     }
     currentProps = next
   }
 
-  const windowController: BulkHudWindowController = Object.freeze({
-    element: initial.window,
-    refs: Object.freeze({
-      body: initial.body,
-      titleText: initial.titleText,
-      subtitleText: initial.subtitleText,
-      actionButtons: maps.actionButtons,
-    }),
-    get props() { return windowProps(currentProps) },
-    update(next) {
-      assertActive(disposed || windowDisposed, "HudWindow controller")
-      update({
-        ...currentProps,
-        title: next.title,
-        subtitle: next.subtitle,
-        fullscreenDisabled: next.actions[0]?.disabled ?? currentProps.fullscreenDisabled,
-      })
-    },
-    dispose() { windowDisposed = true },
-  })
-  const timelineController: BulkTimelineController = Object.freeze({
-    element: initial.timeline,
-    refs: Object.freeze({
-      currentTime: initial.currentTime,
-      currentText: initial.currentText,
-      tracksList: initial.tracksList,
-      previousButton: initial.previousButton,
-      playButton: initial.playButton,
-      nextButton: initial.nextButton,
-      trackElements: maps.trackElements,
-      trackLabelTexts: maps.trackLabelTexts,
-      markerItems: maps.markerItems,
-      markerTimes: maps.markerTimes,
-      markerTexts: maps.markerTexts,
-    }),
-    get props() { return currentProps.causalTimeline },
-    update(next) {
-      assertActive(disposed || timelineDisposed, "Timeline controller")
-      update({...currentProps, causalTimeline: next})
-    },
-    dispose() { timelineDisposed = true },
-  })
   const refs: BulkHudDocumentRefs = Object.freeze({
     root,
     window: initial.window,
     fullscreenButton: initial.fullscreenButton,
     timeline: initial.timeline,
+    playback: initial.playback,
+    channels: initial.channels,
   })
   const controllers: BulkHudDocumentControllers = Object.freeze({
-    window: windowController,
-    timeline: timelineController,
+    window: Object.freeze({
+      element: initial.window,
+      refs: Object.freeze({
+        body: initial.body,
+        titleText: initial.titleText,
+        subtitleText: initial.subtitleText,
+        actionButtons: maps.actionButtons,
+      }),
+      get props() { return windowProps(currentProps) },
+    }),
+    timeline: Object.freeze({
+      element: initial.timeline,
+      refs: Object.freeze({
+        currentOutput: initial.currentOutput,
+        currentText: initial.currentText,
+        keyframesList: initial.keyframesList,
+        markersList: initial.markersList,
+        keyframeItems: maps.keyframeItems,
+        keyframeButtons: maps.keyframeButtons,
+        sceneMarkerItems: maps.sceneMarkerItems,
+        sceneMarkerButtons: maps.sceneMarkerButtons,
+      }),
+      get props() { return currentProps.causalTime.timeline },
+    }),
+    playback: Object.freeze({
+      element: initial.playback,
+      refs: Object.freeze({
+        previousButton: initial.previousButton,
+        toggleButton: initial.toggleButton,
+        nextButton: initial.nextButton,
+      }),
+      get props() { return currentProps.causalTime.playback },
+    }),
+    channels: Object.freeze({
+      element: initial.channels,
+      refs: Object.freeze({
+        channelsList: initial.channelsList,
+        channelElements: maps.channelElements,
+        channelLabelTexts: maps.channelLabelTexts,
+        pointItems: maps.pointItems,
+        pointButtons: maps.pointButtons,
+        pointTexts: maps.pointTexts,
+      }),
+      get props() { return currentProps.causalTime.channels },
+    }),
   })
 
   return Object.freeze({
@@ -256,8 +408,6 @@ export function createBulkHudDocument(
     dispose() {
       if (disposed) return
       disposed = true
-      windowDisposed = true
-      timelineDisposed = true
       reactRoot.unmount()
     },
   })
@@ -265,11 +415,15 @@ export function createBulkHudDocument(
 
 type MutableHudMaps = Readonly<{
   actionButtons: Map<string, HTMLButtonElement>
-  trackElements: Map<string, HTMLElement>
-  trackLabelTexts: Map<string, Text>
-  markerItems: Map<string, HTMLElement>
-  markerTimes: Map<string, HTMLElement>
-  markerTexts: Map<string, Text>
+  keyframeItems: Map<string, HTMLElement>
+  keyframeButtons: Map<string, HTMLButtonElement>
+  sceneMarkerItems: Map<string, HTMLElement>
+  sceneMarkerButtons: Map<string, HTMLButtonElement>
+  channelElements: Map<string, HTMLElement>
+  channelLabelTexts: Map<string, Text>
+  pointItems: Map<string, HTMLElement>
+  pointButtons: Map<string, HTMLButtonElement>
+  pointTexts: Map<string, Text>
 }>
 
 type RenderedHud = Readonly<{
@@ -278,23 +432,32 @@ type RenderedHud = Readonly<{
   titleText: Text
   subtitleText: Text
   fullscreenButton: HTMLButtonElement
+  timeProjection: HTMLElement
   timeline: HTMLElement
-  currentTime: HTMLElement
+  currentOutput: HTMLElement
   currentText: Text
-  tracksList: HTMLElement
+  keyframesList: HTMLElement
+  markersList: HTMLElement
+  playback: HTMLElement
   previousButton: HTMLButtonElement
-  playButton: HTMLButtonElement
+  toggleButton: HTMLButtonElement
   nextButton: HTMLButtonElement
+  channels: HTMLElement
+  channelsList: HTMLElement
 }>
 
 function mutableMaps(): MutableHudMaps {
   return Object.freeze({
     actionButtons: new Map(),
-    trackElements: new Map(),
-    trackLabelTexts: new Map(),
-    markerItems: new Map(),
-    markerTimes: new Map(),
-    markerTexts: new Map(),
+    keyframeItems: new Map(),
+    keyframeButtons: new Map(),
+    sceneMarkerItems: new Map(),
+    sceneMarkerButtons: new Map(),
+    channelElements: new Map(),
+    channelLabelTexts: new Map(),
+    pointItems: new Map(),
+    pointButtons: new Map(),
+    pointTexts: new Map(),
   })
 }
 
@@ -318,65 +481,109 @@ function readRenderedHud(
   maps.actionButtons.clear()
   maps.actionButtons.set("fullscreen", fullscreenButton)
 
+  const timeProjection = requiredElement(
+    window.querySelector("[data-bulk-causal-time]"),
+    "Bulk HUD causal-time projection is missing",
+  )
+  const body = requiredElement(timeProjection.parentElement, "Bulk HUD window body is missing")
   const timeline = requiredElement(
-    [...window.querySelectorAll("section")].find((element) =>
-      element.getAttribute("aria-label") === props.causalTimeline.title),
-    "Bulk HUD Timeline is missing",
+    timeProjection.querySelector("[data-timeline]"),
+    "Bulk HUD neutral Timeline is missing",
   )
-  const body = requiredElement(timeline.parentElement, "Bulk HUD window body is missing")
-  const currentTime = requiredElement(timeline.querySelector("time"), "Bulk HUD current time is missing")
-  const currentText = requiredTextNode(currentTime.firstChild, "Bulk HUD current text is missing")
-  const transport = requiredElement(
-    timeline.querySelector('nav[aria-label="Timeline transport"]'),
-    "Bulk HUD Timeline transport is missing",
+  const currentOutput = requiredElement(timeline.querySelector("output"), "Bulk HUD current output is missing")
+  const currentText = requiredTextNode(currentOutput.firstChild, "Bulk HUD current text is missing")
+  const keyframesList = requiredElement(
+    timeline.querySelector('ol[aria-label="Summary keyframes"]'),
+    "Bulk HUD summary keyframes are missing",
   )
-  const transportButtons = [...transport.querySelectorAll("button")]
-  const previousButton = requiredButton(transportButtons[0], "Bulk HUD previous action is missing")
-  const playButton = requiredButton(transportButtons[1], "Bulk HUD play action is missing")
-  const nextButton = requiredButton(transportButtons[2], "Bulk HUD next action is missing")
-  playButton.setAttribute("aria-pressed", String(props.causalTimeline.playing))
-  const tracksList = requiredElement(
-    timeline.querySelector('ul[aria-label="Timeline tracks"]'),
-    "Bulk HUD Timeline tracks are missing",
+  const markersList = requiredElement(
+    timeline.querySelector('ol[aria-label="Timeline markers"]'),
+    "Bulk HUD scene markers are missing",
   )
+  synchronizeTimelineMaps(timeline, maps)
 
-  synchronizeTimelineMaps(tracksList, maps)
+  const playback = requiredElement(
+    timeProjection.querySelector('nav[aria-label="Causal playback"]'),
+    "Bulk HUD playback controller is missing",
+  )
+  const playbackButtons = [...playback.querySelectorAll("button")]
+  const previousButton = requiredButton(playbackButtons[0], "Bulk HUD previous action is missing")
+  const toggleButton = requiredButton(playbackButtons[1], "Bulk HUD playback toggle is missing")
+  const nextButton = requiredButton(playbackButtons[2], "Bulk HUD next action is missing")
+  previousButton.setAttribute("data-action-key", "previous")
+  toggleButton.setAttribute("data-action-key", "toggle")
+  nextButton.setAttribute("data-action-key", "next")
+
+  const channels = requiredElement(
+    timeProjection.querySelector("[data-bulk-causal-channels]"),
+    "Bulk HUD causal channels are missing",
+  )
+  const channelsList = requiredElement(
+    channels.querySelector('ul[aria-label="Causal channels"]'),
+    "Bulk HUD causal channel list is missing",
+  )
+  synchronizeChannelMaps(channelsList, maps)
+
   return Object.freeze({
     window,
     body,
     titleText,
     subtitleText,
     fullscreenButton,
+    timeProjection,
     timeline,
-    currentTime,
+    currentOutput,
     currentText,
-    tracksList,
+    keyframesList,
+    markersList,
+    playback,
     previousButton,
-    playButton,
+    toggleButton,
     nextButton,
+    channels,
+    channelsList,
   })
 }
 
-function synchronizeTimelineMaps(tracksList: HTMLElement, maps: MutableHudMaps): void {
-  maps.trackElements.clear()
-  maps.trackLabelTexts.clear()
-  maps.markerItems.clear()
-  maps.markerTimes.clear()
-  maps.markerTexts.clear()
-  for (const trackNode of tracksList.querySelectorAll("[data-track-key]")) {
-    const track = requiredElement(trackNode, "Bulk HUD Timeline track is invalid")
-    const trackKey = track.getAttribute("data-track-key")!
-    const label = requiredTextNode(track.querySelector("span")?.firstChild, `Bulk HUD track label is missing: ${trackKey}`)
-    maps.trackElements.set(trackKey, track)
-    maps.trackLabelTexts.set(trackKey, label)
-    for (const markerNode of track.querySelectorAll("[data-marker-key]")) {
-      const marker = requiredElement(markerNode, `Bulk HUD Timeline marker is invalid: ${trackKey}`)
-      const markerKey = marker.getAttribute("data-marker-key")!
-      const key = `${trackKey}/${markerKey}`
-      const button = requiredButton(marker.querySelector("button"), `Bulk HUD marker is missing: ${key}`)
-      maps.markerItems.set(key, marker)
-      maps.markerTimes.set(key, marker)
-      maps.markerTexts.set(key, firstText(button, `Bulk HUD marker text is missing: ${key}`))
+function synchronizeTimelineMaps(timeline: HTMLElement, maps: MutableHudMaps): void {
+  maps.keyframeItems.clear()
+  maps.keyframeButtons.clear()
+  maps.sceneMarkerItems.clear()
+  maps.sceneMarkerButtons.clear()
+  for (const node of timeline.querySelectorAll("[data-keyframe-key]")) {
+    const item = requiredElement(node, "Bulk HUD Timeline keyframe is invalid")
+    const key = requiredAttribute(item, "data-keyframe-key", "Bulk HUD Timeline keyframe key is missing")
+    maps.keyframeItems.set(key, item)
+    maps.keyframeButtons.set(key, requiredButton(item.querySelector("button"), `Bulk HUD keyframe button is missing: ${key}`))
+  }
+  for (const node of timeline.querySelectorAll("[data-marker-key]")) {
+    const item = requiredElement(node, "Bulk HUD Timeline scene marker is invalid")
+    const key = requiredAttribute(item, "data-marker-key", "Bulk HUD Timeline scene marker key is missing")
+    maps.sceneMarkerItems.set(key, item)
+    maps.sceneMarkerButtons.set(key, requiredButton(item.querySelector("button"), `Bulk HUD scene marker button is missing: ${key}`))
+  }
+}
+
+function synchronizeChannelMaps(channelsList: HTMLElement, maps: MutableHudMaps): void {
+  maps.channelElements.clear()
+  maps.channelLabelTexts.clear()
+  maps.pointItems.clear()
+  maps.pointButtons.clear()
+  maps.pointTexts.clear()
+  for (const node of channelsList.querySelectorAll("[data-channel-key]")) {
+    const channel = requiredElement(node, "Bulk HUD causal channel is invalid")
+    const channelKey = requiredAttribute(channel, "data-channel-key", "Bulk HUD causal channel key is missing")
+    const label = requiredElement(channel.querySelector("[data-channel-label]"), `Bulk HUD channel label is missing: ${channelKey}`)
+    maps.channelElements.set(channelKey, channel)
+    maps.channelLabelTexts.set(channelKey, requiredTextNode(label.firstChild, `Bulk HUD channel text is missing: ${channelKey}`))
+    for (const pointNode of channel.querySelectorAll("[data-channel-point-key]")) {
+      const point = requiredElement(pointNode, `Bulk HUD causal channel point is invalid: ${channelKey}`)
+      const pointKey = requiredAttribute(point, "data-channel-point-key", `Bulk HUD channel point key is missing: ${channelKey}`)
+      const key = `${channelKey}/${pointKey}`
+      const button = requiredButton(point.querySelector("button"), `Bulk HUD channel point button is missing: ${key}`)
+      maps.pointItems.set(key, point)
+      maps.pointButtons.set(key, button)
+      maps.pointTexts.set(key, firstText(button, `Bulk HUD channel point text is missing: ${key}`))
     }
   }
 }
@@ -406,98 +613,217 @@ function normalizeProps(props: BulkHudDocumentProps): BulkHudDocumentProps {
   assertString(props.subtitle, "Bulk HUD subtitle")
   assertBoolean(props.fullscreen, "Bulk HUD fullscreen")
   assertBoolean(props.fullscreenDisabled, "Bulk HUD fullscreenDisabled")
-  const causalTimeline = normalizeTimeline(props.causalTimeline)
   return Object.freeze({
     title: props.title,
     subtitle: props.subtitle,
     fullscreen: props.fullscreen,
     fullscreenDisabled: props.fullscreenDisabled,
-    causalTimeline,
+    causalTime: normalizeCausalTime(props.causalTime),
   })
 }
 
-function normalizeTimeline(timeline: TimelineProps): TimelineProps {
+function normalizeCausalTime(value: BulkCausalTimePresentation): BulkCausalTimePresentation {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError("Bulk HUD causalTime must be an object")
+  }
+  const timeline = normalizeTimeline(value.timeline)
+  const playback = normalizePlayback(value.playback)
+  const channels = normalizeChannels(value.channels, timeline)
+  return Object.freeze({timeline, playback, channels})
+}
+
+function normalizeTimeline(timeline: BulkCausalTimelineProps): BulkCausalTimelineProps {
   if (typeof timeline !== "object" || timeline === null) {
-    throw new TypeError("Bulk HUD causalTimeline must be an object")
+    throw new TypeError("Bulk HUD causal timeline must be an object")
   }
-  assertNonEmpty(timeline.title, "Bulk HUD causalTimeline title")
-  assertFinite(timeline.min, "Bulk HUD causalTimeline min")
-  assertFinite(timeline.max, "Bulk HUD causalTimeline max")
-  assertFinite(timeline.current, "Bulk HUD causalTimeline current")
-  assertBoolean(timeline.playing, "Bulk HUD causalTimeline playing")
-  if (timeline.max <= timeline.min) {
-    throw new RangeError("Bulk HUD causalTimeline max must be greater than min")
+  assertNonEmpty(timeline.title, "Bulk HUD causal timeline title")
+  assertFinite(timeline.frameStart, "Bulk HUD causal timeline frameStart")
+  assertFinite(timeline.frameEnd, "Bulk HUD causal timeline frameEnd")
+  assertFinite(timeline.frameCurrent, "Bulk HUD causal timeline frameCurrent")
+  assertFinite(timeline.visibleStart, "Bulk HUD causal timeline visibleStart")
+  assertFinite(timeline.visibleEnd, "Bulk HUD causal timeline visibleEnd")
+  if (timeline.frameEnd <= timeline.frameStart) {
+    throw new RangeError("Bulk HUD causal timeline frameEnd must be greater than frameStart")
   }
-  if (timeline.current < timeline.min || timeline.current > timeline.max) {
-    throw new RangeError("Bulk HUD causalTimeline current must be inside the range")
+  if (timeline.frameCurrent < timeline.frameStart || timeline.frameCurrent > timeline.frameEnd) {
+    throw new RangeError("Bulk HUD causal timeline frameCurrent must be inside the playback range")
   }
-  if (!Array.isArray(timeline.tracks)) {
-    throw new TypeError("Bulk HUD causalTimeline tracks must be an array")
+  if (timeline.visibleEnd <= timeline.visibleStart) {
+    throw new RangeError("Bulk HUD causal timeline visibleEnd must be greater than visibleStart")
   }
-  const trackKeys = new Set<string>()
-  const tracks = timeline.tracks.map((track: TimelineTrack) => normalizeTrack(
-    track,
-    trackKeys,
-    timeline.min,
-    timeline.max,
-  ))
+  if ((timeline.previewStart === undefined) !== (timeline.previewEnd === undefined)) {
+    throw new Error("Bulk HUD causal timeline preview range requires both endpoints")
+  }
+  if (timeline.previewStart !== undefined && timeline.previewEnd !== undefined) {
+    assertFinite(timeline.previewStart, "Bulk HUD causal timeline previewStart")
+    assertFinite(timeline.previewEnd, "Bulk HUD causal timeline previewEnd")
+    if (timeline.previewEnd < timeline.previewStart) {
+      throw new RangeError("Bulk HUD causal timeline previewEnd must not be less than previewStart")
+    }
+  }
+  const keyframes = normalizeTimelinePoints(
+    timeline.keyframes,
+    timeline.frameStart,
+    timeline.frameEnd,
+    "keyframe",
+  )
+  const markers = normalizeTimelinePoints(
+    timeline.markers,
+    timeline.frameStart,
+    timeline.frameEnd,
+    "scene marker",
+  )
   return Object.freeze({
     title: timeline.title,
-    min: timeline.min,
-    max: timeline.max,
-    current: timeline.current,
-    playing: timeline.playing,
-    tracks: Object.freeze(tracks),
+    frameStart: timeline.frameStart,
+    frameEnd: timeline.frameEnd,
+    frameCurrent: timeline.frameCurrent,
+    visibleStart: timeline.visibleStart,
+    visibleEnd: timeline.visibleEnd,
+    ...(timeline.previewStart === undefined ? {} : {
+      previewStart: timeline.previewStart,
+      previewEnd: timeline.previewEnd,
+    }),
+    keyframes,
+    markers,
   })
 }
 
-function normalizeTrack(
-  track: TimelineTrack,
-  trackKeys: Set<string>,
-  min: number,
-  max: number,
-): TimelineTrack {
-  if (typeof track !== "object" || track === null) {
-    throw new TypeError("Bulk HUD causalTimeline track must be an object")
+function normalizeTimelinePoints<T extends TimelineKeyframe | TimelineMarker>(
+  values: readonly T[],
+  minimum: number,
+  maximum: number,
+  label: string,
+): readonly T[] {
+  if (!Array.isArray(values)) throw new TypeError(`Bulk HUD causal timeline ${label}s must be an array`)
+  const keys = new Set<string>()
+  return Object.freeze(values.map((value) => {
+    if (typeof value !== "object" || value === null) {
+      throw new TypeError(`Bulk HUD causal timeline ${label} must be an object`)
+    }
+    assertKey(value.key, keys, `Bulk HUD causal timeline ${label}`)
+    assertFinite(value.frame, `Bulk HUD causal timeline ${label} ${value.key} frame`)
+    assertString(value.label, `Bulk HUD causal timeline ${label} ${value.key} label`)
+    if (value.selected !== undefined) {
+      assertBoolean(value.selected, `Bulk HUD causal timeline ${label} ${value.key} selected`)
+    }
+    if (value.frame < minimum || value.frame > maximum) {
+      throw new RangeError(`Bulk HUD causal timeline ${label} is outside the playback range: ${value.key}`)
+    }
+    return Object.freeze({...value})
+  })) as readonly T[]
+}
+
+function normalizePlayback(playback: BulkCausalPlaybackProps): BulkCausalPlaybackProps {
+  if (typeof playback !== "object" || playback === null) {
+    throw new TypeError("Bulk HUD causal playback must be an object")
   }
-  assertKey(track.key, trackKeys, "Bulk HUD causalTimeline track")
-  assertString(track.label, `Bulk HUD causalTimeline track ${track.key} label`)
-  if (!Array.isArray(track.markers)) {
-    throw new TypeError(`Bulk HUD causalTimeline track ${track.key} markers must be an array`)
+  assertBoolean(playback.playing, "Bulk HUD causal playback playing")
+  assertBoolean(playback.previousDisabled, "Bulk HUD causal playback previousDisabled")
+  assertBoolean(playback.toggleDisabled, "Bulk HUD causal playback toggleDisabled")
+  assertBoolean(playback.nextDisabled, "Bulk HUD causal playback nextDisabled")
+  return Object.freeze({...playback})
+}
+
+function normalizeChannels(
+  channels: BulkCausalChannelsProps,
+  timeline: BulkCausalTimelineProps,
+): BulkCausalChannelsProps {
+  if (typeof channels !== "object" || channels === null) {
+    throw new TypeError("Bulk HUD causal channels must be an object")
   }
-  const markerKeys = new Set<string>()
-  const markers = track.markers.map((marker: TimelineMarker) => normalizeMarker(
-    track.key,
-    marker,
-    markerKeys,
-    min,
-    max,
+  assertNonEmpty(channels.title, "Bulk HUD causal channels title")
+  if (!Array.isArray(channels.channels)) throw new TypeError("Bulk HUD causal channels must be an array")
+  const keys = new Set<string>()
+  const normalized = channels.channels.map((channel) => normalizeChannel(
+    channel,
+    keys,
+    timeline.frameStart,
+    timeline.frameEnd,
+  ))
+  assertSharedCausalPoints(normalized, timeline.keyframes)
+  return Object.freeze({
+    title: channels.title,
+    channels: Object.freeze(normalized),
+  })
+}
+
+function normalizeChannel(
+  channel: BulkCausalChannel,
+  keys: Set<string>,
+  minimum: number,
+  maximum: number,
+): BulkCausalChannel {
+  if (typeof channel !== "object" || channel === null) {
+    throw new TypeError("Bulk HUD causal channel must be an object")
+  }
+  assertKey(channel.key, keys, "Bulk HUD causal channel")
+  assertNonEmpty(channel.label, `Bulk HUD causal channel ${channel.key} label`)
+  if (!Array.isArray(channel.points)) {
+    throw new TypeError(`Bulk HUD causal channel ${channel.key} points must be an array`)
+  }
+  const pointKeys = new Set<string>()
+  const points = channel.points.map((point) => normalizeChannelPoint(
+    channel.key,
+    point,
+    pointKeys,
+    minimum,
+    maximum,
   ))
   return Object.freeze({
-    key: track.key,
-    label: track.label,
-    markers: Object.freeze(markers),
+    key: channel.key,
+    label: channel.label,
+    points: Object.freeze(points),
   })
 }
 
-function normalizeMarker(
-  trackKey: string,
-  marker: TimelineMarker,
-  markerKeys: Set<string>,
-  min: number,
-  max: number,
-): TimelineMarker {
-  if (typeof marker !== "object" || marker === null) {
-    throw new TypeError("Bulk HUD causalTimeline marker must be an object")
+function normalizeChannelPoint(
+  channelKey: string,
+  point: BulkCausalChannelPoint,
+  keys: Set<string>,
+  minimum: number,
+  maximum: number,
+): BulkCausalChannelPoint {
+  if (typeof point !== "object" || point === null) {
+    throw new TypeError("Bulk HUD causal channel point must be an object")
   }
-  assertKey(marker.key, markerKeys, `Bulk HUD causalTimeline track ${trackKey} marker`)
-  assertFinite(marker.tick, `Bulk HUD causalTimeline marker ${marker.key} tick`)
-  assertString(marker.label, `Bulk HUD causalTimeline marker ${marker.key} label`)
-  assertBoolean(marker.selected, `Bulk HUD causalTimeline marker ${marker.key} selected`)
-  if (marker.tick < min || marker.tick > max) {
-    throw new RangeError(`Bulk HUD causalTimeline marker is outside the range: ${trackKey}/${marker.key}`)
+  assertKey(point.key, keys, `Bulk HUD causal channel ${channelKey} point`)
+  assertFinite(point.frame, `Bulk HUD causal channel point ${point.key} frame`)
+  assertNonEmpty(point.label, `Bulk HUD causal channel point ${point.key} label`)
+  assertBoolean(point.selected, `Bulk HUD causal channel point ${point.key} selected`)
+  if (!isResolution(point.resolution)) {
+    throw new TypeError(`Bulk HUD causal channel point ${point.key} resolution is invalid`)
   }
-  return Object.freeze({...marker})
+  if (point.frame < minimum || point.frame > maximum) {
+    throw new RangeError(`Bulk HUD causal channel point is outside the playback range: ${channelKey}/${point.key}`)
+  }
+  return Object.freeze({...point})
+}
+
+function assertSharedCausalPoints(
+  channels: readonly BulkCausalChannel[],
+  keyframes: readonly TimelineKeyframe[],
+): void {
+  const expected = new Map(keyframes.map((keyframe) => [keyframe.key, keyframe]))
+  for (const channel of channels) {
+    if (channel.points.length !== keyframes.length) {
+      throw new Error(`Bulk HUD causal channel must project every summary keyframe: ${channel.key}`)
+    }
+    for (const point of channel.points) {
+      const keyframe = expected.get(point.key)
+      if (
+        keyframe === undefined ||
+        keyframe.frame !== point.frame ||
+        (keyframe.selected === true) !== point.selected
+      ) {
+        throw new Error(`Bulk HUD causal channel diverges from the summary timeline: ${channel.key}/${point.key}`)
+      }
+    }
+  }
+}
+
+function isResolution(value: unknown): boolean {
+  return value === "exact" || value === "degraded" || value === "overloaded" || value === "unknown"
 }
 
 function assertKey(value: unknown, keys: Set<string>, label: string): asserts value is string {
@@ -539,6 +865,12 @@ function requiredButton(value: unknown, message: string): HTMLButtonElement {
 function requiredTextNode(value: unknown, message: string): Text {
   if (value === null || typeof value !== "object" || !("data" in value)) throw new Error(message)
   return value as Text
+}
+
+function requiredAttribute(element: HTMLElement, name: string, message: string): string {
+  const value = element.getAttribute(name)
+  if (value === null || value.length === 0) throw new Error(message)
+  return value
 }
 
 function firstText(root: HTMLElement, message: string): Text {

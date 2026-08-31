@@ -1,6 +1,7 @@
 import {describe, expect, test} from "bun:test"
 import {
   BulkCausalTimeModel,
+  buildBulkCausalTimePresentation,
   buildBulkCausalTimeline,
   playheadForSequence,
   readBulkTimeFrames,
@@ -12,40 +13,56 @@ describe("Bulk DOM causal time", () => {
       {id: 1, frontier: {acceptanceSequence: 10}, resolution: "exact"},
       {id: 2, frontier: {acceptanceSequence: 20}, resolution: "degraded"},
     ])
-    const timeline = buildBulkCausalTimeline(frames, 0.25, false)
+    const timeline = buildBulkCausalTimeline(frames, 0.25)
 
     expect(timeline).toMatchObject({
       title: "ВРЕМЯ · causal stack",
-      min: 9,
-      max: 21,
-      current: 12.5,
-      playing: false,
+      frameStart: 9,
+      frameEnd: 21,
+      frameCurrent: 12.5,
+      visibleStart: 9,
+      visibleEnd: 21,
+      previewStart: 10,
+      previewEnd: 20,
     })
-    expect(timeline.tracks.map(({key, label}) => [key, label])).toEqual([
+    expect(timeline.keyframes).toEqual([
+      {key: "frame-1", frame: 10, selected: true, label: "frame 1"},
+      {key: "frame-2", frame: 20, selected: false, label: "frame 2"},
+    ])
+    expect(timeline.markers).toEqual([
+      {key: "frame-2", frame: 20, selected: false, label: "degraded · frame 2"},
+    ])
+    const presentation = buildBulkCausalTimePresentation(frames, 0.25, "paused")
+    expect(presentation.playback).toEqual({
+      playing: false,
+      previousDisabled: false,
+      toggleDisabled: false,
+      nextDisabled: false,
+    })
+    expect(presentation.channels.channels.map(({key, label}) => [key, label])).toEqual([
       ["force", "Force"],
       ["mass", "Mass"],
       ["boundary", "Boundary"],
     ])
-    expect(timeline.tracks[0]?.markers).toEqual([
-      {key: "frame-1", tick: 10, selected: true, label: "frame 1"},
-      {key: "frame-2", tick: 20, selected: false, label: "frame 2"},
+    expect(presentation.channels.channels[0]?.points).toEqual([
+      {key: "frame-1", frame: 10, selected: true, label: "frame 1", resolution: "exact"},
+      {key: "frame-2", frame: 20, selected: false, label: "frame 2", resolution: "degraded"},
     ])
-    expect(timeline.tracks[1]?.markers).toBe(timeline.tracks[0]?.markers)
+    expect(presentation.channels.channels[1]?.points)
+      .toBe(presentation.channels.channels[0]?.points)
     expect(playheadForSequence(frames, 15)).toBeCloseTo(0.5)
   })
 
-  test("keeps an empty stack valid without inventing semantic tracks", () => {
-    expect(buildBulkCausalTimeline([], 0, true)).toEqual({
+  test("keeps an empty stack valid without restoring legacy transport or tracks", () => {
+    expect(buildBulkCausalTimeline([], 0)).toEqual({
       title: "ВРЕМЯ · causal stack",
-      min: -1,
-      max: 1,
-      current: 0,
-      playing: true,
-      tracks: [
-        {key: "force", label: "Force", markers: []},
-        {key: "mass", label: "Mass", markers: []},
-        {key: "boundary", label: "Boundary", markers: []},
-      ],
+      frameStart: -1,
+      frameEnd: 1,
+      frameCurrent: 0,
+      visibleStart: -1,
+      visibleEnd: 1,
+      keyframes: [],
+      markers: [],
     })
   })
 
@@ -96,6 +113,8 @@ describe("Bulk DOM causal time", () => {
     model.selectRelativeFrame(-1)
     expect(model.playhead).toBe(0)
     expect(model.message).toBe("Просмотр позиции; live и 3D не изменены")
+    model.selectFrame(2)
+    expect(model.playhead).toBe(1)
     await model.resume()
     expect(model.state).toBe("open")
     expect(model.frames).toEqual([])

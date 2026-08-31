@@ -1,4 +1,7 @@
-import type {TimelineProps} from "@ui/components/hud"
+import type {
+  TimelineKeyframe,
+  TimelineMarker,
+} from "@ui/components/hud"
 
 export type BulkTimeFrameResolution = "exact" | "degraded" | "overloaded"
 
@@ -27,11 +30,56 @@ export type BulkCausalTimeSnapshot = Readonly<{
 
 type BulkTimeListener = (snapshot: BulkCausalTimeSnapshot) => void
 
-export const BULK_TIME_TRACKS = Object.freeze([
+export const BULK_TIME_CHANNELS = Object.freeze([
   Object.freeze({key: "force", label: "Force"}),
   Object.freeze({key: "mass", label: "Mass"}),
   Object.freeze({key: "boundary", label: "Boundary"}),
 ])
+
+export type BulkCausalTimelineProps = Readonly<{
+  title: string
+  frameStart: number
+  frameEnd: number
+  frameCurrent: number
+  visibleStart: number
+  visibleEnd: number
+  previewStart?: number | undefined
+  previewEnd?: number | undefined
+  keyframes: readonly TimelineKeyframe[]
+  markers: readonly TimelineMarker[]
+}>
+
+export type BulkCausalPlaybackProps = Readonly<{
+  playing: boolean
+  previousDisabled: boolean
+  toggleDisabled: boolean
+  nextDisabled: boolean
+}>
+
+export type BulkCausalChannelPoint = Readonly<{
+  key: string
+  frame: number
+  label: string
+  selected: boolean
+  resolution: BulkTimeFrameResolution | "unknown"
+}>
+
+export type BulkCausalChannel = Readonly<{
+  key: string
+  label: string
+  points: readonly BulkCausalChannelPoint[]
+}>
+
+export type BulkCausalChannelsProps = Readonly<{
+  title: string
+  channels: readonly BulkCausalChannel[]
+}>
+
+export type BulkCausalTimePresentation = Readonly<{
+  timeline: BulkCausalTimelineProps
+  playback: BulkCausalPlaybackProps
+  channels: BulkCausalChannelsProps
+}>
 
 export class BulkCausalTimeModel {
   #frames: readonly BulkTimeFrame[] = Object.freeze([])
@@ -89,6 +137,13 @@ export class BulkCausalTimeModel {
     const next = this.#frames[nextIndex]
     if (next === undefined) return
     this.setPlayhead(playheadForSequence(this.#frames, next.frontier.acceptanceSequence))
+  }
+
+  selectFrame(id: number): void {
+    this.#assertActive()
+    const frame = this.#frames.find((candidate) => candidate.id === id)
+    if (frame === undefined) return
+    this.setPlayhead(playheadForSequence(this.#frames, frame.frontier.acceptanceSequence))
   }
 
   async pause(): Promise<void> {
@@ -216,31 +271,74 @@ export const readBulkTimeFrames = (value: unknown): readonly BulkTimeFrame[] => 
 export const buildBulkCausalTimeline = (
   frames: readonly BulkTimeFrame[],
   playhead: number,
-  playing = false,
-): TimelineProps => {
+): BulkCausalTimelineProps => {
   const range = causalTimelineRange(frames)
   const current = range.span === 0
     ? range.first
     : range.first + range.span * clamp(playhead, 0, 1)
   const selectedIndex = nearestFrameIndex(frames, current)
-  const markers = Object.freeze(frames.map((frame, index) => Object.freeze({
+  const keyframes = Object.freeze(frames.map((frame, index) => Object.freeze({
     key: `frame-${frame.id}`,
-    tick: frame.frontier.acceptanceSequence,
+    frame: frame.frontier.acceptanceSequence,
     selected: index === selectedIndex,
     label: `frame ${frame.id}`,
   })))
+  const markers = Object.freeze(frames.flatMap((frame, index) =>
+    frame.resolution === undefined || frame.resolution === "exact"
+      ? []
+      : [Object.freeze({
+        key: `frame-${frame.id}`,
+        frame: frame.frontier.acceptanceSequence,
+        selected: index === selectedIndex,
+        label: `${frame.resolution} · frame ${frame.id}`,
+      })],
+  ))
 
   return Object.freeze({
     title: "ВРЕМЯ · causal stack",
-    min: range.min,
-    max: range.max,
-    current,
-    playing,
-    tracks: Object.freeze(BULK_TIME_TRACKS.map(({key, label}) => Object.freeze({
-      key,
-      label,
-      markers,
-    }))),
+    frameStart: range.min,
+    frameEnd: range.max,
+    frameCurrent: current,
+    visibleStart: range.min,
+    visibleEnd: range.max,
+    ...(frames.length === 0 ? {} : {
+      previewStart: range.first,
+      previewEnd: range.last,
+    }),
+    keyframes,
+    markers,
+  })
+}
+
+export const buildBulkCausalTimePresentation = (
+  frames: readonly BulkTimeFrame[],
+  playhead: number,
+  state: BulkTimeState,
+): BulkCausalTimePresentation => {
+  const timeline = buildBulkCausalTimeline(frames, playhead)
+  const points = Object.freeze(frames.map((frame, index) => Object.freeze({
+    key: `frame-${frame.id}`,
+    frame: frame.frontier.acceptanceSequence,
+    label: `frame ${frame.id}`,
+    selected: timeline.keyframes[index]?.selected === true,
+    resolution: frame.resolution ?? "unknown",
+  })))
+  return Object.freeze({
+    timeline,
+    playback: Object.freeze({
+      playing: state === "open",
+      previousDisabled: frames.length === 0,
+      toggleDisabled: state !== "open" && state !== "paused",
+      nextDisabled: frames.length === 0,
+    }),
+    channels: Object.freeze({
+      title: "КАНАЛЫ · causal frontier",
+      channels: Object.freeze(BULK_TIME_CHANNELS.map(({key, label}) => Object.freeze({
+        key,
+        label,
+        points,
+      }))),
+    }),
   })
 }
 
