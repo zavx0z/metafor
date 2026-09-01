@@ -39,14 +39,15 @@ function DisplayDockView(props: DisplayDockViewProps) {
     id="main-display-dock"
     data-expanded={props.expanded ? "true" : "false"}
     style={css`
-      & {
-        position: absolute;
-        left: ${props.left};
-        bottom: 13px;
-        width: ${props.width};
-        height: 17px;
+      position: absolute;
+      left: ${props.left};
+      bottom: 13px;
+      width: ${props.width};
+      height: 17px;
+
+      &[data-expanded="true"] {
+        height: 82px;
       }
-      &[data-expanded="true"] { height: 82px; }
     `}
   >
     <Button
@@ -59,16 +60,17 @@ function DisplayDockView(props: DisplayDockViewProps) {
       size="small"
       onClick={props.onReturnClick}
       style={css`
-        & {
-          position: absolute;
-          left: ${props.returnButtonLeft};
-          top: 0;
-          width: 38px;
-          min-width: 38px;
-          height: 38px;
-          padding: 8px;
-        }
-        ${props.expanded === false && css`& { display: none; }`}
+        position: absolute;
+        left: ${props.returnButtonLeft};
+        top: 0;
+        width: 38px;
+        min-width: 38px;
+        height: 38px;
+        padding: 8px;
+
+        ${props.expanded === false && css`
+          display: none;
+        `}
       `}
     />
     <Button
@@ -80,16 +82,14 @@ function DisplayDockView(props: DisplayDockViewProps) {
       size="small"
       onClick={props.onDockClick}
       style={css`
-        & {
-          position: absolute;
-          left: 0;
-          bottom: 0;
-          width: 100%;
-          min-width: 100%;
-          height: 17px;
-          padding: 0;
-          border-radius: 9px;
-        }
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        min-width: 100%;
+        height: 17px;
+        padding: 0;
+        border-radius: 9px;
       `}
     />
   </div>

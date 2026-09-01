@@ -74,38 +74,35 @@ function GraphJsonPresentation(props: GraphJsonPresentationProps) {
     data-story={props.input.id}
     data-control-kind={control?.kind}
     style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        height: 100%;
-        min-height: 0;
-        gap: 4px;
-        padding: 6px;
-        color: var(--widget-box-content);
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      gap: 4px;
+      padding: 6px;
+      color: var(--widget-box-content);
     `}
   >
     <h2 style={css`
-      & {
-        display: block;
-        margin: 0;
-        color: var(--widget-box-content);
-        font-size: var(--font-size-md);
-        line-height: 18px;
-      }
+      display: block;
+      margin: 0;
+      color: var(--widget-box-content);
+      font-size: var(--font-size-md);
+      line-height: 18px;
     `}>{props.input.title}</h2>
     <div
       hidden={control === undefined}
       style={css`
-        & {
-          display: flex;
-          flex-direction: row;
-          min-height: 28px;
-          gap: 4px;
+        display: flex;
+        flex-direction: row;
+        min-height: 28px;
+        gap: 4px;
+
+        &[hidden] {
+          display: none;
         }
-        &[hidden] { display: none; }
       `}
     >
       {control?.kind === "boolean"
@@ -116,12 +113,10 @@ function GraphJsonPresentation(props: GraphJsonPresentationProps) {
         : null}
     </div>
     <div style={css`
-      & {
-        display: flex;
-        flex-direction: column;
-        min-height: 0;
-        flex-grow: 1;
-      }
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      flex-grow: 1;
     `}>
       <CodeEditor
         value={editor.value}
@@ -131,12 +126,10 @@ function GraphJsonPresentation(props: GraphJsonPresentationProps) {
         showLineNumbers={editor.showLineNumbers}
         title={editor.title}
         style={css`
-          & {
-            width: 100%;
-            height: 100%;
-            min-height: 0;
-            flex-grow: 1;
-          }
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          flex-grow: 1;
         `}
       />
     </div>
@@ -155,28 +148,32 @@ function GraphBooleanControlView(props: GraphControlViewProps) {
   return <div
     data-control-key={definition.key}
     style={css`
-      & {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        min-height: 28px;
-        gap: 4px;
-        padding: 2px 4px;
-        background: var(--space-node-navigation-background);
-      }
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      min-height: 28px;
+      gap: 4px;
+      padding: 2px 4px;
+      background: var(--space-node-navigation-background);
     `}
   >
     <span style={css`
-      & { display: block; color: var(--widget-box-content); font-size: var(--font-size-xs); }
+      display: block;
+      color: var(--widget-box-content);
+      font-size: var(--font-size-xs);
     `}>{definition.label}</span>
     <CheckboxField
       checked={Boolean(props.args[definition.key])}
       title={definition.description}
       onChange={onChange}
-      style={css`& { flex-shrink: 0; }`}
+      style={css`
+        flex-shrink: 0;
+      `}
     />
     <span style={css`
-      & { display: block; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
+      display: block;
+      color: var(--widget-text-content-readonly);
+      font-size: var(--font-size-2xs);
     `}>{definition.description}</span>
   </div>
 }
@@ -187,19 +184,19 @@ function GraphSelectControlView(props: GraphControlViewProps) {
   return <div
     data-control-key={definition.key}
     style={css`
-      & {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        min-height: 28px;
-        gap: 4px;
-        padding: 2px 4px;
-        background: var(--space-node-navigation-background);
-      }
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      min-height: 28px;
+      gap: 4px;
+      padding: 2px 4px;
+      background: var(--space-node-navigation-background);
     `}
   >
     <span style={css`
-      & { display: block; color: var(--widget-box-content); font-size: var(--font-size-xs); }
+      display: block;
+      color: var(--widget-box-content);
+      font-size: var(--font-size-xs);
     `}>{definition.label}</span>
     <SelectField
       value={String(props.args[definition.key] ?? "")}
@@ -210,10 +207,15 @@ function GraphSelectControlView(props: GraphControlViewProps) {
       }))}
       title={definition.description}
       onChange={onChange}
-      style={css`& { width: 160px; height: 24px; }`}
+      style={css`
+        width: 160px;
+        height: 24px;
+      `}
     />
     <span style={css`
-      & { display: block; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
+      display: block;
+      color: var(--widget-text-content-readonly);
+      font-size: var(--font-size-2xs);
     `}>{definition.description}</span>
   </div>
 }

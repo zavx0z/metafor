@@ -120,14 +120,12 @@ function BulkPlayback(props: Readonly<{value: BulkCausalPlaybackProps}>) {
   return <nav
     aria-label="Causal playback"
     style={css`
-      & {
-        display: flex;
-        flex-direction: row;
-        justify-content: center;
-        align-items: center;
-        gap: 4px;
-        min-height: 22px;
-      }
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      min-height: 22px;
     `}
   >
     <Button
@@ -135,7 +133,12 @@ function BulkPlayback(props: Readonly<{value: BulkCausalPlaybackProps}>) {
       aria-label="Предыдущий causal frame"
       disabled={props.value.previousDisabled}
       size="small"
-      style={css`& { width: auto; min-width: 64px; height: 22px; padding: 2px 8px; }`}
+      style={css`
+        width: auto;
+        min-width: 64px;
+        height: 22px;
+        padding: 2px 8px;
+      `}
     />
     <Button
       label={props.value.playing ? "Пауза" : "Продолжить"}
@@ -143,14 +146,24 @@ function BulkPlayback(props: Readonly<{value: BulkCausalPlaybackProps}>) {
       disabled={props.value.toggleDisabled}
       selected={props.value.playing}
       size="small"
-      style={css`& { width: auto; min-width: 64px; height: 22px; padding: 2px 8px; }`}
+      style={css`
+        width: auto;
+        min-width: 64px;
+        height: 22px;
+        padding: 2px 8px;
+      `}
     />
     <Button
       label="Вперёд"
       aria-label="Следующий causal frame"
       disabled={props.value.nextDisabled}
       size="small"
-      style={css`& { width: auto; min-width: 64px; height: 22px; padding: 2px 8px; }`}
+      style={css`
+        width: auto;
+        min-width: 64px;
+        height: 22px;
+        padding: 2px 8px;
+      `}
     />
   </nav>
 }
@@ -164,7 +177,10 @@ function BulkCausalPointView(props: Readonly<{
     data-channel-point-key={point.key}
     data-frame={String(point.frame)}
     data-resolution={point.resolution}
-    style={css`& { display: block; list-style: none; }`}
+    style={css`
+      display: block;
+      list-style: none;
+    `}
   >
     <Button
       label={String(point.frame)}
@@ -175,7 +191,13 @@ function BulkCausalPointView(props: Readonly<{
         ? "error"
         : point.resolution === "degraded" ? "warning" : "neutral"}
       size="small"
-      style={css`& { width: auto; min-width: 28px; height: 18px; padding: 1px 4px; font-size: var(--font-size-2xs); }`}
+      style={css`
+        width: auto;
+        min-width: 28px;
+        height: 18px;
+        padding: 1px 4px;
+        font-size: var(--font-size-2xs);
+      `}
     />
   </li>
 }
@@ -184,13 +206,32 @@ function BulkCausalChannelView(props: Readonly<{channel: BulkCausalChannel}>) {
   const channel = props.channel
   return <li
     data-channel-key={channel.key}
-    style={css`& { display: flex; flex-direction: row; align-items: center; min-height: 22px; gap: 4px; list-style: none; }`}
+    style={css`
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      min-height: 22px;
+      gap: 4px;
+      list-style: none;
+    `}
   >
     <span data-channel-label="" style={css`
-      & { display: inline; width: 68px; flex-shrink: 0; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
+      display: inline;
+      width: 68px;
+      flex-shrink: 0;
+      color: var(--widget-text-content-readonly);
+      font-size: var(--font-size-2xs);
     `}>{channel.label}</span>
     <ol aria-label={`${channel.label} causal frames`} style={css`
-      & { display: flex; flex-direction: row; align-items: center; flex-grow: 1; gap: 3px; min-width: 0; margin: 0; padding: 0; overflow: clip; }
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      flex-grow: 1;
+      gap: 3px;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      overflow: clip;
     `}>
       {channel.points.map((point) => <BulkCausalPointView
         key={point.key}
@@ -206,22 +247,29 @@ function BulkCausalChannels(props: Readonly<{value: BulkCausalChannelsProps}>) {
     aria-label={props.value.title}
     data-bulk-causal-channels=""
     style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        gap: 2px;
-        border-top: var(--border-width-control) solid var(--widget-regular-outline);
-        color: var(--widget-toolbar-content);
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      gap: 2px;
+      border-top: var(--border-width-control) solid var(--widget-regular-outline);
+      color: var(--widget-toolbar-content);
     `}
   >
     <header style={css`
-      & { display: flex; align-items: center; min-height: 20px; padding: 2px 6px; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
+      display: flex;
+      align-items: center;
+      min-height: 20px;
+      padding: 2px 6px;
+      color: var(--widget-text-content-readonly);
+      font-size: var(--font-size-2xs);
     `}><span>{props.value.title}</span></header>
     <ul aria-label="Causal channels" style={css`
-      & { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; }
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin: 0;
+      padding: 0;
     `}>
       {props.value.channels.map((channel) => <BulkCausalChannelView
         key={channel.key}
@@ -237,13 +285,11 @@ function BulkCausalTimeProjection(props: Readonly<{value: BulkCausalTimePresenta
     aria-label="Bulk causal time"
     data-bulk-causal-time=""
     style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        gap: 4px;
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      gap: 4px;
     `}
   >
     <BulkPlayback value={props.value.playback} />
@@ -258,7 +304,12 @@ function BulkCausalTimeProjection(props: Readonly<{value: BulkCausalTimePresenta
       previewEnd={timeline.previewEnd}
       keyframes={timeline.keyframes}
       markers={timeline.markers}
-      style={css`& { width: 100%; min-height: 112px; border: 0 solid transparent; border-radius: 0; }`}
+      style={css`
+        width: 100%;
+        min-height: 112px;
+        border: 0 solid transparent;
+        border-radius: 0;
+      `}
     />
     <BulkCausalChannels value={props.value.channels} />
   </section>
@@ -271,18 +322,17 @@ function BulkHudOwners(props: Readonly<{value: BulkHudDocumentProps}>) {
     data-bulk-hud=""
     data-fullscreen={String(props.value.fullscreen)}
     style={css`
-      & {
-        box-sizing: border-box;
-        position: absolute;
-        left: 50%;
-        bottom: 8px;
-        transform: translateX(-50%);
-        display: block;
-        width: 100%;
-        max-width: 640px;
-        min-height: 280px;
-        z-index: 20;
-      }
+      box-sizing: border-box;
+      position: absolute;
+      left: 50%;
+      bottom: 8px;
+      transform: translateX(-50%);
+      display: block;
+      width: 100%;
+      max-width: 640px;
+      min-height: 280px;
+      z-index: 20;
+
       &[data-fullscreen="true"] {
         --material-editor-outline-active: var(--widget-regular-background-selected);
       }
@@ -294,7 +344,10 @@ function BulkHudOwners(props: Readonly<{value: BulkHudDocumentProps}>) {
       active={window.active}
       minimized={window.minimized}
       actions={window.actions}
-      style={css`& { width: 100%; min-height: 280px; }`}
+      style={css`
+        width: 100%;
+        min-height: 280px;
+      `}
     >
       <BulkCausalTimeProjection value={props.value.causalTime} />
     </HudWindow>

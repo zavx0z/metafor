@@ -58,66 +58,63 @@ function GraphNodeTreePresentation(props: GraphNodeTreePresentationProps) {
     data-revision={String(snapshot.revision)}
     data-topology-revision={String(snapshot.topologyRevision)}
     style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        height: 100%;
-        min-height: 0;
-        gap: 4px;
-        padding: 6px;
-        overflow: auto;
-        background: var(--space-node-navigation-background);
-        color: var(--widget-box-content);
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      gap: 4px;
+      padding: 6px;
+      overflow: auto;
+      background: var(--space-node-navigation-background);
+      color: var(--widget-box-content);
     `}
   >
     <header style={css`
-      & {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        min-height: 28px;
-        gap: 4px;
-      }
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 28px;
+      gap: 4px;
     `}>
       <h2 style={css`
-        & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-md); }
+        display: block;
+        margin: 0;
+        color: var(--widget-box-content);
+        font-size: var(--font-size-md);
       `}>Graph · NodeTree projection</h2>
       <div
         data-control-key="incremented"
         style={css`
-          & {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            gap: 4px;
-            padding: 2px 4px;
-            background: var(--space-node-header-background);
-            font-size: var(--font-size-xs);
-          }
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 4px;
+          background: var(--space-node-header-background);
+          font-size: var(--font-size-xs);
         `}
       >
         <CheckboxField
           checked={incremented}
           title="Изменить runtime count"
           onChange={onChange}
-          style={css`& { flex-shrink: 0; }`}
+          style={css`
+            flex-shrink: 0;
+          `}
         />
         Изменить runtime count
       </div>
     </header>
     <dl data-story-region="stats" style={css`
-      & {
-        display: flex;
-        flex-direction: row;
-        gap: 6px;
-        margin: 0;
-        padding: 4px;
-        background: var(--space-node-execution-background);
-      }
+      display: flex;
+      flex-direction: row;
+      gap: 6px;
+      margin: 0;
+      padding: 4px;
+      background: var(--space-node-execution-background);
     `}>
       <GraphNodeTreeStat label="Revision" value={snapshot.revision} />
       <GraphNodeTreeStat label="Topology" value={snapshot.topologyRevision} />
@@ -126,13 +123,11 @@ function GraphNodeTreePresentation(props: GraphNodeTreePresentationProps) {
       <GraphNodeTreeStat label="Links" value={snapshot.links.length} />
     </dl>
     <div data-story-region="frames" style={css`
-      & {
-        display: flex;
-        flex-direction: row;
-        align-items: flex-start;
-        gap: 4px;
-        overflow-x: auto;
-      }
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 4px;
+      overflow-x: auto;
     `}>
       {snapshot.frames.map((frame) => <GraphNodeTreeFrame
         key={frame.id}
@@ -141,19 +136,17 @@ function GraphNodeTreePresentation(props: GraphNodeTreePresentationProps) {
       />)}
     </div>
     <ul data-story-region="links" aria-label="Graph links" style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        max-height: 96px;
-        margin: 0;
-        padding: 2px;
-        overflow-y: auto;
-        border: var(--border-width-control) solid var(--widget-regular-outline);
-        border-radius: 4px;
-        background: var(--widget-text-background);
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-height: 96px;
+      margin: 0;
+      padding: 2px;
+      overflow-y: auto;
+      border: var(--border-width-control) solid var(--widget-regular-outline);
+      border-radius: 4px;
+      background: var(--widget-text-background);
     `}>
       {snapshot.links.map((link) => <GraphNodeTreeLink key={link.id} link={link} />)}
     </ul>
@@ -161,12 +154,21 @@ function GraphNodeTreePresentation(props: GraphNodeTreePresentationProps) {
 }
 
 function GraphNodeTreeStat(props: Readonly<{label: string; value: number}>) {
-  return <div style={css`& { display: flex; flex-direction: row; gap: 2px; }`}>
+  return <div style={css`
+    display: flex;
+    flex-direction: row;
+    gap: 2px;
+  `}>
     <dt style={css`
-      & { display: block; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
+      display: block;
+      color: var(--widget-text-content-readonly);
+      font-size: var(--font-size-2xs);
     `}>{props.label}</dt>
     <dd style={css`
-      & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-2xs); }
+      display: block;
+      margin: 0;
+      color: var(--widget-box-content);
+      font-size: var(--font-size-2xs);
     `}>{String(props.value)}</dd>
   </div>
 }
@@ -182,26 +184,31 @@ function GraphNodeTreeFrame(props: Readonly<{frame: GraphFrame; nodes: readonly 
     data-frame-id={props.frame.id}
     data-parent-frame-id={props.frame.parentFrameId}
     style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: 240px;
-        min-height: 88px;
-        gap: 3px;
-        padding: 4px;
-        overflow: hidden;
-        border: var(--border-width-control) solid var(--widget-box-outline);
-        border-radius: 4px;
-        background: var(--widget-box-background);
-        color: var(--widget-box-content);
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: 240px;
+      min-height: 88px;
+      gap: 3px;
+      padding: 4px;
+      overflow: hidden;
+      border: var(--border-width-control) solid var(--widget-box-outline);
+      border-radius: 4px;
+      background: var(--widget-box-background);
+      color: var(--widget-box-content);
     `}
   >
     <h3 style={css`
-      & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-xs); }
+      display: block;
+      margin: 0;
+      color: var(--widget-box-content);
+      font-size: var(--font-size-xs);
     `}>{props.frame.metadata?.label ?? props.frame.id} · {props.frame.id}</h3>
-    <div style={css`& { display: flex; flex-direction: column; gap: 3px; }`}>
+    <div style={css`
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    `}>
       {props.nodes.map((node) => <GraphNodeTreeNode key={node.id} node={node} />)}
     </div>
   </section>
@@ -211,35 +218,34 @@ function GraphNodeTreeNode(props: Readonly<{node: GraphNode}>) {
   return <article
     data-node-id={props.node.id}
     style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        padding: 4px;
-        overflow: hidden;
-        border: var(--border-width-control) solid var(--widget-regular-background-selected);
-        border-radius: 0;
-        background: var(--widget-box-background);
-        color: var(--widget-box-content);
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 4px;
+      overflow: hidden;
+      border: var(--border-width-control) solid var(--widget-regular-background-selected);
+      border-radius: 0;
+      background: var(--widget-box-background);
+      color: var(--widget-box-content);
     `}
   >
     <h4 style={css`
-      & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-xs); }
+      display: block;
+      margin: 0;
+      color: var(--widget-box-content);
+      font-size: var(--font-size-xs);
     `}>{props.node.metadata?.title ?? props.node.id} · {props.node.id}</h4>
     <ul aria-label={`Parameters for ${props.node.id}`} style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        max-height: 96px;
-        margin: 0;
-        padding: 2px;
-        overflow-y: auto;
-        color: var(--widget-list-content);
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-height: 96px;
+      margin: 0;
+      padding: 2px;
+      overflow-y: auto;
+      color: var(--widget-list-content);
     `}>
       {props.node.parameters.map((parameter) => <GraphNodeTreeParameter
         key={parameter.id}
@@ -247,17 +253,15 @@ function GraphNodeTreeNode(props: Readonly<{node: GraphNode}>) {
       />)}
     </ul>
     <ul aria-label={`Sockets for ${props.node.id}`} style={css`
-      & {
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: 100%;
-        max-height: 96px;
-        margin: 0;
-        padding: 2px;
-        overflow-y: auto;
-        color: var(--widget-list-content);
-      }
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-height: 96px;
+      margin: 0;
+      padding: 2px;
+      overflow-y: auto;
+      color: var(--widget-list-content);
     `}>
       {props.node.sockets.map((socket) => <GraphNodeTreeSocket
         key={socket.id}
@@ -271,7 +275,10 @@ function GraphNodeTreeParameter(props: Readonly<{parameter: GraphParameter}>) {
   return <li
     data-parameter-id={props.parameter.id}
     style={css`
-      & { display: block; min-height: 24px; padding: 2px 6px; font-size: var(--font-size-xs); }
+      display: block;
+      min-height: 24px;
+      padding: 2px 6px;
+      font-size: var(--font-size-xs);
     `}
   >{props.parameter.presentation.label}: {displayValue(props.parameter.value)}</li>
 }
@@ -280,7 +287,10 @@ function GraphNodeTreeSocket(props: Readonly<{socket: GraphSocket}>) {
   return <li
     data-socket-id={props.socket.id}
     style={css`
-      & { display: block; min-height: 24px; padding: 2px 6px; font-size: var(--font-size-xs); }
+      display: block;
+      min-height: 24px;
+      padding: 2px 6px;
+      font-size: var(--font-size-xs);
     `}
   >{props.socket.direction} · {props.socket.metadata?.label ?? props.socket.id}</li>
 }
@@ -289,13 +299,11 @@ function GraphNodeTreeLink(props: Readonly<{link: GraphLink}>) {
   return <li
     data-link-id={props.link.id}
     style={css`
-      & {
-        display: block;
-        min-height: 24px;
-        padding: 2px 6px;
-        color: var(--widget-list-content);
-        font-size: var(--font-size-xs);
-      }
+      display: block;
+      min-height: 24px;
+      padding: 2px 6px;
+      color: var(--widget-list-content);
+      font-size: var(--font-size-xs);
     `}
   >{props.link.metadata?.label ?? props.link.id}: {props.link.from.nodeId}/{props.link.from.socketId} → {props.link.to.nodeId}/{props.link.to.socketId}</li>
 }
