@@ -28,7 +28,7 @@ export function graphNodeTreeStorySource(input: Readonly<{
     html: serializeElement(input.element),
     typescript: [
       'import {createGraphNodeTree, reconcileGraphNodeTree} from "@metafor/node-tree/graph"',
-      'import {Checkbox} from "@ui/components/controls/checkbox"',
+      'import {CheckboxField} from "@ui/components/fields/checkbox-field"',
       'import {createRoot, useState} from "@zavx0z/react"',
       "",
       "function Story() {",

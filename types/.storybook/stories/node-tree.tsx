@@ -8,7 +8,7 @@ import type {
   HTMLElement,
   HTMLInputElement,
 } from "@zavx0z/dom"
-import {Checkbox} from "@ui/components/controls/checkbox"
+import {CheckboxField} from "@ui/components/fields/checkbox-field"
 import {
   createRoot,
   useState,
@@ -86,7 +86,7 @@ function GraphNodeTreePresentation(props: GraphNodeTreePresentationProps) {
       <h2 style={css`
         & { display: block; margin: 0; color: var(--widget-box-content); font-size: var(--font-size-md); }
       `}>Graph · NodeTree projection</h2>
-      <label
+      <div
         data-control-key="incremented"
         style={css`
           & {
@@ -100,14 +100,14 @@ function GraphNodeTreePresentation(props: GraphNodeTreePresentationProps) {
           }
         `}
       >
-        <Checkbox
+        <CheckboxField
           checked={incremented}
           title="Изменить runtime count"
           onChange={onChange}
           style={css`& { flex-shrink: 0; }`}
         />
         Изменить runtime count
-      </label>
+      </div>
     </header>
     <dl data-story-region="stats" style={css`
       & {

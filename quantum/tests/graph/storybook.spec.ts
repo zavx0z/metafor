@@ -144,7 +144,7 @@ describe("MetaFor external Storybook delivery", () => {
     const bulkSources = await sourceTree(join(repositoryRoot, "quantum/bulk/.storybook"))
     const bulkOwner = await readFile(join(repositoryRoot, "quantum/bulk/dom/hud.tsx"), "utf8")
     expect(graphSources).toContain('from "@metafor/node-tree/graph"')
-    expect(graphSources).toContain('from "@ui/components/controls/checkbox"')
+    expect(graphSources).toContain('from "@ui/components/fields/checkbox-field"')
     expect(bulkSources).toContain('from "../../dom/hud.tsx"')
     expect(bulkOwner).toContain('from "@ui/components/hud"')
     expect(bulkOwner).toContain("style={css`")

@@ -6,8 +6,8 @@ import {
   CodeEditor,
   type CodeEditorProps,
 } from "@ui/components/code-editor"
-import {Checkbox} from "@ui/components/controls/checkbox"
-import {EnumControl} from "@ui/components/controls/enum-control"
+import {CheckboxField} from "@ui/components/fields/checkbox-field"
+import {SelectField} from "@ui/components/fields/select-field"
 import {
   createRoot,
   useState,
@@ -152,7 +152,7 @@ type GraphControlViewProps = Readonly<{
 function GraphBooleanControlView(props: GraphControlViewProps) {
   const definition = props.definition as GraphBooleanControl<Record<string, unknown>>
   const onChange = (checked: boolean): void => props.onChange(definition.key, checked)
-  return <label
+  return <div
     data-control-key={definition.key}
     style={css`
       & {
@@ -169,7 +169,7 @@ function GraphBooleanControlView(props: GraphControlViewProps) {
     <span style={css`
       & { display: block; color: var(--widget-box-content); font-size: var(--font-size-xs); }
     `}>{definition.label}</span>
-    <Checkbox
+    <CheckboxField
       checked={Boolean(props.args[definition.key])}
       title={definition.description}
       onChange={onChange}
@@ -178,13 +178,13 @@ function GraphBooleanControlView(props: GraphControlViewProps) {
     <span style={css`
       & { display: block; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
     `}>{definition.description}</span>
-  </label>
+  </div>
 }
 
 function GraphSelectControlView(props: GraphControlViewProps) {
   const definition = props.definition as GraphSelectControl<Record<string, unknown>>
   const onChange = (value: string): void => props.onChange(definition.key, value)
-  return <label
+  return <div
     data-control-key={definition.key}
     style={css`
       & {
@@ -201,7 +201,7 @@ function GraphSelectControlView(props: GraphControlViewProps) {
     <span style={css`
       & { display: block; color: var(--widget-box-content); font-size: var(--font-size-xs); }
     `}>{definition.label}</span>
-      <EnumControl
+    <SelectField
       value={String(props.args[definition.key] ?? "")}
       options={definition.options.map((item) => ({
         key: item.value,
@@ -215,7 +215,7 @@ function GraphSelectControlView(props: GraphControlViewProps) {
     <span style={css`
       & { display: block; color: var(--widget-text-content-readonly); font-size: var(--font-size-2xs); }
     `}>{definition.description}</span>
-  </label>
+  </div>
 }
 
 /** Creates one stable semantic JSON presentation under one real ComponentRoot. */

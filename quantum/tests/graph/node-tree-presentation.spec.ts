@@ -65,7 +65,7 @@ describe("Quantum Graph NodeTree DOM presentation", () => {
 
     expect(source).toContain('from "@metafor/node-tree/graph"')
     expect(source).toContain('from "@zavx0z/dom"')
-    expect(source).toContain('from "@ui/components/controls/checkbox"')
+    expect(source).toContain('from "@ui/components/fields/checkbox-field"')
     expect(source).toContain("data-frame-id")
     expect(source).toContain("data-node-id")
     expect(source).toContain("data-link-id")
