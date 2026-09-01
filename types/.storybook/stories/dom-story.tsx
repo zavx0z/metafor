@@ -6,8 +6,8 @@ import {
   CodeEditor,
   type CodeEditorProps,
 } from "@ui/components/code-editor"
-import {Checkbox} from "@ui/components/checkbox"
-import {EnumInput} from "@ui/components/enum-input"
+import {Checkbox} from "@ui/components/controls/checkbox"
+import {EnumControl} from "@ui/components/controls/enum-control"
 import {
   createRoot,
   useState,
@@ -201,7 +201,7 @@ function GraphSelectControlView(props: GraphControlViewProps) {
     <span style={css`
       & { display: block; color: var(--widget-box-content); font-size: var(--font-size-xs); }
     `}>{definition.label}</span>
-    <EnumInput
+      <EnumControl
       value={String(props.args[definition.key] ?? "")}
       options={definition.options.map((item) => ({
         key: item.value,

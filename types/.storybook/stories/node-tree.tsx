@@ -8,7 +8,7 @@ import type {
   HTMLElement,
   HTMLInputElement,
 } from "@zavx0z/dom"
-import {Checkbox} from "@ui/components/checkbox"
+import {Checkbox} from "@ui/components/controls/checkbox"
 import {
   createRoot,
   useState,
