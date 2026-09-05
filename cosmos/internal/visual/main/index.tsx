@@ -15,7 +15,7 @@ Release предоставляет native Canvas и declaration default font. Vi
 */
 
 import {attach} from "@zavx0z/browser"
-import {VisualApp} from "./app.tsx"
+import {App} from "./app.tsx"
 
 /** Точный browser environment этого platform entrypoint. */
 export const environment = "main" as const
@@ -30,7 +30,7 @@ if (typeof packageVersion !== "string" || packageVersion.length === 0) {
 /** Готовое подключение. Его unmount освобождает App и все ресурсы Browser. */
 export const runtime = await attach({
   canvas,
-  app: <VisualApp />,
+  app: <App />,
   stylesheets: [`/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`],
   frameloop: "demand",
 })
@@ -38,6 +38,6 @@ export const runtime = await attach({
 console.debug("[@internal/visual:main]", "основное visual-окружение создано", {
   space: runtime.space,
   viewPoint: runtime.viewPoint,
-  display: runtime.document.getElementById("main"),
+  display: runtime.document.querySelector("xr-display"),
   dock: runtime.document.getElementById("main-display-dock"),
 })

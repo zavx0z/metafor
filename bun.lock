@@ -34,7 +34,7 @@
       "dependencies": {
         "@cosmos/release": "workspace:^0.1.23",
         "@cosmos/startup": "workspace:*",
-        "@internal/visual": "workspace:^0.1.24",
+        "@internal/visual": "workspace:^0.1.28",
       },
       "devDependencies": {
         "@engine/core": "link:@engine/core",
@@ -47,7 +47,7 @@
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.24",
+      "version": "0.1.28",
       "dependencies": {
         "@zavx0z/browser": "file:../../../../webxr-space/browser",
         "@zavx0z/component": "file:../../../../webxr-space/component",

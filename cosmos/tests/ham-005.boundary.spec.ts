@@ -93,17 +93,20 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     expect(visualPackage.dependencies).not.toHaveProperty(legacy)
   }
   expect(visual).toContain("await attach({")
-  expect(visual).toContain("app: <VisualApp")
+  expect(visual).toContain("app: <App")
   expect(visual).toContain("stylesheets:")
   expect(app).toContain("useSpace(state => state.size)")
   expect(app).toContain('controls={mode === "far"}')
   expect(app).not.toMatch(/up[XYZ]=/)
-  for (const owner of ["Space", "ViewPoint", "Asset", "Display", "HUD", "DisplayDock"]) {
+  for (const owner of ["Space", "ViewPoint", "Grid", "Display", "HUD", "DisplayDock"]) {
     expect(app).toContain(`<${owner}`)
   }
-  expect(app).toContain('id="main"')
-  expect(app).toContain('id="main-hud"')
-  expect(app).toContain("new GridHelper(2400, 24)")
+  expect(app).not.toContain('id="main"')
+  expect(app).not.toContain('id="main-hud"')
+  expect(app).toContain('from "@zavx0z/space/gizmos/grid"')
+  expect(app).not.toContain("@zavx0z/engine")
+  expect(app).not.toContain("factory=")
+  expect(app).not.toContain("VisualScene")
   expect(app).toContain("quaternionX={Math.SQRT1_2}")
   expect(app).not.toContain("key=")
   for (const source of [visual, app, displayDock]) {

@@ -3,16 +3,31 @@ import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
 import {createDocument, Event, HTMLButtonElement, readDocumentCompiledStyleSheets} from "@zavx0z/dom"
-import {createRoot} from "@zavx0z/component"
+import {createRoot, type ComponentRoot} from "@zavx0z/component"
 import {createDocumentRenderer} from "@zavx0z/renderer"
-import {createSpaceElementFactories, readSpaceTree} from "@zavx0z/space"
+import {createSpaceElementFactories, readSpaceTree, type XRViewPointElement} from "@zavx0z/space"
 import type {CompiledTemplate} from "@zavx0z/template/compiled"
 import visualTemplatePlugin from "../build/template.plugin.ts"
-import type {RootSize} from "@zavx0z/browser"
-import {DISPLAY_CENTER_MM, readViewPoint} from "./view-state.ts"
+import {DISPLAY_CENTER_MM} from "./view-state.ts"
+import {setViewport} from "./browser.fixture.ts"
 
 let directory = ""
-let app: CompiledTemplate<{size: Pick<RootSize, "width" | "height">}>
+let app: CompiledTemplate<Record<string, never>>
+
+function renderApp(root: ComponentRoot, width: number, height: number): void {
+  setViewport(width, height)
+  root.render(app, {})
+}
+
+function readViewPoint(camera: XRViewPointElement) {
+  return {
+    position: {x: camera.x, y: camera.y, z: camera.z},
+    target: {x: camera.targetX, y: camera.targetY, z: camera.targetZ},
+    fov: camera.fov,
+    near: camera.near,
+    far: camera.far,
+  }
+}
 
 beforeAll(async () => {
   directory = await mkdtemp(join(import.meta.dir, ".compiled-app-"))
@@ -22,23 +37,28 @@ beforeAll(async () => {
     outdir: directory,
     target: "bun",
     format: "esm",
-    external: ["@zavx0z/browser", "@zavx0z/dom", "@zavx0z/component", "@zavx0z/engine", "@zavx0z/template/compiled"],
+    external: ["@zavx0z/dom", "@zavx0z/component", "@zavx0z/engine", "@zavx0z/template/compiled", join(import.meta.dir, "browser.fixture.ts")],
     plugins: [
-      visualTemplatePlugin,
       {
         name: "visual-test-space-identity",
         setup(build) {
           // Фабрики тестового Document и проверки instanceof используют одни классы.
           // TSX subpaths Space/Display/HUD при этом компилируются обычным plugin.
           build.onResolve({filter: /^@zavx0z\/space$/}, () => ({path: "@zavx0z/space", external: true}))
+          build.onResolve({filter: /^@zavx0z\/browser$/}, () => ({path: "viewport", namespace: "visual-test-browser"}))
+          build.onLoad({filter: /.*/, namespace: "visual-test-browser"}, () => ({
+            contents: `export {useSpace} from ${JSON.stringify(join(import.meta.dir, "browser.fixture.ts"))}`,
+            loader: "js",
+          }))
         },
       },
+      visualTemplatePlugin,
     ],
   })
   if (!result.success) throw new AggregateError(result.logs, "Visual App did not compile")
   const output = result.outputs.find(({kind}) => kind === "entry-point")!
-  const module = await import(pathToFileURL(output.path).href) as {VisualScene: CompiledTemplate<{size: Pick<RootSize, "width" | "height">}>}
-  app = module.VisualScene
+  const module = await import(pathToFileURL(output.path).href) as {App: typeof app}
+  app = module.App
 }, 30_000)
 
 afterAll(async () => {
@@ -48,10 +68,12 @@ afterAll(async () => {
 test("Visual App owns one Z-up Space, a millimetre Display and the same-document HUD", () => {
   const document = createDocument({elementFactories: createSpaceElementFactories()})
   const root = createRoot(document)
-  root.render(app, {size: {width: 1000, height: 700}})
+  renderApp(root, 1000, 700)
   const tree = readSpaceTree(document)
   expect(document.documentElement).toBe(tree.space)
   expect(tree.displays).toHaveLength(1)
+  expect(tree.displays[0]!.element.id).toBe("")
+  expect(tree.hud!.element.id).toBe("")
   expect(tree.hud?.element.parentElement).toBe(tree.space)
   expect(tree.displays[0]!.element.parentElement).toBe(tree.space)
   expect(tree.viewPoint).toMatchObject({x: 0, y: -1600, z: 900, controls: true})
@@ -59,7 +81,7 @@ test("Visual App owns one Z-up Space, a millimetre Display and the same-document
   expect(tree.displays[0]!.transform.quaternion).toEqual({x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2})
   expect(tree.displays[0]!.worldUnitsPerPixel * 700).toBeCloseTo(2 * 600 * Math.tan(Math.PI / 8))
   expect(tree.objects).toHaveLength(1)
-  expect(tree.objects[0]!.name).toBe("SpaceFloorGrid")
+  expect(tree.objects[0]!.localName).toBe("xr-line-segments")
   root.unmount()
   expect(document.documentElement).toBeNull()
   expect(readDocumentCompiledStyleSheets(document).styleSheets).toEqual([])
@@ -68,8 +90,9 @@ test("Visual App owns one Z-up Space, a millimetre Display and the same-document
 test("dock retains Button identity, Flex placement and exact far-view restoration", () => {
   const document = createDocument({elementFactories: createSpaceElementFactories()})
   const root = createRoot(document)
-  root.render(app, {size: {width: 1000, height: 700}})
+  renderApp(root, 1000, 700)
   const tree = readSpaceTree(document)
+  const gridFactory = tree.objects[0]!.factory
   const dock = document.getElementById("main-display-dock")!
   const buttons = [...dock.querySelectorAll("button")].filter((node): node is HTMLButtonElement => node instanceof HTMLButtonElement)
   expect(buttons).toHaveLength(2)
@@ -89,18 +112,29 @@ test("dock retains Button identity, Flex placement and exact far-view restoratio
     tree.viewPoint.z = 1050
   })
   const farPose = readViewPoint(tree.viewPoint)
+  renderApp(root, 1200, 800)
+  expect(readViewPoint(tree.viewPoint)).toEqual(farPose)
   returnButton!.click()
   expect(tree.viewPoint.controls).toBe(false)
   expect(Math.hypot(tree.viewPoint.x, tree.viewPoint.y, tree.viewPoint.z - 900)).toBeCloseTo(600)
   expect(dockButton!.getAttribute("aria-pressed")).toBe("false")
   expect(returnButton!.title).toBe("Вернуть пространственный обзор")
-  root.render(app, {size: {width: 800, height: 600}})
+  renderApp(root, 800, 600)
   expect(tree.displays[0]!.element.viewportWidth).toBe(800)
   dock.dispatchEvent(new Event("pointerenter"))
   returnButton!.click()
   expect(readViewPoint(tree.viewPoint)).toEqual(farPose)
   expect([...dock.querySelectorAll("button")]).toEqual([returnButton!, dockButton!])
   expect(tree.viewPoint.controls).toBe(true)
+  tree.viewPoint.x = -350
+  tree.viewPoint.z = 1250
+  const nextFarPose = readViewPoint(tree.viewPoint)
+  returnButton!.click()
+  returnButton!.click()
+  expect(readViewPoint(tree.viewPoint)).toEqual(nextFarPose)
+  renderApp(root, 900, 700)
+  expect(readViewPoint(tree.viewPoint)).toEqual(nextFarPose)
+  expect(tree.objects[0]!.factory).toBe(gridFactory)
   renderer.dispose()
   root.unmount()
 })
