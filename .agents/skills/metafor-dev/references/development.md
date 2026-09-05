@@ -177,7 +177,7 @@ graph. Корневой subpath `"."` объявляет platform parts. Дру�
 ```
 
 Condition всегда имеет вид `<scope>:<env>`. Корневая part сохраняет точный
-entrypoint `./<env>/index.ts`. Conditionless string target дополнительного
+entrypoint `./<env>/index.ts` или `./<env>/index.tsx`. Conditionless string target дополнительного
 subpath относится ко всем environments, уже явно объявленным корневыми
 conditional exports package. Condition map нужен, когда environments или их
 targets различаются; расширение файла само environment не определяет.
@@ -220,6 +220,18 @@ Package может подключить compiler plugin для отдельно�
 plugins = ["./build/template.plugin.ts"]
 ```
 
+При совместной разработке Visual и WebXR локальные библиотеки Visual заданы
+прямыми `file:` dependencies на canonical checkout `webxr-space`. Они не
+переопределяют прежние глобальные links остальных пакетов MetaFor. В Bun 1.4
+для этой смешанной установки используется адресная команда из MetaFor:
+
+```bash
+bun install --filter @internal/visual --omit peer
+```
+
+Все WebXR-владельцы Visual объявлены прямыми dependencies; эта команда
+не требует переадресации глобальных links DOM или Template.
+
 `plugins` — необязательный ordered массив непустых уникальных module specifiers.
 Package-relative specifier обязан оставаться внутри real package root. Bare
 specifier обязан быть public export прямой `dependency` или `devDependency`
@@ -248,7 +260,11 @@ legacy CLI читает её как прежде; programmatic multi/plugin adap
 переводит root-only package с прямого CLI path.
 
 Build outputs и их import relations являются производным результатом одной
-сборки, а не сохраняемым release manifest. Package version и root caret
+сборки. Поле Bun metadata `entryPoint` само по себе не объявляет public export:
+оно встречается и у dynamic roots обычных library dependencies вне package.
+С public entries сопоставляются только источники из `exports`; остальные
+outputs остаются generated artifacts с выведенными import relations. Граф не
+является сохраняемым release manifest. Package version и root caret
 dependencies остаются единственным desired intent; browser current по-прежнему
 собирается из фактически сохранённых exact artifacts, server отвечает только
 `update/remove`, а прежние namespace caches и одна transaction применяют
@@ -299,7 +315,7 @@ package version и полного набора объявленных artifacts 
 JavaScript новая version снова публикует согласованные JavaScript и map.
 
 Direct production-команда `build:<env>` повторяет canonical
-`./<env>/index.ts`, выбирает condition `<scope>:<env>` и точный target. Bun
+`./<env>/index.ts` или `./<env>/index.tsx`, выбирает condition `<scope>:<env>` и точный target. Bun
 `1.4.0` не разрешает bare package specifier как CLI build entrypoint, поэтому
 команда повторяет source path root branch `exports`; release server принимает
 её только при точном совпадении. Bare imports внутри source сохраняются, а

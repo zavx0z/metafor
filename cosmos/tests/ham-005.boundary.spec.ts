@@ -15,7 +15,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     html,
     main,
     visual,
-    experienceDocument,
+    app,
     displayDock,
     themeCss,
     templatePlugin,
@@ -28,8 +28,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   ] = await Promise.all([
     Bun.file(join(cosmos, "static/index.html")).text(),
     Bun.file(join(cosmos, "release/main/index.ts")).text(),
-    Bun.file(join(cosmos, "internal/visual/main/index.ts")).text(),
-    Bun.file(join(cosmos, "internal/visual/main/experience-document.ts")).text(),
+    Bun.file(join(cosmos, "internal/visual/main/index.tsx")).text(),
+    Bun.file(join(cosmos, "internal/visual/main/app.tsx")).text(),
     Bun.file(join(cosmos, "internal/visual/main/display-dock.tsx")).text(),
     Bun.file(join(cosmos, "internal/visual/theme.css")).text(),
     Bun.file(join(cosmos, "internal/visual/build/template.plugin.ts")).text(),
@@ -72,7 +72,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   })
   expect(visualPackage.name).toBe("@internal/visual")
   expect(visualPackage.exports?.["."]).toEqual({
-    "internal:main": "./main/index.ts",
+    "internal:main": "./main/index.tsx",
     "internal:server": "./server/index.ts",
   })
   expect(visualPackage.exports?.["./theme.css"]).toEqual({
@@ -81,127 +81,48 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualPackage.artifact).toBeUndefined()
   expect(visualPackage.scripts?.prebuild).toBeUndefined()
   expect(visualPackage.scripts?.["build:main"]).toBe(
-    "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
+    "bun build ./main/index.tsx --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
   )
   expect(visualPackage.dependencies).not.toHaveProperty("@layout/core")
   expect(visualPackage.dependencies).not.toHaveProperty("@ui/elements")
   expect(visualPackage.dependencies).not.toHaveProperty("@ui/hud")
-  expect(visualPackage.dependencies?.["@engine/core"]).toBe("link:@engine/core")
-  expect(visualPackage.dependencies?.["@ui/components"]).toBe("link:@ui/components")
-  expect(visualPackage.dependencies?.["@zavx0z/dom"]).toBe("link:@zavx0z/dom")
-  expect(visualPackage.dependencies?.["@zavx0z/react"]).toBe("link:@zavx0z/react")
-  expect(visualPackage.dependencies?.["@zavx0z/renderer-browser"])
-    .toBe("link:@zavx0z/renderer-browser")
-  expect(visualPackage.dependencies?.["@zavx0z/template"]).toBe("link:@zavx0z/template")
-  expect(visual).toContain("createDocumentSpaceRuntime,")
-  expect(visual).toContain("createBrowserLinkedAuthorStyleSheetHost,")
-  expect(visual).toContain('import {GridHelper} from "@engine/core"')
-  expect(visual).toContain('import {loadDocumentDefaultFont} from "@engine/core/default-font"')
-  expect(visual).toContain('import {createMainExperienceDocument} from "./experience-document.ts"')
-  expect(visual).toContain(
-    'import {createDisplayDock, type DisplayDock, type DisplayMode} from "./display-dock.tsx"',
-  )
-  expect(visual).toContain("const createdRuntime = await createDocumentSpaceRuntime({")
-  expect(visual).toContain("const [font] = await Promise.all([")
-  expect(visual).toContain("const experience = createMainExperienceDocument()")
-  expect(visual).toContain('const VISUAL_THEME_ID = "@internal/visual/theme.css"')
-  expect(visual).toContain('const themeLink = globalThis.document.createElement("link")')
-  expect(visual).toContain('themeLink.rel = "stylesheet"')
-  expect(visual).toContain(
-    'themeLink.href = `/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`',
-  )
-  expect(visual).toContain("globalThis.document.head.append(themeLink)")
-  expect(visual).toContain("const linkedThemeHost = createBrowserLinkedAuthorStyleSheetHost({")
-  expect(visual).toContain("sources: [{id: VISUAL_THEME_ID, link: themeLink}]")
-  expect(visual.indexOf("linkedThemeHost.ready"))
-    .toBeLessThan(visual.indexOf("const createdRuntime = await createDocumentSpaceRuntime({"))
-  expect(visual).toContain("experience.mountOverlay(mountedDock.root)")
-  expect(experienceDocument.match(/createDocument\(\)/g)).toHaveLength(1)
-  expect(experienceDocument).toContain('const root = document.createElement("main")')
-  expect(experienceDocument).toContain("root.appendChild(surface)")
-  expect(experienceDocument).toContain("document.appendChild(root)")
-  expect(experienceDocument).toContain("overlay root belongs to another Document")
-  expect(visual).toContain([
-    "createDocumentSpaceRuntime({",
-    "      canvas,",
-    "      document: experienceDocument,",
-    "      font,",
-    "      styleSheets: [],",
-  ].join("\n"))
-  expect(visual).toContain(
-    'console.debug("[@internal/visual:main]", "основное visual-окружение создано", {',
-  )
-  expect(visual).not.toContain("visualEnvironment")
-  expect(visual).not.toContain("createVisualEnvironment")
-  expect(visual).not.toContain("function prepare")
-  expect(visual).not.toContain("requiredCanvas")
-  expect(visual).toContain("cameraGestures: true")
-  expect(visual).toContain("new GridHelper(2400, 24)")
-  expect(visual).toContain('createdGrid.name = "SpaceFloorGrid"')
-  expect(visual).toContain("createdRuntime.space.add(createdGrid)")
-  expect(visual).toContain('const VISUAL_DISPLAY_ID = "main"')
-  expect(visual).toContain("createdRuntime.addPlane({")
-  expect(visual).toContain("createdRuntime.addOverlay({")
-  expect(visual).toContain("root: mountedDock.container")
-  expect(visual).toContain("createdRuntime.setCameraGesturesEnabled(false)")
-  expect(visual).toContain("createdRuntime.updatePlane(VISUAL_DISPLAY_ID")
-  const planeRegistration = visual.slice(
-    visual.indexOf("createdRuntime.addPlane({"),
-    visual.indexOf("\n    })", visual.indexOf("createdRuntime.addPlane({")),
-  )
-  const overlayRegistration = visual.slice(
-    visual.indexOf("createdRuntime.addOverlay({"),
-    visual.indexOf("\n    })", visual.indexOf("createdRuntime.addOverlay({")),
-  )
-  for (const registration of [planeRegistration, overlayRegistration]) {
-    expect(registration).not.toContain("document:")
-    expect(registration).not.toContain("styleSheets:")
-    expect(registration).not.toContain("font,")
+  for (const name of ["browser", "component", "dom", "engine", "renderer", "space", "template", "ui", "webgpu"]) {
+    expect(visualPackage.dependencies?.[`@zavx0z/${name}`]).toBe(`file:../../../../webxr-space/${name}`)
   }
-  expect(visual).toContain("...Object.getOwnPropertyDescriptors(documentRuntime)")
-  expect(visual).toContain("value: disposeVisual")
-  const disposeVisual = visual.slice(
-    visual.indexOf("const disposeVisual = (): void => {"),
-    visual.indexOf("\n}\n\n/**", visual.indexOf("const disposeVisual = (): void => {")),
-  )
-  expect(disposeVisual.indexOf("dock.dispose()"))
-    .toBeLessThan(disposeVisual.indexOf("documentRuntime.dispose()"))
-  expect(disposeVisual.indexOf("documentRuntime.dispose()"))
-    .toBeLessThan(disposeVisual.indexOf("themeHost.dispose()"))
-  expect(disposeVisual).toContain("canvasResizeObserver.disconnect()")
-  expect(disposeVisual.indexOf("themeHost.dispose()"))
-    .toBeLessThan(disposeVisual.indexOf("themeLink.remove()"))
-  const initializationFailure = visual.slice(
-    visual.indexOf("  } catch (error) {", visual.indexOf("async function initializeVisual")),
-    visual.indexOf("\n  }\n}", visual.indexOf("async function initializeVisual")),
-  )
-  expect(initializationFailure).toContain("canvasResizeObserver?.disconnect()")
-  expect(initializationFailure).toContain("dock?.dispose()")
-  expect(initializationFailure.indexOf("documentRuntime.dispose()"))
-    .toBeLessThan(initializationFailure.indexOf("themeHost?.dispose()"))
-  expect(initializationFailure.indexOf("themeHost?.dispose()"))
-    .toBeLessThan(initializationFailure.indexOf("themeLink.remove()"))
-  expect(displayDock).toContain('import {Button} from "@ui/components/button"')
-  expect(displayDock).toContain('import {uiIcons} from "@ui/components/icons"')
-  expect(displayDock).toContain('import {createRoot} from "@zavx0z/react"')
-  expect(displayDock).toContain("function DisplayDockView(props: DisplayDockViewProps)")
+  for (const legacy of ["@engine/core", "@ui/components", "@zavx0z/react", "@zavx0z/renderer-browser", "@zavx0z/renderer-webgpu"]) {
+    expect(visualPackage.dependencies).not.toHaveProperty(legacy)
+  }
+  expect(visual).toContain("await attach({")
+  expect(visual).toContain("app: <VisualApp")
+  expect(visual).toContain("stylesheets:")
+  expect(app).toContain("useSpace(state => state.size)")
+  expect(app).toContain('controls={mode === "far"}')
+  expect(app).not.toMatch(/up[XYZ]=/)
+  for (const owner of ["Space", "ViewPoint", "Asset", "Display", "HUD", "DisplayDock"]) {
+    expect(app).toContain(`<${owner}`)
+  }
+  expect(app).toContain('id="main"')
+  expect(app).toContain('id="main-hud"')
+  expect(app).toContain("new GridHelper(2400, 24)")
+  expect(app).toContain("quaternionX={Math.SQRT1_2}")
+  expect(app).not.toContain("key=")
+  for (const source of [visual, app, displayDock]) {
+    expect(source).not.toContain("createDocumentSpaceRuntime")
+    expect(source).not.toContain("createDocument(")
+    expect(source).not.toContain("createRoot(")
+    expect(source).not.toContain("new ResizeObserver")
+    expect(source).not.toContain("requestAnimationFrame")
+  }
+  expect(visual).toContain('console.debug("[@internal/visual:main]", "основное visual-окружение создано", {')
+  expect(displayDock).toContain('from "@zavx0z/ui/buttons/button"')
+  expect(displayDock).toContain('from "@zavx0z/component"')
   expect(displayDock.match(/<Button\b/g)).toHaveLength(2)
-  expect(displayDock).toContain("style={css`")
-  expect(displayDock).toContain('data-expanded={props.expanded ? "true" : "false"}')
-  expect(displayDock).toContain("export function createDisplayDock(")
-  expect(displayDock).toContain('container.addEventListener("pointerenter"')
-  expect(displayDock).not.toContain('document.createElement("button")')
-  expect(displayDock).not.toContain("dockButtonStyle")
-  expect(displayDock).not.toContain("UiSurface")
-  expect(displayDock).not.toContain("HudReturnDock")
-  expect(themeCss.trim()).toBe('@import "@ui/components/theme.css";')
-  expect(templatePlugin).toContain(
-    'fileURLToPath(import.meta.resolve("@ui/components/button"))',
-  )
-  expect(templatePlugin).toContain("export default createTemplateJsxBunPlugin({")
-  expect(templatePlugin).toContain(
-    'styleSourceRootIds: ["@internal/visual", "@ui/components"]',
-  )
+  expect(displayDock).toContain("align-items: center")
+  expect(displayDock).toContain("justify-content: space-between")
+  expect(displayDock).not.toContain("position: absolute")
+  expect(themeCss.trim()).toBe('@import "@zavx0z/ui/themes/theme.css";')
+  expect(templatePlugin).toContain('import.meta.resolve("@zavx0z/ui/buttons/button")')
+  expect(templatePlugin).toContain('import.meta.resolve("@zavx0z/space")')
   expect(visual).not.toContain("@cosmos/visual")
   expect(visual).not.toContain("browser/orchestration")
   expect(visualBunfig).toContain('".wgsl" = "text"')
@@ -247,7 +168,7 @@ test("UPD-002 builds Window release and internal visual as separate artifacts", 
     const themeOutput = visual.outputs.find(({artifact}) => artifact === "./theme.css")
 
     expect(main.success).toBeTrue()
-    expect(visual.success).toBeTrue()
+    expect(visual.success, `${visual.stdout}\n${visual.stderr}`).toBeTrue()
     expect(mainOutput?.size).toBeGreaterThan(0)
     expect(visualOutput?.size).toBeGreaterThan(0)
     expect(themeOutput).toMatchObject({

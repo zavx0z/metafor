@@ -78,7 +78,7 @@ test("every Cosmos package owns direct env entrypoints and one typecheck", async
     expect(manifest.scripts?.prebuild).toBeUndefined()
 
     for (const env of descriptor.environments) {
-      expect(rootExport?.[`${descriptor.scope}:${env}`]).toBe(`./${env}/index.ts`)
+      expect([`./${env}/index.ts`, `./${env}/index.tsx`]).toContain(String(rootExport?.[`${descriptor.scope}:${env}`]))
       expect(manifest.scripts?.[`build:${env}`]).toContain(`bun build ./${env}/index.ts`)
       expect(manifest.scripts?.[`build:${env}`]).toContain(`--conditions=${descriptor.scope}:${env}`)
       expect(manifest.scripts?.[`typecheck:${env}`]).toBeUndefined()
@@ -245,6 +245,10 @@ test("package exports assign every environment to its exact build target", () =>
     name: "@example/runtime",
     exports: {".": {default: "./server/index.ts"}},
   })).toThrow("Unsupported root export condition default")
+  expect(packageEnvironmentExports({
+    name: "@example/runtime",
+    exports: {".": {"example:main": "./main/index.tsx"}},
+  })).toEqual([{env: "main", condition: "example:main", entrypoint: "./main/index.tsx", target: "browser"}])
   expect(() => packageEnvironmentExports({
     name: "@example/runtime",
     exports: {".": {"example:server": "./server.ts"}},
@@ -265,7 +269,7 @@ test("one bare visual import resolves source types by selected env without a bui
       void environment
       void visual.runtime
     `)
-    expect(main.exitCode).toBe(0)
+    expect(main.exitCode, main.stdout + main.stderr).toBe(0)
 
     const server = await typecheckPackageEnvironment(directory, "internal:server", `
       import * as visual from "@internal/visual"
@@ -684,7 +688,7 @@ async function typecheckPackageEnvironment(
       exclude: [],
     }, null, 2)}\n`),
   ])
-  const child = Bun.spawn([Bun.which("tsc") ?? "tsc", "--project", configPath, "--pretty", "false"], {
+  const child = Bun.spawn([join(repository, "node_modules/.bin/tsc"), "--project", configPath, "--pretty", "false"], {
     cwd: repository,
     stdout: "pipe",
     stderr: "pipe",
@@ -719,7 +723,7 @@ async function sourceFiles(root: string): Promise<string[]> {
 }
 
 async function trackedCosmosSourceFiles(): Promise<string[]> {
-  const child = Bun.spawn(["git", "ls-files", "-z", "--", "cosmos"], {
+  const child = Bun.spawn(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "cosmos"], {
     cwd: repository,
     stdout: "pipe",
     stderr: "pipe",
@@ -730,10 +734,12 @@ async function trackedCosmosSourceFiles(): Promise<string[]> {
     new Response(child.stderr).text(),
   ])
   if (exitCode !== 0) throw new Error(`Cannot list tracked Cosmos source: ${stderr}`)
-  return stdout.split("\0")
+  const paths = stdout.split("\0")
     .filter((path) => /\.(?:[cm]?ts|tsx)$/.test(path))
     .filter((path) => !path.split("/").some((part) => part === "dist" || part === "node_modules"))
     .map((path) => join(repository, path))
+  const existing = await Promise.all(paths.map(path => Bun.file(path).exists()))
+  return paths.filter((_path, index) => existing[index])
 }
 
 async function readTypeReexports(path: string) {

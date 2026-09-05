@@ -154,7 +154,7 @@ async function writeBuildOutputs(
     const relativePath = outputRelative(artifact.path)
     const outputMetadata = metadata.get(relativePath)
     if (!outputMetadata) throw new Error(`Package build output metadata is missing: ${relativePath}`)
-    const entryPoint = normalizeEntryPoint(outputMetadata.entryPoint)
+    const entryPoint = normalizeEntryPoint(outputMetadata.entryPoint, buildSources)
     const target = request.output.mode === "multi"
       ? join(request.output.outdir, relativePath)
       : entryPoint === singleSource
@@ -260,9 +260,13 @@ function reportImport(value: Bun.BuildMetafile["outputs"][string]["imports"][num
   }
 }
 
-function normalizeEntryPoint(value: string | undefined) {
+function normalizeEntryPoint(value: string | undefined, sources: readonly PackageBuildSource[]) {
   if (value === undefined) return undefined
   const path = isAbsolute(value) ? value : resolve(value)
+  // Bun also labels dynamic dependency roots as entrypoints. Only package
+  // exports are public entries; every other output belongs to the derived
+  // dependency graph, including ordinary libraries outside this package.
+  if (!sources.some(({source}) => resolve(source) === path)) return undefined
   const fromRoot = relative(process.cwd(), path)
   if (fromRoot === "" || fromRoot.startsWith("..") || isAbsolute(fromRoot))
     throw new Error(`Package build entrypoint escapes package root: ${value}`)

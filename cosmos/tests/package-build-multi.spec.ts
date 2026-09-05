@@ -107,6 +107,17 @@ test("one memory build maps TS, TSX, CSS, WASM and shared chunks without a manif
   expect(result.files.some((path) => /report|metafile|manifest/i.test(path))).toBeFalse()
 })
 
+test("dynamic roots in an ordinary dependency stay generated lazy artifacts", async () => {
+  const result = await multiFixture("production", "valid", "enabled", false, true)
+  expect(result.success, result.stderr).toBe(true)
+  const lazy = result.outputs.find(({source}) => source.includes("nested-library-lazy-value"))
+  expect(lazy).toBeDefined()
+  expect(lazy!.artifact).toStartWith("./.cosmos/")
+  expect(lazy!.load).toBe("lazy")
+  expect(result.outputs.some(({artifact}) => artifact.includes("library"))).toBe(false)
+  expect(result.outputs.every(({path}) => path.startsWith(`${result.outdir}/`))).toBe(true)
+})
+
 test("multi-entry development keeps an inline map for every JavaScript output", async () => {
   const result = await multiFixture("development")
   expect(result.success).toBeTrue()
@@ -235,6 +246,7 @@ async function multiFixture(
   options = "valid",
   plugin = "enabled",
   collision = false,
+  lazyDependency = false,
 ): Promise<MultiFixtureResult> {
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
@@ -248,6 +260,7 @@ async function multiFixture(
       PACKAGE_MULTI_OPTIONS: options,
       PACKAGE_MULTI_PLUGIN: plugin,
       PACKAGE_MULTI_EXPORT_COLLISION: collision ? "1" : "0",
+      PACKAGE_MULTI_LAZY_DEPENDENCY: lazyDependency ? "1" : "0",
     },
     stdout: "pipe",
     stderr: "pipe",

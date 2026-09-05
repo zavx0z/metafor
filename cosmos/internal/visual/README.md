@@ -10,50 +10,44 @@ Visual объявляет свои платформенные части по
 
 <a id="визуальная-среда-main"></a>
 
-## Как появляется визуальная среда
+## Визуальная среда main
 
-Когда release запускает browser-часть visual:
+Когда release запускает browser-часть visual, visual получает предоставленный
+Canvas и подключает к нему своё декларативное приложение через
+`@zavx0z/browser` (далее — Browser). Приложение объявляет единственные Space
+и ViewPoint, основную поверхность Display, сетку пола и навигацию в HUD.
 
-1. visual получает предоставленную приложением область отображения;
-1. visual получает общий default font по URL, который один раз объявляет HTML
-   composition root;
-1. создаёт через `@zavx0z/dom` (далее — DOM) один semantic Document visual
-   Experience с отдельными roots основной поверхности и навигации;
-1. загружает стандартным browser link собственную public theme, собранную из
-   UI-owner source, и переносит её правила в тот же semantic Document;
-1. `@zavx0z/renderer-browser` (далее — browser renderer) использует один
-   Canvas приложения и создаёт один Engine renderer, Space и ViewPoint для
-   этого Document;
-1. помещает основную поверхность в world-space plane, а навигацию — в
-   camera-locked overlay того же кадра;
-1. согласует display с доступной областью Window;
-1. сообщает о готовности визуального environment.
+Browser монтирует приложение в один semantic Document, подготавливает общие
+шрифты, стили и производное представление сцены. Готовность наступает после
+первого представленного кадра. Ошибка запуска освобождает созданные ресурсы.
+При unmount Browser освобождает приложение и свой lifecycle,
+включая созданную Browser ссылку на theme.
 
-Наблюдаемый результат — пользователь получает готовую поверхность Cosmos, в
-которой может появляться принадлежащее другим владельцам содержимое.
+Основная поверхность и HUD принадлежат одному пространству. События проходят
+общий выбор получателя с учётом перекрытия. Browser владеет вводом, изменением
+размера Canvas и циклом кадров; VisualApp получает размер через useSpace до
+расчёта кадра и передаёт его своей VisualScene. Положение и размеры сцены сохраняют
+правую систему Z-up и миллиметры, а CSS-размеры переводятся в неё через
+плотность Display.
 
-Стандартные DOM identity, tree mutation, attributes, `title` и события
-принадлежат [semantic DOM](https://github.com/zavx0z/renderer/blob/main/ARCHITECTURE.md#semantic-dom),
-а CSS/layout/hit projection и WebGPU realization — соответствующим владельцам
-[document rendering pipeline](https://github.com/zavx0z/renderer/blob/main/ARCHITECTURE.md).
-Visual выбирает только Cosmos-композицию, положение поверхностей и переход
-между пространственным и приближённым обзором. Он не создаёт второй semantic
-tree, ручную геометрию controls или параллельный animation loop.
+Навигация позволяет закрепить dock, приблизить основную поверхность и
+вернуться к сохранённому пространственному обзору. Изменение размера Window
+сохраняет положение камеры и состояние кнопок.
 
 ## Граница ответственности
 
-Visual владеет созданием визуальной среды и её отображением. Смысл
-наблюдаемых сущностей, причинные переходы и canonical состояние принадлежат
-соответствующим Quantum-доменам и загруженным metafor-пакетам.
+Visual владеет композицией и переключением обзора. Смысл наблюдаемых сущностей,
+причинные переходы и canonical состояние принадлежат соответствующим
+Quantum-доменам и загруженным metafor-пакетам.
 
-Binary default font принадлежит Engine. Visual не хранит его копию и не
-передаёт font path отдельным surfaces или UI packages; release server только
-публикует выбранный composition URL и сохраняет его в runtime offline cache.
+Binary default font принадлежит `@zavx0z/engine` (далее — Engine).
+Visual использует объявление общего шрифта в HTML composition root; release
+server сохраняет выбранный asset в runtime offline cache.
 
-Theme source и production controls принадлежат `@ui/components` (далее — UI
-components). Visual не копирует их CSS и не делает UI components отдельным
-участником Cosmos release: visual связывает эту обычную dependency в свои
-public artifacts и подключает один stylesheet к своему Experience.
+Theme source и production controls принадлежат `@zavx0z/ui` (далее — UI).
+Visual связывает эти обычные зависимости в свои artifacts и подключает один
+stylesheet к своему приложению. UI и Engine не становятся отдельными
+участниками Cosmos release.
 
 Точные side effects, public exports и ошибки запуска принадлежат внутрикодовой
 TSDoc visual entrypoints.

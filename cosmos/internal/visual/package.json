@@ -1,11 +1,11 @@
 {
   "name": "@internal/visual",
-  "version": "0.1.20",
+  "version": "0.1.24",
   "private": true,
   "type": "module",
   "exports": {
     ".": {
-      "internal:main": "./main/index.ts",
+      "internal:main": "./main/index.tsx",
       "internal:server": "./server/index.ts"
     },
     "./theme.css": {
@@ -14,17 +14,18 @@
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build:main": "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
+    "build:main": "bun build ./main/index.tsx --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
     "build:server": "bun build ./server/index.ts --conditions=internal:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
   },
   "dependencies": {
-    "@engine/core": "link:@engine/core",
-    "@ui/components": "link:@ui/components",
-    "@zavx0z/dom": "link:@zavx0z/dom",
-    "@zavx0z/react": "link:@zavx0z/react",
-    "@zavx0z/renderer": "link:@zavx0z/renderer",
-    "@zavx0z/renderer-browser": "link:@zavx0z/renderer-browser",
-    "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
-    "@zavx0z/template": "link:@zavx0z/template"
+    "@zavx0z/browser": "file:../../../../webxr-space/browser",
+    "@zavx0z/component": "file:../../../../webxr-space/component",
+    "@zavx0z/dom": "file:../../../../webxr-space/dom",
+    "@zavx0z/engine": "file:../../../../webxr-space/engine",
+    "@zavx0z/renderer": "file:../../../../webxr-space/renderer",
+    "@zavx0z/space": "file:../../../../webxr-space/space",
+    "@zavx0z/template": "file:../../../../webxr-space/template",
+    "@zavx0z/ui": "file:../../../../webxr-space/ui",
+    "@zavx0z/webgpu": "file:../../../../webxr-space/webgpu"
   }
 }

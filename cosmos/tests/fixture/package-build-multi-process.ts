@@ -138,6 +138,17 @@ async function createFixture(packageRoot: string) {
       "",
     ].join("\n")),
   ])
+  if (process.env.PACKAGE_MULTI_LAZY_DEPENDENCY === "1") {
+    const library = join(dirname(packageRoot), "library")
+    await writeJson(join(library, "package.json"), {
+      name: "@fixture/library", version: "1.0.0", type: "module", exports: "./index.ts",
+    })
+    await writeSource(join(library, "index.ts"), 'export const load = () => import("./lazy.ts")\n')
+    await writeSource(join(library, "lazy.ts"), 'export const value = "nested-library-lazy-value"\n')
+    await linkPackage(packageRoot, "@fixture/library", library)
+    const entry = join(packageRoot, "main/index.ts")
+    await Bun.write(entry, `${await Bun.file(entry).text()}\nexport {load as loadLibrary} from "@fixture/library"\n`)
+  }
 }
 
 async function linkPackage(repository: string, name: string, target: string) {

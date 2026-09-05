@@ -109,7 +109,15 @@ export async function packageManifest(path: string): Promise<PackageManifest> {
   return await Bun.file(path).json() as PackageManifest
 }
 
-/** Разбирает standard exports в точные MetaFor package environments. */
+/**
+Разбирает условия exports в точные package environments.
+
+Корень каждого environment — один явно выбранный `index.ts` или `index.tsx`
+в соответствующем каталоге. TSX проходит тот же package-owned compiler plugin;
+расширение не меняет адрес, версию или lifecycle публикуемого artifact.
+
+@throws Error При неизвестном condition, environment или некорневом entrypoint.
+*/
 export function packageEnvironmentExports(manifest: PackageManifest): PackageEnvironmentExport[] {
   if (typeof manifest.name !== "string") throw new Error("Package name must be a string")
   const scope = packageConditionScope(manifest.name)
@@ -126,7 +134,9 @@ export function packageEnvironmentExports(manifest: PackageManifest): PackageEnv
     const target = packageEnvironmentBuildTarget(env)
     const entrypoint = relativeSource(value, `${condition} entrypoint`)
     const expected = `./${env}/index.ts`
-    if (entrypoint !== expected) throw new Error(`${condition} export must target ${expected}`)
+    if (entrypoint !== expected && entrypoint !== `${expected}x`) {
+      throw new Error(`${condition} export must target ${expected} or ${expected}x`)
+    }
     environments.push({
       env,
       condition: `${scope}:${env}`,

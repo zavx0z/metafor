@@ -17,8 +17,8 @@
   },
   "include": [
     "build/template.plugin.ts",
-    "main/index.ts",
-    "main/display-dock.tsx",
+    "main/*.ts",
+    "main/*.tsx",
     "server/index.ts",
     "../../../scripts/types/module.d.ts",
     "../../../scripts/types/hot.d.ts"

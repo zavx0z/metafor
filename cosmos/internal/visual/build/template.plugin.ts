@@ -3,14 +3,12 @@ import {fileURLToPath} from "node:url"
 import {createTemplateJsxBunPlugin} from "@zavx0z/template/bun"
 
 const visualRoot = resolve(import.meta.dir, "..")
-const visualMainRoot = resolve(visualRoot, "main")
-const uiComponentsRoot = dirname(
-  fileURLToPath(import.meta.resolve("@ui/components/button")),
-)
+const uiRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@zavx0z/ui/buttons/button"))), "..")
+const spaceRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@zavx0z/space"))), "..")
 
-/** Compiles Visual and its exact production UI owners in one package build. */
+/** One compiler pass for Visual and the exact production WebXR components. */
 export default createTemplateJsxBunPlugin({
   cwd: visualRoot,
-  sourceRoots: [visualMainRoot, uiComponentsRoot],
-  styleSourceRootIds: ["@internal/visual", "@ui/components"],
+  sourceRoots: [resolve(visualRoot, "main"), uiRoot, spaceRoot],
+  styleSourceRootIds: ["@internal/visual", "@zavx0z/ui", "@zavx0z/space"],
 })
