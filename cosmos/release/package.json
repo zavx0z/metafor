@@ -1,5 +1,6 @@
 {
   "name": "@cosmos/release",
+  "label": "Релизы Cosmos",
   "version": "0.1.23",
   "private": true,
   "type": "module",

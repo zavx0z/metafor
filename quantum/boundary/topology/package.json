@@ -1,5 +1,6 @@
 {
   "name": "@boundary/topology",
+  "label": "Топология Boundary",
   "type": "module",
   "exports": {
     ".": "./index.ts",

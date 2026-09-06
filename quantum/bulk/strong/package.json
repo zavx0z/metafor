@@ -1,5 +1,6 @@
 {
   "name": "@bulk/strong",
+  "label": "Сильное взаимодействие Bulk",
   "type": "module",
   "main": "index.ts",
   "private": true,

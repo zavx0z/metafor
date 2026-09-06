@@ -1,5 +1,6 @@
 {
   "name": "@metafor/visual",
+  "label": "Визуальные представления MetaFor",
   "version": "0.0.1",
   "description": "Immutable complete-snapshot layout strategies and production visual materials.",
   "type": "module",

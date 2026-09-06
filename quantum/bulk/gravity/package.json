@@ -1,5 +1,6 @@
 {
   "name": "@bulk/gravity",
+  "label": "Гравитация Bulk",
   "type": "module",
   "main": "index.ts",
   "exports": {

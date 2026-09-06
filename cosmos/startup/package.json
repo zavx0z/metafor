@@ -1,5 +1,6 @@
 {
   "name": "@cosmos/startup",
+  "label": "Запуск Cosmos",
   "version": "0.1.8",
   "private": true,
   "type": "module",

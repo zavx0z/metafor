@@ -1,5 +1,6 @@
 {
   "name": "@metafor/types",
+  "label": "Модель MetaFor",
   "type": "module",
   "private": true,
   "exports": {

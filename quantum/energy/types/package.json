@@ -1,5 +1,6 @@
 {
   "name": "@energy/types",
+  "label": "Типы Energy",
   "version": "0.0.1",
   "private": true,
   "type": "module",

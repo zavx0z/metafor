@@ -1,5 +1,6 @@
 {
   "name": "@boundary/wimp",
+  "label": "WIMP Boundary",
   "module": "index.ts",
   "type": "module",
   "exports": {

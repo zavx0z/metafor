@@ -1,5 +1,6 @@
 {
   "name": "fixture",
+  "label": "Фикстуры MetaFor",
   "private": true,
   "dependencies": {
     "@matrix/types": "workspace:*"

@@ -1,5 +1,6 @@
 {
   "name": "@bulk/weak",
+  "label": "Слабое взаимодействие Bulk",
   "type": "module",
   "main": "index.ts",
   "private": true,

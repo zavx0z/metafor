@@ -1,5 +1,6 @@
 {
   "name": "@matrix/weak",
+  "label": "Слабое взаимодействие Matrix",
   "type": "module",
   "main": "index.ts",
   "private": true,

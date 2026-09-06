@@ -1,5 +1,6 @@
 {
   "name": "shared",
+  "label": "Общие механизмы MetaFor",
   "version": "0.0.1",
   "type": "module",
   "private": true,

@@ -1,5 +1,6 @@
 {
   "name": "@internal/visual",
+  "label": "Визуальная среда Cosmos",
   "version": "0.1.28",
   "private": true,
   "type": "module",

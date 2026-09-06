@@ -1,5 +1,6 @@
 {
   "name": "@dark/gravity",
+  "label": "Гравитация Dark",
   "module": "index.ts",
   "type": "module",
   "private": true,

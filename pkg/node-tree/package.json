@@ -1,5 +1,6 @@
 {
   "name": "@metafor/node-tree",
+  "label": "Проекция графа MetaFor",
   "version": "0.0.1",
   "description": "Derived public Graph projection into the generic @nodes/core NodeTree.",
   "type": "module",

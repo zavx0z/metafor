@@ -1,5 +1,6 @@
 {
   "name": "@dark/types",
+  "label": "Типы Dark",
   "version": "0.0.1",
   "private": true,
   "type": "module",

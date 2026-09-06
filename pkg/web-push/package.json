@@ -1,5 +1,6 @@
 {
   "name": "@metafor/web-push",
+  "label": "Web Push",
   "version": "0.1.0",
   "description": "Reusable permission, subscription, delivery and lifecycle primitives for Web Push.",
   "type": "module",
