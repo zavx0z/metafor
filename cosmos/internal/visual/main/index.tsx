@@ -38,6 +38,6 @@ export const runtime = await inspectRoot(root).whenReady()
 console.debug("[@internal/visual:main]", "основное visual-окружение создано", {
   space: runtime.space,
   viewPoint: runtime.viewPoint,
-  display: runtime.document.querySelector("xr-display"),
+  display: runtime.document.querySelector("display"),
   dock: runtime.document.getElementById("main-display-dock"),
 })

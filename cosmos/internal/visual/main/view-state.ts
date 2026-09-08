@@ -12,7 +12,3 @@ export const INITIAL_VIEW_POINT = Object.freeze({
   near: 1,
   far: 5000,
 })
-
-/** Постоянные характеристики активной поверхности, независимо от окна и камеры. */
-export const DISPLAY_SIZE_MM = Object.freeze({width: 600, height: 337.5})
-export const DISPLAY_RESOLUTION = Object.freeze({width: 1280, height: 720})

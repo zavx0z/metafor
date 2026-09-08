@@ -2,21 +2,28 @@ import {afterAll, beforeAll, expect, test} from "bun:test"
 import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import {createDocument, Event, HTMLButtonElement, readDocumentCompiledStyleSheets} from "@zavx0z/dom"
+import {createDocument, DisplayElement, Event, publishDisplayMetrics, HTMLButtonElement, readDocumentCompiledStyleSheets} from "@zavx0z/dom"
 import {createRoot, type ComponentRoot} from "@zavx0z/component"
-import {createDocumentRenderer} from "@zavx0z/renderer"
+import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/renderer"
 import {createSpaceElementFactories, readSpaceTree, type XRViewPointElement} from "@zavx0z/space"
 import type {CompiledTemplate} from "@zavx0z/template/compiled"
 import visualTemplatePlugin from "../build/template.plugin.ts"
-import {DISPLAY_CENTER_MM, DISPLAY_SIZE_MM, DISPLAY_RESOLUTION} from "./view-state.ts"
+import {DISPLAY_CENTER_MM} from "./view-state.ts"
 import {setViewport} from "./browser.fixture.ts"
 
 let directory = ""
 let app: CompiledTemplate<Record<string, never>>
 
-function renderApp(root: ComponentRoot, width: number, height: number): void {
+async function renderApp(root: ComponentRoot, document: ReturnType<typeof createDocument>, width: number, height: number): Promise<void> {
   setViewport(width, height)
   root.render(app, {})
+  const element = document.querySelector("display")
+  if (element instanceof DisplayElement) {
+    const style = readDisplayStyle(element.ownerDocument!, element)
+    publishDisplayMetrics(element, {width: style.viewport.width, height: style.viewport.height,
+      pixelWidth: style.pixels.width, pixelHeight: style.pixels.height, resolution: style.resolution})
+  }
+  await Promise.resolve()
 }
 
 function readViewPoint(camera: XRViewPointElement) {
@@ -65,54 +72,55 @@ afterAll(async () => {
   if (directory !== "") await rm(directory, {recursive: true, force: true})
 })
 
-test("Visual App owns one Z-up Space, a millimetre Display and the same-document HUD", () => {
+test("Visual App owns one Z-up Space, a millimetre Display and the same-document HUD", async () => {
   const document = createDocument({elementFactories: createSpaceElementFactories()})
   const html = document.createElement("html")
   const body = document.createElement("body")
   html.append(body)
   document.append(html)
   const root = createRoot(body)
-  renderApp(root, 1000, 700)
+  await renderApp(root, document, 1000, 700)
   const tree = readSpaceTree(document)
   expect(document.documentElement).toBe(html)
   expect(body.children[0]?.localName).toBe("link")
   expect(body.children[0]?.getAttribute("rel")).toBe("stylesheet")
   expect(body.children[1]).toBe(tree.space)
-  expect(tree.displays).toHaveLength(1)
-  expect(tree.displays[0]!.element.id).toBe("")
+  expect(tree.cssDisplays).toHaveLength(1)
+  expect(tree.cssDisplays[0]!.id).toBe("")
   expect(tree.hud!.element.id).toBe("")
   expect(tree.hud?.element.parentElement).toBe(tree.space)
-  expect(tree.displays[0]!.element.parentElement).toBe(tree.space)
+  expect(tree.cssDisplays[0]!.parentElement).toBe(tree.space)
   expect(tree.viewPoint).toMatchObject({x: 0, y: -1600, z: 900, controls: true})
-  expect(tree.displays[0]!.transform.position).toEqual(DISPLAY_CENTER_MM)
-  expect(tree.displays[0]!.transform.quaternion.x).toBeCloseTo(Math.SQRT1_2)
-  expect(tree.displays[0]!.transform.quaternion.w).toBeCloseTo(Math.SQRT1_2)
-  expect(tree.displays[0]!.viewport).toEqual(DISPLAY_RESOLUTION)
-  expect(tree.displays[0]!.worldUnitsPerPixel * DISPLAY_RESOLUTION.height).toBeCloseTo(DISPLAY_SIZE_MM.height)
+  const projection = readDisplayStyle(document, tree.cssDisplays[0]!)
+  expect(projection.transform.position.z).toBeCloseTo(DISPLAY_CENTER_MM.z)
+  expect(projection.transform.quaternion.x).toBeCloseTo(Math.SQRT1_2)
+  expect(projection.transform.quaternion.w).toBeCloseTo(Math.SQRT1_2)
+  expect(projection.pixels).toEqual({width: 2268, height: 1276})
+  expect(projection.worldUnitsPerPixel * projection.viewport.height).toBeCloseTo(337.5)
   expect(tree.objects).toHaveLength(1)
   expect(tree.objects[0]!.localName).toBe("xr-line-segments")
-  const frames = [...tree.displays[0]!.element.querySelectorAll("[data-frame-id]")]
+  const frames = [...tree.cssDisplays[0]!.querySelectorAll("[data-frame-id]")]
   expect(frames.map(frame => frame.getAttribute("aria-label")).sort()).toEqual(["Браузер", "Сервер"])
-  expect(tree.displays[0]!.element.querySelectorAll("[data-node-id]")).toHaveLength(0)
-  expect(tree.displays[0]!.element.querySelectorAll("[data-link-id]")).toHaveLength(0)
-  const physicalDisplay = tree.displays[0]!
-  renderApp(root, 700, 1000)
-  expect(readSpaceTree(document).displays[0]).toEqual(physicalDisplay)
-  expect([...tree.displays[0]!.element.querySelectorAll("[data-frame-id]")]).toEqual(frames)
+  expect(tree.cssDisplays[0]!.querySelectorAll("[data-node-id]")).toHaveLength(0)
+  expect(tree.cssDisplays[0]!.querySelectorAll("[data-link-id]")).toHaveLength(0)
+  const physicalDisplay = readDisplayStyle(document, tree.cssDisplays[0]!)
+  await renderApp(root, document, 700, 1000)
+  expect(readDisplayStyle(document, tree.cssDisplays[0]!)).toEqual(physicalDisplay)
+  expect([...tree.cssDisplays[0]!.querySelectorAll("[data-frame-id]")]).toEqual(frames)
   root.unmount()
   expect(body.childNodes).toHaveLength(0)
   expect(document.documentElement).toBe(html)
   expect(readDocumentCompiledStyleSheets(document).styleSheets).toEqual([])
 })
 
-test("dock retains Button identity, Flex placement and exact far-view restoration", () => {
+test("dock retains Button identity, Flex placement and exact far-view restoration", async () => {
   const document = createDocument({elementFactories: createSpaceElementFactories()})
   const html = document.createElement("html")
   const body = document.createElement("body")
   html.append(body)
   document.append(html)
   const root = createRoot(body)
-  renderApp(root, 1000, 700)
+  await renderApp(root, document, 1000, 700)
   const tree = readSpaceTree(document)
   const gridFactory = tree.objects[0]!.factory
   const dock = document.getElementById("main-display-dock")!
@@ -134,15 +142,15 @@ test("dock retains Button identity, Flex placement and exact far-view restoratio
     tree.viewPoint.z = 1050
   })
   const farPose = readViewPoint(tree.viewPoint)
-  renderApp(root, 1200, 800)
+  await renderApp(root, document, 1200, 800)
   expect(readViewPoint(tree.viewPoint)).toEqual(farPose)
   returnButton!.click()
   expect(tree.viewPoint.controls).toBe(false)
   expect(Math.hypot(tree.viewPoint.x, tree.viewPoint.y, tree.viewPoint.z - 900)).toBeCloseTo(600)
   expect(dockButton!.getAttribute("aria-pressed")).toBe("false")
   expect(returnButton!.title).toBe("Вернуть пространственный обзор")
-  renderApp(root, 800, 600)
-  expect(tree.displays[0]!.element.viewportWidth).toBe(DISPLAY_RESOLUTION.width)
+  await renderApp(root, document, 800, 600)
+  expect(tree.cssDisplays[0]!.viewport.width).toBeCloseTo(600 * 96 / 25.4)
   dock.dispatchEvent(new Event("pointerenter"))
   returnButton!.click()
   expect(readViewPoint(tree.viewPoint)).toEqual(farPose)
@@ -154,7 +162,7 @@ test("dock retains Button identity, Flex placement and exact far-view restoratio
   returnButton!.click()
   returnButton!.click()
   expect(readViewPoint(tree.viewPoint)).toEqual(nextFarPose)
-  renderApp(root, 900, 700)
+  await renderApp(root, document, 900, 700)
   expect(readViewPoint(tree.viewPoint)).toEqual(nextFarPose)
   expect(tree.objects[0]!.factory).toBe(gridFactory)
   renderer.dispose()
