@@ -2,7 +2,8 @@ import {afterAll, beforeAll, expect, test} from "bun:test"
 import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import {createDocument, DisplayElement, Event, publishDisplayMetrics, HTMLButtonElement, readDocumentCompiledStyleSheets} from "@zavx0z/dom"
+import {createDocument, Event, HTMLButtonElement, readDocumentCompiledStyleSheets} from "@zavx0z/dom"
+import {DisplayElement, publishDisplayMetrics} from "@zavx0z/dom/display"
 import {createRoot, type ComponentRoot} from "@zavx0z/component"
 import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/renderer"
 import {createSpaceElementFactories, readSpaceTree, type XRViewPointElement} from "@zavx0z/space"
@@ -85,13 +86,13 @@ test("Visual App owns one Z-up Space, a millimetre Display and the same-document
   expect(body.children[0]?.localName).toBe("link")
   expect(body.children[0]?.getAttribute("rel")).toBe("stylesheet")
   expect(body.children[1]).toBe(tree.space)
-  expect(tree.cssDisplays).toHaveLength(1)
-  expect(tree.cssDisplays[0]!.id).toBe("")
+  expect(tree.displays).toHaveLength(1)
+  expect(tree.displays[0]!.id).toBe("")
   expect(tree.hud!.element.id).toBe("")
   expect(tree.hud?.element.parentElement).toBe(tree.space)
-  expect(tree.cssDisplays[0]!.parentElement).toBe(tree.space)
+  expect(tree.displays[0]!.parentElement).toBe(tree.space)
   expect(tree.viewPoint).toMatchObject({x: 0, y: -1600, z: 900, controls: true})
-  const projection = readDisplayStyle(document, tree.cssDisplays[0]!)
+  const projection = readDisplayStyle(document, tree.displays[0]!)
   expect(projection.transform.position.z).toBeCloseTo(DISPLAY_CENTER_MM.z)
   expect(projection.transform.quaternion.x).toBeCloseTo(Math.SQRT1_2)
   expect(projection.transform.quaternion.w).toBeCloseTo(Math.SQRT1_2)
@@ -99,14 +100,14 @@ test("Visual App owns one Z-up Space, a millimetre Display and the same-document
   expect(projection.worldUnitsPerPixel * projection.viewport.height).toBeCloseTo(337.5)
   expect(tree.objects).toHaveLength(1)
   expect(tree.objects[0]!.localName).toBe("xr-line-segments")
-  const frames = [...tree.cssDisplays[0]!.querySelectorAll("[data-frame-id]")]
+  const frames = [...tree.displays[0]!.querySelectorAll("[data-frame-id]")]
   expect(frames.map(frame => frame.getAttribute("aria-label")).sort()).toEqual(["Браузер", "Сервер"])
-  expect(tree.cssDisplays[0]!.querySelectorAll("[data-node-id]")).toHaveLength(0)
-  expect(tree.cssDisplays[0]!.querySelectorAll("[data-link-id]")).toHaveLength(0)
-  const physicalDisplay = readDisplayStyle(document, tree.cssDisplays[0]!)
+  expect(tree.displays[0]!.querySelectorAll("[data-node-id]")).toHaveLength(0)
+  expect(tree.displays[0]!.querySelectorAll("[data-link-id]")).toHaveLength(0)
+  const physicalDisplay = readDisplayStyle(document, tree.displays[0]!)
   await renderApp(root, document, 700, 1000)
-  expect(readDisplayStyle(document, tree.cssDisplays[0]!)).toEqual(physicalDisplay)
-  expect([...tree.cssDisplays[0]!.querySelectorAll("[data-frame-id]")]).toEqual(frames)
+  expect(readDisplayStyle(document, tree.displays[0]!)).toEqual(physicalDisplay)
+  expect([...tree.displays[0]!.querySelectorAll("[data-frame-id]")]).toEqual(frames)
   root.unmount()
   expect(body.childNodes).toHaveLength(0)
   expect(document.documentElement).toBe(html)
@@ -150,7 +151,7 @@ test("dock retains Button identity, Flex placement and exact far-view restoratio
   expect(dockButton!.getAttribute("aria-pressed")).toBe("false")
   expect(returnButton!.title).toBe("Вернуть пространственный обзор")
   await renderApp(root, document, 800, 600)
-  expect(tree.cssDisplays[0]!.viewport.width).toBeCloseTo(600 * 96 / 25.4)
+  expect(tree.displays[0]!.viewport.width).toBeCloseTo(600 * 96 / 25.4)
   dock.dispatchEvent(new Event("pointerenter"))
   returnButton!.click()
   expect(readViewPoint(tree.viewPoint)).toEqual(farPose)
