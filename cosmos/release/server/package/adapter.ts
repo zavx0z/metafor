@@ -1,9 +1,9 @@
 /**
 Изолированный child entrypoint package build plugins.
 
-Parent release process передаёт уже проверенный single-output план через stdin.
-Adapter загружает только разрешённые parent-ом modules, запускает один
-`Bun.build()` и записывает единственный entry artifact в staging path.
+Parent release process передаёт проверенный план и exact sources через stdin.
+Adapter загружает разрешённые plugins, запускает один `Bun.build()` для кода и
+CSS и записывает outputs с временным отчётом в staging directory.
 
 @packageDocumentation
 */
@@ -53,7 +53,7 @@ config: entrypoints, profile, resolution conditions и staging destination уж�
 
 @param request - Проверенный build plan и canonical plugin file paths.
 
-@returns Process exit code: `0` только после записи единственного artifact.
+@returns Process exit code: `0` только после записи всех outputs и отчёта.
 */
 export async function runIsolatedPackageBuild(
   request: IsolatedPackageBuildRequest,
@@ -266,7 +266,10 @@ function normalizeEntryPoint(value: string | undefined, sources: readonly Packag
   // Bun also labels dynamic dependency roots as entrypoints. Only package
   // exports are public entries; every other output belongs to the derived
   // dependency graph, including ordinary libraries outside this package.
-  if (!sources.some(({source}) => resolve(source) === path)) return undefined
+  const declared = sources.find(({source}) => resolve(source) === path)
+  if (declared === undefined) return undefined
+  // Only a source resolved from the declared export graph may cross the package root.
+  if (isAbsolute(declared.source)) return declared.source
   const fromRoot = relative(process.cwd(), path)
   if (fromRoot === "" || fromRoot.startsWith("..") || isAbsolute(fromRoot))
     throw new Error(`Package build entrypoint escapes package root: ${value}`)

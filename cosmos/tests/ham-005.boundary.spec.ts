@@ -17,7 +17,6 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     visual,
     app,
     displayDock,
-    themeCss,
     templatePlugin,
     mainPackage,
     visualPackage,
@@ -31,7 +30,6 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     Bun.file(join(cosmos, "internal/visual/main/index.tsx")).text(),
     Bun.file(join(cosmos, "internal/visual/main/app.tsx")).text(),
     Bun.file(join(cosmos, "internal/visual/main/display-dock.tsx")).text(),
-    Bun.file(join(cosmos, "internal/visual/theme.css")).text(),
     Bun.file(join(cosmos, "internal/visual/build/template.plugin.ts")).text(),
     Bun.file(join(cosmos, "release/package.json")).json() as Promise<{
       dependencies?: Record<string, string>
@@ -76,7 +74,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     "internal:server": "./server/index.ts",
   })
   expect(visualPackage.exports?.["./theme.css"]).toEqual({
-    "internal:main": "./theme.css",
+    "internal:main": "@zavx0z/ui/themes/theme.css",
   })
   expect(visualPackage.artifact).toBeUndefined()
   expect(visualPackage.scripts?.prebuild).toBeUndefined()
@@ -94,7 +92,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   }
   expect(visual).toContain("await attach({")
   expect(visual).toContain("app: <App")
-  expect(visual).toContain("stylesheets:")
+  expect(visual).toContain("theme:")
   expect(app).toContain("useSpace(state => state.size)")
   expect(app).toContain('controls={mode === "far"}')
   expect(app).not.toMatch(/up[XYZ]=/)
@@ -123,7 +121,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(displayDock).toContain("align-items: center")
   expect(displayDock).toContain("justify-content: space-between")
   expect(displayDock).not.toContain("position: absolute")
-  expect(themeCss.trim()).toBe('@import "@zavx0z/ui/themes/theme.css";')
+  expect(await Bun.file(join(cosmos, "internal/visual/theme.css")).exists()).toBe(false)
   expect(templatePlugin).toContain('import.meta.resolve("@zavx0z/ui/buttons/button")')
   expect(templatePlugin).toContain('import.meta.resolve("@zavx0z/space")')
   expect(visual).not.toContain("@cosmos/visual")
@@ -131,6 +129,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualBunfig).toContain('".wgsl" = "text"')
   expect(visualBunfig).toContain("[cosmos.package-build.environments.main]")
   expect(visualBunfig).toContain('plugins = ["./build/template.plugin.ts"]')
+  expect(visualBunfig).not.toContain("theme =")
   expect(mainPackage.scripts?.prebuild).toBeUndefined()
   expect(mainPackage.scripts?.["build:main"]).toBe(
     "bun build ./main/index.ts --conditions=cosmos:main --conditions=internal:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/main.js",

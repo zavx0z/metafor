@@ -58,10 +58,10 @@ export interface PackageBuildOptions {
   version?: string
 }
 
-/** Exact public source, выбранный из `package.json#exports` одного environment. */
+/** Exact local or dependency source resolved from one environment's exports. */
 export interface PackageBuildSource {
   artifact: PublicPackageArtifactKey
-  source: `./${string}`
+  source: string
 }
 
 /** Проверенный package-owned contract browser artifact. */

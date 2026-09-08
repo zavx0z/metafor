@@ -45,8 +45,9 @@ Visual использует объявление общего шрифта в HT
 server сохраняет выбранный asset в runtime offline cache.
 
 Theme source и production controls принадлежат `@zavx0z/ui` (далее — UI).
-Visual связывает эти обычные зависимости в свои artifacts и подключает один
-stylesheet к своему приложению. UI и Engine не становятся отдельными
+Visual объявляет `theme.css` в своих exports ссылкой на публичный CSS UI. Сборка
+публикует его в той же версии без локальной CSS-обёртки; Browser получает
+его точный адрес и подключает один stylesheet. UI и Engine не становятся отдельными
 участниками Cosmos release.
 
 Точные side effects, public exports и ошибки запуска принадлежат внутрикодовой

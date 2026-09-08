@@ -31,7 +31,7 @@ if (typeof packageVersion !== "string" || packageVersion.length === 0) {
 export const runtime = await attach({
   canvas,
   app: <App />,
-  stylesheets: [`/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`],
+  theme: `/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`,
   frameloop: "demand",
 })
 

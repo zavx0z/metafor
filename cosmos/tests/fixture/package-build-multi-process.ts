@@ -149,6 +149,26 @@ async function createFixture(packageRoot: string) {
     const entry = join(packageRoot, "main/index.ts")
     await Bun.write(entry, `${await Bun.file(entry).text()}\nexport {load as loadLibrary} from "@fixture/library"\n`)
   }
+  if (process.env.PACKAGE_MULTI_DEPENDENCY_EXPORTS === "1") {
+    const library = join(dirname(packageRoot), "assets-library")
+    await writeJson(join(library, "package.json"), {
+      name: "@fixture/assets", version: "1.0.0", type: "module",
+      exports: {"./palette.css": "./palette.css", "./kernel.wasm": "./kernel.wasm", "./calculate": "./calculate.ts"},
+    })
+    await writeSource(join(library, "palette.css"), ":root { --dependency-color: red; }\n")
+    await writeSource(join(library, "kernel.wasm"), "dependency-wasm-bytes")
+    await writeSource(join(library, "calculate.ts"), 'export const value = "dependency-calculation"\n')
+    await linkPackage(packageRoot, "@fixture/assets", library)
+    const path = join(packageRoot, "package.json")
+    const manifest = await Bun.file(path).json()
+    manifest.dependencies = {"@fixture/assets": "1.0.0"}
+    manifest.exports["./theme.css"] = {"internal:main": "@fixture/assets/palette.css"}
+    manifest.exports["./kernel.wasm"] = {"internal:main": "@fixture/assets/kernel.wasm"}
+    manifest.exports["./calculation"] = {"internal:main": "@fixture/assets/calculate"}
+    await writeJson(path, manifest)
+    await rm(join(packageRoot, "theme.css"))
+    await rm(join(packageRoot, "kernel.wasm"))
+  }
 }
 
 async function linkPackage(repository: string, name: string, target: string) {

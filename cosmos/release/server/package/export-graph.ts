@@ -1,5 +1,5 @@
 import {lstat, readdir, realpath} from "node:fs/promises"
-import {relative, resolve, sep} from "node:path"
+import {dirname, isAbsolute, join, relative, resolve, sep} from "node:path"
 import {
   isPackageEnvironment,
   packageEnvironments,
@@ -15,14 +15,15 @@ import {
 export interface PackageExportsManifest {
   name?: unknown
   exports?: unknown
+  dependencies?: unknown
 }
 
-/** One exact package-owned source selected for one explicit environment. */
+/** One exact local source or resolved public dependency source for an environment. */
 export interface PackageExportArtifact {
   artifact: PublicPackageArtifactKey
   env: PackageEnvironment
   condition: `${string}:${PackageEnvironment}` | null
-  source: `./${string}`
+  source: string
 }
 
 interface ExportDeclaration {
@@ -33,13 +34,19 @@ interface ExportDeclaration {
 }
 
 /**
-Expands standard package exports into a deterministic environment artifact graph.
+Expands Cosmos source exports into a deterministic environment artifact graph.
 
 Conditional targets select one exact environment. A conditionless target is
 shared by every environment declared elsewhere in the same exports object.
 File extension never selects an environment: one shared source may be built
 separately for browser and Bun. Wildcards are expanded from the package
 filesystem without following symbolic links.
+
+Non-root declarations may reference an exact public export of a direct runtime
+dependency. This is a Cosmos build-source extension, not a native npm target:
+Node package exports require package-relative paths. Ordinary dependencies are
+resolved through their own native public exports and retain source ownership.
+The rule does not depend on the resource name, extension or application role.
 */
 export async function packageExportGraph(
   packageRoot: string,
@@ -64,7 +71,7 @@ export async function packageExportGraph(
     if (typeof target === "string") {
       if (artifact === rootPackageArtifact)
         throw new Error("Root package export must declare exact environments")
-      requireSourceDeclaration(target, artifact)
+      requireSourceDeclaration(target, artifact, true)
       declarations.push({artifact, condition: null, env: null, source: target})
       continue
     }
@@ -77,7 +84,7 @@ export async function packageExportGraph(
         throw new Error(`Unsupported package export condition ${condition}`)
       const env = condition.slice(scope.length + 1)
       if (!isPackageEnvironment(env)) throw new Error(`Unsupported package environment ${env}`)
-      requireSourceDeclaration(source, `${artifact} ${condition}`)
+      requireSourceDeclaration(source, `${artifact} ${condition}`, artifact !== rootPackageArtifact)
       if (artifact === rootPackageArtifact && source.includes("*"))
         throw new Error(`Root package export ${condition} must target one exact source`)
       if (artifact === rootPackageArtifact) rootEnvironments.add(env)
@@ -107,7 +114,12 @@ export async function packageExportGraph(
     const environments = declaration.env === null
       ? packageEnvironments.filter((env) => rootEnvironments.has(env))
       : [declaration.env]
-    const files = await expandDeclaration(root, declaration.artifact, declaration.source)
+    const files = declaration.source.startsWith("./")
+      ? await expandDeclaration(root, declaration.artifact, declaration.source)
+      : [{
+          artifact: declaration.artifact as PublicPackageArtifactKey,
+          source: await resolveDependencyExport(root, manifest, declaration.artifact, declaration.source),
+        }]
     for (const file of files) {
       if (exclusions.some((pattern) => artifactPatternMatches(pattern, file.artifact))) continue
       for (const env of environments) {
@@ -232,7 +244,11 @@ function requireArtifactDeclaration(value: string) {
   if (!isPackageExportSubpath(example)) throw new Error(`Invalid package export subpath ${value}`)
 }
 
-function requireSourceDeclaration(value: unknown, label: string): asserts value is string {
+function requireSourceDeclaration(value: unknown, label: string, allowDependency = false): asserts value is string {
+  if (typeof value === "string" && allowDependency && !value.startsWith("./")) {
+    dependencyName(value)
+    return
+  }
   if (typeof value !== "string" || !value.startsWith("./") || occurrences(value, "*") > 1)
     throw new Error(`${label} source must be one relative package path`)
   const example = value.replace("*", "artifact")
@@ -249,6 +265,48 @@ function requireSourceDeclaration(value: unknown, label: string): asserts value 
       || segment === "node_modules"
       || segment === ".cosmos")
   ) throw new Error(`${label} source must stay inside package root`)
+}
+
+async function resolveDependencyExport(
+  root: string,
+  manifest: PackageExportsManifest,
+  artifact: string,
+  specifier: string,
+): Promise<string> {
+  if (artifact.includes("*")) throw new Error("Dependency export references must use an exact artifact key")
+  const dependency = dependencyName(specifier)
+  const dependencies = manifest.dependencies === undefined ? {} : record(manifest.dependencies, "Package dependencies must be an object")
+  if (dependency === manifest.name || !Object.hasOwn(dependencies, dependency))
+    throw new Error(`Export source must name a direct runtime dependency: ${specifier}`)
+  const resolved = Bun.resolveSync(specifier, root)
+  if (!isAbsolute(resolved)) throw new Error(`Dependency export is not a filesystem source: ${specifier}`)
+  const source = await realpath(resolved)
+  if (!(await lstat(source)).isFile()) throw new Error(`Dependency export is not a regular file: ${specifier}`)
+  let directory = dirname(source)
+  while (true) {
+    const file = Bun.file(join(directory, "package.json"))
+    if (await file.exists()) {
+      const owner = await file.json() as {name?: unknown}
+      if (owner.name === dependency) return source
+      if (owner.name !== undefined)
+        throw new Error(`Dependency export resolves inside another package: ${specifier}`)
+    }
+    const parent = dirname(directory)
+    if (parent === directory) throw new Error(`Dependency export owner is missing: ${specifier}`)
+    directory = parent
+  }
+}
+
+function dependencyName(specifier: string): string {
+  const segments = specifier.split("/")
+  const size = specifier.startsWith("@") ? 2 : 1
+  if (
+    specifier.trim() !== specifier
+    || /[\\\\:%?#*]/u.test(specifier)
+    || segments.some(segment => !segment || segment === "." || segment === ".." || segment === "node_modules")
+    || (size === 2 && (segments.length < 2 || segments[0] === "@"))
+  ) throw new Error(`Invalid public dependency export reference: ${specifier}`)
+  return segments.slice(0, size).join("/")
 }
 
 function artifactPatternMatches(pattern: string, artifact: PublicPackageArtifactKey) {

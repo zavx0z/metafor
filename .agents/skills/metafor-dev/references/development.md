@@ -183,9 +183,24 @@ conditional exports package. Condition map нужен, когда environments �
 targets различаются; расширение файла само environment не определяет.
 Расширение patterns разворачивается в конечный набор package-local files.
 Package объявляет только поддерживаемые branches. `default` fallback не
-добавлять: builder и TypeScript выбирают нужную condition. Target обязан
+добавлять: builder и TypeScript выбирают нужную condition. Локальный target обязан
 оставаться внутри package root, существовать и не создавать второй public
 identity для тех же bytes внутри одного environment.
+
+В source-декларации Cosmos некорневой export также может указывать точный
+public specifier прямой `dependency`, например
+`"./palette.css": {"internal:main": "@library/styles/default.css"}` или
+`"./calculate": {"internal:main": "@library/math/calculate"}`. Один общий
+resolver проверяет dependency, её public export и фактического владельца файла.
+CSS, JavaScript, WebAssembly и остальные файлы используют эту же форму.
+Внешние references не поддерживают wildcard; корневые platform parts остаются
+локальными. Никакого дополнительного списка ресурсов в bunfig нет.
+
+Это явное расширение build-source контракта Cosmos: native Node/npm `exports`
+допускает только относительные targets `./...` и не разрешает bare targets.
+Такую source-декларацию читает Cosmos builder; клиент получает уже собранный
+artifact по обычному URL с `env` и `version`. Её нельзя выдавать за совместимую
+с прямым Node-import соответствующего source subpath.
 
 Public code entrypoints одного environment выводятся один раз из `exports` и не
 повторяются списком в `bunfig.toml` или build script. Canonical root entrypoint

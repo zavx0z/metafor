@@ -1,5 +1,5 @@
 import {expect, test} from "bun:test"
-import {mkdir, mkdtemp, rm, symlink} from "node:fs/promises"
+import {mkdir, mkdtemp, realpath, rm, symlink} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {
@@ -324,6 +324,56 @@ test("export graph fails closed for root environment, traversal, symlinks and co
     } finally {
       await rm(outside, {force: true})
     }
+  })
+})
+
+test("non-root exports resolve public dependency files independently of file type and name", async () => {
+  await withPackage(async (root) => {
+    await write(root, "main/index.ts", "export {}\n")
+    const directory = "node_modules/@fixture/assets"
+    await write(root, `${directory}/package.json`, JSON.stringify({
+      name: "@fixture/assets",
+      exports: {
+        "./palette.css": "./palette.css",
+        "./calculate": "./calculate.ts",
+        "./kernel.wasm": "./kernel.wasm",
+        "./mark.svg": "./mark.svg",
+      },
+    }))
+    const files = {"palette.css": ":root { --accent: red; }", "calculate.ts": "export const value = 7", "kernel.wasm": "binary", "mark.svg": "<svg/>"}
+    for (const [file, contents] of Object.entries(files)) await write(root, `${directory}/${file}`, contents)
+    const manifest = {
+      name: "@internal/fixture",
+      dependencies: {"@fixture/assets": "1.0.0"},
+      exports: {
+        ".": {"internal:main": "./main/index.ts"},
+        "./appearance.css": {"internal:main": "@fixture/assets/palette.css"},
+        "./compute": {"internal:main": "@fixture/assets/calculate"},
+        "./compute.wasm": {"internal:main": "@fixture/assets/kernel.wasm"},
+        "./icon.svg": {"internal:main": "@fixture/assets/mark.svg"},
+      },
+    }
+    const graph = await packageExportGraph(root, manifest)
+    for (const [artifact, file] of [["./appearance.css", "palette.css"], ["./compute", "calculate.ts"], ["./compute.wasm", "kernel.wasm"], ["./icon.svg", "mark.svg"]]) {
+      expect(graph.find(entry => entry.artifact === artifact)?.source)
+        .toBe(await realpath(join(root, directory, file!)))
+    }
+    expect(await Bun.file(join(root, "appearance.css")).exists()).toBe(false)
+    await expect(packageExportGraph(root, {...manifest, dependencies: {}})).rejects.toThrow("direct runtime dependency")
+    await write(root, `${directory}/private.css`, "body {}")
+    await expect(packageExportGraph(root, {...manifest, exports: {
+      ".": manifest.exports["."],
+      "./hidden.css": {"internal:main": "@fixture/assets/private.css"},
+    }})).rejects.toThrow()
+    await expect(packageExportGraph(root, {...manifest, exports: {
+      ".": manifest.exports["."],
+      "./duplicate.css": {"internal:main": "@fixture/assets/palette.css"},
+      "./same.css": {"internal:main": "@fixture/assets/palette.css"},
+    }})).rejects.toThrow("multiple artifact identities")
+    await expect(packageExportGraph(root, {...manifest, exports: {
+      ".": manifest.exports["."],
+      "./escape": {"internal:main": "@fixture/assets/../private.css"},
+    }})).rejects.toThrow("Invalid public dependency")
   })
 })
 

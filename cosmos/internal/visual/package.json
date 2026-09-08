@@ -1,7 +1,7 @@
 {
   "name": "@internal/visual",
   "label": "Визуальная среда Cosmos",
-  "version": "0.1.28",
+  "version": "0.1.30",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,7 +10,7 @@
       "internal:server": "./server/index.ts"
     },
     "./theme.css": {
-      "internal:main": "./theme.css"
+      "internal:main": "@zavx0z/ui/themes/theme.css"
     }
   },
   "scripts": {

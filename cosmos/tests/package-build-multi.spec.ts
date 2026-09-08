@@ -128,6 +128,18 @@ test("multi-entry development keeps an inline map for every JavaScript output", 
   expect(result.outputs.some(({kind}) => kind === "sourcemap")).toBeFalse()
 })
 
+test("dependency export sources use the same code, CSS and binary build paths", async () => {
+  const result = await multiFixture("production", "valid", "enabled", false, false, true)
+  expect(result.success, result.stderr).toBe(true)
+  const byArtifact = new Map(result.outputs.map(output => [output.artifact, output]))
+  expect(byArtifact.get("./theme.css")?.source).toContain("--dependency-color")
+  expect(byArtifact.get("./theme.css")?.load).toBe("eager")
+  expect(byArtifact.get("./kernel.wasm")?.source).toBe("dependency-wasm-bytes")
+  expect(byArtifact.get("./kernel.wasm")?.kind).toBe("copy")
+  expect(byArtifact.get("./calculation")?.source).toContain("dependency-calculation")
+  expect(byArtifact.get("./calculation")?.kind).toBe("entry-point")
+})
+
 test("multi-entry graph uses the memory adapter even without compiler plugins", async () => {
   const result = await multiFixture("production", "valid", "none")
   expect(result.success).toBeTrue()
@@ -247,6 +259,7 @@ async function multiFixture(
   plugin = "enabled",
   collision = false,
   lazyDependency = false,
+  dependencyExports = false,
 ): Promise<MultiFixtureResult> {
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
@@ -261,6 +274,7 @@ async function multiFixture(
       PACKAGE_MULTI_PLUGIN: plugin,
       PACKAGE_MULTI_EXPORT_COLLISION: collision ? "1" : "0",
       PACKAGE_MULTI_LAZY_DEPENDENCY: lazyDependency ? "1" : "0",
+      PACKAGE_MULTI_DEPENDENCY_EXPORTS: dependencyExports ? "1" : "0",
     },
     stdout: "pipe",
     stderr: "pipe",

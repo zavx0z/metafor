@@ -66,10 +66,13 @@ interfaces и владельцев.
 ## Release и artifacts
 
 Одна package version охватывает весь public artifact graph всех объявленных
-platform parts. Единственный author-facing источник графа — стандартный
+platform parts. Единственный author-facing источник графа —
 `package.json#exports`: корневые conditions задают platform parts, public
 subpaths — lazy code и static artifacts, а shared chunks выводятся из одной
-сборки. Не добавлять resource manifest, registry либо второй state protocol.
+сборки. Некорневой source export Cosmos может ссылаться на точный public export
+прямой runtime dependency; это build-source расширение, не native npm target.
+Разрешение одинаково для всех типов файлов. Не добавлять resource manifest,
+registry либо второй state protocol.
 
 Обычные зависимости связывать в artifacts Cosmos package; отдельной частью
 release dependency остаётся только как самостоятельный release package. Не
