@@ -3,13 +3,5 @@
   "schemaVersion": 1,
   "kind": "project",
   "id": "metafor",
-  "readme": "../README.md",
-  "packages": [
-    {
-      "declaration": "../types/.storybook/manifest.json"
-    },
-    {
-      "declaration": "../quantum/bulk/.storybook/manifest.json"
-    }
-  ]
+  "readme": "../README.md"
 }
