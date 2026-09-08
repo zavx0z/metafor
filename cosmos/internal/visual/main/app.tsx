@@ -7,6 +7,7 @@ import {HUD} from "@zavx0z/space/portals/hud"
 import {Grid} from "@zavx0z/space/gizmos/grid"
 import type {XRViewPointElement} from "@zavx0z/space"
 import {DisplayDock} from "./display-dock.tsx"
+import {InfrastructureSurface} from "./infrastructure-surface.tsx"
 import {DISPLAY_CENTER_MM, DISPLAY_NEAR_DISTANCE_MM, INITIAL_VIEW_POINT, displayMillimetersPerPixel, type DisplayMode} from "./view-state.ts"
 
 /**
@@ -57,23 +58,16 @@ export function App() {
       viewportHeight={size.height}
       worldUnitsPerPixel={displayMillimetersPerPixel(size.height)}
     >
-      <MainSurface />
+      <InfrastructureSurface
+        width={size.width}
+        height={size.height}
+      />
     </Display>
     <HUD>
-      <DisplayDock mode={mode} onReturn={toggleView} />
+      <DisplayDock
+        mode={mode}
+        onReturn={toggleView}
+      />
     </HUD>
   </Space>
-}
-
-function MainSurface() {
-  return <div
-    title="Основная поверхность Cosmos"
-    style={css`
-      box-sizing: border-box;
-      width: 100%;
-      height: 100%;
-      background: #020617;
-      border: 1px solid #334155;
-    `}
-  />
 }

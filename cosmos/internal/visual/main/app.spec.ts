@@ -82,6 +82,12 @@ test("Visual App owns one Z-up Space, a millimetre Display and the same-document
   expect(tree.displays[0]!.worldUnitsPerPixel * 700).toBeCloseTo(2 * 600 * Math.tan(Math.PI / 8))
   expect(tree.objects).toHaveLength(1)
   expect(tree.objects[0]!.localName).toBe("xr-line-segments")
+  const frames = [...tree.displays[0]!.element.querySelectorAll("[data-frame-id]")]
+  expect(frames.map(frame => frame.getAttribute("aria-label")).sort()).toEqual(["Браузер", "Сервер"])
+  expect(tree.displays[0]!.element.querySelectorAll("[data-node-id]")).toHaveLength(0)
+  expect(tree.displays[0]!.element.querySelectorAll("[data-link-id]")).toHaveLength(0)
+  renderApp(root, 700, 1000)
+  expect([...tree.displays[0]!.element.querySelectorAll("[data-frame-id]")]).toEqual(frames)
   root.unmount()
   expect(document.documentElement).toBeNull()
   expect(readDocumentCompiledStyleSheets(document).styleSheets).toEqual([])

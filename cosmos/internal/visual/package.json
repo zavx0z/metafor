@@ -1,7 +1,7 @@
 {
   "name": "@internal/visual",
   "label": "Визуальная среда Cosmos",
-  "version": "0.1.30",
+  "version": "0.1.31",
   "private": true,
   "type": "module",
   "exports": {
@@ -23,6 +23,9 @@
     "@zavx0z/component": "file:../../../../webxr-space/component",
     "@zavx0z/dom": "file:../../../../webxr-space/dom",
     "@zavx0z/engine": "file:../../../../webxr-space/engine",
+    "@zavx0z/layout": "file:../../../../webxr-space/layout",
+    "@zavx0z/nodes": "file:../../../../webxr-space/nodes",
+    "@zavx0z/nodetree": "file:../../../../webxr-space/nodetree",
     "@zavx0z/renderer": "file:../../../../webxr-space/renderer",
     "@zavx0z/space": "file:../../../../webxr-space/space",
     "@zavx0z/template": "file:../../../../webxr-space/template",
