@@ -15,7 +15,7 @@
   "dependencies": {
     "@cosmos/release": "workspace:^0.1.25",
     "@cosmos/startup": "workspace:*",
-    "@internal/visual": "workspace:^0.1.35"
+    "@internal/visual": "workspace:^0.1.36"
   },
   "devDependencies": {
     "@engine/core": "link:@engine/core",

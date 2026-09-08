@@ -95,7 +95,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(app).toContain('rel="stylesheet"')
   expect(app).toContain("/@internal/visual/theme.css?env=main&version=")
   expect(app).toContain("width: 600mm;")
-  expect(app).toContain("resolution: 96dpi;")
+  expect(app).toContain("dpi={96}")
+  expect(app).not.toContain("resolution:")
   expect(app).toContain('controls={mode === "far"}')
   expect(app).not.toMatch(/up[XYZ]=/)
   for (const owner of ["ViewPoint", "Grid", "HUD", "DisplayDock"]) {

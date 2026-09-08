@@ -21,7 +21,7 @@ async function renderApp(root: ComponentRoot, document: ReturnType<typeof create
   if (element instanceof DisplayElement) {
     const style = readDisplayStyle(element.ownerDocument!, element)
     publishDisplayMetrics(element, {width: style.viewport.width, height: style.viewport.height,
-      pixelWidth: style.pixels.width, pixelHeight: style.pixels.height, resolution: style.resolution})
+      pixelWidth: style.pixels.width, pixelHeight: style.pixels.height, dpi: style.dpi})
   }
   await Promise.resolve()
 }

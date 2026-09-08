@@ -37,6 +37,7 @@ export function App() {
           divisions={24}
         />
         <display
+          dpi={96}
           onResize={event => setDisplayViewport({
             width: Math.round(event.currentTarget.viewport.width),
             height: Math.round(event.currentTarget.viewport.height),
@@ -44,7 +45,6 @@ export function App() {
           style={css`
             width: 600mm;
             height: 337.5mm;
-            resolution: 96dpi;
 
             translate: 0 0 900mm;
             rotate: x 90deg;
