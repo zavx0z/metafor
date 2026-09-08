@@ -30,44 +30,52 @@ export function App() {
     }
     setMode(mode === "far" ? "near" : "far")
   }
-  return <Space>
-    <ViewPoint
-      ref={camera}
-      x={INITIAL_VIEW_POINT.position.x}
-      y={INITIAL_VIEW_POINT.position.y}
-      z={INITIAL_VIEW_POINT.position.z}
-      targetX={INITIAL_VIEW_POINT.target.x}
-      targetY={INITIAL_VIEW_POINT.target.y}
-      targetZ={INITIAL_VIEW_POINT.target.z}
-      fov={INITIAL_VIEW_POINT.fov}
-      near={INITIAL_VIEW_POINT.near}
-      far={INITIAL_VIEW_POINT.far}
-      controls={mode === "far"}
-    />
-    <Grid
-      size={2400}
-      divisions={24}
-    />
-    <Display
-      x={DISPLAY_CENTER_MM.x}
-      y={DISPLAY_CENTER_MM.y}
-      z={DISPLAY_CENTER_MM.z}
-      quaternionX={Math.SQRT1_2}
-      quaternionW={Math.SQRT1_2}
-      viewportWidth={size.width}
-      viewportHeight={size.height}
-      worldUnitsPerPixel={displayMillimetersPerPixel(size.height)}
-    >
-      <InfrastructureSurface
-        width={size.width}
-        height={size.height}
+  return (
+    <>
+      <link
+        rel="stylesheet"
+        href={`/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`}
       />
-    </Display>
-    <HUD>
-      <DisplayDock
-        mode={mode}
-        onReturn={toggleView}
-      />
-    </HUD>
-  </Space>
+      <Space>
+        <ViewPoint
+          ref={camera}
+          x={INITIAL_VIEW_POINT.position.x}
+          y={INITIAL_VIEW_POINT.position.y}
+          z={INITIAL_VIEW_POINT.position.z}
+          targetX={INITIAL_VIEW_POINT.target.x}
+          targetY={INITIAL_VIEW_POINT.target.y}
+          targetZ={INITIAL_VIEW_POINT.target.z}
+          fov={INITIAL_VIEW_POINT.fov}
+          near={INITIAL_VIEW_POINT.near}
+          far={INITIAL_VIEW_POINT.far}
+          controls={mode === "far"}
+        />
+        <Grid
+          size={2400}
+          divisions={24}
+        />
+        <Display
+          x={DISPLAY_CENTER_MM.x}
+          y={DISPLAY_CENTER_MM.y}
+          z={DISPLAY_CENTER_MM.z}
+          quaternionX={Math.SQRT1_2}
+          quaternionW={Math.SQRT1_2}
+          viewportWidth={size.width}
+          viewportHeight={size.height}
+          worldUnitsPerPixel={displayMillimetersPerPixel(size.height)}
+        >
+          <InfrastructureSurface
+            width={size.width}
+            height={size.height}
+          />
+        </Display>
+        <HUD>
+          <DisplayDock
+            mode={mode}
+            onReturn={toggleView}
+          />
+        </HUD>
+      </Space>
+    </>
+  )
 }

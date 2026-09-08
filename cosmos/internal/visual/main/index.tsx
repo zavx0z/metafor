@@ -2,9 +2,9 @@
 Browser entrypoint готовой визуальной среды Cosmos.
 
 Release предоставляет native Canvas и declaration default font. Visual
-подключает свой декларативный App через Browser attach; готовый runtime
+подключает свой декларативный App через Browser createRoot/render; готовый runtime
 экспортируется после первого представленного кадра. Его unmount освобождает
-компоненты, browser lifecycle и объявленную здесь ссылку на тему.
+компоненты, browser lifecycle и объявленные App stylesheet links.
 
 Пользовательский [закон визуальной среды](../README.md#визуальная-среда-main)
 отделяет эту инфраструктуру от смысла показываемых Quantum/metafor данных.
@@ -14,7 +14,8 @@ Release предоставляет native Canvas и declaration default font. Vi
 @packageDocumentation
 */
 
-import {attach} from "@zavx0z/browser"
+import {createRoot} from "@zavx0z/browser"
+import {inspectRoot} from "@zavx0z/browser/diagnostics"
 import {App} from "./app.tsx"
 
 /** Точный browser environment этого platform entrypoint. */
@@ -27,13 +28,12 @@ if (typeof packageVersion !== "string" || packageVersion.length === 0) {
   throw new Error("Window visual package version is missing")
 }
 
-/** Готовое подключение. Его unmount освобождает App и все ресурсы Browser. */
-export const runtime = await attach({
-  canvas,
-  app: <App />,
-  theme: `/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`,
-  frameloop: "demand",
-})
+/** Управление единственным приложением; render обновляет его без потери состояния. */
+export const root = createRoot(canvas)
+root.render(<App />)
+
+/** Release наблюдает первый кадр через диагностику того же root. */
+export const runtime = await inspectRoot(root).whenReady()
 
 console.debug("[@internal/visual:main]", "основное visual-окружение создано", {
   space: runtime.space,

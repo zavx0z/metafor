@@ -90,9 +90,10 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   for (const legacy of ["@engine/core", "@ui/components", "@zavx0z/react", "@zavx0z/renderer-browser", "@zavx0z/renderer-webgpu"]) {
     expect(visualPackage.dependencies).not.toHaveProperty(legacy)
   }
-  expect(visual).toContain("await attach({")
-  expect(visual).toContain("app: <App")
-  expect(visual).toContain("theme:")
+  expect(visual).toContain("createRoot(canvas)")
+  expect(visual).toContain("root.render(<App />)")
+  expect(app).toContain('rel="stylesheet"')
+  expect(app).toContain("/@internal/visual/theme.css?env=main&version=")
   expect(app).toContain("useSpace(state => state.size)")
   expect(app).toContain('controls={mode === "far"}')
   expect(app).not.toMatch(/up[XYZ]=/)
@@ -110,7 +111,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   for (const source of [visual, app, displayDock]) {
     expect(source).not.toContain("createDocumentSpaceRuntime")
     expect(source).not.toContain("createDocument(")
-    expect(source).not.toContain("createRoot(")
+    if (source !== visual) expect(source).not.toContain("createRoot(")
     expect(source).not.toContain("new ResizeObserver")
     expect(source).not.toContain("requestAnimationFrame")
   }

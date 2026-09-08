@@ -13,8 +13,8 @@ Visual объявляет свои платформенные части по
 ## Визуальная среда main
 
 Когда release запускает browser-часть visual, visual получает предоставленный
-Canvas и подключает к нему своё декларативное приложение через
-`@zavx0z/browser` (далее — Browser). Приложение объявляет единственные Space
+Canvas и монтирует в него своё декларативное приложение через React-shaped API
+`@zavx0z/browser` (далее — Browser). App объявляет stylesheet link рядом со Space во Fragment. Приложение содержит единственные Space
 и ViewPoint, основную поверхность Display, сетку пола и навигацию в HUD.
 
 Browser монтирует приложение в один semantic Document, подготавливает общие
