@@ -8,7 +8,7 @@ import {createDocumentRenderer} from "@zavx0z/renderer"
 import {createSpaceElementFactories, readSpaceTree, type XRViewPointElement} from "@zavx0z/space"
 import type {CompiledTemplate} from "@zavx0z/template/compiled"
 import visualTemplatePlugin from "../build/template.plugin.ts"
-import {DISPLAY_CENTER_MM} from "./view-state.ts"
+import {DISPLAY_CENTER_MM, DISPLAY_SIZE_MM, DISPLAY_RESOLUTION} from "./view-state.ts"
 import {setViewport} from "./browser.fixture.ts"
 
 let directory = ""
@@ -85,15 +85,19 @@ test("Visual App owns one Z-up Space, a millimetre Display and the same-document
   expect(tree.displays[0]!.element.parentElement).toBe(tree.space)
   expect(tree.viewPoint).toMatchObject({x: 0, y: -1600, z: 900, controls: true})
   expect(tree.displays[0]!.transform.position).toEqual(DISPLAY_CENTER_MM)
-  expect(tree.displays[0]!.transform.quaternion).toEqual({x: Math.SQRT1_2, y: 0, z: 0, w: Math.SQRT1_2})
-  expect(tree.displays[0]!.worldUnitsPerPixel * 700).toBeCloseTo(2 * 600 * Math.tan(Math.PI / 8))
+  expect(tree.displays[0]!.transform.quaternion.x).toBeCloseTo(Math.SQRT1_2)
+  expect(tree.displays[0]!.transform.quaternion.w).toBeCloseTo(Math.SQRT1_2)
+  expect(tree.displays[0]!.viewport).toEqual(DISPLAY_RESOLUTION)
+  expect(tree.displays[0]!.worldUnitsPerPixel * DISPLAY_RESOLUTION.height).toBeCloseTo(DISPLAY_SIZE_MM.height)
   expect(tree.objects).toHaveLength(1)
   expect(tree.objects[0]!.localName).toBe("xr-line-segments")
   const frames = [...tree.displays[0]!.element.querySelectorAll("[data-frame-id]")]
   expect(frames.map(frame => frame.getAttribute("aria-label")).sort()).toEqual(["Браузер", "Сервер"])
   expect(tree.displays[0]!.element.querySelectorAll("[data-node-id]")).toHaveLength(0)
   expect(tree.displays[0]!.element.querySelectorAll("[data-link-id]")).toHaveLength(0)
+  const physicalDisplay = tree.displays[0]!
   renderApp(root, 700, 1000)
+  expect(readSpaceTree(document).displays[0]).toEqual(physicalDisplay)
   expect([...tree.displays[0]!.element.querySelectorAll("[data-frame-id]")]).toEqual(frames)
   root.unmount()
   expect(body.childNodes).toHaveLength(0)
@@ -138,7 +142,7 @@ test("dock retains Button identity, Flex placement and exact far-view restoratio
   expect(dockButton!.getAttribute("aria-pressed")).toBe("false")
   expect(returnButton!.title).toBe("Вернуть пространственный обзор")
   renderApp(root, 800, 600)
-  expect(tree.displays[0]!.element.viewportWidth).toBe(800)
+  expect(tree.displays[0]!.element.viewportWidth).toBe(DISPLAY_RESOLUTION.width)
   dock.dispatchEvent(new Event("pointerenter"))
   returnButton!.click()
   expect(readViewPoint(tree.viewPoint)).toEqual(farPose)

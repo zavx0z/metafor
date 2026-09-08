@@ -94,7 +94,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visual).toContain("root.render(<App />)")
   expect(app).toContain('rel="stylesheet"')
   expect(app).toContain("/@internal/visual/theme.css?env=main&version=")
-  expect(app).toContain("useSpace(state => state.size)")
+  expect(app).toContain("size={DISPLAY_SIZE_MM}")
+  expect(app).toContain("resolution={DISPLAY_RESOLUTION}")
   expect(app).toContain('controls={mode === "far"}')
   expect(app).not.toMatch(/up[XYZ]=/)
   for (const owner of ["Space", "ViewPoint", "Grid", "Display", "HUD", "DisplayDock"]) {
@@ -106,7 +107,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(app).not.toContain("@zavx0z/engine")
   expect(app).not.toContain("factory=")
   expect(app).not.toContain("VisualScene")
-  expect(app).toContain("quaternionX={Math.SQRT1_2}")
+  expect(app).toContain("rotation={{x: 90, y: 0, z: 0}}")
   expect(app).not.toContain("key=")
   for (const source of [visual, app, displayDock]) {
     expect(source).not.toContain("createDocumentSpaceRuntime")

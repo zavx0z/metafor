@@ -13,10 +13,6 @@ export const INITIAL_VIEW_POINT = Object.freeze({
   far: 5000,
 })
 
-export function displayMillimetersPerPixel(height: number): number {
-  return 2 * DISPLAY_NEAR_DISTANCE_MM * Math.tan(DISPLAY_FOV / 2) / positiveExtent(height)
-}
-
-function positiveExtent(value: number): number {
-  return Number.isFinite(value) && value > 0 ? Math.max(1, Math.round(value)) : 1
-}
+/** Постоянные характеристики активной поверхности, независимо от окна и камеры. */
+export const DISPLAY_SIZE_MM = Object.freeze({width: 600, height: 337.5})
+export const DISPLAY_RESOLUTION = Object.freeze({width: 1280, height: 720})
