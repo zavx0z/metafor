@@ -52,11 +52,13 @@
   независимые ESM subpath imports и одна module identity каждого связанного package.
 * External Storybook владеет одним server/origin, semantic DOM Workbench,
   declaration graph, независимыми package revisions и browser evidence.
-  MetaFor не устанавливает его: project declaration подключает две owner
-  projections. `@metafor/types` (далее — types) сохраняет Graph laboratory с
-  lazy-представлением производной NodeTree, а package `bulk` показывает
-  production Bulk HUD. Каждая projection получает отдельную package tab/realm и
-  не смешивает domain state или catalog соседнего владельца.
+  MetaFor не устанавливает его: состав пакетов задаёт корневой
+  `package.json#workspaces`, без повторного списка в project manifest.
+  Манифест пакета необязателен и добавляет его документацию и истории.
+  `@metafor/types` (далее — types) сохраняет Graph laboratory с lazy-представлением
+  производной NodeTree, а package `bulk` показывает production Bulk HUD.
+  Пользователь переходит между пакетами в текущей вкладке; исполняемое содержимое,
+  domain state, catalog и ревизии остаются изолированными по packageId.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.

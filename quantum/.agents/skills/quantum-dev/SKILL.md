@@ -78,7 +78,8 @@ format в контракт. Принятое поведение должно и�
 ```text
 types/.storybook/             @metafor/types Graph projection
 quantum/bulk/.storybook/      bulk HUD projection
-.storybook/manifest.json      optional project composition
+package.json#workspaces       project package composition
+.storybook/manifest.json      optional project metadata; no packages list
 ```
 
 Declarations и catalogs являются versioned JSON data. Runtime adapters

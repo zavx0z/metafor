@@ -21,11 +21,10 @@ describe("MetaFor external Storybook delivery", () => {
       schemaVersion: 1,
       kind: "project",
       id: "metafor",
-      packages: [
-        {declaration: "../types/.storybook/manifest.json"},
-        {declaration: "../quantum/bulk/.storybook/manifest.json"},
-      ],
     })
+    expect(Object.hasOwn(project, "packages")).toBeFalse()
+    expect(rootPackage.workspaces).toContain("types")
+    expect(rootPackage.workspaces).toContain("quantum/bulk")
     expect(graph).toMatchObject({
       schemaVersion: 1,
       kind: "package",
