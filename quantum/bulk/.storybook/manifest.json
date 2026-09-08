@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "package",
   "id": "bulk",
-  "label": "Bulk HUD",
   "packageJson": "../package.json",
   "readme": "./README.md",
   "runtime": {

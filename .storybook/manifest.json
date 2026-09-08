@@ -3,7 +3,6 @@
   "schemaVersion": 1,
   "kind": "project",
   "id": "metafor",
-  "label": "MetaFor",
   "readme": "../README.md",
   "packages": [
     {
