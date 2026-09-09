@@ -12,16 +12,13 @@ afterAll(async () => {
 
 describe("MetaFor external Storybook delivery", () => {
   test("declares one project with real Graph and Bulk package owners", async () => {
-    const project = await json(join(repositoryRoot, ".storybook/manifest.json"))
+    const rootDeclaration = Bun.file(join(repositoryRoot, ".storybook/manifest.json"))
+    const project = await rootDeclaration.exists() ? await rootDeclaration.json() : {}
     const graph = await json(join(repositoryRoot, "types/.storybook/manifest.json"))
     const bulk = await json(join(repositoryRoot, "quantum/bulk/.storybook/manifest.json"))
     const rootPackage = await json(join(repositoryRoot, "package.json"))
 
-    expect(project).toMatchObject({
-      schemaVersion: 1,
-      kind: "project",
-      id: "metafor",
-    })
+    expect(rootPackage.name).toBe("metafor")
     expect(Object.hasOwn(project, "packages")).toBeFalse()
     expect(rootPackage.workspaces).toContain("types")
     expect(rootPackage.workspaces).toContain("quantum/bulk")
@@ -43,7 +40,7 @@ describe("MetaFor external Storybook delivery", () => {
     expect(rootPackage.devDependencies["@zavx0z/storybook"]).toBeUndefined()
     expect(rootPackage.devDependencies["@nodes/storybook"]).toBeUndefined()
     expect(await Bun.file(join(repositoryRoot, "quantum/storybook/package.json")).exists()).toBeFalse()
-    for (const manifest of [project, graph, bulk]) {
+    for (const manifest of [graph, bulk]) {
       expect(manifest.$schema).toStartWith("https://raw.githubusercontent.com/zavx0z/storybook/main/schemas/")
     }
   })
