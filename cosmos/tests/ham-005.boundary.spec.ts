@@ -101,7 +101,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(app).not.toContain("resolution:")
   expect(app).toContain('controls={mode === "far"}')
   expect(app).not.toMatch(/up[XYZ]=/)
-  for (const owner of ["ViewPoint", "Grid", "HUD", "DisplayDock"]) {
+  for (const owner of ["viewpoint", "Grid", "hud", "DisplayDock"]) {
     expect(app).toContain(`<${owner}`)
   }
   expect(app).not.toContain('id="main"')

@@ -1,5 +1,4 @@
 import {useRef, useState} from "@zavx0z/component"
-import {HUD} from "@zavx0z/space/portals/hud"
 import {Grid} from "@zavx0z/space/gizmos/grid"
 import type {ViewPointElement} from "@zavx0z/dom/viewpoint"
 import {DisplayDock} from "./display-dock.tsx"
@@ -65,7 +64,7 @@ export function App() {
             />
           ) : null}
         </display>
-        <HUD>
+        <hud>
           <DisplayDock
             mode={mode}
             onReturn={() => {
@@ -80,7 +79,7 @@ export function App() {
               setMode(mode === "far" ? "near" : "far")
             }}
           />
-        </HUD>
+        </hud>
       </space>
     </>
   )
