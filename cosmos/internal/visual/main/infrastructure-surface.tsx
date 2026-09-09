@@ -1,7 +1,7 @@
 import {useEffect, useMemo} from "@zavx0z/component"
-import {createNodeTree, createNodeTreeExternalStore} from "@zavx0z/nodetree"
-import {layoutFixed} from "@zavx0z/layout/fixed"
-import {NodeEditor} from "@zavx0z/nodes/node-editor"
+import {createNodeTree, createNodeTreeExternalStore} from "@nodes/tree"
+import {layoutFixed} from "@nodes/layout/fixed"
+import {NodeEditor} from "@webxr/nodes/node-editor"
 
 export function InfrastructureSurface(props: Readonly<{width: number; height: number}>) {
   const graph = useMemo(() => {

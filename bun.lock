@@ -47,15 +47,17 @@
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.31",
+      "version": "0.1.37",
       "dependencies": {
+        "@nodes/layout": "file:../../../../webxr-space/nodes/layout",
+        "@nodes/parameters": "file:../../../../webxr-space/nodes/parameters",
+        "@nodes/sockets": "file:../../../../webxr-space/nodes/sockets",
+        "@nodes/tree": "file:../../../../webxr-space/nodes/tree",
+        "@webxr/nodes": "file:../../../../webxr-space/nodes",
         "@zavx0z/browser": "file:../../../../webxr-space/browser",
         "@zavx0z/component": "file:../../../../webxr-space/component",
         "@zavx0z/dom": "file:../../../../webxr-space/dom",
         "@zavx0z/engine": "file:../../../../webxr-space/engine",
-        "@zavx0z/layout": "file:../../../../webxr-space/layout",
-        "@zavx0z/nodes": "file:../../../../webxr-space/nodes",
-        "@zavx0z/nodetree": "file:../../../../webxr-space/nodetree",
         "@zavx0z/renderer": "file:../../../../webxr-space/renderer",
         "@zavx0z/space": "file:../../../../webxr-space/space",
         "@zavx0z/template": "file:../../../../webxr-space/template",
@@ -646,6 +648,16 @@
 
     "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
+    "@internal/visual/@nodes/layout": ["@nodes/layout@file:../webxr-space/nodes/layout", { "dependencies": { "@dagrejs/dagre": "3.1.1", "d3-dag": "0.9.1" } }],
+
+    "@internal/visual/@nodes/parameters": ["@nodes/parameters@file:../webxr-space/nodes/parameters", { "peerDependencies": { "@nodes/sockets": "*", "@nodes/tree": "*", "@zavx0z/component": "*", "@zavx0z/template": "*", "@zavx0z/ui": "*" }, "optionalPeers": ["@nodes/sockets", "@nodes/tree", "@zavx0z/component", "@zavx0z/template", "@zavx0z/ui"] }],
+
+    "@internal/visual/@nodes/sockets": ["@nodes/sockets@file:../webxr-space/nodes/sockets", { "peerDependencies": { "@nodes/tree": "*", "@zavx0z/component": "*", "@zavx0z/template": "*" }, "optionalPeers": ["@nodes/tree", "@zavx0z/component", "@zavx0z/template"] }],
+
+    "@internal/visual/@nodes/tree": ["@nodes/tree@file:../webxr-space/nodes/tree", {}],
+
+    "@internal/visual/@webxr/nodes": ["@webxr/nodes@file:../webxr-space/nodes", { "peerDependencies": { "@nodes/layout": "*", "@nodes/parameters": "*", "@nodes/sockets": "*", "@nodes/tree": "*", "@zavx0z/component": "*", "@zavx0z/dom": "*", "@zavx0z/template": "*", "@zavx0z/ui": "*" }, "optionalPeers": ["@nodes/layout", "@nodes/parameters", "@nodes/sockets", "@nodes/tree", "@zavx0z/component", "@zavx0z/dom", "@zavx0z/template", "@zavx0z/ui"] }],
+
     "@internal/visual/@zavx0z/browser": ["@zavx0z/browser@file:../webxr-space/browser", { "peerDependencies": { "@zavx0z/component": "*", "@zavx0z/dom": "*", "@zavx0z/engine": "*", "@zavx0z/renderer": "*", "@zavx0z/space": "*", "@zavx0z/template": "*", "@zavx0z/webgpu": "*" }, "optionalPeers": ["@zavx0z/component", "@zavx0z/dom", "@zavx0z/engine", "@zavx0z/renderer", "@zavx0z/space", "@zavx0z/template", "@zavx0z/webgpu"] }],
 
     "@internal/visual/@zavx0z/component": ["@zavx0z/component@file:../webxr-space/component", { "peerDependencies": { "@zavx0z/dom": "*", "@zavx0z/template": "*" }, "optionalPeers": ["@zavx0z/dom", "@zavx0z/template"] }],
@@ -653,12 +665,6 @@
     "@internal/visual/@zavx0z/dom": ["@zavx0z/dom@file:../webxr-space/dom", { "peerDependencies": { "typescript": "7.0.2" } }],
 
     "@internal/visual/@zavx0z/engine": ["@zavx0z/engine@file:../webxr-space/engine", {}],
-
-    "@internal/visual/@zavx0z/layout": ["@zavx0z/layout@file:../webxr-space/layout", { "dependencies": { "@dagrejs/dagre": "3.1.1", "d3-dag": "0.9.1" } }],
-
-    "@internal/visual/@zavx0z/nodes": ["@zavx0z/nodes@file:../webxr-space/nodes", { "peerDependencies": { "@zavx0z/component": "*", "@zavx0z/dom": "*", "@zavx0z/layout": "*", "@zavx0z/nodetree": "*", "@zavx0z/template": "*", "@zavx0z/ui": "*" }, "optionalPeers": ["@zavx0z/component", "@zavx0z/dom", "@zavx0z/layout", "@zavx0z/nodetree", "@zavx0z/template", "@zavx0z/ui"] }],
-
-    "@internal/visual/@zavx0z/nodetree": ["@zavx0z/nodetree@file:../webxr-space/nodetree", {}],
 
     "@internal/visual/@zavx0z/renderer": ["@zavx0z/renderer@file:../webxr-space/renderer", { "peerDependencies": { "@zavx0z/dom": "*" }, "optionalPeers": ["@zavx0z/dom"] }],
 
