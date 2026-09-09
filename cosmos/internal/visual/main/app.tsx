@@ -1,20 +1,19 @@
 import {useRef, useState} from "@zavx0z/component"
-import {ViewPoint} from "@zavx0z/space/cameras/view-point"
 import {HUD} from "@zavx0z/space/portals/hud"
 import {Grid} from "@zavx0z/space/gizmos/grid"
-import type {XRViewPointElement} from "@zavx0z/space"
+import type {ViewPointElement} from "@zavx0z/dom/viewpoint"
 import {DisplayDock} from "./display-dock.tsx"
 import {InfrastructureSurface} from "./infrastructure-surface.tsx"
-import {DISPLAY_CENTER_MM, DISPLAY_NEAR_DISTANCE_MM, INITIAL_VIEW_POINT, type DisplayMode} from "./view-state.ts"
+import {DISPLAY_CENTER_MM, DISPLAY_NEAR_DISTANCE_MM, type DisplayMode, INITIAL_VIEW_POINT} from "./view-state.ts"
 
 /**
-Одна сцена Cosmos: Display и HUD разделяют Document, ввод и точку обзора.
-Компонент хранит режим, а ViewPoint — текущий и сохранённый обзор.
-Неизменённые props не переписывают положение после жестов или изменения размера.
-*/
+ Одна сцена Cosmos: Display и HUD разделяют Document, ввод и точку обзора.
+ Компонент хранит режим, а ViewPoint — текущий и сохранённый обзор.
+ Неизменённые props не переписывают положение после жестов или изменения размера.
+ */
 export function App() {
   const [mode, setMode] = useState<DisplayMode>("far")
-  const camera = useRef<XRViewPointElement | null>(null)
+  const camera = useRef<ViewPointElement | null>(null)
   const [displayViewport, setDisplayViewport] = useState({width: 0, height: 0})
   return (
     <>
@@ -22,11 +21,15 @@ export function App() {
         rel="stylesheet"
         href={`/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`}
       />
-      <xr-space>
-        <ViewPoint
+      <space>
+        <viewpoint
           ref={camera}
-          position={INITIAL_VIEW_POINT.position}
-          target={INITIAL_VIEW_POINT.target}
+          x={INITIAL_VIEW_POINT.position.x}
+          y={INITIAL_VIEW_POINT.position.y}
+          z={INITIAL_VIEW_POINT.position.z}
+          targetX={INITIAL_VIEW_POINT.target.x}
+          targetY={INITIAL_VIEW_POINT.target.y}
+          targetZ={INITIAL_VIEW_POINT.target.z}
           fov={INITIAL_VIEW_POINT.fov}
           near={INITIAL_VIEW_POINT.near}
           far={INITIAL_VIEW_POINT.far}
@@ -78,7 +81,7 @@ export function App() {
             }}
           />
         </HUD>
-      </xr-space>
+      </space>
     </>
   )
 }

@@ -110,7 +110,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(app).not.toContain("@zavx0z/engine")
   expect(app).not.toContain("factory=")
   expect(app).not.toContain("VisualScene")
-  expect(app).toContain("<xr-space>")
+  expect(app).toContain("<space>")
   expect(app).toContain("<display")
   expect(app).toContain("rotate: x 90deg;")
   expect(app).not.toContain("key=")

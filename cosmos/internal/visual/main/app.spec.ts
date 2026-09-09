@@ -6,7 +6,8 @@ import {createDocument, Event, HTMLButtonElement, readDocumentCompiledStyleSheet
 import {DisplayElement, publishDisplayMetrics} from "@zavx0z/dom/display"
 import {createRoot, type ComponentRoot} from "@zavx0z/component"
 import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/renderer"
-import {createSpaceElementFactories, readSpaceTree, type XRViewPointElement} from "@zavx0z/space"
+import {createSpaceElementFactories, readSpaceTree} from "@zavx0z/space"
+import {type ViewPointElement} from "@zavx0z/dom/viewpoint"
 import type {CompiledTemplate} from "@zavx0z/template/compiled"
 import visualTemplatePlugin from "../build/template.plugin.ts"
 import {DISPLAY_CENTER_MM} from "./view-state.ts"
@@ -27,7 +28,7 @@ async function renderApp(root: ComponentRoot, document: ReturnType<typeof create
   await Promise.resolve()
 }
 
-function readViewPoint(camera: XRViewPointElement) {
+function readViewPoint(camera: ViewPointElement) {
   return {
     position: {x: camera.x, y: camera.y, z: camera.z},
     target: {x: camera.targetX, y: camera.targetY, z: camera.targetZ},
