@@ -4,7 +4,6 @@
   "kind": "package",
   "id": "bulk",
   "packageJson": "../package.json",
-  "readme": "./README.md",
   "runtime": {
     "module": "./runtime.ts",
     "export": "runtime"
