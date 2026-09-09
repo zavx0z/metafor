@@ -24,18 +24,19 @@ describe("MetaFor external Storybook delivery", () => {
     expect(rootPackage.workspaces).toContain("quantum/bulk")
     expect(graph).toMatchObject({
       schemaVersion: 1,
-      kind: "package",
-      id: "@metafor/types",
       runtime: {module: "./runtime.ts", export: "runtime"},
       catalog: "./catalog.json",
     })
     expect(bulk).toMatchObject({
       schemaVersion: 1,
-      kind: "package",
-      id: "bulk",
       runtime: {module: "./runtime.ts", export: "runtime"},
       catalog: "./catalog.json",
     })
+    expect((await json(join(repositoryRoot, "types/package.json"))).name).toBe("@metafor/types")
+    expect((await json(join(repositoryRoot, "quantum/bulk/package.json"))).name).toBe("bulk")
+    for (const manifest of [graph, bulk]) {
+      for (const key of ["kind", "id", "packageJson"]) expect(manifest).not.toHaveProperty(key)
+    }
     expect(rootPackage.workspaces).not.toContain("quantum/storybook")
     expect(rootPackage.devDependencies["@zavx0z/storybook"]).toBeUndefined()
     expect(rootPackage.devDependencies["@nodes/storybook"]).toBeUndefined()
