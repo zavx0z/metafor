@@ -97,7 +97,7 @@ test("Visual App owns one Z-up Space, a millimetre Display and the same-document
   expect(projection.transform.quaternion.x).toBeCloseTo(Math.SQRT1_2)
   expect(projection.transform.quaternion.w).toBeCloseTo(Math.SQRT1_2)
   expect(projection.pixels).toEqual({width: 2268, height: 1276})
-  expect(projection.worldUnitsPerPixel * projection.viewport.height).toBeCloseTo(337.5)
+  expect(projection.worldUnitsPerPixelY * projection.viewport.height).toBeCloseTo(337.5)
   expect(tree.objects).toHaveLength(1)
   expect(tree.objects[0]!.localName).toBe("xr-line-segments")
   const frames = [...tree.displays[0]!.querySelectorAll("[data-frame-id]")]
@@ -151,7 +151,7 @@ test("dock retains Button identity, Flex placement and exact far-view restoratio
   expect(dockButton!.getAttribute("aria-pressed")).toBe("false")
   expect(returnButton!.title).toBe("Вернуть пространственный обзор")
   await renderApp(root, document, 800, 600)
-  expect(tree.displays[0]!.viewport.width).toBeCloseTo(600 * 96 / 25.4)
+  expect(tree.displays[0]!.viewport.width).toBe(2268)
   dock.dispatchEvent(new Event("pointerenter"))
   returnButton!.click()
   expect(readViewPoint(tree.viewPoint)).toEqual(farPose)
