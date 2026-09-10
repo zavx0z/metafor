@@ -1,7 +1,7 @@
 import {useEffect, useMemo} from "@zavx0z/component"
 import {createNodeTree, createNodeTreeExternalStore} from "@nodes/tree"
 import {layoutFixed} from "@nodes/layout/fixed"
-import {NodeEditor} from "@webxr/nodes/node-editor"
+import {GraphEditor} from "@webxr/nodes/editor"
 
 export function InfrastructureSurface(props: Readonly<{width: number; height: number}>) {
   const graph = useMemo(() => {
@@ -27,7 +27,7 @@ export function InfrastructureSurface(props: Readonly<{width: number; height: nu
     layoutOptions: {spacing: 48, padding: 32},
   }), [graph, props.width, props.height])
 
-  return <NodeEditor
+  return <GraphEditor
     store={graph.store}
     layout={layout}
     title="Инфраструктура"
