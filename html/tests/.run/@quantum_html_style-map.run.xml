@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="@metafor/html:style-map" type="BunRunConfiguration">
+    <option name="program" value="tests/directives/style-map.spec.ts" />
+    <option name="workingDirectory" value="$PROJECT_DIR$/quantum/html" />
+    <method v="2" />
+  </configuration>
+</component>

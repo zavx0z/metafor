@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="@metafor/html:until" type="BunRunConfiguration">
+    <option name="program" value="tests/directives/until.spec.ts" />
+    <option name="workingDirectory" value="$PROJECT_DIR$/quantum/html" />
+    <method v="2" />
+  </configuration>
+</component>

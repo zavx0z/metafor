@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="@metafor/html" type="BunRunConfiguration">
+    <option name="program" value="tests/html.spec.ts" />
+    <option name="workingDirectory" value="$PROJECT_DIR$/quantum/html" />
+    <method v="2" />
+  </configuration>
+</component>
