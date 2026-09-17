@@ -1,0 +1,126 @@
+---
+config:
+  theme: dark
+---
+flowchart TD
+    subgraph s2["Инициализация"]
+        B{"Есть действие при инициализации?"}
+        A["Создание атома"]
+        C["Присвоение начального состояния и контекста"]
+        C2["Присвоение начального состояния и контекста"]
+        D["sendPatch: op=add path=/"]
+        D2["sendPatch: op=add path=/"]
+        n10["Блокировка триггеров: process=true"]
+        n17(("Ожидание"))
+    end
+    subgraph ВыполнениеДействия["Action функция"]
+        n1{"Функцию ядра запускает?"}
+        n4{"Контекст обновляет?"}
+        n14["Разблокировка триггеров"]
+        n8(("Ожидание"))
+        n27["Обновление контекста"]
+        n28["onUpdate сигнал"]
+        n29["sendPatch path: /context"]
+    end
+    subgraph s4["Внешние обновления"]
+        HD{"Триггеры разблокированы?"}
+        n24["Обновление контекста"]
+        n25["onUpdate сигнал"]
+        n26["sendPatch path: /context"]
+        n30["Untitled Node"]
+        n31["Есть обновленные параметры?"]
+        n32(("Ожидание"))
+        n33(("Ожидание"))
+    end
+    subgraph s5["Коллапс"]
+        HE{"Коллапсы существуют?"}
+        HG{"Триггер соответствует?"}
+        K["Обновление состояния"]
+        HL["sendPatch path: /state"]
+        HM{"Есть действие в новом состоянии?"}
+        n11["Блокировка триггеров: process=true"]
+        n15["Разблокировка триггеров"]
+        n16(("Ожидание"))
+        n20["onCollapse сигнал"]
+        n21["onUpdate сигнал"]
+        n22["Обновление контекста"]
+        n23["sendPatch path: /context"]
+    end
+    subgraph s1["Core функция"]
+        n2{"Контекст обновляет?"}
+    end
+    subgraph s6["Реакции"]
+        n12{"Функцию ядра запускает?"}
+        n13{"Контекст обновляет?"}
+    end
+    A --> B
+    B -- Нет --> C2
+    C --> D
+    C2 --> D2
+    n1 --> n4
+    HD -- да --> HE
+    HE -- Да --> HG
+    K --> n20
+    HM -- нет --> n15
+    n10 --> C
+    B -- да --> n10
+    HG -- нет --> n15
+    n11 --> n22
+    HM -- да --> n11
+    n12 -- да --> n2
+    n12 --> n13
+    HG -- да --> HM
+    n14 --> n8
+    n4 -- нет --> n14
+    n15 --> n16
+    HE -- нет --> n15
+    D2 --> n17
+    n1 -- да --> n2
+    D --> n1
+    n22 --> n21
+    n21 --> n23
+    n23 --> K
+    n20 --> HL
+    HL --> n1
+    n24 --> n31
+    n25 --> n26
+    n2 --> n24
+    n13 --> n24
+    n26 --> HD
+    n27 --> n28
+    n28 --> n29
+    n4 -- да --> n27
+    n29 --> HE
+    n31 -- да --> n25
+    n31 -- нет --> n32
+    HD -- нет --> n33
+    style B stroke:none
+    style A stroke:none
+    style C stroke:none
+    style C2 stroke:none
+    style D stroke:none,fill:#FFD600,color:#000000
+    style D2 stroke:none,fill:#FFD600,color:#000000
+    style n10 color:#000000,fill:#FF5757
+    style n17 fill:#FFFFFF,color:#000000
+    style n14 fill:#00C853,color:#000000
+    style n8 fill:#FFFFFF,color:#000000
+    style n27 fill:#FF6D00,color:#000000
+    style n28 color:#000000,fill:#FF6D00,stroke:none
+    style n29 fill:#FFD600,color:#000000,stroke:#FF6D00
+    style n24 fill:#FF6D00,color:#000000
+    style n25 color:#000000,fill:#FF6D00,stroke:none
+    style n26 fill:#FFD600,color:#000000,stroke:#FF6D00
+    style n32 fill:#FFFFFF,color:#000000
+    style n33 fill:#FFFFFF,color:#000000
+    style K fill:#2962FF,color:#FFFFFF
+    style HL fill:#FFD600,color:#000000,stroke:#2962FF
+    style n11 color:#000000,fill:#FF5757
+    style n15 fill:#00C853,color:#000000
+    style n16 fill:#FFFFFF,color:#000000
+    style n20 color:#FFFFFF,fill:#2962FF
+    style n21 color:#000000,fill:#FF6D00,stroke:none
+    style n22 fill:#FF6D00,color:#000000
+    style n23 fill:#FFD600,color:#000000,stroke:#FF6D00
+    style ВыполнениеДействия stroke-width:2px,stroke:#38B6FF
+    style s1 stroke:#5271FF,stroke-width:2px,stroke-dasharray:5 5,color:#FFFFFF,fill:transparent
+    style s6 stroke:#5271FF,stroke-width:2px,stroke-dasharray:5 5,color:#FFFFFF,fill:transparent
