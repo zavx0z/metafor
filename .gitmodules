@@ -1,0 +1,3 @@
+[submodule "particles/telegram"]
+	path = particles/telegram
+	url = https://github.com/zavx0z/telegram
