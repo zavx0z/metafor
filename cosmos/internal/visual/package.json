@@ -32,6 +32,7 @@
     "@zavx0z/space": "file:../../../../webxr-space/space",
     "@zavx0z/template": "file:../../../../webxr-space/template",
     "@zavx0z/ui": "file:../../../../webxr-space/ui",
-    "@zavx0z/webgpu": "file:../../../../webxr-space/webgpu"
+    "@zavx0z/webgpu": "file:../../../../webxr-space/webgpu",
+    "@nodes/node": "file:../../../../webxr-space/nodes/node"
   }
 }
