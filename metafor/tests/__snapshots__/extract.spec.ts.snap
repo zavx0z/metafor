@@ -1,0 +1,175 @@
+// Bun Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`snapshot 1`] = `
+{
+  "actions": {
+    "argDestruct": {
+      "read": [
+        "a",
+      ],
+      "write": [
+        "a",
+      ],
+    },
+    "bodyDot": {
+      "read": [
+        "b",
+      ],
+      "write": [
+        "a",
+      ],
+    },
+    "multiReadWrite": {
+      "read": [
+        "a",
+        "b",
+        "c",
+        "d",
+      ],
+      "write": [
+        "a",
+        "b",
+        "c",
+        "d",
+      ],
+    },
+    "noReadWrite": {
+      "read": [],
+      "write": [],
+    },
+  },
+  "collapses": [
+    {
+      "action": "bodyDot",
+      "from": "state-1",
+      "to": [
+        {
+          "state": "state-2",
+          "trigger": {
+            "a": 1,
+          },
+        },
+      ],
+    },
+    {
+      "action": "argDestruct",
+      "from": "state-2",
+      "to": [
+        {
+          "state": "state-1",
+          "trigger": {
+            "a": 1,
+          },
+        },
+      ],
+    },
+    {
+      "action": "multiReadWrite",
+      "from": "state-1",
+      "to": [
+        {
+          "state": "state-2",
+          "trigger": {
+            "a": 1,
+          },
+        },
+      ],
+    },
+    {
+      "action": "noReadWrite",
+      "from": "state-2",
+      "to": [
+        {
+          "state": "state-1",
+          "trigger": {
+            "a": 1,
+          },
+        },
+      ],
+    },
+  ],
+  "context": {
+    "a": 3,
+    "b": "test",
+    "c": undefined,
+    "d": "a",
+  },
+  "core": {
+    "argDestruct": {
+      "read": [
+        "a",
+      ],
+      "write": [
+        "a",
+      ],
+    },
+    "bodyDot": {
+      "read": [
+        "b",
+      ],
+      "write": [
+        "a",
+      ],
+    },
+    "multipleDestruct": {
+      "read": [
+        "a",
+      ],
+      "write": [
+        "a",
+      ],
+    },
+    "nestedAccess": {
+      "read": [
+        "a",
+        "b",
+      ],
+      "write": [
+        "a",
+        "b",
+      ],
+    },
+    "renamedDestruct": {
+      "read": [
+        "a",
+      ],
+      "write": [
+        "a",
+      ],
+    },
+  },
+  "description": "",
+  "id": "action-extract",
+  "state": "state-1",
+  "states": [
+    "state-1",
+    "state-2",
+  ],
+  "title": "action-extract",
+  "types": {
+    "a": {
+      "default": 1,
+      "title": "a",
+      "type": "number",
+    },
+    "b": {
+      "title": "b",
+      "type": "string",
+    },
+    "c": {
+      "title": "c",
+      "type": "boolean",
+    },
+    "d": {
+      "default": "a",
+      "nullable": true,
+      "type": "enum",
+      "values": [
+        "a",
+        "b",
+        "c",
+      ],
+    },
+  },
+}
+`;
