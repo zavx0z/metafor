@@ -28,7 +28,7 @@
     "@nodes/parameters": "file:../../../../webxr-space/nodes/parameters",
     "@nodes/sockets": "file:../../../../webxr-space/nodes/sockets",
     "@nodes/tree": "file:../../../../webxr-space/nodes/tree",
-    "@zavx0z/renderer": "file:../../../../webxr-space/renderer",
+    "@renderer/html": "file:../../../../webxr-space/renderer/html",
     "@zavx0z/space": "file:../../../../webxr-space/space",
     "@zavx0z/template": "file:../../../../webxr-space/template",
     "@zavx0z/ui": "file:../../../../webxr-space/ui",
