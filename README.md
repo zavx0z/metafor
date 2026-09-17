@@ -1,2 +1,0 @@
-# metafor botswork
-# SuperApp MetaChat
