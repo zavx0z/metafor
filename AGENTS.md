@@ -145,11 +145,10 @@
   правила Cosmos поверх общей documentation reference `$metafor-dev`.
 - Для сущности, представленной независимыми проекциями нескольких Quantum-доменов,
   использовать `$quantum-dev` из `quantum/.agents/skills/quantum-dev`. Domain-owned
-  implementations остаются слабосвязанными. Graph laboratory принадлежит
-  `@metafor/types`, а Bulk HUD projection — package `bulk`; MetaFor предоставляет
-  только внешние declarations. Lifecycle и browser evidence принадлежат одному
-  глобальному external Storybook server.
-- Для разработки, проверок и Storybook соседнего Engine использовать
+  implementations остаются слабосвязанными. Состав пакетов задаёт
+  `package.json#workspaces`; контракт и примеры принадлежат README, TSDoc и
+  проверкам соответствующего package.
+- Для разработки и проверок соседнего Engine использовать
   `$engine-dev` из `../engine/.agents/skills/engine-dev`. Engine не получает
   product-, UI- или Nodes-семантику через интеграционную задачу.
 - Связанный document contour имеет одну цепочку владельцев:
@@ -157,20 +156,9 @@
   `@engine/core`. Generic Layout и `@ui/elements` выведены из live graph и не
   используются как fallback; UI controls и product composition остаются у UI
   и MetaFor.
-- Package pages семейства Nodes открываются из внешней declaration-композиции
-  Node project через тот же глобальный Storybook server. Exact package identity
-  и route выбираются отдельно; DOM/SVG и WebGPU capabilities определяются
-  fail-closed по declaration graph, а `/layout/*` принадлежит живому доменному
-  `@nodes/layout`.
-- Для browser-проверки и профилирования package pages `@ui/components`
-  использовать UI project declaration в том же глобальном Storybook server.
-  UI-визуальная семантика остаётся у `$ui-dev`, а lifecycle, target и browser
-  commands здесь не дублируются.
-- Browser evidence в этих package-contours получать только через встроенный
-  в `$storybook` background exact-target CDP path. Агент не воспроизводит его CDP
-  вручную и не вызывает focus, activate, `Page.bringToFront`, window APIs или
-  AI macOS. Этот узкий package-owned path не меняет глобальные macOS-правила
-  управления Chrome за его пределами.
+- Компоненты Nodes и UI проверять через их публичные API и принадлежащие им
+  tests/specs. Browser evidence получать в контуре соответствующего владельца;
+  не создавать для этого package-local Storybook declarations или runtime.
 - Перед локальной разработкой Cosmos или product contour, его runtime- и
   browser-проверкой, а также профилированием `Bulk` или `Visual` использовать
   skill `$metafor-dev`: он

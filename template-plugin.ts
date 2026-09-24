@@ -12,7 +12,6 @@ export function registerMetaforTemplatePlugin(): void {
   plugin(createTemplateJsxBunPlugin({
     persistent: true,
     sourceRoots: [
-      resolve(import.meta.dir, "types/.storybook"),
       resolve(import.meta.dir, "quantum/bulk"),
       dirname(fileURLToPath(import.meta.resolve("@ui/components/button"))),
     ],

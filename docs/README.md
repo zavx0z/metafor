@@ -50,15 +50,10 @@
   универсальные DOM/CSS-поля и составные controls, пригодные внутри node editor и вне него.
 * [Production delivery UI](https://github.com/zavx0z/ui/blob/main/docs/delivery.md) —
   независимые ESM subpath imports и одна module identity каждого связанного package.
-* External Storybook владеет одним server/origin, semantic DOM Workbench,
-  declaration graph, независимыми package revisions и browser evidence.
-  MetaFor не устанавливает его: состав пакетов задаёт корневой
-  `package.json#workspaces`, без повторного списка в project manifest.
-  Манифест пакета необязателен и добавляет его документацию и истории.
-  `@metafor/types` (далее — types) сохраняет Graph laboratory с lazy-представлением
-  производной NodeTree, а package `bulk` показывает production Bulk HUD.
-  Пользователь переходит между пакетами в текущей вкладке; исполняемое содержимое,
-  domain state, catalog и ревизии остаются изолированными по packageId.
+* Состав пакетов задаёт корневой `package.json#workspaces`. Описание
+  пакетов размещается в их README и public TSDoc, а проверяемое поведение —
+  в принадлежащих им tests и specs. Graph laboratory проверяется в
+  `quantum/tests/graph`, а Bulk HUD — в тестах пакета `bulk`.
 * [Web Push](../pkg/web-push/CONTRACT.md) — runtime-разделённые permission,
   подписка, доставка, receipt и необязательные lifecycle hooks без встроенного
   transport наблюдения.
