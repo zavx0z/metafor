@@ -1,18 +1,14 @@
-# Лаборатория Graph
+# Публичный Graph
 
-`@metafor/types` (далее — types) владеет public Graph contract. Его внешняя
-Storybook-проекция сопоставляет полный документ, Reaction dependencies,
-closed validation, производную NodeTree и snapshot-local identity без нового
-канонического Store.
+`@metafor/types` (далее — types) владеет публичным Graph contract. Он содержит
+полный документ, точные Reaction relations, lazy Mass metadata и устойчивые
+refs внутри снимка. Закрытая проверка Graph принадлежит тому же пакету;
+производную NodeTree строит отдельный `@metafor/node-tree` (далее — node-tree).
 
-Общий external Workbench владеет навигацией, поиском, overview и diagnostics.
-Один package runtime монтирует только выбранное owner-представление в
-предоставленный semantic Document, сохраняет production controls и публикует
-source/props структурно.
+Визуальное представление Graph для внешнего Storybook остаётся целью. Оно должно
+показывать документ, зависимости Reaction, результаты проверки и производную
+NodeTree из действующих контрактов и сценариев. Текущий пакет не содержит
+Storybook runtime, который монтирует такое представление.
 
-Корневой package overview является каноническим продолжением прежнего Graph
-overview. Component prefixes остаются category routes, а каждый второй prefix
-называет реальный предмет лаборатории и потому остаётся subject route. Группы
-«Контракт» и «Эксперименты» служат только disclosure metadata и не создают
-дополнительную панель или route. Каждый leaf объявляет owner fixture и общий
-source/style reference как catalog resources, без сгенерированных копий.
+Источник этих сведений — публичный код types и node-tree, их TSDoc и проверки.
+Пакетная документация не задаёт отдельную иерархию экранов или ресурсов.

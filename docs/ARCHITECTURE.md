@@ -161,17 +161,16 @@ Graph и возвращает root как данные ответа. Assembler �
 читает Store другого домена напрямую. Dark Oracle и Boundary остаются
 владельцами своих projections; Dark Force только переносит Oracle RPC.
 
-Graph laboratory является development-проекцией package `@metafor/types`
-(далее — types): она показывает полный document, exact Reaction relation, lazy
-Mass metadata, closed validation, snapshot-local identity и производную
-NodeTree. External Storybook строит навигацию из owner declaration и лениво
-загружает только выбранное представление; types не создаёт второй Graph Store и
-не становится владельцем domain execution.
+Публичный Graph contract и его закрытая validation принадлежат package
+`@metafor/types` (далее — types). Отдельный `@metafor/node-tree` строит из Graph
+производную NodeTree без второго канонического Store и без владения domain
+execution. Bulk владеет своим Store и production HUD; он не читает Graph для
+начала browser-сессии.
 
-Bulk HUD laboratory принадлежит package `bulk` и монтирует production HUD в
-отдельной package realm того же внешнего Workbench. Graph и Bulk имеют
-независимые runtime sessions, diagnostics и revisions, поэтому ошибка одной
-проекции не меняет другую.
+Визуальные представления Graph и Bulk во внешнем Storybook остаются целью.
+Они должны получать навигацию и содержание из структуры пакетов, публичного
+кода, контрактов, TSDoc, спецификаций и результатов сценариев. Текущий код
+MetaFor не подключает эти представления к Storybook Workbench.
 
 При рождении Bulk один раз получает через `Boundary.initialProjection.read`
 согласованный набор необходимых canonical rows и сразу формирует плоский Bulk
