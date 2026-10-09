@@ -45,6 +45,10 @@ tree. Обычные `dev` и `start` удаляют унаследованны�
 `COSMOS_RELEASE_INSPECT`; после проверки `restart` возвращает обычный
 development mode на том же origin и browser target.
 
+Тонкая server-точка входа задаёт `readyTimeoutMs: 120_000` через публичный
+startup API. Этот предел включает проверку и сборку полного выпуска до IPC
+`ready`; listener по-прежнему открывает только проверенный release child.
+
 ## Матрица diagnostics
 
 Development diagnostics описывают причинный lifecycle, а не каждую выполненную

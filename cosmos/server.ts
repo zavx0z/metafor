@@ -1,3 +1,3 @@
 import {runServerStartup} from "@cosmos/startup"
 
-await runServerStartup()
+await runServerStartup({readyTimeoutMs: 120_000})
