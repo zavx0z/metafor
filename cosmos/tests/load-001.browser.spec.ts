@@ -469,7 +469,7 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
     })
     expect(navigations).toBe(0)
     expect(await updateSources(page)).toEqual(sourceBefore)
-    const interrupted = await cacheSnapshot(page)
+    const interrupted = await cacheSnapshot(page, true)
     expect(interrupted.transaction).toContain("/transaction")
     expect(Object.keys(interrupted).filter((name) => name === "transaction")).toEqual([
       "transaction",
@@ -489,7 +489,7 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
       }
     }, 30_000)
     await expectCanonicalReleaseCaches(page)
-    expect((await cacheSnapshot(page)).transaction).toBeUndefined()
+    expect(await evaluate(page.session, async () => (await caches.keys()).includes("transaction"))).toBe(false)
     expect(navigations).toBe(1)
   } catch (error) {
     throw withServerOutput(error, server.output())
@@ -548,7 +548,7 @@ test.serial("UPD-003 discards an empty transaction without reloading a Window", 
     let navigations = 0
     observeNavigation(page, () => { navigations += 1 })
     await evaluate(page.session, async () => { await caches.open("transaction") })
-    expect((await cacheSnapshot(page)).transaction).toEqual([])
+    expect((await cacheSnapshot(page, true)).transaction).toEqual([])
 
     const connections = await fixtureConnections(server.root)
     const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
@@ -556,7 +556,7 @@ test.serial("UPD-003 discards an empty transaction without reloading a Window", 
     await waitUntil(async () => await fixtureConnections(server.root) > connections)
     await waitUntil(async () => {
       try {
-        return (await cacheSnapshot(page)).transaction === undefined
+        return await evaluate(page.session, async () => !(await caches.keys()).includes("transaction"))
       } catch {
         return false
       }
@@ -624,7 +624,7 @@ test.serial("UPD-003 resumes after canonical put and commits a removal-only delt
       )
     })
 
-    const interrupted = await cacheSnapshot(page)
+    const interrupted = await cacheSnapshot(page, true)
     expect(interrupted.transaction).toEqual(["/transaction"])
     expect((interrupted.release ?? []).filter((path) =>
       new URL(path, "http://cache.test").pathname === "/@cosmos/release")).toHaveLength(3)
@@ -955,7 +955,7 @@ async function startServer(
   await waitUntil(async () => {
     if (child.exitCode !== null) throw new Error(`Cosmos test server exited with ${child.exitCode}`)
     try {
-      const response = await fetch(root, {headers: {Accept: "text/html"}})
+      const response = await fetch(root, {headers: {Accept: "text/html"}, signal: AbortSignal.timeout(2_000)})
       return response.ok
     } catch {
       return false
@@ -1055,10 +1055,11 @@ function startColdWitness(port: number) {
 }
 
 async function waitForAcceptedCaches(page: ChromePage) {
+  let last: unknown
   try {
     await waitUntil(async () => {
       try {
-        return await evaluate(page.session, async () => {
+        const outcome = await evaluate(page.session, async () => {
           const startup = await caches.open("startup")
           const releases = await caches.open("release")
           const internal = await caches.open("internal")
@@ -1103,27 +1104,32 @@ async function waitForAcceptedCaches(page: ChromePage) {
               && url.searchParams.get("version") === visualVersion
               && link.sheet !== null
           })
-          return Boolean(
-            await startup.match("/")
-            && await startup.match("/@cosmos/startup?env=main")
-            && await startup.match("/manifest.webmanifest")
-            && releaseMain
-            && releaseService
-            && visual
-            && themeRequests.length === 1
-            && new URL(themeRequests[0]!.url).searchParams.get("version") === visualVersion
-            && await internal.match(themeRequests[0]!, {ignoreVary: true})
-            && themeLinks.length === 1
-            && !(await caches.keys()).includes("transaction")
-            && navigator.serviceWorker.controller
-          )
+          const flags = {
+            html: Boolean(await startup.match("/")),
+            startup: Boolean(await startup.match("/@cosmos/startup?env=main")),
+            manifest: Boolean(await startup.match("/manifest.webmanifest")),
+            releaseMain: Boolean(releaseMain),
+            releaseService: Boolean(releaseService),
+            visual: Boolean(visual),
+            themeVersion: themeRequests.length === 1
+              && new URL(themeRequests[0]!.url).searchParams.get("version") === visualVersion,
+            themeBody: themeRequests.length === 1 && Boolean(await internal.match(themeRequests[0]!, {ignoreVary: true})),
+            themeLink: themeLinks.length === 1,
+            transactionFinished: !(await caches.keys()).includes("transaction"),
+            controller: Boolean(navigator.serviceWorker.controller),
+          }
+          return {ready: Object.values(flags).every(Boolean), flags, visualVersion}
+
         })
-      } catch {
+        last = outcome
+        return outcome.ready
+      } catch (error) {
+        last = String(error)
         return false
       }
     }, 30_000)
   } catch (error) {
-    throw new Error(`ChromeFixture caches did not become ready: ${JSON.stringify(await cacheSnapshot(page))}`, {
+    throw new Error(`ChromeFixture caches did not become ready: ${JSON.stringify(last)}`, {
       cause: error,
     })
   }
@@ -1138,8 +1144,8 @@ async function waitForRequestCount(page: ChromePage, field: "releaseService", co
   }, {field, count}), 30_000)
 }
 
-/** CDP читает существующие кеши: caches.open() мог заново создать удалённый transaction. */
-async function cacheSnapshot(page: ChromePage): Promise<CacheSnapshot> {
+/** requestEntries открывает cache. Transaction читается только при удержанном писателе. */
+async function cacheSnapshot(page: ChromePage, readTransaction = false): Promise<CacheSnapshot> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       const {frameTree} = await page.session.send("Page.getFrameTree")
@@ -1147,6 +1153,7 @@ async function cacheSnapshot(page: ChromePage): Promise<CacheSnapshot> {
       const {caches} = await page.session.send("CacheStorage.requestCacheNames", {storageKey})
       const snapshot: CacheSnapshot = {}
       for (const cache of caches) {
+        if (cache.cacheName === "transaction" && !readTransaction) continue
         const requests: string[] = []
         let skipCount = 0
         while (true) {
@@ -1195,7 +1202,8 @@ function hasCachedSlot(
 async function expectCanonicalReleaseCaches(page: ChromePage) {
   const snapshot = await cacheSnapshot(page)
 
-  expect(Object.keys(snapshot).sort()).toEqual(["internal", "release", "startup"])
+  expect(await evaluate(page.session, async () => (await caches.keys()).sort()))
+    .toEqual(["internal", "release", "startup"])
   for (const {name, env, owner} of [
     {name: "@cosmos/release", env: "main", owner: "release"},
     {name: "@cosmos/release", env: "service", owner: "release"},
@@ -1230,7 +1238,7 @@ async function expectCanonicalReleaseCaches(page: ChromePage) {
 }
 
 async function fixtureRequests(root: string) {
-  const response = await fetch(new URL("/__tests/state", root))
+  const response = await fetch(new URL("/__tests/state", root), {signal: AbortSignal.timeout(10_000)})
   if (!response.ok) throw new Error(`Fixture state returned ${response.status}`)
   const state = await response.json() as {
     requests: {internalVisual: number, releaseMain: number, releaseService: number}
@@ -1239,7 +1247,7 @@ async function fixtureRequests(root: string) {
 }
 
 async function fixtureConnections(root: string) {
-  const response = await fetch(new URL("/__tests/state", root))
+  const response = await fetch(new URL("/__tests/state", root), {signal: AbortSignal.timeout(10_000)})
   if (!response.ok) throw new Error(`Fixture state returned ${response.status}`)
   const state = await response.json() as {connections: number}
   return state.connections
@@ -1250,6 +1258,7 @@ async function requestBuild(
   packages: readonly {name: string, change: "patch" | "minor" | "major"}[],
 ) {
   const response = await fetch(new URL("/code", root), {
+    signal: AbortSignal.timeout(90_000),
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({packages}),

@@ -35,9 +35,25 @@ export async function launchChrome(executable: string, profile: string): Promise
     `--user-data-dir=${profile}`, "--no-first-run", "--no-default-browser-check",
     "--disable-background-networking", "--window-size=800,600", "about:blank",
   ], {stdout: "ignore", stderr: "pipe"})
+  const stderrReader = process.stderr.getReader()
+  const decoder = new TextDecoder()
   const output = (async () => {
-    for await (const chunk of process.stderr) stderr = (stderr + new TextDecoder().decode(chunk)).slice(-32_768)
+    try {
+      while (true) {
+        const {done, value} = await stderrReader.read()
+        if (done) break
+        stderr = (stderr + decoder.decode(value, {stream: true})).slice(-32_768)
+      }
+    } finally {
+      stderrReader.releaseLock()
+    }
   })()
+  const stopOutput = async () => {
+    // После выхода этого Chrome другой процесс может ещё держать write-end pipe.
+    // Завершаем собственное чтение, не ожидая выхода соседнего профиля.
+    await stderrReader.cancel().catch(() => {})
+    await output
+  }
   let connection: CdpConnection | undefined
   try {
     let endpoint = ""
@@ -63,7 +79,7 @@ export async function launchChrome(executable: string, profile: string): Promise
         }
         await process.exited
         connection!.close()
-        await output
+        await stopOutput()
       },
     }
     cdp.on("Target.targetCreated", ({targetInfo}) => fixture.targets.set(targetInfo.targetId, targetInfo))
@@ -96,7 +112,7 @@ export async function launchChrome(executable: string, profile: string): Promise
     connection?.close()
     if (process.exitCode === null) process.kill("SIGKILL")
     await process.exited
-    await output
+    await stopOutput()
     throw error
   }
 }
