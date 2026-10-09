@@ -1,12 +1,8 @@
-import {
-  isBrowserPackageEnvironment,
-  type BrowserPackageEnvironment,
-} from "./environment"
+import {isBrowserPackageEnvironment, type BrowserPackageEnvironment} from "./environment"
 
 /** Browser package namespaces, доступные через одноимённые origin paths. */
-export type BrowserPackageNamespace = "startup" | "release" | "internal" | "metafor"
 
-const packageNamePattern = /^@(cosmos|internal|metafor)\/[^/]+$/
+const packageNamePattern = /^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i
 const versionPattern = /^\d+\.\d+\.\d+$/
 
 export interface BrowserPackageUrl {
@@ -23,11 +19,7 @@ export function browserPackageName(pathname: string) {
 }
 
 /** Формирует единственный canonical stable либо exact URL browser artifact. */
-export function browserPackageUrl(
-  name: string,
-  env: BrowserPackageEnvironment,
-  version?: string,
-) {
+export function browserPackageUrl(name: string, env: BrowserPackageEnvironment, version?: string) {
   if (!packageNamePattern.test(name)) throw new Error(`Некорректное имя browser package: ${name}`)
   if (!isBrowserPackageEnvironment(env))
     throw new Error(`Некорректная среда browser package: ${env}`)
@@ -59,13 +51,4 @@ export function parseBrowserPackageUrl(url: URL): BrowserPackageUrl | null {
 /** Возвращает ключ одного `(package, env)` slot без version. */
 export function browserPackageSlot(name: string, env: BrowserPackageEnvironment) {
   return browserPackageUrl(name, env)
-}
-
-/** Возвращает постоянный Cache Storage владельца package namespace. */
-export function browserPackageCache(name: string | null) {
-  if (name === "@cosmos/startup") return "startup"
-  if (name === "@cosmos/release") return "release"
-  if (name?.startsWith("@internal/")) return "internal"
-  if (name?.startsWith("@metafor/")) return "metafor"
-  return null
 }

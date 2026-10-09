@@ -16,17 +16,14 @@ import type {
   PackageBuildReportImport,
   PackageBuildReportOutput,
   PackageBuildSource,
-} from "../shared/contracts"
+} from "./contracts"
 import {packageBuildSourceKind} from "./source"
 import {
   isBrowserPackageEnvironment,
   type BrowserPackageEnvironment,
   type PackageEnvironment,
-} from "../../../shared/package/environment"
-import {
-  browserPackageArtifactUrl,
-  browserPackageGeneratedPublicPath,
-} from "../../shared/artifact-url"
+} from "./identity/environment"
+import {browserPackageArtifactUrl, browserPackageGeneratedPublicPath} from "./identity/artifact-url"
 
 export interface IsolatedPackageBuildRequest {
   readonly name: string
@@ -60,17 +57,20 @@ export async function runIsolatedPackageBuild(
 ): Promise<number> {
   try {
     const plugins = await Promise.all(request.plugins.map(loadPlugin))
-    const buildSources = request.sources.filter(({source}) =>
-      packageBuildSourceKind(source) !== "copy")
-    const copySources = request.sources.filter(({source}) =>
-      packageBuildSourceKind(source) === "copy")
+    const buildSources = request.sources.filter(
+      ({source}) => packageBuildSourceKind(source) !== "copy",
+    )
+    const copySources = request.sources.filter(
+      ({source}) => packageBuildSourceKind(source) === "copy",
+    )
     if (buildSources.length !== (request.plan.mode === "single" ? 1 : buildSources.length))
       throw new Error("Package single-entry build must receive one Bun source")
 
     const multi = request.plan.mode === "multi"
-    const publicPath = multi && isBrowserPackageEnvironment(request.env)
-      ? browserPackageGeneratedPublicPath(request.name, request.env, request.version)
-      : undefined
+    const publicPath =
+      multi && isBrowserPackageEnvironment(request.env)
+        ? browserPackageGeneratedPublicPath(request.name, request.env, request.version)
+        : undefined
     const result = await Bun.build({
       entrypoints: buildSources.map(({source}) => source),
       target: request.plan.target,
@@ -84,26 +84,28 @@ export async function runIsolatedPackageBuild(
       loader: {...request.loaders},
       plugins,
       metafile: true,
-      ...(multi ? {
-        splitting: true,
-        root: ".",
-        naming: {
-          entry: "entry/[hash].[ext]",
-          chunk: "chunk/[hash].[ext]",
-          asset: "asset/[hash].[ext]",
-        },
-        ...(publicPath === undefined ? {} : {publicPath}),
-        define: {
-          "import.meta.env.COSMOS_PACKAGE_NAME": JSON.stringify(request.name),
-          "import.meta.env.COSMOS_PACKAGE_ENV": JSON.stringify(request.env),
-          "import.meta.env.COSMOS_PACKAGE_VERSION": JSON.stringify(request.version),
-        },
-      } : {}),
+      ...(multi
+        ? {
+            splitting: true,
+            root: ".",
+            naming: {
+              entry: "entry/[hash].[ext]",
+              chunk: "chunk/[hash].[ext]",
+              asset: "asset/[hash].[ext]",
+            },
+            ...(publicPath === undefined ? {} : {publicPath}),
+            define: {
+              "import.meta.env.COSMOS_PACKAGE_NAME": JSON.stringify(request.name),
+              "import.meta.env.COSMOS_PACKAGE_ENV": JSON.stringify(request.env),
+              "import.meta.env.COSMOS_PACKAGE_VERSION": JSON.stringify(request.version),
+            },
+          }
+        : {}),
       throw: false,
     })
 
     for (const log of result.logs) {
-      console.error("[@cosmos/release:server:build-adapter]", "Bun build diagnostic", {
+      console.error("[@metafor/tech-build:adapter]", "Bun build diagnostic", {
         message: String(log),
       })
     }
@@ -113,11 +115,7 @@ export async function runIsolatedPackageBuild(
     const outputs = await writeBuildOutputs(request, result.outputs, result.metafile)
     const copies = await writeRawCopies(request, copySources)
     const externalImports = reportExternalImports(result.metafile)
-    const rootProjection = await projectRootClosure(
-      request,
-      outputs,
-      result.outputs,
-    )
+    const rootProjection = await projectRootClosure(request, outputs, result.outputs)
     const report: PackageBuildReport = {
       outputs: [...outputs, ...copies],
       externalImports,
@@ -127,8 +125,8 @@ export async function runIsolatedPackageBuild(
     await Bun.write(request.report, `${JSON.stringify(report)}\n`)
     return 0
   } catch (error) {
-    console.error("[@cosmos/release:server:build-adapter]", "isolated package build failed", {
-      error: error instanceof Error ? error.stack ?? error.message : String(error),
+    console.error("[@metafor/tech-build:adapter]", "isolated package build failed", {
+      error: error instanceof Error ? (error.stack ?? error.message) : String(error),
     })
     return 1
   }
@@ -139,12 +137,12 @@ async function writeBuildOutputs(
   artifacts: readonly Bun.BuildArtifact[],
   metafile: Bun.BuildMetafile,
 ) {
-  const metadata = new Map(Object.entries(metafile.outputs).map(([path, value]) => [
-    outputRelative(path),
-    value,
-  ]))
-  const buildSources = request.sources.filter(({source}) =>
-    packageBuildSourceKind(source) !== "copy")
+  const metadata = new Map(
+    Object.entries(metafile.outputs).map(([path, value]) => [outputRelative(path), value]),
+  )
+  const buildSources = request.sources.filter(
+    ({source}) => packageBuildSourceKind(source) !== "copy",
+  )
   const singleSource = request.output.mode === "single" ? buildSources[0]?.source : undefined
   const outputs: PackageBuildReportOutput[] = []
 
@@ -153,13 +151,15 @@ async function writeBuildOutputs(
       throw new Error(`Package build output kind is unsupported: ${artifact.kind}`)
     const relativePath = outputRelative(artifact.path)
     const outputMetadata = metadata.get(relativePath)
-    if (!outputMetadata) throw new Error(`Package build output metadata is missing: ${relativePath}`)
+    if (!outputMetadata)
+      throw new Error(`Package build output metadata is missing: ${relativePath}`)
     const entryPoint = normalizeEntryPoint(outputMetadata.entryPoint, buildSources)
-    const target = request.output.mode === "multi"
-      ? join(request.output.outdir, relativePath)
-      : entryPoint === singleSource
-        ? request.output.artifact
-        : join(dirname(request.output.artifact), ".cosmos", relativePath)
+    const target =
+      request.output.mode === "multi"
+        ? join(request.output.outdir, relativePath)
+        : entryPoint === singleSource
+          ? request.output.artifact
+          : join(dirname(request.output.artifact), ".cosmos", relativePath)
     await mkdir(dirname(target), {recursive: true})
     await Bun.write(target, artifact)
     outputs.push({
@@ -178,23 +178,24 @@ async function writeRawCopies(
   request: IsolatedPackageBuildRequest,
   sources: readonly PackageBuildSource[],
 ) {
-  const outputRoot = request.output.mode === "multi"
-    ? request.output.outdir
-    : dirname(request.output.artifact)
-  return await Promise.all(sources.map(async ({artifact, source}) => {
-    const relativePath = `raw/${artifact.slice(artifact === "." ? 1 : 2)}`
-    const target = join(outputRoot, relativePath)
-    await mkdir(dirname(target), {recursive: true})
-    await Bun.write(target, Bun.file(resolve(source)))
-    return {
-      path: target,
-      relative: relativePath,
-      kind: "copy" as const,
-      loader: "file",
-      source,
-      imports: [],
-    }
-  }))
+  const outputRoot =
+    request.output.mode === "multi" ? request.output.outdir : dirname(request.output.artifact)
+  return await Promise.all(
+    sources.map(async ({artifact, source}) => {
+      const relativePath = `raw/${artifact.slice(artifact === "." ? 1 : 2)}`
+      const target = join(outputRoot, relativePath)
+      await mkdir(dirname(target), {recursive: true})
+      await Bun.write(target, Bun.file(resolve(source)))
+      return {
+        path: target,
+        relative: relativePath,
+        kind: "copy" as const,
+        loader: "file",
+        source,
+        imports: [],
+      }
+    }),
+  )
 }
 
 function reportExternalImports(metafile: Bun.BuildMetafile) {
@@ -206,8 +207,9 @@ function reportExternalImports(metafile: Bun.BuildMetafile) {
       imports.set(key, {path: value.path, kind: value.kind, external: true})
     }
   }
-  return [...imports.values()].sort((left, right) =>
-    left.path.localeCompare(right.path) || left.kind.localeCompare(right.kind))
+  return [...imports.values()].sort(
+    (left, right) => left.path.localeCompare(right.path) || left.kind.localeCompare(right.kind),
+  )
 }
 
 async function projectRootClosure(
@@ -239,12 +241,14 @@ async function projectRootClosure(
   const publicArtifactUrls = isBrowserPackageEnvironment(request.env)
     ? request.sources
         .filter(({artifact}) => artifact !== ".")
-        .map(({artifact}) => browserPackageArtifactUrl(
-          request.name,
-          request.env as BrowserPackageEnvironment,
-          artifact,
-          request.version,
-        ))
+        .map(({artifact}) =>
+          browserPackageArtifactUrl(
+            request.name,
+            request.env as BrowserPackageEnvironment,
+            artifact,
+            request.version,
+          ),
+        )
         .filter((url) => source.includes(url))
         .sort()
     : []
@@ -277,13 +281,17 @@ function normalizeEntryPoint(value: string | undefined, sources: readonly Packag
 }
 
 function outputRelative(value: string) {
-  const normalized = value.replace(/^(?:\.\/)+/, "").split(sep).join("/")
+  const normalized = value
+    .replace(/^(?:\.\/)+/, "")
+    .split(sep)
+    .join("/")
   if (
-    normalized === ""
-    || normalized.startsWith("../")
-    || isAbsolute(normalized)
-    || normalized.split("/").some((segment) => !segment || segment === "." || segment === "..")
-  ) throw new Error(`Package build output path is invalid: ${value}`)
+    normalized === "" ||
+    normalized.startsWith("../") ||
+    isAbsolute(normalized) ||
+    normalized.split("/").some((segment) => !segment || segment === "." || segment === "..")
+  )
+    throw new Error(`Package build output path is invalid: ${value}`)
   return normalized
 }
 
@@ -291,12 +299,13 @@ async function loadPlugin(path: string): Promise<Bun.BunPlugin> {
   const module = await import(pathToFileURL(path).href)
   const plugin = module.default as Partial<Bun.BunPlugin> | undefined
   if (
-    typeof plugin !== "object"
-    || plugin === null
-    || typeof plugin.name !== "string"
-    || plugin.name.trim() === ""
-    || typeof plugin.setup !== "function"
-  ) throw new Error(`Build plugin must default export a Bun plugin: ${path}`)
+    typeof plugin !== "object" ||
+    plugin === null ||
+    typeof plugin.name !== "string" ||
+    plugin.name.trim() === "" ||
+    typeof plugin.setup !== "function"
+  )
+    throw new Error(`Build plugin must default export a Bun plugin: ${path}`)
   return protectBuildPlan(plugin as Bun.BunPlugin)
 }
 
@@ -342,9 +351,7 @@ function readonlyValue<T extends object>(value: T, values: WeakMap<object, objec
   const proxy = new Proxy(value, {
     get(target, property, receiver) {
       const nested = Reflect.get(target, property, receiver) as unknown
-      return typeof nested === "object" && nested !== null
-        ? readonlyValue(nested, values)
-        : nested
+      return typeof nested === "object" && nested !== null ? readonlyValue(nested, values) : nested
     },
     set() {
       throw new Error("Package build plugin cannot modify the validated build plan")
@@ -365,7 +372,7 @@ if (import.meta.main) {
   try {
     request = JSON.parse(await Bun.stdin.text()) as IsolatedPackageBuildRequest
   } catch (error) {
-    console.error("[@cosmos/release:server:build-adapter]", "package build request invalid", {
+    console.error("[@metafor/tech-build:adapter]", "package build request invalid", {
       error: error instanceof Error ? error.message : String(error),
     })
     process.exit(1)

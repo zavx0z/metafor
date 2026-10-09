@@ -1,76 +1,26 @@
-import {
-  browserPackageEnvironments,
-  type BrowserPackageEnvironment,
-} from "../../../shared/package/environment"
-import {packageIdentityHeaders} from "../../../shared/package/integrity"
-import {
-  isGeneratedPackageArtifactKey,
-  rootPackageArtifact,
-  type PackageArtifactKey,
-} from "../../shared/artifact"
-import {packageArtifactIdentityHeaders} from "../../shared/artifact-integrity"
-import {browserPackageArtifactUrl} from "../../shared/artifact-url"
-import {packageResponse, packageSourceMapResponse} from "../package/build"
-import {readReleaseComposition} from "./composition"
-import type {
-  BuildablePackage,
-  ReleasedPackage,
-} from "../shared/contracts"
-import {
-  packageArtifact,
-  packageManifest,
-  packageOwner,
-  packageSourceLocation,
-} from "../package/manifest"
-import {waitForPublication} from "./queue"
-import {isVersion} from "../package/version"
-import {artifactResponse} from "../package/response"
-import {browserPackageSourceMapUrl, sourceMapArtifact} from "../package/source-map"
-import {
-  legacyVersionedArtifact,
-  resolveVersionedPackageArtifactPath,
-  versionedPackageArtifactPath,
-} from "./artifact-path"
+import {packageHeaders} from "./headers"
+import {builder, release} from "../services"
+const {packageOwner, packageSourceLocation} = builder
+const {releasedPackages, readReleaseComposition} = release
+import {type BrowserPackageEnvironment} from "@metafor/tech-build/identity"
+import {packageIdentityHeaders} from "@metafor/tech-build/identity"
+import {isGeneratedPackageArtifactKey, rootPackageArtifact, type PackageArtifactKey} from "@metafor/tech-build/identity"
+import {packageArtifactIdentityHeaders} from "@metafor/tech-build/identity"
+import {browserPackageArtifactUrl} from "@metafor/tech-build/identity"
+import {packageResponse, packageSourceMapResponse} from "./package"
 
-/** Возвращает текущее доказанное состояние из корневых caret dependencies. */
-export async function releasedPackages(): Promise<ReleasedPackage[]> {
-  await waitForPublication()
-  return await readReleasedPackages()
-}
+import type {BuildablePackage} from "@metafor/tech-build"
+import {packageArtifact, packageManifest} from "@metafor/tech-build"
 
-/** Читает release state внутри уже сериализованной publication. */
-export async function readReleasedPackages(): Promise<ReleasedPackage[]> {
-  const composition = await readReleaseComposition()
-  const packages: ReleasedPackage[] = []
+import {isVersion} from "@metafor/tech-release"
+import {artifactResponse} from "./artifact"
+import {browserPackageSourceMapUrl} from "./source-map"
+import {sourceMapArtifact} from "@metafor/tech-build"
+import {legacyVersionedArtifact, resolveVersionedPackageArtifactPath, versionedPackageArtifactPath} from "@metafor/tech-release"
 
-  for (const {name, version, owners} of composition) {
-    const environments = owners
-      .filter(({env}) => browserPackageEnvironments.some((browserEnv) => browserEnv === env))
-    for (const environmentOwner of environments) {
-      const {env} = environmentOwner
-      const browserEnv = env as BrowserPackageEnvironment
-      const path = await resolveVersionedPackageArtifactPath(
-        environmentOwner,
-        version,
-        rootPackageArtifact,
-      )
-      if (path === null)
-        throw new Error(`Released artifact ${name}:${browserEnv}@${version} is missing`)
-      const artifact = await packageArtifact(path)
-      if (!artifact)
-        throw new Error(`Released artifact ${name}:${browserEnv}@${version} is missing`)
-      packages.push({
-        name,
-        env: browserEnv,
-        version,
-        sha256: artifact.sha256,
-        size: artifact.size,
-      })
-    }
-  }
 
-  return packages
-}
+
+
 
 /** Отдаёт JSON текущего package state без отдельного manifest-файла. */
 export async function releaseStateResponse() {
@@ -142,7 +92,7 @@ export async function releasedPackageArtifactResponse(
       if (sourceMap)
         headers.set("SourceMap", browserPackageArtifactUrl(name, env, generatedMap, version))
     }
-    for (const [header, value] of Object.entries(packageHeaders(env, owner))) headers.set(header, value)
+    for (const [header, value] of Object.entries(packageHeaders(env))) headers.set(header, value)
     return await artifactResponse(request, artifact, headers)
   }
 
@@ -210,7 +160,9 @@ async function releasedPackageTarget(
   const packages = await releasedPackages()
   const current = packages.find((entry) => entry.name === name && entry.env === env)
   const location = await packageSourceLocation(name)
-  const owner = await packageOwner(name, env).catch(() => null)
+  const member = (await readReleaseComposition()).find((member) => member.name === name)
+  const owner = member?.owners.find((owner) => owner.env === env)
+    ?? await packageOwner(name, env).catch(() => null)
   const manifest = await packageManifest(location.manifest)
   const currentVersion = current?.version
     ?? (owner !== null && isVersion(manifest.version) ? manifest.version : null)
@@ -222,13 +174,7 @@ async function releasedPackageTarget(
   return {current, currentVersion, owner, storageOwner, version}
 }
 
-function packageHeaders(env: BrowserPackageEnvironment, owner: Awaited<ReturnType<typeof packageOwner>> | null) {
-  if (owner) return owner.headers
-  return env === "service" ? {
-    "Content-Security-Policy": "script-src 'unsafe-eval'",
-    "Service-Worker-Allowed": "/",
-  } : {}
-}
+
 
 /** Возвращает путь immutable artifact указанной package version. */
 export function versionedArtifact(artifact: string, version: string) {

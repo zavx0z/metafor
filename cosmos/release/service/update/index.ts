@@ -1,12 +1,7 @@
-import {verifyPackageArtifactResponse} from "../../shared/artifact-integrity"
-import {
-  browserPackageCache,
-} from "../../../shared/package/url"
-import {
-  browserPackageIdentitySlot,
-  browserPackageIdentityUrl,
-  parseBrowserPackageArtifactUrl,
-} from "../../shared/artifact-url"
+import {verifyPackageArtifactResponse} from "@metafor/tech-build/identity"
+
+import {browserPackageCache} from "../../../shared/package/cache"
+import {browserPackageIdentitySlot, browserPackageIdentityUrl, parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
 import type {ReleaseDelta} from "../../shared/protocol"
 import type {ReleaseLoader, ReleaseRuntime} from "../runtime/contract"
 import {

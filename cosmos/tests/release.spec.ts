@@ -1,40 +1,17 @@
+import {builder, release} from "../release/server/services"
+const {packageOwners} = builder
+const {readReleaseComposition, releasedPackages} = release
 import {expect, setDefaultTimeout, test} from "bun:test"
 import {resolve} from "node:path"
 import {brotliDecompressSync} from "node:zlib"
-import {
-  acceptsBrotli,
-  browserPackageSourceMapUrl,
-  getPackage,
-  getRelease,
-  nextPackageVersion,
-  notifyRelease,
-  packageChanges,
-  packageOwners,
-  parseBrowserPackageSourceMapUrl,
-  readReleaseComposition,
-  releaseDelta,
-  parseReleaseChangedMessage,
-  parseReleaseCurrentMessage,
-  parseReleaseDeltaMessage,
-  releasedPackageResponse,
-  releasedPackages,
-  satisfiesWorkspaceRange,
-  validateBrowserReleaseEnvironments,
-  validateReleaseDependencyGraph,
-  validateTargetReleaseVersions,
-} from "../release/server"
-import {
-  artifactIntegrity,
-  packageIdentityHeaders,
-  verifyPackageResponse,
-} from "../shared/package/integrity"
-import {
-  browserPackageCache,
-  browserPackageUrl,
-  parseBrowserPackageUrl,
-} from "../shared/package/url"
-import {packageArtifactIdentityHeaders} from "../release/shared/artifact-integrity"
-import {browserPackageArtifactUrl} from "../release/shared/artifact-url"
+import {acceptsBrotli, getPackage, getRelease, notifyRelease, packageChanges, releaseDelta, parseReleaseChangedMessage, parseReleaseCurrentMessage, parseReleaseDeltaMessage, releasedPackageResponse} from "../release/server"
+import {browserPackageSourceMapUrl, parseBrowserPackageSourceMapUrl} from "../release/server/http/source-map"
+import {nextPackageVersion, satisfiesWorkspaceRange, validateBrowserReleaseEnvironments, validateReleaseDependencyGraph, validateTargetReleaseVersions} from "@metafor/tech-release"
+import {artifactIntegrity, packageIdentityHeaders, verifyPackageResponse} from "@metafor/tech-build/identity"
+import {browserPackageUrl, parseBrowserPackageUrl} from "@metafor/tech-build/identity"
+import {browserPackageCache} from "../shared/package/cache"
+import {packageArtifactIdentityHeaders} from "@metafor/tech-build/identity"
+import {browserPackageArtifactUrl} from "@metafor/tech-build/identity"
 import {cachedPackageIdentity} from "../release/service/cache/current"
 import {resolveCosmosRoot} from "../release/server/shared/paths"
 
@@ -108,20 +85,23 @@ test("release membership is closed over compatible runtime dependencies", async 
     "@cosmos/release",
     "@internal/visual",
   ])
-  expect(() => validateReleaseDependencyGraph(current)).not.toThrow()
+  const isMember = (name: string) => name === "@cosmos/release" || name.startsWith("@internal/")
+  expect(() => validateReleaseDependencyGraph(current, isMember)).not.toThrow()
 
   const addition = {
     name: "@internal/independent",
     version: "0.1.0",
     dependencies: {},
   }
-  expect(() => validateReleaseDependencyGraph([...current, addition])).not.toThrow()
+  expect(() => validateReleaseDependencyGraph([...current, addition], isMember)).not.toThrow()
   expect(() => validateReleaseDependencyGraph(
     current.filter(({name}) => name !== "@internal/visual"),
+    isMember,
   )).toThrow("requires missing release package @internal/visual")
   expect(() => validateTargetReleaseVersions(
     current,
     new Map([["@internal/visual", "0.2.0"]]),
+    isMember,
   )).toThrow("selected 0.2.0")
   expect(() => validateTargetReleaseVersions(
     current,

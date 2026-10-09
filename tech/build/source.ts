@@ -1,6 +1,6 @@
 import {extname} from "node:path"
-import {rootPackageArtifact, type PackageExportSubpath} from "../../shared/artifact"
-import type {PackageBuildSource} from "../shared/contracts"
+import {rootPackageArtifact, type PackageExportSubpath} from "./identity/artifact"
+import type {PackageBuildSource} from "./contracts"
 
 const scriptExtensions = new Set([
   ".cjs",
@@ -45,10 +45,7 @@ export function packageBuildEntrypoints(sources: readonly PackageBuildSource[]) 
 Source kind определяет итоговый extension, поэтому `./foo` и `./foo.js` могут
 обозначать один physical path и обязаны быть отклонены до build.
 */
-export function packagePublicArtifactOutput(
-  artifact: PackageExportSubpath,
-  source: string,
-) {
+export function packagePublicArtifactOutput(artifact: PackageExportSubpath, source: string) {
   const sourceExtension = extname(source)
   const kind = packageBuildSourceKind(source)
   const outputExtension = kind === "script" ? ".js" : kind === "style" ? ".css" : sourceExtension
@@ -70,7 +67,9 @@ export function validatePackageBuildSourceOutputs(
     const output = packagePublicArtifactOutput(artifact, source)
     const previous = outputs.get(output)
     if (previous !== undefined)
-      throw new Error(`${environment} public artifacts ${previous} and ${artifact} share output ${output}`)
+      throw new Error(
+        `${environment} public artifacts ${previous} and ${artifact} share output ${output}`,
+      )
     outputs.set(output, artifact)
   }
 }

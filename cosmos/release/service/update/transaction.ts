@@ -1,5 +1,5 @@
-import type {BrowserPackageArtifactIdentity} from "../../shared/artifact-integrity"
-import {browserPackageIdentityUrl} from "../../shared/artifact-url"
+import type {BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
+import {browserPackageIdentityUrl} from "@metafor/tech-build/identity"
 
 /** Единственный технический Cache Storage package update. */
 export const transactionCache = "transaction"

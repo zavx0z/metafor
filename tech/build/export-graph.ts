@@ -4,13 +4,13 @@ import {
   isPackageEnvironment,
   packageEnvironments,
   type PackageEnvironment,
-} from "../../../shared/package/environment"
+} from "./identity/environment"
 import {
   isPackageExportSubpath,
   rootPackageArtifact,
   type PackageArtifactKey,
   type PublicPackageArtifactKey,
-} from "../../shared/artifact"
+} from "./identity/artifact"
 
 export interface PackageExportsManifest {
   name?: unknown
@@ -102,7 +102,9 @@ export async function packageExportGraph(
     throw new Error('Package exports must define root subpath "." with exact environments')
   for (const declaration of declarations) {
     if (declaration.env !== null && !rootEnvironments.has(declaration.env))
-      throw new Error(`Package export ${declaration.artifact} uses undeclared environment ${declaration.env}`)
+      throw new Error(
+        `Package export ${declaration.artifact} uses undeclared environment ${declaration.env}`,
+      )
   }
 
   const root = await canonicalDirectory(packageRoot)
@@ -111,22 +113,32 @@ export async function packageExportGraph(
   const sources = new Map<string, PackageArtifactKey>()
 
   for (const declaration of declarations) {
-    const environments = declaration.env === null
-      ? packageEnvironments.filter((env) => rootEnvironments.has(env))
-      : [declaration.env]
+    const environments =
+      declaration.env === null
+        ? packageEnvironments.filter((env) => rootEnvironments.has(env))
+        : [declaration.env]
     const files = declaration.source.startsWith("./")
       ? await expandDeclaration(root, declaration.artifact, declaration.source)
-      : [{
-          artifact: declaration.artifact as PublicPackageArtifactKey,
-          source: await resolveDependencyExport(root, manifest, declaration.artifact, declaration.source),
-        }]
+      : [
+          {
+            artifact: declaration.artifact as PublicPackageArtifactKey,
+            source: await resolveDependencyExport(
+              root,
+              manifest,
+              declaration.artifact,
+              declaration.source,
+            ),
+          },
+        ]
     for (const file of files) {
       if (exclusions.some((pattern) => artifactPatternMatches(pattern, file.artifact))) continue
       for (const env of environments) {
         const identity = `${env}\u0000${file.artifact}`
         const previous = identities.get(identity)
         if (previous !== undefined)
-          throw new Error(`Package export collision ${file.artifact}:${env}: ${previous} and ${file.source}`)
+          throw new Error(
+            `Package export collision ${file.artifact}:${env}: ${previous} and ${file.source}`,
+          )
         const sourceIdentity = `${env}\u0000${file.source}`
         const previousArtifact = sources.get(sourceIdentity)
         if (previousArtifact !== undefined)
@@ -146,9 +158,11 @@ export async function packageExportGraph(
   }
 
   const environmentOrder = new Map(packageEnvironments.map((env, index) => [env, index]))
-  return graph.sort((left, right) =>
-    left.artifact.localeCompare(right.artifact)
-    || environmentOrder.get(left.env)! - environmentOrder.get(right.env)!)
+  return graph.sort(
+    (left, right) =>
+      left.artifact.localeCompare(right.artifact) ||
+      environmentOrder.get(left.env)! - environmentOrder.get(right.env)!,
+  )
 }
 
 async function expandDeclaration(root: string, artifact: string, source: string) {
@@ -166,7 +180,7 @@ async function expandDeclaration(root: string, artifact: string, source: string)
   await requireOwnedDirectory(root, base)
   const files = await listOwnedFiles(root, base)
   const matcher = new RegExp(`^${escapeRegExp(prefix)}(.+)${escapeRegExp(suffix)}$`)
-  const expanded: Array<{artifact: PublicPackageArtifactKey, source: `./${string}`}> = []
+  const expanded: Array<{artifact: PublicPackageArtifactKey; source: `./${string}`}> = []
 
   for (const candidate of files) {
     const match = matcher.exec(candidate)
@@ -198,7 +212,8 @@ async function requireOwnedDirectory(root: string, source: string) {
   if (source === "./") return
   const path = await requireOwnedPath(root, source.slice(0, -1))
   const stats = await lstat(path)
-  if (!stats.isDirectory()) throw new Error(`Package export pattern root is not a directory: ${source}`)
+  if (!stats.isDirectory())
+    throw new Error(`Package export pattern root is not a directory: ${source}`)
 }
 
 async function requireOwnedPath(root: string, source: string) {
@@ -207,7 +222,8 @@ async function requireOwnedPath(root: string, source: string) {
   for (const segment of segments) {
     current = resolve(current, segment)
     const stats = await lstat(current)
-    if (stats.isSymbolicLink()) throw new Error(`Package export source must not cross a symbolic link: ${source}`)
+    if (stats.isSymbolicLink())
+      throw new Error(`Package export source must not cross a symbolic link: ${source}`)
   }
   const canonical = await realpath(current)
   if (canonical !== root && !canonical.startsWith(`${root}${sep}`))
@@ -216,9 +232,7 @@ async function requireOwnedPath(root: string, source: string) {
 }
 
 async function listOwnedFiles(root: string, sourceDirectory: string) {
-  const directory = sourceDirectory === "./"
-    ? root
-    : resolve(root, sourceDirectory.slice(2))
+  const directory = sourceDirectory === "./" ? root : resolve(root, sourceDirectory.slice(2))
   const files: string[] = []
   await visit(directory)
   return files.sort()
@@ -229,7 +243,9 @@ async function listOwnedFiles(root: string, sourceDirectory: string) {
       if (entry.name === "node_modules" || entry.name === ".cosmos") continue
       const path = resolve(current, entry.name)
       if (entry.isSymbolicLink())
-        throw new Error(`Package export pattern must not cross a symbolic link: ${relative(root, path)}`)
+        throw new Error(
+          `Package export pattern must not cross a symbolic link: ${relative(root, path)}`,
+        )
       if (entry.isDirectory()) await visit(path)
       else if (entry.isFile()) files.push(`./${relative(root, path).split(sep).join("/")}`)
     }
@@ -244,7 +260,11 @@ function requireArtifactDeclaration(value: string) {
   if (!isPackageExportSubpath(example)) throw new Error(`Invalid package export subpath ${value}`)
 }
 
-function requireSourceDeclaration(value: unknown, label: string, allowDependency = false): asserts value is string {
+function requireSourceDeclaration(
+  value: unknown,
+  label: string,
+  allowDependency = false,
+): asserts value is string {
   if (typeof value === "string" && allowDependency && !value.startsWith("./")) {
     dependencyName(value)
     return
@@ -254,17 +274,20 @@ function requireSourceDeclaration(value: unknown, label: string, allowDependency
   const example = value.replace("*", "artifact")
   const segments = example.slice(2).split("/")
   if (
-    example.includes("\\")
-    || example.includes("%")
-    || example.includes("?")
-    || example.includes("#")
-    || segments.some((segment) =>
-      segment.length === 0
-      || segment === "."
-      || segment === ".."
-      || segment === "node_modules"
-      || segment === ".cosmos")
-  ) throw new Error(`${label} source must stay inside package root`)
+    example.includes("\\") ||
+    example.includes("%") ||
+    example.includes("?") ||
+    example.includes("#") ||
+    segments.some(
+      (segment) =>
+        segment.length === 0 ||
+        segment === "." ||
+        segment === ".." ||
+        segment === "node_modules" ||
+        segment === ".cosmos",
+    )
+  )
+    throw new Error(`${label} source must stay inside package root`)
 }
 
 async function resolveDependencyExport(
@@ -273,20 +296,26 @@ async function resolveDependencyExport(
   artifact: string,
   specifier: string,
 ): Promise<string> {
-  if (artifact.includes("*")) throw new Error("Dependency export references must use an exact artifact key")
+  if (artifact.includes("*"))
+    throw new Error("Dependency export references must use an exact artifact key")
   const dependency = dependencyName(specifier)
-  const dependencies = manifest.dependencies === undefined ? {} : record(manifest.dependencies, "Package dependencies must be an object")
+  const dependencies =
+    manifest.dependencies === undefined
+      ? {}
+      : record(manifest.dependencies, "Package dependencies must be an object")
   if (dependency === manifest.name || !Object.hasOwn(dependencies, dependency))
     throw new Error(`Export source must name a direct runtime dependency: ${specifier}`)
   const resolved = Bun.resolveSync(specifier, root)
-  if (!isAbsolute(resolved)) throw new Error(`Dependency export is not a filesystem source: ${specifier}`)
+  if (!isAbsolute(resolved))
+    throw new Error(`Dependency export is not a filesystem source: ${specifier}`)
   const source = await realpath(resolved)
-  if (!(await lstat(source)).isFile()) throw new Error(`Dependency export is not a regular file: ${specifier}`)
+  if (!(await lstat(source)).isFile())
+    throw new Error(`Dependency export is not a regular file: ${specifier}`)
   let directory = dirname(source)
   while (true) {
     const file = Bun.file(join(directory, "package.json"))
     if (await file.exists()) {
-      const owner = await file.json() as {name?: unknown}
+      const owner = (await file.json()) as {name?: unknown}
       if (owner.name === dependency) return source
       if (owner.name !== undefined)
         throw new Error(`Dependency export resolves inside another package: ${specifier}`)
@@ -301,11 +330,14 @@ function dependencyName(specifier: string): string {
   const segments = specifier.split("/")
   const size = specifier.startsWith("@") ? 2 : 1
   if (
-    specifier.trim() !== specifier
-    || /[\\\\:%?#*]/u.test(specifier)
-    || segments.some(segment => !segment || segment === "." || segment === ".." || segment === "node_modules")
-    || (size === 2 && (segments.length < 2 || segments[0] === "@"))
-  ) throw new Error(`Invalid public dependency export reference: ${specifier}`)
+    specifier.trim() !== specifier ||
+    /[\\\\:%?#*]/u.test(specifier) ||
+    segments.some(
+      (segment) => !segment || segment === "." || segment === ".." || segment === "node_modules",
+    ) ||
+    (size === 2 && (segments.length < 2 || segments[0] === "@"))
+  )
+    throw new Error(`Invalid public dependency export reference: ${specifier}`)
   return segments.slice(0, size).join("/")
 }
 

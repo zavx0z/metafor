@@ -1,5 +1,7 @@
+import {release} from "../services"
+const {publishPackages} = release
 import {releaseChangedMessage} from "../../shared/protocol"
-import {publishPackages} from "./publication"
+
 import {packageChanges} from "./request"
 
 /** Доставка package signal через transport корневого server. */

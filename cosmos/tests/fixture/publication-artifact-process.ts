@@ -31,10 +31,8 @@ test("multi-output publication fixture", async () => {
     mock.module(import.meta.resolve("../../release/server/shared/paths"), () => mockedPaths)
     mock.module(import.meta.resolve("../../release/server/shared/paths.ts"), () => mockedPaths)
 
-    const {publishPackages, recoverPublication} = await import("../../release/server/release/publication")
-    const {readDesiredBrowserArtifacts, replaceDesiredBrowserArtifacts} = await import(
-      "../../release/server/release/desired"
-    )
+    const {publishPackages, recoverPublication} = (await import("../../release/server/services")).release
+    const {readDesiredBrowserArtifacts, replaceDesiredBrowserArtifacts} = (await import("../../release/server/services")).release
     const publication = await publishPackages([{name: "@internal/fixture", change: "patch"}])
     if (!publication.success) throw new Error(`Fixture publication failed: ${JSON.stringify(publication)}`)
     const outputs = publication.results.flatMap(({outputs}) => outputs)
@@ -53,7 +51,7 @@ test("multi-output publication fixture", async () => {
     const sourceMaps: Array<{artifact: string; status: number; mapStatus: number; inline: boolean; version: number; hasSources: boolean; header: string | null}> = []
     if (scenario === "source-maps") {
       const {getPackage} = await import("../../release/server/http/delivery")
-      const {browserPackageArtifactUrl} = await import("../../release/shared/artifact-url")
+      const {browserPackageArtifactUrl} = await import("@metafor/tech-build/identity")
       for (const output of publication.results.find(({env}) => env === "main")!.outputs) {
         if (output.kind !== "entry-point" && output.kind !== "chunk") continue
         const url = browserPackageArtifactUrl("@internal/fixture", "main", output.artifact!, "1.0.1")
@@ -106,8 +104,8 @@ test("multi-output publication fixture", async () => {
         recoveryError = error instanceof Error ? error.message : String(error)
       }
     } else if (scenario === "recover-legacy-root" || scenario === "recover-legacy-root-conflict") {
-      const {packageOwner} = await import("../../release/server/package/manifest")
-      const {versionedArtifact} = await import("../../release/server/release/state")
+      const {packageOwner} = (await import("../../release/server/services")).builder
+      const {versionedArtifact} = await import("../../release/server/http/state")
       const owner = await packageOwner("@internal/fixture", "main")
       const legacy = versionedArtifact(owner.artifact, "1.0.1")
       await mkdir(dirname(legacy), {recursive: true})
@@ -153,7 +151,7 @@ test("multi-output publication fixture", async () => {
       const second = await publishPackages([{name: "@internal/fixture", change: "patch"}])
       if (!second.success) throw new Error(`Second fixture publication failed: ${JSON.stringify(second)}`)
       const {releasedPackageArtifactResponse, releasedPackageResponse} = await import(
-        "../../release/server/release/state"
+        "../../release/server/http/state"
       )
       const predecessor = await releasedPackageArtifactResponse(
         "@internal/fixture",

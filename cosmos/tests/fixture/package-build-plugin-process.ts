@@ -29,7 +29,7 @@ test("package plugin build fixture", async () => {
       () => mockedPaths,
     )
 
-    const {buildPackage} = await import("../../release/server/package/build")
+    const {buildPackage} = (await import("../../release/server/services")).builder
     const result = await buildPackage("@internal/visual", {env: "main", artifact})
     const source = await Bun.file(artifact).text().catch(() => "")
     const sourceMap = await Bun.file(`${artifact}.map`).text().catch(() => "")

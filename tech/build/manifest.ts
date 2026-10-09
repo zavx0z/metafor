@@ -1,29 +1,21 @@
 import {realpath} from "node:fs/promises"
-import {dirname, join, resolve} from "node:path"
+import {join, resolve} from "node:path"
 import {
   isBrowserPackageEnvironment,
   isPackageEnvironment,
   packageEnvironmentBuildTarget,
   type PackageEnvironment,
-} from "../../../shared/package/environment"
-import {artifactIntegrity} from "../../../shared/package/integrity"
-import {
-  packageArtifactPath,
-  packageBuildCommand,
-  packageProgrammaticBuildPlan,
-} from "./command"
-import {
-  readPackageBuildConfigurations,
-  type PackageBuildEnvironmentConfiguration,
-} from "./config"
+} from "./identity/environment"
+import {artifactIntegrity} from "./identity/integrity"
+import {packageArtifactPath, packageBuildCommand, packageProgrammaticBuildPlan} from "./command"
+import {readPackageBuildConfigurations, type PackageBuildEnvironmentConfiguration} from "./config"
 import {
   type BuildablePackage,
   type PackageBuildArtifact,
   type PackageEnvironmentExport,
   type PackageManifest,
   type PackageOwner,
-} from "../shared/contracts"
-import {cosmosRoot} from "../shared/paths"
+} from "./contracts"
 import {packageExportGraph} from "./export-graph"
 import {
   packageBuildEntrypoints,
@@ -36,59 +28,88 @@ export interface PackageSourceLocation {
   manifest: string
 }
 
-const repositoryRoot = dirname(cosmosRoot)
-const packageLocations = new Map<BuildablePackage, Promise<PackageSourceLocation>>()
-
-/** Возвращает свежий env-specific package build contract. */
-export async function packageOwner(
-  name: BuildablePackage,
-  requestedEnv?: PackageEnvironment,
-): Promise<PackageOwner> {
-  const owners = await packageOwners(name)
-  const env = requestedEnv ?? singleBrowserEnvironment(name, owners)
-  const selected = owners.find((owner) => owner.env === env)
-  if (selected === undefined) throw new Error(`${name} does not export env ${env}`)
-  return selected
+export interface PackageReaderOptions {
+  /** Приложение разрешает имя в каталог пакета; сборщик проверяет его manifest. */
+  resolvePackage(name: string): string | Promise<string>
 }
 
-/** Возвращает свежие проверенные build contracts всех объявленных env. */
-export async function packageOwners(name: BuildablePackage): Promise<PackageOwner[]> {
-  const location = await packageSourceLocation(name)
-  const manifest = await packageManifest(location.manifest)
-  if (manifest.name !== name)
-    throw new Error(`Resolved package ${String(manifest.name)} does not match ${name}`)
+export function createPackageReader(options: PackageReaderOptions) {
+  const packageLocations = new Map<BuildablePackage, Promise<PackageSourceLocation>>()
 
-  const environments = packageEnvironmentExports(manifest)
-  const version = packageVersion(manifest.version, name)
-  const exportGraph = await packageExportGraph(location.root, manifest)
-  const buildConfigurations = await readPackageBuildConfigurations(
-    location.root,
-    manifest,
-    environments.map(({env}) => env),
-  )
-  const artifacts = new Map<string, PackageEnvironment>()
-  const owners: PackageOwner[] = []
-
-  for (const environment of environments) {
-    const contract = await environmentOwner(
-      name,
-      location,
-      manifest,
-      environment,
-      version,
-      exportGraph
-        .filter(({env}) => env === environment.env)
-        .map(({artifact, source}) => ({artifact, source})),
-      buildConfigurations.get(environment.env),
-    )
-    const previous = artifacts.get(contract.artifact)
-    if (previous !== undefined)
-      throw new Error(`${name} env ${previous} and ${environment.env} share build outfile`)
-    artifacts.set(contract.artifact, environment.env)
-    owners.push(contract)
+  /** Возвращает свежий env-specific package build contract. */
+  async function packageOwner(
+    name: BuildablePackage,
+    requestedEnv?: PackageEnvironment,
+  ): Promise<PackageOwner> {
+    const owners = await packageOwners(name)
+    const env = requestedEnv ?? singleBrowserEnvironment(name, owners)
+    const selected = owners.find((owner) => owner.env === env)
+    if (selected === undefined) throw new Error(`${name} does not export env ${env}`)
+    return selected
   }
 
-  return owners
+  /** Возвращает свежие проверенные build contracts всех объявленных env. */
+  async function packageOwners(name: BuildablePackage): Promise<PackageOwner[]> {
+    const location = await packageSourceLocation(name)
+    const manifest = await packageManifest(location.manifest)
+    if (manifest.name !== name)
+      throw new Error(`Resolved package ${String(manifest.name)} does not match ${name}`)
+
+    const environments = packageEnvironmentExports(manifest)
+    const version = packageVersion(manifest.version, name)
+    const exportGraph = await packageExportGraph(location.root, manifest)
+    const buildConfigurations = await readPackageBuildConfigurations(
+      location.root,
+      manifest,
+      environments.map(({env}) => env),
+    )
+    const artifacts = new Map<string, PackageEnvironment>()
+    const owners: PackageOwner[] = []
+
+    for (const environment of environments) {
+      const contract = await environmentOwner(
+        name,
+        location,
+        manifest,
+        environment,
+        version,
+        exportGraph
+          .filter(({env}) => env === environment.env)
+          .map(({artifact, source}) => ({artifact, source})),
+        buildConfigurations.get(environment.env),
+      )
+      const previous = artifacts.get(contract.artifact)
+      if (previous !== undefined)
+        throw new Error(`${name} env ${previous} and ${environment.env} share build outfile`)
+      artifacts.set(contract.artifact, environment.env)
+      owners.push(contract)
+    }
+
+    return owners
+  }
+
+  /** Разрешает пакет через назначенный приложением источник без выбора окружения. */
+  async function packageSourceLocation(name: BuildablePackage) {
+    let location = packageLocations.get(name)
+    if (!location) {
+      location = findPackage(name).catch((error: unknown) => {
+        packageLocations.delete(name)
+        throw error
+      })
+      packageLocations.set(name, location)
+    }
+    return await location
+  }
+
+  async function findPackage(name: BuildablePackage): Promise<PackageSourceLocation> {
+    const root = await realpath(await options.resolvePackage(name))
+    const manifest = join(root, "package.json")
+    if (!(await Bun.file(manifest).exists()))
+      throw new Error(`Package manifest is missing for ${name}`)
+    return {root, manifest}
+  }
+
+  return {packageOwner, packageOwners, packageSourceLocation}
 }
 
 /** Читает непустой JavaScript artifact. */
@@ -99,14 +120,14 @@ export async function packageArtifact(path: string): Promise<PackageBuildArtifac
       ? "text/javascript; charset=utf-8"
       : Bun.file(path).type || "application/octet-stream"
   const artifact = Bun.file(path, {type})
-  if (!await artifact.exists() || artifact.size === 0) return null
+  if (!(await artifact.exists()) || artifact.size === 0) return null
   const integrity = await artifactIntegrity(await artifact.arrayBuffer())
   return {path, ...integrity, type: artifact.type}
 }
 
 /** Читает package manifest заново, не кешируя изменяемое содержимое. */
 export async function packageManifest(path: string): Promise<PackageManifest> {
-  return await Bun.file(path).json() as PackageManifest
+  return (await Bun.file(path).json()) as PackageManifest
 }
 
 /**
@@ -149,33 +170,6 @@ export function packageEnvironmentExports(manifest: PackageManifest): PackageEnv
   return environments
 }
 
-/** Resolves one Cosmos-owned package without requiring a current environment. */
-export async function packageSourceLocation(name: BuildablePackage) {
-  let location = packageLocations.get(name)
-  if (!location) {
-    location = findPackage(name).catch((error: unknown) => {
-      packageLocations.delete(name)
-      throw error
-    })
-    packageLocations.set(name, location)
-  }
-  return await location
-}
-
-async function findPackage(name: BuildablePackage): Promise<PackageSourceLocation> {
-  if (!/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name))
-    throw new Error(`Invalid Cosmos package name ${name}`)
-
-  const linkedRoot = join(repositoryRoot, "node_modules", ...name.split("/"))
-  const root = await realpath(linkedRoot)
-  if (root !== cosmosRoot && !root.startsWith(`${cosmosRoot}/`))
-    throw new Error(`Package ${name} is outside Cosmos`)
-
-  const manifest = join(root, "package.json")
-  if (!await Bun.file(manifest).exists()) throw new Error(`Package manifest is missing for ${name}`)
-  return {root, manifest}
-}
-
 async function environmentOwner(
   name: BuildablePackage,
   location: PackageSourceLocation,
@@ -206,8 +200,10 @@ async function environmentOwner(
     throw new Error(`${name} ${buildName} must select ${environment.condition}`)
   if (conditions.some((condition) => !condition.endsWith(`:${environment.env}`)))
     throw new Error(`${name} ${buildName} conditions must select only env ${environment.env}`)
-  if (command.filter((argument) => argument.startsWith("--target=")).length !== 1
-    || !command.includes(`--target=${environment.target}`))
+  if (
+    command.filter((argument) => argument.startsWith("--target=")).length !== 1 ||
+    !command.includes(`--target=${environment.target}`)
+  )
     throw new Error(`${name} ${buildName} must target ${environment.target}`)
 
   const rootSource = sources.find(({artifact}) => artifact === ".")
@@ -221,11 +217,7 @@ async function environmentOwner(
   const entrypoints = packageBuildEntrypoints(sources)
   if (entrypoints.length === 0) throw new Error(`${name} ${buildName} has no buildable entrypoint`)
   if ((configuration?.plugins.length ?? 0) > 0 || sources.length > 1) {
-    packageProgrammaticBuildPlan(
-      build,
-      "production",
-      entrypoints.length > 1 ? "multi" : "single",
-    )
+    packageProgrammaticBuildPlan(build, "production", entrypoints.length > 1 ? "multi" : "single")
   }
 
   await requirePackageSource(
@@ -233,11 +225,6 @@ async function environmentOwner(
     environment.entrypoint,
     `${name} ${environment.env} entrypoint`,
   )
-
-  const headers = environment.env === "service" ? {
-    "Content-Security-Policy": "script-src 'unsafe-eval'",
-    "Service-Worker-Allowed": "/",
-  } : {}
 
   return {
     root: location.root,
@@ -251,14 +238,12 @@ async function environmentOwner(
     plugins: configuration?.plugins ?? Object.freeze([]),
     typecheck: "typecheck",
     version,
-    headers,
   }
 }
 
 function singleBrowserEnvironment(name: string, owners: PackageOwner[]) {
   const browser = owners.filter(({env}) => isBrowserPackageEnvironment(env))
-  if (browser.length !== 1)
-    throw new Error(`${name} requires an explicit browser environment`)
+  if (browser.length !== 1) throw new Error(`${name} requires an explicit browser environment`)
   return browser[0]!.env
 }
 
@@ -266,7 +251,7 @@ async function requirePackageSource(root: string, path: string, label: string) {
   const source = resolve(root, path)
   if (source !== root && !source.startsWith(`${root}/`))
     throw new Error(`${label} must stay inside package root`)
-  if (!await Bun.file(source).exists()) throw new Error(`${label} is missing`)
+  if (!(await Bun.file(source).exists())) throw new Error(`${label} is missing`)
 }
 
 function relativeSource(value: unknown, label: string) {

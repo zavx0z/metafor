@@ -3,12 +3,9 @@ import {mkdir, mkdtemp, rm} from "node:fs/promises"
 import {join} from "node:path"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
-import {
-  packageArtifactPath,
-  packageProgrammaticBuildPlan,
-} from "../release/server/package/command"
-import {packageArtifact} from "../release/server/package/manifest"
-import {validatePackageBuildSourceOutputs} from "../release/server/package/source"
+import {packageArtifactPath, packageProgrammaticBuildPlan} from "@metafor/tech-build"
+import {packageArtifact} from "@metafor/tech-build"
+import {validatePackageBuildSourceOutputs} from "@metafor/tech-build"
 
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
 

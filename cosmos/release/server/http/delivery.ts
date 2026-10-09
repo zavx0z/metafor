@@ -1,12 +1,14 @@
-import {buildablePackage, knownPackage} from "../package/build"
+import {builder} from "../services"
+const {knownPackage} = builder
+
 import {
   releasedPackageArtifactResponse,
   releasedPackageSourceMapResponse,
   releaseStateResponse,
-} from "../release/state"
-import {rootPackageArtifact} from "../../shared/artifact"
-import {parseBrowserPackageArtifactUrl} from "../../shared/artifact-url"
-import {parseBrowserPackageSourceMapUrl} from "../package/source-map"
+} from "./state"
+import {rootPackageArtifact} from "@metafor/tech-build/identity"
+import {parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
+import {parseBrowserPackageSourceMapUrl} from "./source-map"
 
 /** Возвращает текущее доказанное release state только без query parameters. */
 export async function getRelease(request: Request) {
@@ -23,9 +25,7 @@ export async function getPackage(request: Request) {
   const requested = sourceMap ?? artifactRequest
   if (requested === null) return new Response(null, {status: 404})
 
-  const name = requested.version === null
-    ? await buildablePackage(requested.name, requested.env)
-    : await knownPackage(requested.name)
+  const name = await knownPackage(requested.name)
   if (name === null) {
     debug("browser artifact не найден", {
       artifact: artifactRequest?.artifact ?? null,

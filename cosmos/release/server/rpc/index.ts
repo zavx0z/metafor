@@ -1,10 +1,12 @@
+import {release} from "../services"
+const {readDesiredBrowserArtifacts} = release
 import {
   parseReleaseCurrentMessage,
   releaseDeltaMessage,
 } from "../../shared/protocol"
-import type {BrowserPackageArtifactIdentity} from "../../shared/artifact-integrity"
+import type {BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
 import {releaseDelta} from "../release/delta"
-import {readDesiredBrowserArtifacts} from "../release/desired"
+
 
 /** Данные одного подключённого release env `service`. */
 export interface RpcSocketData {

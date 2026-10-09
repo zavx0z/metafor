@@ -4,8 +4,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Сценарии подготовки и публикации согласованного состава версий пакетов",
+  "description": "Подготовка и публикация согласованного состава версий пакетов",
   "scripts": {
-    "test": "bun test spec"
+    "test": "bun test spec",
+    "typecheck": "tsc --project tsconfig.json --pretty false"
+  },
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "@metafor/tech-build": "workspace:*"
   }
 }

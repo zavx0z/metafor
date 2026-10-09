@@ -9,7 +9,7 @@ import {evaluate} from "./fixture/cdp"
 import {launchChrome, openPage, navigate, waitForNavigation, observeNavigation, observeDiagnostics,
   type ChromeFixture, type ChromePage, type WorkerTarget} from "./fixture/chrome"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
-import type {NonRootPackageArtifactKey} from "../release/shared/artifact"
+import type {NonRootPackageArtifactKey} from "@metafor/tech-build/identity"
 
 setDefaultTimeout(180_000)
 
@@ -103,7 +103,8 @@ async function buildBrowserFixtures(
     "--conditions=cosmos:server",
     "--conditions=internal:server",
     "-e",
-    `import {buildPackage} from "./release/server"
+    `import {builder} from "./release/server/services"
+const {buildPackage} = builder
 const plans=${JSON.stringify(input)}
 console.log(JSON.stringify(await Promise.all(plans.map(async ({name,env,version,path})=>{
   const result = name === "@internal/visual" && env === "main"
@@ -456,31 +457,27 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
     observeNavigation(page, () => { navigations += 1 })
 
     const reload = waitForNavigation(page)
-    const transactionStarted = (async () => {
-      let interrupted: CacheSnapshot | undefined
-      await waitUntil(async () => {
-        const snapshot = await cacheSnapshot(page)
-        if (!snapshot.transaction?.includes("/transaction")) return false
-        interrupted = snapshot
-        return true
-      })
-      return interrupted!
-    })()
     const build = await requestBuild(server.root, [
       {name: "@cosmos/release", change: "patch"},
       {name: "@cosmos/release", change: "patch"},
     ])
     expect(build.status).toBe(200)
 
-    await Bun.sleep(300)
+    await waitUntil(async () => {
+      const state = await (await fetch(new URL("/__tests/state", server.root))).json() as {updateFetchFailures: number}
+      return state.updateFetchFailures > 0
+    })
     expect(navigations).toBe(0)
     expect(await updateSources(page)).toEqual(sourceBefore)
-    const interrupted = await transactionStarted
+    const interrupted = await cacheSnapshot(page)
+    expect(interrupted.transaction).toContain("/transaction")
     expect(Object.keys(interrupted).filter((name) => name === "transaction")).toEqual([
       "transaction",
     ])
     expect(Object.keys(interrupted).every((name) => !name.includes(":release:"))).toBe(true)
 
+    const retry = await fetch(new URL("/__tests/retry", server.root), {method: "POST"})
+    expect(retry.status).toBe(204)
     expect(await reload).not.toBeNull()
     await waitUntil(async () => {
       try {
@@ -1141,22 +1138,34 @@ async function waitForRequestCount(page: ChromePage, field: "releaseService", co
   }, {field, count}), 30_000)
 }
 
+/** CDP читает существующие кеши: caches.open() мог заново создать удалённый transaction. */
 async function cacheSnapshot(page: ChromePage): Promise<CacheSnapshot> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      return await evaluate(page.session, async () => Object.fromEntries(await Promise.all(
-        (await caches.keys()).sort().map(async (name) => [
-          name,
-          (await (await caches.open(name)).keys())
-            .map((request) => {
-              const url = new URL(request.url)
-              return `${url.pathname}${url.search}`
-            })
-            .sort(),
-        ]),
-      )))
+      const {frameTree} = await page.session.send("Page.getFrameTree")
+      const {storageKey} = await page.session.send("Storage.getStorageKeyForFrame", {frameId: frameTree.frame.id})
+      const {caches} = await page.session.send("CacheStorage.requestCacheNames", {storageKey})
+      const snapshot: CacheSnapshot = {}
+      for (const cache of caches) {
+        const requests: string[] = []
+        let skipCount = 0
+        while (true) {
+          const result = await page.session.send("CacheStorage.requestEntries", {
+            cacheId: cache.cacheId, skipCount, pageSize: 1000,
+          })
+          requests.push(...result.cacheDataEntries.map(({requestURL}) => {
+            const url = new URL(requestURL)
+            return `${url.pathname}${url.search}`
+          }))
+          skipCount += result.cacheDataEntries.length
+          if (skipCount >= result.returnCount || result.cacheDataEntries.length === 0) break
+        }
+        snapshot[cache.cacheName] = requests.sort()
+      }
+      return snapshot
     } catch (error) {
-      if (!String(error).includes("Execution context was destroyed") || attempt === 4) throw error
+      // Navigation или cleanup может удалить перечисленный cache до чтения entries.
+      if (attempt === 4) throw error
       await Bun.sleep(50)
     }
   }

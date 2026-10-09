@@ -37,7 +37,7 @@ test("root plus raw publication-shaped package build", async () => {
     mock.module(import.meta.resolve("../../release/server/shared/paths"), () => mockedPaths)
     mock.module(import.meta.resolve("../../release/server/shared/paths.ts"), () => mockedPaths)
 
-    const {buildPackage} = await import("../../release/server/package/build")
+    const {buildPackage} = (await import("../../release/server/services")).builder
     const result = await buildPackage("@internal/raw", {
       env: "main",
       outdir,

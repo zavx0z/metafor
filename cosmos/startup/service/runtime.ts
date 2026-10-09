@@ -1,9 +1,4 @@
-import type {
-  ActivePackage,
-  ReleaseDependencies,
-  ReleaseLoader,
-  ReleaseRuntime,
-} from "@cosmos/release"
+import type {ActivePackage, ReleaseDependencies, ReleaseLoader, ReleaseRuntime} from "@cosmos/release"
 import {
   browserFunctionArtifact,
   createBrowserFunctionExecutor,

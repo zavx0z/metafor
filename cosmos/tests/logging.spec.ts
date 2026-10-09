@@ -14,8 +14,8 @@ import {
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
 const helperScopes = new Map([
   ["release/server/http/delivery.ts", "[@cosmos/release:server:delivery]"],
-  ["release/server/package/build.ts", "[@cosmos/release:server:build]"],
-  ["release/server/release/publication.ts", "[@cosmos/release:server:update]"],
+  ["../tech/build/build.ts", "[@metafor/tech-build]"],
+  ["../tech/release/publication.ts", "[@metafor/tech-release]"],
   ["release/server/release/update.ts", "[@cosmos/release:server:update]"],
 ])
 
@@ -53,14 +53,14 @@ test("UPD-003.16 assigns every production diagnostic to one tested story", async
 test("UPD-003.16 keeps all diagnostics structured and owner-scoped", async () => {
   const diagnostics = await productionDiagnostics()
   for (const entry of diagnostics) {
-    expect(entry.scope).toMatch(/^\[@(?:cosmos|internal)\/[a-z-]+(?::[a-z-]+)*\]$/)
+    expect(entry.scope).toMatch(/^\[@(?:cosmos|internal|metafor)\/[a-z-]+(?::[a-z-]+)*\]$/)
     expect(entry.event.length).toBeGreaterThan(0)
     expect(entry.details.length).toBeGreaterThan(0)
   }
 })
 
 async function productionDiagnostics() {
-  const files = await sourceFiles(cosmos)
+  const files = [...await sourceFiles(cosmos), ...["build/build.ts", "build/adapter.ts", "release/publication.ts"].map((file) => join(cosmos, "../tech", file))]
   return (await Promise.all(files.map(readDiagnostics))).flat()
 }
 
@@ -71,7 +71,7 @@ async function sourceFiles(root: string): Promise<string[]> {
     if (entry.name === "dist" || entry.name === "node_modules" || entry.name === "tests") continue
     const path = join(root, entry.name)
     if (entry.isDirectory()) files.push(...await sourceFiles(path))
-    else if (entry.isFile() && entry.name.endsWith(".ts")) files.push(path)
+    else if (entry.isFile() && /\.tsx?$/.test(entry.name)) files.push(path)
   }
   return files
 }

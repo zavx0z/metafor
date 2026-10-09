@@ -1,5 +1,5 @@
 import {join, resolve} from "node:path"
-import {artifactIntegrity} from "../../shared/package/integrity"
+import {artifactIntegrity} from "@metafor/tech-build/identity"
 import type {ServerProcessArtifact} from "./executor"
 
 interface PackageManifest {

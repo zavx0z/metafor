@@ -1,5 +1,5 @@
-import type {BrowserPackageArtifactIdentity} from "../../shared/artifact-integrity"
-import {browserPackageIdentitySlot} from "../../shared/artifact-url"
+import type {BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
+import {browserPackageIdentitySlot} from "@metafor/tech-build/identity"
 import type {ReleaseDelta} from "../../shared/protocol"
 
 /** Сравнивает полный browser current с полным server desired и возвращает только delta. */

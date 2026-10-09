@@ -55,7 +55,7 @@ test("release workspace fixture", async () => {
     }
 
     if (scenario === "parallel-typecheck" || scenario === "failed-typecheck") {
-      const {buildPackage} = await import("../../release/server/package/build")
+      const {buildPackage} = (await import("../../release/server/services")).builder
       const outputs = [join(root, "main.js"), join(root, "server.js")] as const
       const results = await Promise.all([
         buildPackage("@internal/visual", {env: "main", artifact: outputs[0]}),
@@ -79,7 +79,7 @@ test("release workspace fixture", async () => {
       || scenario === "missing-map-recovery"
       || scenario === "conflicting-recovery"
     ) {
-      const {recoverPublication} = await import("../../release/server/release/publication")
+      const {recoverPublication} = (await import("../../release/server/services")).release
       const before = await artifactStamps()
       let result: Awaited<ReturnType<typeof recoverPublication>> | null = null
       let error: string | null = null
@@ -272,7 +272,7 @@ async function writeArtifact(path: string, version: string, env: string) {
 }
 
 async function prepareRecoveryArtifacts() {
-  const {buildPackage} = await import("../../release/server/package/build")
+  const {buildPackage} = (await import("../../release/server/services")).builder
   const composition: Array<readonly [string, string, "main" | "service" | "server"]> = [
     ["@cosmos/release", "release", "main"],
     ["@cosmos/release", "release", "service"],
@@ -299,6 +299,10 @@ async function prepareRecoveryArtifacts() {
       writeSource(`${published}.map`, Bun.file(`${staged}.map`).arrayBuffer()),
     ]
   }))
+  if (scenario !== "cold-recovery") {
+    const {release} = await import("../../release/server/services")
+    await release.recoverPublication()
+  }
 }
 
 function isRecoveryScenario() {
@@ -329,8 +333,8 @@ async function artifactStamps() {
 }
 
 async function measureDocumentationDrift() {
-  const {buildPackage} = await import("../../release/server/package/build")
-  const {packageArtifact} = await import("../../release/server/package/manifest")
+  const {buildPackage} = (await import("../../release/server/services")).builder
+  const {packageArtifact} = await import("@metafor/tech-build")
   const result = await buildPackage("@cosmos/release", {
     env: "main",
     artifact: join(cosmos, ".fixture-publication", "0.js"),

@@ -2,15 +2,15 @@ import {expect, test} from "bun:test"
 import {existsSync} from "node:fs"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
-import {satisfiesWorkspaceRange} from "../release/server"
+import {satisfiesWorkspaceRange} from "@metafor/tech-release"
 
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
 test("LOAD-001 keeps release policy and WebSocket outside immutable startup", async () => {
   const [packageUrl, packageBuild, startupMain, startupService, startupRuntime, releaseCache, startupLoader, releaseService, releaseLoader, transaction, html] =
     await Promise.all([
-    Bun.file(join(cosmos, "shared/package/url.ts")).text(),
-    Bun.file(join(cosmos, "release/server/package/manifest.ts")).text(),
+    Bun.file(join(cosmos, "shared/package/cache.ts")).text(),
+    Bun.file(join(cosmos, "release/server/http/headers.ts")).text(),
     Bun.file(join(cosmos, "startup/main/index.ts")).text(),
     Bun.file(join(cosmos, "startup/service/index.ts")).text(),
     Bun.file(join(cosmos, "startup/service/runtime.ts")).text(),
@@ -118,7 +118,7 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
       Bun.file(join(cosmos, "release/server/runtime.ts")).text(),
       Bun.file(join(cosmos, "release/server/http/delivery.ts")).text(),
       Bun.file(join(cosmos, "release/server/release/update.ts")).text(),
-      Bun.file(join(cosmos, "release/server/package/build.ts")).text(),
+      Bun.file(join(cosmos, "../tech/build/build.ts")).text(),
       Bun.file(join(cosmos, "release/server/rpc/index.ts")).text(),
       Bun.file(join(cosmos, "release/service/rpc/index.ts")).text(),
       Bun.file(join(cosmos, "release/service/runtime/index.ts")).text(),
@@ -169,14 +169,14 @@ test("UPD-003.12 keeps package, release and Service Worker subjects in canonical
   for (const source of [
     "static/index.html",
     "static/manifest.json",
-    "shared/package/environment.ts",
-    "shared/package/integrity.ts",
-    "shared/package/url.ts",
+    "../tech/build/identity/environment.ts",
+    "../tech/build/identity/integrity.ts",
+    "shared/package/cache.ts",
     "release/shared/protocol.ts",
-    "release/server/package/build.ts",
-    "release/server/release/publication.ts",
+    "../tech/build/build.ts",
+    "../tech/release/publication.ts",
     "release/server/http/delivery.ts",
-    "release/server/shared/contracts.ts",
+    "../tech/build/contracts.ts",
     "release/service/index.ts",
     "release/service/runtime/contract.ts",
     "release/service/runtime/index.ts",

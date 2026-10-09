@@ -20,7 +20,7 @@ test("multi-entry package build fixture", async () => {
     mock.module(import.meta.resolve("../../release/server/shared/paths"), () => mockedPaths)
     mock.module(import.meta.resolve("../../release/server/shared/paths.ts"), () => mockedPaths)
 
-    const {buildPackage} = await import("../../release/server/package/build")
+    const {buildPackage} = (await import("../../release/server/services")).builder
     const optionScenario = process.env.PACKAGE_MULTI_OPTIONS ?? "valid"
     const buildOptions = optionScenario === "missing-version"
       ? {env: "main" as const, outdir}

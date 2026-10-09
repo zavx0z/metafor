@@ -29,3 +29,6 @@ pkg/visual/playground/.edge-examples/
 /cluster/
 .tls/
 .idea/
+
+# Локальные доказательства подготовки и сохранённые immutable bytes выпуска
+cosmos/.release/

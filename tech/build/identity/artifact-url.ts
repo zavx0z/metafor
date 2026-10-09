@@ -1,12 +1,5 @@
-import {
-  isBrowserPackageEnvironment,
-  type BrowserPackageEnvironment,
-} from "../../shared/package/environment"
-import {
-  browserPackageUrl,
-  parseBrowserPackageUrl,
-  type BrowserPackageUrl,
-} from "../../shared/package/url"
+import {isBrowserPackageEnvironment, type BrowserPackageEnvironment} from "./environment"
+import {browserPackageUrl, parseBrowserPackageUrl, type BrowserPackageUrl} from "./url"
 import {
   generatedPackageArtifactPrefix,
   isGeneratedPackageArtifactKey,
@@ -18,7 +11,7 @@ import {
   type PackageArtifactKey,
 } from "./artifact"
 
-const packageNamePattern = /^@(cosmos|internal|metafor)\/[^/]+$/
+const packageNamePattern = /^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
 /** Canonical root, public export or private generated artifact URL. */
@@ -45,10 +38,11 @@ export function browserPackageArtifactUrl(
   if (version !== undefined && !versionPattern.test(version))
     throw new Error(`Некорректная версия browser package: ${version}`)
   if (isGeneratedPackageArtifactKey(artifact)) {
-    if (version === undefined) throw new Error("Generated browser artifact requires an exact version")
-    return `${browserPackageGeneratedPublicPath(name, env, version)}${
-      artifact.slice(generatedPackageArtifactPrefix.length)
-    }`
+    if (version === undefined)
+      throw new Error("Generated browser artifact requires an exact version")
+    return `${browserPackageGeneratedPublicPath(name, env, version)}${artifact.slice(
+      generatedPackageArtifactPrefix.length,
+    )}`
   }
 
   const root = browserPackageUrl(name, env, version)
@@ -70,12 +64,14 @@ export function parseBrowserPackageArtifactUrl(url: URL): BrowserPackageArtifact
       parsed.artifact,
       parsed.version,
     )
-    return url.pathname === canonical ? {
-      name: parsed.name,
-      env: parsed.env,
-      artifact: parsed.artifact,
-      version: parsed.version,
-    } : null
+    return url.pathname === canonical
+      ? {
+          name: parsed.name,
+          env: parsed.env,
+          artifact: parsed.artifact,
+          version: parsed.version,
+        }
+      : null
   }
 
   const rootUrl = new URL(`/${parsed.name}${url.search}`, url)
@@ -88,10 +84,12 @@ export function parseBrowserPackageArtifactUrl(url: URL): BrowserPackageArtifact
     parsed.artifact,
     rootIdentity.version ?? undefined,
   )
-  return `${url.pathname}${url.search}` === canonical ? {
-    ...rootIdentity,
-    artifact: parsed.artifact,
-  } : null
+  return `${url.pathname}${url.search}` === canonical
+    ? {
+        ...rootIdentity,
+        artifact: parsed.artifact,
+      }
+    : null
 }
 
 /** Stable public-export slot; generated outputs deliberately have no stable URL. */
@@ -112,7 +110,8 @@ export function browserPackageGeneratedPublicPath(
   version: string,
 ) {
   browserPackageUrl(name, env, version)
-  if (!versionPattern.test(version)) throw new Error(`Некорректная версия browser package: ${version}`)
+  if (!versionPattern.test(version))
+    throw new Error(`Некорректная версия browser package: ${version}`)
   return `/${name}/.cosmos/${env}/${version}/`
 }
 
@@ -126,7 +125,8 @@ export function browserPackageIdentityUrl(
   }>,
 ) {
   const artifact = readPackageArtifactKey(identity.artifact)
-  if (artifact === null) throw new Error(`Некорректный artifact browser package: ${String(identity.artifact)}`)
+  if (artifact === null)
+    throw new Error(`Некорректный artifact browser package: ${String(identity.artifact)}`)
   return browserPackageArtifactUrl(identity.name, identity.env, artifact, identity.version)
 }
 
@@ -139,7 +139,8 @@ export function browserPackageIdentitySlot(
   }>,
 ) {
   const artifact = readPackageArtifactKey(identity.artifact)
-  if (artifact === null) throw new Error(`Некорректный artifact browser package: ${String(identity.artifact)}`)
+  if (artifact === null)
+    throw new Error(`Некорректный artifact browser package: ${String(identity.artifact)}`)
   return `${identity.name}\u0000${identity.env}\u0000${artifact}`
 }
 
@@ -156,12 +157,13 @@ function packageArtifactPath(pathname: string) {
     const version = segments[4]
     const artifact = `${generatedPackageArtifactPrefix}${segments.slice(5).join("/")}`
     if (
-      typeof env !== "string"
-      || !isBrowserPackageEnvironment(env)
-      || typeof version !== "string"
-      || !versionPattern.test(version)
-      || !isGeneratedPackageArtifactKey(artifact)
-    ) return null
+      typeof env !== "string" ||
+      !isBrowserPackageEnvironment(env) ||
+      typeof version !== "string" ||
+      !versionPattern.test(version) ||
+      !isGeneratedPackageArtifactKey(artifact)
+    )
+      return null
     return {
       name,
       env,
@@ -172,7 +174,5 @@ function packageArtifactPath(pathname: string) {
   }
 
   const artifact = `./${segments.slice(2).join("/")}`
-  return isPackageExportSubpath(artifact)
-    ? {name, artifact, generated: false} as const
-    : null
+  return isPackageExportSubpath(artifact) ? ({name, artifact, generated: false} as const) : null
 }

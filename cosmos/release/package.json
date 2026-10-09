@@ -19,7 +19,9 @@
   },
   "dependencies": {
     "@zavx0z/immersive-engine": "^0.0.0",
-    "@internal/visual": "workspace:^0.1.10"
+    "@internal/visual": "workspace:^0.1.10",
+    "@metafor/tech-build": "workspace:*",
+    "@metafor/tech-release": "workspace:*"
   },
   "devDependencies": {
     "@types/serviceworker": "^0.0.200"

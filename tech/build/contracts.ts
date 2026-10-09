@@ -1,18 +1,8 @@
-import type {
-  BrowserPackageEnvironment,
-  PackageEnvironment,
-} from "../../../shared/package/environment"
-import type {BrowserPackageIdentity} from "../../../shared/package/integrity"
-import type {
-  PackageArtifactKey,
-  PublicPackageArtifactKey,
-} from "../../shared/artifact"
+import type {PackageEnvironment} from "./identity/environment"
+import type {PackageArtifactKey, PublicPackageArtifactKey} from "./identity/artifact"
 
-/** Cosmos package, который предоставляет browser artifact. */
+/** Имя пакета, для которого подготавливаются артефакты. */
 export type BuildablePackage = string
-
-/** Package, который входит в сменяемый browser release. */
-export type ReleasablePackage = string
 
 export interface PackageEnvironmentExport {
   env: PackageEnvironment
@@ -81,7 +71,6 @@ export interface PackageOwner {
   typecheck: string
   /** Current package SemVer used when caller does not stage a future version. */
   version: string
-  headers: Record<string, string>
 }
 
 /** Одна output edge только для проверки текущего build process. */
@@ -117,36 +106,7 @@ export interface PackageBuildReport {
   publicArtifactUrls: readonly string[]
 }
 
-/** Разрешённый вид следующего SemVer одного package. */
-export type VersionChange = "patch" | "minor" | "major"
-
-/** Внешнее намерение изменить package без готового номера версии. */
-export interface PackageChange {
-  name: ReleasablePackage
-  change: VersionChange
-}
-
-/** Точное доказанное состояние browser artifact. */
-export interface ReleasedPackage extends BrowserPackageIdentity {
-  name: ReleasablePackage
-  env: BrowserPackageEnvironment
-}
-
-/** Результат сборки и назначения следующей версии package. */
-export interface PackageReleaseResult extends PackageBuildResult {
-  change: VersionChange
-  previousVersion: string
-  version: string
-}
-
-/** Итог одной серверной транзакции package group. */
-export interface PackageReleaseResultSet {
-  success: boolean
-  results: PackageReleaseResult[]
-  packages: ReleasedPackage[]
-}
-
-/** Минимальная форма package manifest, используемая release server. */
+/** Минимальная форма manifest, используемая сборщиком. */
 export interface PackageManifest {
   name?: unknown
   version?: unknown

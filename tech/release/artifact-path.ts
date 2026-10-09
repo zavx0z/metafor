@@ -7,12 +7,12 @@ import {
   rootPackageArtifact,
   type PackageArtifactKey,
   type PackageExportSubpath,
-} from "../../shared/artifact"
-import type {PackageOwner} from "../shared/contracts"
-import {packagePublicArtifactOutput} from "../package/source"
+} from "@metafor/tech-build/identity"
+import type {PackageOwner} from "@metafor/tech-build"
+import {packagePublicArtifactOutput} from "@metafor/tech-build"
 
-export type PackageArtifactStorageOwner = Pick<PackageOwner, "root" | "env">
-  & Partial<Pick<PackageOwner, "artifact" | "sources">>
+export type PackageArtifactStorageOwner = Pick<PackageOwner, "root" | "env"> &
+  Partial<Pick<PackageOwner, "artifact" | "sources">>
 
 /** Historical versioned path derived from one mutable package build output. */
 export function legacyVersionedArtifact(artifact: string, version: string) {
@@ -32,11 +32,7 @@ export function versionedPackageGraphDirectory(
   owner: Pick<PackageOwner, "root" | "env">,
   version: string,
 ) {
-  return join(
-    dirname(canonicalVersionedRootArtifact(owner, version)),
-    ".cosmos",
-    owner.env,
-  )
+  return join(dirname(canonicalVersionedRootArtifact(owner, version)), ".cosmos", owner.env)
 }
 
 /** Resolves one logical identity to its deterministic immutable storage path. */
@@ -94,7 +90,7 @@ export async function resolveVersionedPackageArtifactPath(
   const current = owner.sources?.some((candidate) => candidate.artifact === artifact)
     ? versionedPackageArtifactPath(owner as PackageOwner, version, artifact)
     : null
-  if (current !== null && await Bun.file(current).exists()) return current
+  if (current !== null && (await Bun.file(current).exists())) return current
 
   const directory = join(
     dirname(dirname(versionedPackageGraphDirectory(owner, version))),
@@ -104,14 +100,18 @@ export async function resolveVersionedPackageArtifactPath(
   )
   let candidates
   try {
-    candidates = (await readdir(directory, {withFileTypes: true}))
-      .filter((entry) => entry.isFile()
-        && /^\.cosmos-artifact(?:\.[A-Za-z0-9._+-]+)?$/.test(entry.name)
-        && !entry.name.endsWith(".js.map"))
+    candidates = (await readdir(directory, {withFileTypes: true})).filter(
+      (entry) =>
+        entry.isFile() &&
+        /^\.cosmos-artifact(?:\.[A-Za-z0-9._+-]+)?$/.test(entry.name) &&
+        !entry.name.endsWith(".js.map"),
+    )
   } catch {
     return null
   }
   if (candidates.length > 1)
-    throw new Error(`Immutable public artifact ${artifact}@${version} has multiple physical aliases`)
+    throw new Error(
+      `Immutable public artifact ${artifact}@${version} has multiple physical aliases`,
+    )
   return candidates[0] === undefined ? null : join(directory, candidates[0].name)
 }

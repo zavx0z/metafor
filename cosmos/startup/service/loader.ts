@@ -1,11 +1,6 @@
-import {verifyPackageResponse, type BrowserPackageIdentity} from "../../shared/package/integrity"
-import {
-  browserPackageCache,
-  browserPackageSlot,
-  browserPackageUrl,
-  parseBrowserPackageUrl,
-  type BrowserPackageUrl,
-} from "../../shared/package/url"
+import {verifyPackageResponse, type BrowserPackageIdentity} from "@metafor/tech-build/identity"
+import {browserPackageSlot, browserPackageUrl, parseBrowserPackageUrl, type BrowserPackageUrl} from "@metafor/tech-build/identity"
+import {browserPackageCache} from "../../shared/package/cache"
 
 /** Проверяет, что полученный HTTP response можно использовать дальше. */
 export function verify(response: Response) {

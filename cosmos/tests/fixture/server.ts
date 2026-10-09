@@ -1,23 +1,11 @@
+import {builder} from "../../release/server/services"
+const {buildPackage} = builder
 import {dirname, join} from "node:path"
-import {
-  buildPackage,
-  closeRpc,
-  messageRpc,
-  openRpc,
-  packageArtifactIdentityHeaders,
-  packageChanges,
-  parseBrowserPackageArtifactUrl,
-  releaseChangedMessage,
-  rpcServiceTopic,
-  upgradeRpc,
-  type BrowserPackageArtifactIdentity,
-  type NonRootPackageArtifactKey,
-  type RpcSocketData,
-  type ReleasablePackage,
-  type VersionChange,
-} from "../../release/server"
-import {artifactIntegrity, packageIdentityHeaders} from "../../shared/package/integrity"
-import type {BrowserPackageEnvironment} from "../../shared/package/environment"
+import {closeRpc, messageRpc, openRpc, packageChanges, releaseChangedMessage, rpcServiceTopic, upgradeRpc, type RpcSocketData} from "../../release/server"
+import {packageArtifactIdentityHeaders, parseBrowserPackageArtifactUrl, type BrowserPackageArtifactIdentity, type NonRootPackageArtifactKey} from "@metafor/tech-build/identity"
+import {type ReleasablePackage, type VersionChange} from "@metafor/tech-release"
+import {artifactIntegrity, packageIdentityHeaders} from "@metafor/tech-build/identity"
+import type {BrowserPackageEnvironment} from "@metafor/tech-build/identity"
 
 type Fault =
   | "none"
@@ -74,6 +62,7 @@ for (const {name, env, artifact, version} of artifactConfig.values()) {
 }
 let buildRequests = 0
 let updateFetchFailures = 0
+const updateRetry = Promise.withResolvers<void>()
 let connections = 0
 const sockets = new Set<Bun.ServerWebSocket<RpcSocketData>>()
 
@@ -179,7 +168,11 @@ const server = Bun.serve<RpcSocketData>({
     },
     "/sw": (request: Request, bunServer: Bun.Server<RpcSocketData>) =>
       upgradeRpc(request, bunServer),
-    "/__tests/state": () => Response.json({connections, fault, requests}),
+    "/__tests/state": () => Response.json({connections, fault, requests, updateFetchFailures}),
+    "/__tests/retry": {POST: () => {
+      updateRetry.resolve()
+      return new Response(null, {status: 204})
+    }},
     "/__tests/rpc/close": {
       POST: () => {
         for (const socket of sockets) socket.close(1000, "fixture server restart")
@@ -329,10 +322,10 @@ async function fixtureArtifactResponse(request: Request) {
         && (revisions[artifact.name] ?? 0) > 0
         && artifact.env === "service"
         && url.searchParams.has("version")
-        && updateFetchFailures++ === 0
       ) {
-        await Bun.sleep(500)
-        return new Response("Update artifact unavailable", {status: 503})
+        if (updateFetchFailures++ === 0)
+          return new Response("Update artifact unavailable", {status: 503})
+        await updateRetry.promise
       }
       return await artifactResponse(artifact.name, artifact.env, undefined, selectedVersion)
     }

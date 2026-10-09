@@ -4,18 +4,14 @@ import {mkdtemp, rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {fileURLToPath} from "node:url"
-import {
-  publishImmutableArtifact,
-  restoreManifest,
-  writeRootVersions,
-} from "../release/server"
+import {publishImmutableArtifact, restoreManifest, writeRootVersions} from "@metafor/tech-release"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 setDefaultTimeout(30_000)
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
 test("root intent write precedes build and child writes in the host transaction", async () => {
-  const source = await Bun.file(new URL("../release/server/release/publication.ts", import.meta.url)).text()
+  const source = await Bun.file(new URL("../../tech/release/publication.ts", import.meta.url)).text()
   const server = await Bun.file(new URL("../release/server/runtime.ts", import.meta.url)).text()
   const rootWrite = source.indexOf("await writeRootVersions(")
   const build = source.indexOf("const results = await buildPlans(plans)", rootWrite)
@@ -76,7 +72,7 @@ test("immutable publication reuses equal bytes and rejects a conflict", async ()
   }
 })
 
-test("cold recovery reproduces and reuses every converged exact artifact", async () => {
+test("cold recovery prepares missing initial versions and reuses ready artifacts", async () => {
   const state = await releaseWorkspaceState(cosmos)
   try {
     const fixture = await runReleaseFixture("cold-recovery")
@@ -99,11 +95,7 @@ test("cold recovery reproduces and reuses every converged exact artifact", async
       expect(artifact.sha256).toMatch(/^[0-9a-f]{64}$/)
       expect(artifact.size).toBeGreaterThan(0)
     }
-    const started = recoveryOutput.indexOf("восстановление публикации начато")
-    const completed = recoveryOutput.indexOf("восстановление публикации завершено")
-    expect(started).toBeGreaterThan(-1)
-    expect(completed).toBeGreaterThan(started)
-    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
+    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(3)
   } finally {
     expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
@@ -115,7 +107,7 @@ test("converged publication state does not emit recovery diagnostics", async () 
     const {stdout, result} = await runReleaseFixture("converged-recovery")
     const recoveryOutput = afterRecoveryMarker(stdout)
     expect(result).toEqual(expect.objectContaining({error: null, rewritten: []}))
-    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
+    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(0)
     expect(recoveryOutput).not.toContain("восстановление публикации начато")
     expect(recoveryOutput).not.toContain("восстановление публикации завершено")
   } finally {
@@ -134,7 +126,7 @@ test("documentation-only recovery keeps the exact map of identical executable co
       rewritten: [],
       documentationDrift: {javascript: false, sourceMap: true},
     }))
-    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
+    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(0)
     expect(recoveryOutput).not.toContain("восстановление публикации начато")
     expect(recoveryOutput).not.toContain("восстановление публикации завершено")
   } finally {
@@ -142,7 +134,7 @@ test("documentation-only recovery keeps the exact map of identical executable co
   }
 })
 
-test("recovery restores a missing exact map from the staged build", async () => {
+test("recovery restores a missing exact map from saved bytes", async () => {
   const state = await releaseWorkspaceState(cosmos)
   try {
     const {stdout, result} = await runReleaseFixture("missing-map-recovery")
@@ -153,26 +145,20 @@ test("recovery restores a missing exact map from the staged build", async () => 
       rewritten: [],
       missingSourceMap: {restored: true, matchesStaged: true},
     }))
-    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(5)
-    expect(recoveryOutput).toContain("восстановление публикации начато")
-    expect(recoveryOutput).toContain("восстановление публикации завершено")
+    expect(occurrences(recoveryOutput, "сборка artifact начата")).toBe(0)
+    expect(recoveryOutput).not.toContain("сборка artifact начата")
+    expect(result.error).toBeNull()
   } finally {
     expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
 })
 
-test("cold recovery rejects changed source behind a complete exact composition", async () => {
+test("cold recovery ignores changed sources of a published version", async () => {
   const state = await releaseWorkspaceState(cosmos)
   try {
-    const {stdout, output, result} = await runReleaseFixture("conflicting-recovery")
-    expect(result).toEqual(expect.objectContaining({
-      artifacts: [],
-      recovered: [],
-      rewritten: [],
-    }))
-    expect((result as {error: string | null}).error).toContain("Immutable artifact conflict")
-    expect(occurrences(afterRecoveryMarker(stdout), "сборка artifact начата")).toBe(5)
-    expect(output).toContain("восстановление публикации завершилось с ошибкой")
+    const {stdout, result} = await runReleaseFixture("conflicting-recovery")
+    expect(result).toEqual(expect.objectContaining({error: null, recovered: [], rewritten: []}))
+    expect(occurrences(afterRecoveryMarker(stdout), "сборка artifact начата")).toBe(0)
   } finally {
     expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }

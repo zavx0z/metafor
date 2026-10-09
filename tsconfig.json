@@ -70,6 +70,7 @@
     "quantum/dark/checkpoint/dissolve-candidate.spec.ts",
     "quantum/tests/agent-session.integration.spec.ts",
     "quantum/tests/graph/bulk-projection.spec.ts",
-    "quantum/tests/graph/laboratory.spec.ts"
+    "quantum/tests/graph/laboratory.spec.ts",
+    "tech/build/spec/fixture/**/*"
   ]
 }

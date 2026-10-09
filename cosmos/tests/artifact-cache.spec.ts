@@ -1,13 +1,7 @@
 import {expect, test} from "bun:test"
-import {artifactIntegrity} from "../shared/package/integrity"
-import {
-  packageArtifactIdentityHeaders,
-  type BrowserPackageArtifactIdentity,
-} from "../release/shared/artifact-integrity"
-import {
-  browserPackageArtifactUrl,
-  parseBrowserPackageArtifactUrl,
-} from "../release/shared/artifact-url"
+import {artifactIntegrity} from "@metafor/tech-build/identity"
+import {packageArtifactIdentityHeaders, type BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
+import {browserPackageArtifactUrl, parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
 import {
   cacheReleaseArtifact,
   readReleaseArtifact,

@@ -33,10 +33,7 @@ export type PackageProgrammaticBuildPlan = PackageSingleBuildPlan | PackageMulti
 
 Entry point, target, format, external и outfile всегда принадлежат package.
 */
-export function packageBuildCommand(
-  script: string,
-  environment = Bun.env.NODE_ENV,
-): string[] {
+export function packageBuildCommand(script: string, environment = Bun.env.NODE_ENV): string[] {
   const command = script.trim().split(/\s+/)
   if (command[0] !== "bun" || command[1] !== "build")
     throw new Error("Package build script must be a direct `bun build` command")
@@ -59,8 +56,9 @@ export function packageBuildCommand(
     development.push(argument)
   }
 
-  const output = development.findIndex((argument) =>
-    argument.startsWith("--outfile") || argument.startsWith("--outdir"))
+  const output = development.findIndex(
+    (argument) => argument.startsWith("--outfile") || argument.startsWith("--outdir"),
+  )
   development.splice(output === -1 ? development.length : output, 0, "--sourcemap=inline")
   return development
 }

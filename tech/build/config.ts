@@ -1,7 +1,7 @@
 import {stat, realpath} from "node:fs/promises"
 import {dirname, isAbsolute, join, relative, resolve} from "node:path"
-import type {PackageEnvironment} from "../../../shared/package/environment"
-import type {PackageManifest} from "../shared/contracts"
+import type {PackageEnvironment} from "./identity/environment"
+import type {PackageManifest} from "./contracts"
 
 const buildPluginLimit = 16
 const supportedLoaders = new Set<Bun.Loader>([
@@ -56,7 +56,7 @@ export async function readPackageBuildConfigurations(
 ): Promise<ReadonlyMap<PackageEnvironment, PackageBuildEnvironmentConfiguration>> {
   const path = join(root, "bunfig.toml")
   const source = Bun.file(path)
-  if (!await source.exists()) return new Map()
+  if (!(await source.exists())) return new Map()
 
   const parsed = record(Bun.TOML.parse(await source.text()), "bunfig.toml must contain tables")
   const loaders = parseLoaders(parsed.loader)
@@ -101,8 +101,9 @@ export async function readPackageBuildConfigurations(
     if (new Set(specifiers).size !== specifiers.length)
       throw new Error(`bunfig.toml ${environment} plugins must be unique`)
 
-    const plugins = await Promise.all(specifiers.map((specifier) =>
-      resolveBuildPlugin(root, manifest, specifier)))
+    const plugins = await Promise.all(
+      specifiers.map((specifier) => resolveBuildPlugin(root, manifest, specifier)),
+    )
     if (new Set(plugins).size !== plugins.length)
       throw new Error(`bunfig.toml ${environment} plugins resolve to duplicate modules`)
     configurations.set(environment, Object.freeze({loaders, plugins: Object.freeze(plugins)}))
@@ -125,11 +126,7 @@ function parseLoaders(value: unknown): Readonly<Record<string, Bun.Loader>> {
   return Object.freeze(loaders)
 }
 
-async function resolveBuildPlugin(
-  root: string,
-  manifest: PackageManifest,
-  specifier: string,
-) {
+async function resolveBuildPlugin(root: string, manifest: PackageManifest, specifier: string) {
   const canonicalRoot = await realpath(root)
   if (specifier.startsWith("./")) {
     if (specifier.split("/").includes("node_modules"))
@@ -178,7 +175,7 @@ async function owningPackageRoot(path: string, name: string) {
   while (true) {
     const manifest = Bun.file(join(directory, "package.json"))
     if (await manifest.exists()) {
-      const value = await manifest.json() as {name?: unknown}
+      const value = (await manifest.json()) as {name?: unknown}
       if (value.name === name) return await realpath(directory)
     }
     const parent = dirname(directory)
@@ -190,11 +187,12 @@ async function owningPackageRoot(path: string, name: string) {
 
 function packageName(specifier: string) {
   if (
-    specifier.startsWith("/")
-    || specifier.startsWith("../")
-    || specifier.includes(":")
-    || specifier.startsWith("#")
-  ) return null
+    specifier.startsWith("/") ||
+    specifier.startsWith("../") ||
+    specifier.includes(":") ||
+    specifier.startsWith("#")
+  )
+    return null
   const parts = specifier.split("/")
   if (specifier.startsWith("@")) {
     if (parts.length < 2 || !parts[0] || !parts[1]) return null
@@ -205,13 +203,17 @@ function packageName(specifier: string) {
 
 function dependencyRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : {}
 }
 
 function stringArray(value: unknown, message: string) {
-  if (!Array.isArray(value) || value.length === 0 || value.some((item) =>
-    typeof item !== "string" || item.trim() !== item || item === "")) throw new Error(message)
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.some((item) => typeof item !== "string" || item.trim() !== item || item === "")
+  )
+    throw new Error(message)
   return value as string[]
 }
 

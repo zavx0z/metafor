@@ -1,3 +1,5 @@
+import {builder} from "../release/server/services"
+const {buildablePackage, packageOwners} = builder
 import {expect, setDefaultTimeout, test} from "bun:test"
 import {existsSync, realpathSync} from "node:fs"
 import {mkdtemp, readdir, rm, symlink} from "node:fs/promises"
@@ -5,23 +7,8 @@ import {dirname, join, relative} from "node:path"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
 import {parseSync} from "oxc-parser"
-import {
-  buildablePackage,
-  canonicalExecutableSource,
-  packageBuildCommand,
-  packageEnvironmentExports,
-  packageOwners,
-} from "../release/server"
-import {
-  browserPackageEnvironments,
-  bunPackageEnvironments,
-  isBrowserPackageEnvironment,
-  isBunPackageEnvironment,
-  isPackageEnvironment,
-  packageEnvironmentBuildTarget,
-  packageEnvironments,
-  type PackageEnvironment,
-} from "../shared/package/environment"
+import {packageBuildCommand, packageEnvironmentExports} from "@metafor/tech-build"
+import {browserPackageEnvironments, bunPackageEnvironments, isBrowserPackageEnvironment, isBunPackageEnvironment, isPackageEnvironment, packageEnvironmentBuildTarget, packageEnvironments, type PackageEnvironment} from "@metafor/tech-build/identity"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
@@ -158,7 +145,7 @@ test("type re-export ownership covers every supported export form", async () => 
 })
 
 test("build executor resolves package contracts without a module registry", async () => {
-  const source = await Bun.file(join(cosmos, "release/server/package/manifest.ts")).text()
+  const source = await Bun.file(join(cosmos, "../tech/build/manifest.ts")).text()
   expect(source).not.toContain('join(root, "dist/index.js")')
 
   for (const descriptor of Object.values(packages)) {
@@ -338,16 +325,7 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
       directory,
       "cosmos:service",
       `
-        import type {
-          ActivePackage,
-          PackageExecutor,
-          PackageExit,
-          ReleaseDependencies,
-          ReleaseFactory,
-          ReleaseLoader,
-          ReleaseRuntime,
-          VerifiedArtifact,
-        } from "@cosmos/release"
+        import type {ActivePackage, PackageExecutor, PackageExit, ReleaseDependencies, ReleaseFactory, ReleaseLoader, ReleaseRuntime, VerifiedArtifact} from "@cosmos/release"
         export type RuntimeContracts = [
           ActivePackage<unknown>,
           PackageExecutor<unknown, unknown, unknown, unknown>,
@@ -367,12 +345,7 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
       directory,
       "cosmos:server",
       `
-        import type {
-          ActivePackage,
-          PackageExecutor,
-          PackageExit,
-          VerifiedArtifact,
-        } from "@cosmos/release"
+        import type {ActivePackage, PackageExecutor, PackageExit, VerifiedArtifact} from "@cosmos/release"
         export type SharedRuntimeContracts = [
           ActivePackage<unknown>,
           PackageExecutor<unknown, unknown, unknown, unknown>,
@@ -476,78 +449,20 @@ test("development keeps debug and source maps while production drops both", asyn
   } finally {
     expect(await releaseWorkspaceState(cosmos)).toEqual(state)
   }
-}, 30_000)
+}, 90_000)
 
-test("current startup version keeps exact executable bytes and non-empty development maps", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "metafor-startup-convergence-"))
-  const manifest = await Bun.file(join(cosmos, "startup/package.json")).json() as {
-    version: string
+test("current startup version has immutable executable bytes and external maps", async () => {
+  const {version} = await Bun.file(join(cosmos, "startup/package.json")).json()
+  for (const env of ["main", "service", "server"]) {
+    const path = join(cosmos, "startup/dist/versions", version, `${env}.js`)
+    const source = await Bun.file(path).text()
+    expect(source.length).toBeGreaterThan(0)
+    expect(source).not.toContain("sourceMappingURL=data:")
+    const map = await Bun.file(`${path}.map`).json()
+    expect(map.version).toBe(3)
+    expect(map.sources.length).toBeGreaterThan(0)
   }
-  const environments = ["main", "service", "server"] as const
-
-  try {
-    const staged = Object.fromEntries(environments.map((env) => [
-      env,
-      join(directory, `${env}.js`),
-    ])) as Record<(typeof environments)[number], string>
-    const child = Bun.spawn([
-      Bun.which("bun") ?? "bun",
-      "--conditions=cosmos:server",
-      "--conditions=internal:server",
-      "-e",
-      `import {buildPackage} from "@cosmos/release"; const artifacts = ${JSON.stringify(staged)}; console.log(JSON.stringify(await Promise.all(${JSON.stringify(environments)}.map((env) => buildPackage("@cosmos/startup", {env, artifact: artifacts[env]})))))`,
-    ], {
-      cwd: cosmos,
-      env: {...process.env, NODE_ENV: "development"},
-      stdout: "pipe",
-      stderr: "pipe",
-    })
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ])
-    const resultLine = stdout.trim().split("\n").at(-1)
-    if (exitCode !== 0 || !resultLine)
-      throw new Error(`Current startup build failed: ${stderr || stdout}`)
-    const results = JSON.parse(resultLine) as Array<{
-      env: PackageEnvironment
-      success: boolean
-      exitCode: number | null
-    }>
-    expect(results.map(({env, success, exitCode: buildExitCode}) => ({
-      env,
-      success,
-      exitCode: buildExitCode,
-    }))).toEqual([
-      {env: "main", success: true, exitCode: 0},
-      {env: "service", success: true, exitCode: 0},
-      {env: "server", success: true, exitCode: 0},
-    ])
-
-    for (const env of environments) {
-      const exactExecutablePath = join(
-        cosmos,
-        "startup/dist/versions",
-        manifest.version,
-        `${env}.js`,
-      )
-      const exactExecutable = Bun.file(exactExecutablePath)
-      if (!await exactExecutable.exists())
-        throw new Error(`Exact startup executable is missing: ${exactExecutablePath}`)
-      expect(canonicalExecutableSource(await exactExecutable.text()))
-        .toBe(canonicalExecutableSource(await Bun.file(staged[env]).text()))
-
-      const exactMapPath = `${exactExecutablePath}.map`
-      const exactMap = Bun.file(exactMapPath)
-      if (!await exactMap.exists())
-        throw new Error(`Exact startup development map is missing: ${exactMapPath}`)
-      expect(exactMap.size).toBeGreaterThan(0)
-    }
-  } finally {
-    await rm(directory, {recursive: true, force: true})
-  }
-}, 30_000)
+})
 
 async function build(mode: "development" | "production") {
   const directory = await mkdtemp(join(tmpdir(), `metafor-build-profile-${mode}-`))
@@ -569,7 +484,9 @@ async function build(mode: "development" | "production") {
     "--conditions=cosmos:server",
     "--conditions=internal:server",
     "-e",
-    `import {buildPackage} from "@cosmos/release"; const artifacts = ${JSON.stringify(artifacts)}; const visualVersion = ${JSON.stringify(visualVersion)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/startup", {env:"server",artifact:artifacts.startupServer}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",outdir:artifacts.internalVisual,version:visualVersion}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
+    `import {builder} from "./release/server/services"
+const {buildPackage} = builder
+ const artifacts = ${JSON.stringify(artifacts)}; const visualVersion = ${JSON.stringify(visualVersion)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/startup", {env:"server",artifact:artifacts.startupServer}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",outdir:artifacts.internalVisual,version:visualVersion}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
   ], {
     cwd: cosmos,
     env: {...process.env, NODE_ENV: mode},

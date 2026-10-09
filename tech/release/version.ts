@@ -1,6 +1,6 @@
-import type {VersionChange} from "../shared/contracts"
+import type {VersionChange} from "./contracts"
 
-const workspaceCaret = /^workspace:\^(\d+)\.(\d+)\.(\d+)$/
+const workspaceCaret = /^workspace:\^((?:0|[1-9]\d*))\.((?:0|[1-9]\d*))\.((?:0|[1-9]\d*))$/
 
 /** Возвращает точную package version из workspace caret dependency. */
 export function caretVersion(value: string) {
@@ -15,6 +15,7 @@ export function isVersion(value: unknown): value is string {
 
 /** Вычисляет следующую стабильную SemVer без принятия номера извне. */
 export function nextPackageVersion(version: string, change: VersionChange) {
+  if (!isVersionChange(change)) throw new Error(`Invalid version change ${String(change)}`)
   const parsed = workspaceCaret.exec(`workspace:^${version}`)
   if (!parsed) throw new Error(`Invalid released version ${version}`)
 

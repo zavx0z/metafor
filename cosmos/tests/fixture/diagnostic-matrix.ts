@@ -68,30 +68,30 @@ export const diagnosticStories: DiagnosticStory[] = [
         "endpoint", "status",
       ]),
       checkpoint("debug", "[@cosmos/release:server:update]", "публикация release запрошена", ["packages"]),
-      checkpoint("debug", "[@cosmos/release:server:update]", "root intent публикации сохранён", ["packages"]),
-      checkpoint("debug", "[@cosmos/release:server:build]", "package typecheck начат", ["package", "root"]),
-      checkpoint("debug", "[@cosmos/release:server:build]", "package typecheck завершён", [
+      checkpoint("debug", "[@metafor/tech-release]", "root intent публикации сохранён", ["packages"]),
+      checkpoint("debug", "[@metafor/tech-build]", "package typecheck начат", ["package", "root"]),
+      checkpoint("debug", "[@metafor/tech-build]", "package typecheck завершён", [
         "exitCode", "package", "stderr",
       ]),
-      checkpoint("debug", "[@cosmos/release:server:build]", "сборка artifact начата", [
+      checkpoint("debug", "[@metafor/tech-build]", "сборка artifact начата", [
         "artifact", "command", "env", "package", "profile", "root",
       ]),
-      checkpoint("debug", "[@cosmos/release:server:build]", "сборка artifact завершена", [
+      checkpoint("debug", "[@metafor/tech-build]", "сборка artifact завершена", [
         "env", "exitCode", "outputs", "package",
       ]),
-      checkpoint("debug", "[@cosmos/release:server:build]", "сборка artifact завершилась с ошибкой", [
+      checkpoint("debug", "[@metafor/tech-build]", "сборка artifact завершилась с ошибкой", [
         "env", "error", "exitCode", "package",
       ]),
-      checkpoint("error", "[@cosmos/release:server:build-adapter]", "Bun build diagnostic", [
+      checkpoint("error", "[@metafor/tech-build:adapter]", "Bun build diagnostic", [
         "message",
       ]),
-      checkpoint("error", "[@cosmos/release:server:build-adapter]", "isolated package build failed", [
+      checkpoint("error", "[@metafor/tech-build:adapter]", "isolated package build failed", [
         "error",
       ]),
-      checkpoint("error", "[@cosmos/release:server:build-adapter]", "package build request invalid", [
+      checkpoint("error", "[@metafor/tech-build:adapter]", "package build request invalid", [
         "error",
       ]),
-      checkpoint("debug", "[@cosmos/release:server:update]", "публикация отменена с восстановлением root", [
+      checkpoint("debug", "[@metafor/tech-release]", "публикация отменена с восстановлением root", [
         "packages", "reason",
       ]),
       checkpoint("debug", "[@cosmos/release:server:update]", "публикация release завершена", [
@@ -103,7 +103,7 @@ export const diagnosticStories: DiagnosticStory[] = [
       checkpoint("error", "[@cosmos/release:server:update]", "публикация release завершилась с ошибкой", [
         "packages", "results",
       ]),
-      checkpoint("error", "[@cosmos/release:server:update]", "публикация завершилась с ошибкой", [
+      checkpoint("error", "[@metafor/tech-release]", "публикация завершилась с ошибкой", [
         "error", "packages",
       ]),
     ],
@@ -118,16 +118,16 @@ export const diagnosticStories: DiagnosticStory[] = [
   {
     id: "server-publication-recovery",
     checkpoints: [
-      checkpoint("debug", "[@cosmos/release:server:update]", "восстановление публикации начато", ["packages"]),
-      checkpoint("debug", "[@cosmos/release:server:update]", "восстановление публикации завершено", [
+      checkpoint("debug", "[@metafor/tech-release]", "восстановление публикации начато", ["packages"]),
+      checkpoint("debug", "[@metafor/tech-release]", "восстановление публикации завершено", [
         "artifacts", "recovered",
       ]),
-      checkpoint("error", "[@cosmos/release:server:update]", "восстановление публикации завершилось с ошибкой", [
+      checkpoint("error", "[@metafor/tech-release]", "восстановление публикации завершилось с ошибкой", [
         "error", "packages",
       ]),
     ],
     proofs: [
-      {file: "publication.spec.ts", test: "cold recovery reproduces and reuses every converged exact artifact"},
+      {file: "publication.spec.ts", test: "cold recovery prepares missing initial versions and reuses ready artifacts"},
     ],
   },
   {

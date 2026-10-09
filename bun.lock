@@ -32,6 +32,8 @@
         "@cosmos/release": "workspace:^0.1.27",
         "@cosmos/startup": "workspace:*",
         "@internal/visual": "workspace:^0.1.41",
+        "@metafor/tech-build": "workspace:*",
+        "@metafor/tech-release": "workspace:*",
         "@zavx0z/immersive-engine": "^0.0.0",
       },
       "devDependencies": {
@@ -68,6 +70,8 @@
       "version": "0.1.27",
       "dependencies": {
         "@internal/visual": "workspace:^0.1.10",
+        "@metafor/tech-build": "workspace:*",
+        "@metafor/tech-release": "workspace:*",
         "@zavx0z/immersive-engine": "^0.0.0",
       },
       "devDependencies": {
@@ -79,6 +83,7 @@
       "version": "0.1.8",
       "dependencies": {
         "@cosmos/release": "workspace:^0.1.17",
+        "@metafor/tech-build": "workspace:*",
       },
       "devDependencies": {
         "@types/serviceworker": "^0.0.200",
@@ -256,9 +261,16 @@
         "@metafor/types": "workspace:*",
       },
     },
+    "tech/build": {
+      "name": "@metafor/tech-build",
+      "version": "0.0.0",
+    },
     "tech/release": {
       "name": "@metafor/tech-release",
       "version": "0.0.0",
+      "dependencies": {
+        "@metafor/tech-build": "workspace:*",
+      },
     },
     "types": {
       "name": "@metafor/types",
@@ -319,6 +331,8 @@
     "@metafor/dsl": ["@metafor/dsl@workspace:create-metafor/dsl"],
 
     "@metafor/node-tree": ["@metafor/node-tree@workspace:pkg/node-tree"],
+
+    "@metafor/tech-build": ["@metafor/tech-build@workspace:tech/build"],
 
     "@metafor/tech-release": ["@metafor/tech-release@workspace:tech/release"],
 

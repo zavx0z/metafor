@@ -27,17 +27,23 @@ export function isPackageExportSubpath(value: unknown): value is PackageExportSu
 }
 
 /** Returns whether a value is one exact private generated artifact key. */
-export function isGeneratedPackageArtifactKey(value: unknown): value is GeneratedPackageArtifactKey {
-  return typeof value === "string"
-    && value.startsWith(generatedPackageArtifactPrefix)
-    && hasCanonicalSegments(value.slice(generatedPackageArtifactPrefix.length))
+export function isGeneratedPackageArtifactKey(
+  value: unknown,
+): value is GeneratedPackageArtifactKey {
+  return (
+    typeof value === "string" &&
+    value.startsWith(generatedPackageArtifactPrefix) &&
+    hasCanonicalSegments(value.slice(generatedPackageArtifactPrefix.length))
+  )
 }
 
 /** Returns whether a value is the root artifact or one exact non-root key. */
 export function isPackageArtifactKey(value: unknown): value is PackageArtifactKey {
-  return value === rootPackageArtifact
-    || isPackageExportSubpath(value)
-    || isGeneratedPackageArtifactKey(value)
+  return (
+    value === rootPackageArtifact ||
+    isPackageExportSubpath(value) ||
+    isGeneratedPackageArtifactKey(value)
+  )
 }
 
 /** Reader-first normalization: an omitted wire field is the historical root. */
@@ -52,14 +58,20 @@ export function packageArtifactWireValue(artifact: PackageArtifactKey) {
 }
 
 function hasCanonicalSegments(value: string) {
-  if (value.includes("\\") || value.includes("%") || value.includes("?") || value.includes("#")) return false
+  if (value.includes("\\") || value.includes("%") || value.includes("?") || value.includes("#"))
+    return false
 
   const segments = value.split("/")
-  return segments.length > 0 && segments.every((segment) =>
-    segment.length > 0
-    && segment !== "."
-    && segment !== ".."
-    && segment !== "node_modules"
-    && segment !== ".cosmos"
-    && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(segment))
+  return (
+    segments.length > 0 &&
+    segments.every(
+      (segment) =>
+        segment.length > 0 &&
+        segment !== "." &&
+        segment !== ".." &&
+        segment !== "node_modules" &&
+        segment !== ".cosmos" &&
+        /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(segment),
+    )
+  )
 }

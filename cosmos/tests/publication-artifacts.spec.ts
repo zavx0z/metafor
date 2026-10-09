@@ -1,10 +1,8 @@
+import {release} from "../release/server/services"
+const {readDesiredBrowserArtifacts, replaceDesiredBrowserArtifacts, replaceDesiredPackageArtifacts} = release
 import {expect, setDefaultTimeout, test} from "bun:test"
 import {fileURLToPath} from "node:url"
-import {
-  readDesiredBrowserArtifacts,
-  replaceDesiredBrowserArtifacts,
-  replaceDesiredPackageArtifacts,
-} from "../release/server/release/desired"
+
 import {messageRpc, type RpcSocketData} from "../release/server/rpc"
 import {releaseCurrentMessage} from "../release/shared/protocol"
 
@@ -81,10 +79,10 @@ test("cold recovery rejects immutable lazy conflicts and does not publish desire
   expect(result.desiredAfterRecovery).toEqual([])
 })
 
-test("cold recovery rejects a public source-kind change behind the same version", async () => {
+test("cold recovery preserves a published public graph after source-kind changes", async () => {
   const result = await publicationFixture("recover-path-conflict")
-  expect(result.recoveryError).toContain("Immutable artifact path conflict")
-  expect(result.desiredAfterRecovery).toEqual([])
+  expect(result.recoveryError).toBeNull()
+  expect(result.desiredAfterRecovery).toEqual(result.desiredAfterPublish)
 })
 
 test("cold recovery canonicalizes an equal legacy root and rejects changed bytes", async () => {

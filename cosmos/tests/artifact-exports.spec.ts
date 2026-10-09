@@ -2,35 +2,16 @@ import {expect, test} from "bun:test"
 import {mkdir, mkdtemp, realpath, rm, symlink} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import {
-  isPackageArtifactKey,
-  isPackageExportSubpath,
-  readPackageArtifactKey,
-} from "../release/shared/artifact"
-import {
-  artifactIntegrity,
-} from "../shared/package/integrity"
-import {
-  browserPackageUrl,
-  parseBrowserPackageUrl,
-} from "../shared/package/url"
-import {
-  packageArtifactIdentityHeaders,
-  verifyPackageArtifactResponse,
-  type BrowserPackageArtifactIdentity,
-} from "../release/shared/artifact-integrity"
-import {
-  browserPackageArtifactSlot,
-  browserPackageArtifactUrl,
-  browserPackageGeneratedPublicPath,
-  browserPackageIdentityUrl,
-  parseBrowserPackageArtifactUrl,
-} from "../release/shared/artifact-url"
+import {isPackageArtifactKey, isPackageExportSubpath, readPackageArtifactKey} from "@metafor/tech-build/identity"
+import {artifactIntegrity} from "@metafor/tech-build/identity"
+import {browserPackageUrl, parseBrowserPackageUrl} from "@metafor/tech-build/identity"
+import {packageArtifactIdentityHeaders, verifyPackageArtifactResponse, type BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
+import {browserPackageArtifactSlot, browserPackageArtifactUrl, browserPackageGeneratedPublicPath, browserPackageIdentityUrl, parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
 import {
   parseReleaseCurrentMessage,
   parseReleaseDeltaMessage,
 } from "../release/shared/protocol"
-import {packageExportGraph} from "../release/server/package/export-graph"
+import {packageExportGraph} from "@metafor/tech-build"
 
 const origin = "https://example.test"
 const sha256 = "a".repeat(64)

@@ -1,5 +1,5 @@
-import {browserPackageCache} from "../../../shared/package/url"
-import {parseBrowserPackageArtifactUrl} from "../../shared/artifact-url"
+import {browserPackageCache} from "../../../shared/package/cache"
+import {parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
 import type {ReleaseLoader} from "../runtime"
 import {
   cacheReleaseArtifact,

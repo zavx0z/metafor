@@ -1,14 +1,5 @@
-import {
-  verifyPackageArtifactResponse,
-  type BrowserPackageArtifactIdentity,
-} from "../../shared/artifact-integrity"
-import {
-  browserPackageArtifactUrl,
-  browserPackageIdentitySlot,
-  browserPackageIdentityUrl,
-  parseBrowserPackageArtifactUrl,
-  type BrowserPackageArtifactUrl,
-} from "../../shared/artifact-url"
+import {verifyPackageArtifactResponse, type BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
+import {browserPackageArtifactUrl, browserPackageIdentitySlot, browserPackageIdentityUrl, parseBrowserPackageArtifactUrl, type BrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
 
 /** Pins one stable non-root network miss to the first active root version. */
 export async function releaseArtifactNetworkRequest(

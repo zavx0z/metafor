@@ -1,0 +1,17 @@
+{
+  "name": "@metafor/tech-build",
+  "label": "Сборка",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Подготовка артефактов версии пакета",
+  "scripts": {
+    "test": "bun test spec",
+    "typecheck": "tsc --project tsconfig.json --pretty false"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./identity": "./identity/index.ts",
+    "./adapter": "./adapter.ts"
+  }
+}

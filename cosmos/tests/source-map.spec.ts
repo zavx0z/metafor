@@ -2,8 +2,9 @@ import {expect, test} from "bun:test"
 import {mkdtemp, rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
-import {canonicalizeInlineSourceMap, externalizeSourceMap, browserPackageSourceMapUrl, parseBrowserPackageSourceMapUrl} from "../release/server"
-import {parseBrowserPackageArtifactUrl} from "../release/shared/artifact-url"
+import {canonicalizeInlineSourceMap, externalizeSourceMap} from "@metafor/tech-build"
+import {browserPackageSourceMapUrl, parseBrowserPackageSourceMapUrl} from "../release/server/http/source-map"
+import {parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
 
 test("development artifact canonicalization removes Bun debug identities", async () => {
   const directory = await mkdtemp(join(tmpdir(), "metafor-source-map-"))

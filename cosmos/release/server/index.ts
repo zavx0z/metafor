@@ -1,8 +1,8 @@
 /**
 Public Bun API server-части release.
 
-Entry point объединяет package discovery/build/publication, release state,
-delivery и RPC под одним release-owned listener. Смысл полного состава и
+Entry point предоставляет HTTP delivery и RPC под одним release-owned listener.
+Сборка и публикация подключены через публичные пакеты tech. Смысл полного состава и
 handover принадлежит [release owner law](../README.md#как-сменяется-выпуск).
 
 @packageDocumentation
@@ -16,52 +16,7 @@ export type {
   VerifiedArtifact,
 } from "../shared/execution"
 export {runReleaseServer, startReleaseServer}
-export {
-  buildablePackage,
-  buildPackage,
-  packageResponse,
-  packageSourceMapResponse,
-} from "./package/build"
-export {packageBuildCommand} from "./package/command"
-export {packageExportGraph} from "./package/export-graph"
-export type {
-  PackageExportArtifact,
-  PackageExportsManifest,
-} from "./package/export-graph"
-export {acceptsBrotli} from "./package/response"
-export {
-  browserPackageSourceMapUrl,
-  canonicalizeInlineSourceMap,
-  canonicalExecutableSource,
-  externalizeSourceMap,
-  parseBrowserPackageSourceMapUrl,
-  sourceMapArtifact,
-} from "./package/source-map"
-export {
-  readReleaseComposition,
-  readReleaseIntentComposition,
-  satisfiesWorkspaceRange,
-  validateBrowserReleaseEnvironments,
-  validateReleaseDependencyGraph,
-  validateTargetReleaseVersions,
-} from "./release/composition"
-export type {
-  ReleaseCompositionMember,
-  ReleaseDependencyMember,
-} from "./release/composition"
-export type {
-  BuildablePackage,
-  PackageBuildArtifact,
-  PackageBuildOptions,
-  PackageBuildResult,
-  PackageChange,
-  PackageEnvironmentExport,
-  PackageReleaseResult,
-  PackageReleaseResultSet,
-  ReleasedPackage,
-  ReleasablePackage,
-  VersionChange,
-} from "./shared/contracts"
+export {acceptsBrotli} from "./http/artifact"
 export {releaseDelta} from "./release/delta"
 export {
   parseReleaseChangedMessage,
@@ -78,55 +33,7 @@ export type {
   ReleaseDeltaMessage,
   ReleaseRemoval,
 } from "../shared/protocol"
-export {
-  browserPackageEnvironments,
-  bunPackageEnvironments,
-  isBunPackageEnvironment,
-  isBrowserPackageEnvironment,
-  isPackageEnvironment,
-  packageEnvironmentBuildTarget,
-  packageEnvironments,
-} from "../../shared/package/environment"
-export {
-  generatedPackageArtifactPrefix,
-  isGeneratedPackageArtifactKey,
-  isPackageArtifactKey,
-  isPackageExportSubpath,
-  packageArtifactWireValue,
-  readPackageArtifactKey,
-  rootPackageArtifact,
-} from "../shared/artifact"
-export type {
-  GeneratedPackageArtifactKey,
-  NonRootPackageArtifactKey,
-  PackageArtifactKey,
-  PackageExportSubpath,
-  PublicPackageArtifactKey,
-} from "../shared/artifact"
-export {
-  packageArtifactIdentityHeaders,
-  verifyPackageArtifactResponse,
-} from "../shared/artifact-integrity"
-export type {BrowserPackageArtifactIdentity} from "../shared/artifact-integrity"
-export {
-  browserPackageArtifactSlot,
-  browserPackageArtifactUrl,
-  browserPackageGeneratedPublicPath,
-  browserPackageIdentitySlot,
-  browserPackageIdentityUrl,
-  parseBrowserPackageArtifactUrl,
-} from "../shared/artifact-url"
-export type {BrowserPackageArtifactUrl} from "../shared/artifact-url"
 export {getPackage, getRelease} from "./http/delivery"
-export {packageEnvironmentExports, packageOwner, packageOwners} from "./package/manifest"
-export {
-  publishImmutableArtifact,
-  publishPackages,
-  recoverPublication,
-  restoreManifest,
-  writeRootVersions,
-} from "./release/publication"
-export type {RecoveryResult} from "./release/publication"
 export {packageChanges} from "./release/request"
 export {
   closeRpc,
@@ -140,13 +47,13 @@ export {
   releasedPackageArtifactResponse,
   releasedPackageResponse,
   releasedPackageSourceMapResponse,
-  releasedPackages,
   releaseStateResponse,
-} from "./release/state"
+} from "./http/state"
 export {notifyRelease, publishRelease} from "./release/update"
 export type {ReleaseNotification} from "./release/update"
-export {nextPackageVersion} from "./package/version"
 
 if (import.meta.main) {
   await runReleaseServer()
 }
+
+export {browserPackageSourceMapUrl, parseBrowserPackageSourceMapUrl} from "./http/source-map"

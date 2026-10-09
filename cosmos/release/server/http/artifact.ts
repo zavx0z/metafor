@@ -1,6 +1,6 @@
 import {promisify} from "node:util"
 import {brotliCompress, constants} from "node:zlib"
-import type {PackageBuildArtifact} from "../shared/contracts"
+import type {PackageBuildArtifact} from "@metafor/tech-build"
 
 const compress = promisify(brotliCompress)
 const compressedArtifacts = new Map<string, Promise<Uint8Array>>()

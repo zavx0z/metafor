@@ -1,3 +1,5 @@
+import {release} from "./services"
+const {recoverPublication} = release
 import {join} from "node:path"
 import {
   currentServerProcessIdentity,
@@ -5,7 +7,7 @@ import {
 } from "../../shared/package/process"
 import {getPackage, getRelease} from "./http/delivery"
 import {publishRelease} from "./release/update"
-import {recoverPublication} from "./release/publication"
+
 import {
   closeRpc,
   messageRpc,

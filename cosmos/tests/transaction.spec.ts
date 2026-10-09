@@ -1,16 +1,10 @@
 import {expect, test} from "bun:test"
-import type {BrowserPackageEnvironment} from "../shared/package/environment"
-import {
-  artifactIntegrity,
-  packageIdentityHeaders,
-  type BrowserPackageIdentity,
-} from "../shared/package/integrity"
-import {browserPackageCache, browserPackageUrl} from "../shared/package/url"
-import {
-  packageArtifactIdentityHeaders,
-  type BrowserPackageArtifactIdentity,
-} from "../release/shared/artifact-integrity"
-import {browserPackageIdentityUrl} from "../release/shared/artifact-url"
+import type {BrowserPackageEnvironment} from "@metafor/tech-build/identity"
+import {artifactIntegrity, packageIdentityHeaders, type BrowserPackageIdentity} from "@metafor/tech-build/identity"
+import {browserPackageUrl} from "@metafor/tech-build/identity"
+import {browserPackageCache} from "../shared/package/cache"
+import {packageArtifactIdentityHeaders, type BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
+import {browserPackageIdentityUrl} from "@metafor/tech-build/identity"
 import {releaseDelta} from "../release/server/release/delta"
 import {currentReleasePackages} from "../release/service/cache/current"
 import {updateRelease} from "../release/service/update"

@@ -1,8 +1,4 @@
-import type {
-  PackageExecutor,
-  PackageExit,
-  VerifiedArtifact,
-} from "@cosmos/release"
+import type {PackageExecutor, PackageExit, VerifiedArtifact} from "@cosmos/release"
 import {
   readServerProcessReady,
   sameServerProcessIdentity,

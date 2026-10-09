@@ -1,9 +1,11 @@
+import {builder} from "../release/server/services"
+const {buildPackage} = builder
 import {expect, setDefaultTimeout, test} from "bun:test"
 import {mkdtemp, rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
 import {join} from "node:path"
-import {buildPackage} from "../release/server"
+
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
@@ -47,7 +49,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
       scripts?: Record<string, string>
     }>,
     Bun.file(join(cosmos, "internal/visual/bunfig.toml")).text(),
-    Bun.file(join(cosmos, "release/server/package/manifest.ts")).text(),
+    Bun.file(join(cosmos, "../tech/build/manifest.ts")).text(),
     Bun.file(join(cosmos, "release/server/runtime.ts")).text(),
     Bun.file(join(cosmos, "startup/main/index.ts")).text(),
   ])
@@ -67,6 +69,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(mainPackage.dependencies).toEqual({
     "@zavx0z/immersive-engine": "^0.0.0",
     "@internal/visual": "workspace:^0.1.10",
+    "@metafor/tech-build": "workspace:*",
+    "@metafor/tech-release": "workspace:*",
   })
   expect(visualPackage.name).toBe("@internal/visual")
   expect(visualPackage.exports?.["."]).toEqual({

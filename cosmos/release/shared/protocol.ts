@@ -1,19 +1,9 @@
-import {
-  isBrowserPackageEnvironment,
-  type BrowserPackageEnvironment,
-} from "../../shared/package/environment"
-import {
-  readPackageArtifactKey,
-  rootPackageArtifact,
-  type NonRootPackageArtifactKey,
-} from "./artifact"
-import {isSha256} from "../../shared/package/integrity"
-import type {BrowserPackageArtifactIdentity} from "./artifact-integrity"
-import {browserPackageCache} from "../../shared/package/url"
-import {
-  browserPackageIdentitySlot,
-  browserPackageIdentityUrl,
-} from "./artifact-url"
+import {isBrowserPackageEnvironment, type BrowserPackageEnvironment} from "@metafor/tech-build/identity"
+import {readPackageArtifactKey, rootPackageArtifact, type NonRootPackageArtifactKey} from "@metafor/tech-build/identity"
+import {isSha256} from "@metafor/tech-build/identity"
+import type {BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
+import {browserPackageCache} from "../../shared/package/cache"
+import {browserPackageIdentitySlot, browserPackageIdentityUrl} from "@metafor/tech-build/identity"
 
 /** Exact cache entry, которую server должен удалить из browser release. */
 export interface ReleaseRemoval {

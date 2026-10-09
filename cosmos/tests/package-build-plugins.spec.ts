@@ -1,15 +1,14 @@
+import {builder} from "../release/server/services"
+const {packageOwners} = builder
 import {expect, setDefaultTimeout, test} from "bun:test"
 import {mkdir, mkdtemp, realpath, rm, symlink} from "node:fs/promises"
 import {dirname, join} from "node:path"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
-import {packageOwners} from "../release/server/package/manifest"
-import {readPackageBuildConfigurations} from "../release/server/package/config"
-import {
-  packageBuildCommand,
-  packageProgrammaticBuildPlan,
-} from "../release/server/package/command"
-import type {PackageManifest} from "../release/server/shared/contracts"
+
+import {readPackageBuildConfigurations} from "@metafor/tech-build"
+import {packageBuildCommand, packageProgrammaticBuildPlan} from "@metafor/tech-build"
+import type {PackageManifest} from "@metafor/tech-build"
 
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
 

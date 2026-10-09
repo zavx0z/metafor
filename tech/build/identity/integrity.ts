@@ -13,18 +13,13 @@ export interface BrowserPackageIdentity {
 export async function artifactIntegrity(bytes: ArrayBuffer) {
   const digest = await crypto.subtle.digest("SHA-256", bytes)
   return {
-    sha256: [...new Uint8Array(digest)]
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join(""),
+    sha256: [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
     size: bytes.byteLength,
   }
 }
 
 /** Проверяет identity headers и фактические bytes HTTP response. */
-export async function verifyPackageResponse(
-  response: Response,
-  expected: BrowserPackageIdentity,
-) {
+export async function verifyPackageResponse(response: Response, expected: BrowserPackageIdentity) {
   if (!response.ok) throw new Error(`${response.url || "Package"} returned ${response.status}`)
   if (response.headers.get("X-Package-Name") !== expected.name)
     throw new Error(`Ответ принадлежит другому пакету: ${expected.name}`)

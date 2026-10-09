@@ -1,21 +1,13 @@
-import {buildPackage, packageOwners} from "@cosmos/release"
+import {createRelease} from "@metafor/tech-release"
+import {builder} from "./release/server/services"
+import {cosmosRoot} from "./release/server/shared/paths"
 
-const manifest = await Bun.file(new URL("./package.json", import.meta.url)).json() as {
-  dependencies?: Record<string, unknown>
-}
-const packages = Object.keys(manifest.dependencies ?? {}).filter((name) =>
-  name === "@cosmos/startup"
-  || name === "@cosmos/release"
-  || name.startsWith("@internal/"))
-
-const results = (await Promise.all(packages.map(async (name) => {
-  const owners = await packageOwners(name)
-  return await Promise.all(owners.map(({env}) => buildPackage(name, {env})))
-}))).flat()
-
-for (const result of results) {
-  if (result.stdout) process.stdout.write(result.stdout)
-  if (result.stderr) process.stderr.write(result.stderr)
-}
-
-if (results.some(({success}) => !success)) process.exitCode = 1
+// CLI включает startup; работающий release server управляет только сменяемым составом.
+const release = createRelease({
+  root: cosmosRoot,
+  builder,
+  isMember: (name) => name === "@cosmos/startup"
+    || name === "@cosmos/release"
+    || name.startsWith("@internal/"),
+})
+await release.recoverPublication()

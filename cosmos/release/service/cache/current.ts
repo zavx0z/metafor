@@ -1,17 +1,8 @@
-import {
-  artifactIntegrity,
-} from "../../../shared/package/integrity"
-import {
-  verifyPackageArtifactResponse,
-  type BrowserPackageArtifactIdentity,
-} from "../../shared/artifact-integrity"
-import {
-  browserPackageIdentityUrl,
-  parseBrowserPackageArtifactUrl,
-} from "../../shared/artifact-url"
-import {
-  browserPackageCache,
-} from "../../../shared/package/url"
+import {artifactIntegrity} from "@metafor/tech-build/identity"
+import {verifyPackageArtifactResponse, type BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
+import {browserPackageIdentityUrl, parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
+
+import {browserPackageCache} from "../../../shared/package/cache"
 
 /** Точная версия package в browser release. */
 export interface ReleasePackage extends BrowserPackageArtifactIdentity {}

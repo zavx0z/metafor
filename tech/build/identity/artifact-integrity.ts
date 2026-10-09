@@ -2,7 +2,7 @@ import {
   packageIdentityHeaders,
   verifyPackageResponse,
   type BrowserPackageIdentity,
-} from "../../shared/package/integrity"
+} from "./integrity"
 import {
   packageArtifactWireValue,
   readPackageArtifactKey,
