@@ -62,13 +62,15 @@
 * [Внешний уровень исполнения Cosmos](../cosmos/README.md) задаёт общий закон
   запуска, выпуска и инфраструктуры. [Устойчивый запуск
   выпуска](../cosmos/startup/README.md#как-начинается-работа) принадлежит
-  `@cosmos/startup` (далее — startup), [подготовка полного
-  выпуска](../cosmos/release/README.md#что-называется-выпуском) —
-  `@cosmos/release` (далее — release), [закон внутренних
-  пакетов](../cosmos/internal/README.md#внутренний-пакет-и-его-возможность) —
-  пространству `@internal/*` (далее — internal-пакеты), а [готовая визуальная
-  среда Cosmos](../cosmos/internal/visual/README.md#визуальная-среда-main) —
-  `@internal/visual` (далее — visual).
+  `@cosmos/startup` (далее — startup). [Подготовка артефактов](../tech/build/README.md)
+  принадлежит `@metafor/tech-build` (далее — сборщик), [публикация полного
+  состава](../tech/release/README.md) — `@metafor/tech-release` (далее — выпуск),
+  [доставка и подключение к runtime](../cosmos/release/README.md) —
+  `@cosmos/release` (далее — release). [Закон внутренних
+  пакетов](../cosmos/internal/README.md#внутренний-пакет-и-его-возможность) описывает
+  пространство `@internal/*` (далее — internal-пакеты), а [готовая визуальная
+  среда Cosmos](../cosmos/internal/visual/README.md#визуальная-среда-main)
+  принадлежит `@internal/visual` (далее — visual).
 * [Node system](https://github.com/zavx0z/node/blob/main/README.md) — живой runtime-граф `@nodes/core`
   `NodeTree → Frame / Node → Parameter → Socket → Link`, Parameter-store,
   производные view-проекции и отдельно сохранённое layout-ядро

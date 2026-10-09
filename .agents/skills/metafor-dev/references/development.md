@@ -15,8 +15,8 @@ public entrypoint и shared/lazy chunk, включая несколько пуб
 той же exact version. Maps не входят в update delta и при прямом запросе
 проходят в сеть без записи в Cache Storage.
 Случайный Bun `debugId` удаляется и из JavaScript, и из map до
-вычисления identity, поэтому повторная сборка тех же source не конфликтует с
-immutable artifact. Временные diagnostics писать через `console.debug`; не помещать в
+вычисления identity новой версии. Уже опубликованная версия используется
+без повторной сборки и без сравнения с компиляцией текущих source. Временные diagnostics писать через `console.debug`; не помещать в
 его аргументы обязательную рабочую логику. Первым аргументом передавать
 постоянный scope владельца в квадратных скобках, вторым — короткое событие,
 третьим — структурированные данные, например:
@@ -207,7 +207,7 @@ CSS, JavaScript, WebAssembly и остальные файлы использую
 
 Это явное расширение build-source контракта Cosmos: native Node/npm `exports`
 допускает только относительные targets `./...` и не разрешает bare targets.
-Такую source-декларацию читает Cosmos builder; клиент получает уже собранный
+Такую source-декларацию читает `@metafor/tech-build`; клиент получает уже собранный
 artifact по обычному URL с `env` и `version`. Её нельзя выдавать за совместимую
 с прямым Node-import соответствующего source subpath.
 
@@ -216,7 +216,7 @@ Public code entrypoints одного environment выводятся один р�
 остаётся в `scripts.build:<env>` и владеет обычными Bun flags. Если применимый
 граф содержит только root, прежний direct `bun build` с `--outfile` работает
 без изменений. Если code entrypoints несколько, script выбирает `--outdir` и
-`--splitting`; Cosmos проверяет root и flags, затем передаёт весь выведенный
+`--splitting`; сборщик проверяет root и flags, затем передаёт весь выведенный
 набор entrypoints одной операции `Bun.build`. Точное output naming должно давать
 однозначное соответствие public roots и outputs. Multi-entry package
 публикуется только после того, как executor проверяет это соответствие и весь
@@ -363,7 +363,7 @@ Direct production-команда `build:<env>` повторяет canonical
 путь artifact. Outfile разных env одного package не должен совпадать;
 обязательного `dist/<env>` layout нет. Multi-entry режим использует
 package-owned `--outdir` и splitting; entrypoints при этом принадлежат
-`exports`, а не отдельному списку. Release server кеширует только найденные root
+`exports`, а не отдельному списку. Экземпляр сборщика кеширует только найденные root
 и manifest path, а содержимое `package.json` и build configuration перечитывает
 и проверяет перед каждым typecheck/build.
 
@@ -395,6 +395,30 @@ Package не реэкспортирует тип, объявленный дру�
 `export type { ... } from`, `export { type ... } from`, `export *` и схемы
 `import type → export`; владельца определяет ближайший `package.json` source
 файла и target declaration.
+
+
+## Техническая подготовка и выпуск
+
+Потребитель создаёт `createPackageBuilder({resolvePackage, profile})` из
+`@metafor/tech-build` и передаёт экземпляр в
+`createRelease({root, builder, isMember})` из `@metafor/tech-release`.
+`cosmos/release/server/services.ts` задаёт разрешённые каталоги и состав Cosmos;
+в HTTP и RPC используются результаты этих публичных API.
+
+`publishPackages` сериализует изменение версий и публикацию всей группы.
+`recoverPublication` продолжает root intent: готовые версии читает без compiler,
+а новую незавершённую версию подготавливает только в недостающих окружениях.
+`releasedPackages` ждёт очередь перед чтением состава. Source maps готовой
+версии восстанавливаются из подтверждённых копий, а не новой сборкой.
+
+В `.release/` корня хранятся внутренние receipts, hashes готового состава и
+копии bytes. Это производное подтверждение проверенной подготовки, не новое
+авторское объявление ресурсов и не browser protocol. Проверка receipts, paths,
+полноты environments/public graph и SHA выполняется до восстановления файлов.
+При недостоверном подтверждении возвращается ошибка без compiler fallback.
+Существующий физический граф без receipts проверяется по сохранённым файлам и
+static/dynamic import edges. Удалённые в текущих исходниках exports не меняют
+прежние адреса опубликованной версии.
 
 ## Получить пакет release
 
