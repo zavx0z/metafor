@@ -14,7 +14,7 @@ Visual объявляет свои платформенные части по
 
 Когда release запускает browser-часть visual, visual получает предоставленный
 Canvas и монтирует в него своё декларативное приложение через React-shaped API
-`@zavx0z/browser` (далее — Browser). App объявляет stylesheet link рядом со Space во Fragment. Приложение содержит единственные Space
+`@zavx0z/immersive-browser` (далее — Browser). App объявляет stylesheet link рядом со Space во Fragment. Приложение содержит единственные Space
 и ViewPoint, основную поверхность базового display, сетку пола и навигацию в HUD.
 
 Browser монтирует приложение в один semantic Document, подготавливает общие
@@ -27,7 +27,7 @@ Browser монтирует приложение в один semantic Document, �
 общий выбор получателя с учётом перекрытия. Browser владеет вводом, изменением
 размера Canvas и циклом кадров. Сетка объявлена компонентом Grid из Space.
 Основная поверхность имеет постоянный физический размер и плотность по
-[общему пространственному контракту](../../../../webxr-space/dom/display/README.md).
+[общему пространственному контракту](../../../../immersive/dom/display/README.md).
 Изменение Window меняет доступный обзор и HUD, сохраняя размер поверхности
 и область раскладки её содержимого.
 
@@ -45,11 +45,11 @@ Visual владеет композицией и переключением об�
 причинные переходы и canonical состояние принадлежат соответствующим
 Quantum-доменам и загруженным metafor-пакетам.
 
-Binary default font принадлежит `@zavx0z/engine` (далее — Engine).
+Binary default font принадлежит `@zavx0z/immersive-engine` (далее — Engine).
 Visual использует объявление общего шрифта в HTML composition root; release
 server сохраняет выбранный asset в runtime offline cache.
 
-Theme source и production controls принадлежат `@zavx0z/ui` (далее — UI).
+Theme source и production controls принадлежат `@zavx0z/immersive-ui-component` (далее — UI).
 Visual объявляет `theme.css` в своих exports ссылкой на публичный CSS UI. Сборка
 публикует его в той же версии без локальной CSS-обёртки; Browser получает
 его точный адрес и подключает один stylesheet. UI и Engine не становятся отдельными

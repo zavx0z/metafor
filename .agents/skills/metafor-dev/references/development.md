@@ -235,17 +235,31 @@ Package может подключить compiler plugin для отдельно�
 plugins = ["./build/template.plugin.ts"]
 ```
 
-При совместной разработке Visual и WebXR локальные библиотеки Visual заданы
-прямыми `file:` dependencies на canonical checkout `webxr-space`. Они не
-переопределяют прежние глобальные links остальных пакетов MetaFor. В Bun 1.4
-для этой смешанной установки используется адресная команда из MetaFor:
+Visual использует публичные packages из canonical checkout Immersive.
+Manifest потребителя объявляет внешние packages в `dependencies` обычными
+диапазонами совместимых версий. Корневой `package.json` MetaFor выбирает
+локальные источники через `overrides` со значениями `link:<имя-пакета>`.
+Bun разрешает их через уже зарегистрированные исходные каталоги. Перед
+установкой проверить, что каждый link указывает на соответствующего владельца
+в `../immersive`.
+Регистрации и `node_modules` соседних проектов не менять; отсутствующий либо
+устаревший link не заменять архивной копией или compatibility alias.
+
+Установка из корня MetaFor выполняется адресно:
 
 ```bash
 bun install --filter @internal/visual --omit peer
 ```
 
-Все WebXR-владельцы Visual объявлены прямыми dependencies; эта команда
-не требует переадресации глобальных links DOM или Template.
+Lockfile формируют штатные `bun install` и `bun update`; вручную декларации
+в нём не синхронизируются. Для установки сохранённого набора используется
+`bun install --frozen-lockfile`.
+
+Bun при этом проверяет общий workspace graph. Ошибка другой зависимости не
+означает успешную установку Visual и требует проверки её публичного владельца.
+Compiler plugin импортируется из `@zavx0z/immersive-jsx-compiler-bun`,
+а авторский `jsxImportSource` — `@zavx0z/immersive-jsx`. Template остаётся
+владельцем HTML parser и compiled template contract.
 
 `plugins` — необязательный ordered массив непустых уникальных module specifiers.
 Package-relative specifier обязан оставаться внутри real package root. Bare
@@ -258,7 +272,7 @@ build.
 функцией `setup`. Plugin-specific factories и options остаются в
 package-owned wrapper module; в TOML не добавляются records, options, schema,
 protocol или entrypoints. Например, wrapper для production TSX сам импортирует
-`createTemplateJsxBunPlugin` из `@zavx0z/template/bun`, задаёт принадлежащие
+`createJsxBunPlugin` из `@zavx0z/immersive-jsx-compiler-bun`, задаёт принадлежащие
 package source roots и default-export-ит полученный plugin.
 
 Без `cosmos.package-build` действует прежний direct CLI path. При наличии

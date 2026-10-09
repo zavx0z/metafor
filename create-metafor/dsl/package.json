@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "@zavx0z/template": "link:@zavx0z/template",
+    "@zavx0z/immersive-template": "^0.0.0",
     "shared": "workspace:*"
   },
   "devDependencies": {

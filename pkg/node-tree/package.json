@@ -2,7 +2,7 @@
   "name": "@metafor/node-tree",
   "label": "Проекция графа MetaFor",
   "version": "0.0.1",
-  "description": "Derived public Graph projection into the generic @nodes/core NodeTree.",
+  "description": "Derived public Graph projection into the generic @zavx0z/immersive-nodes-tree NodeTree.",
   "type": "module",
   "private": true,
   "files": [
@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@metafor/types": "workspace:*",
-    "@nodes/core": "link:@nodes/core"
+    "@zavx0z/immersive-nodes-tree": "^0.0.0"
   },
   "devDependencies": {
     "@types/bun": "^1.4.0",

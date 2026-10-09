@@ -3,7 +3,7 @@
 ## Назначение
 
 `@metafor/node-tree` (далее — node-tree) переводит полный валидный public Graph
-в универсальный `@nodes/core` (далее — core) NodeTree. Graph остаётся
+в универсальный `@zavx0z/immersive-nodes-tree` (далее — tree) NodeTree. Graph остаётся
 канонической read-only проекцией мира. NodeTree существует только как
 производное представление для layout, renderer и локального наблюдения.
 
@@ -81,7 +81,7 @@ RPC и Force, после чего принятый Graph снова проеци
 ## Граница package
 
 Production entrypoint `@metafor/node-tree/graph` зависит только от public Graph
-types и core. UI, Layout, Engine, DOM, Storybook и доменные runtime packages не
+types и tree. UI, Layout, Engine, DOM, Storybook и доменные runtime packages не
 входят в package.
 
 Renderer получает NodeTree через отдельный adapter. View-owned selection,

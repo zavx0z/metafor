@@ -1,4 +1,4 @@
-import {parse, type Node} from "@zavx0z/template"
+import {parse, type Node} from "@zavx0z/immersive-template"
 import type { Fields } from "@metafor/types/metafor/fields"
 import type { MatterDeclaration, MatterFields, MatterSchema, TopologyBasis } from "@metafor/types/metafor/matter"
 import type { Energy, Mass } from "@metafor/types/metafor/schema"

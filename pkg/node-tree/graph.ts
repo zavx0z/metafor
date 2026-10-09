@@ -1,5 +1,5 @@
 /**
-Проекция публичного MetaFor Graph в универсальный `@nodes/core` NodeTree.
+Проекция публичного MetaFor Graph в универсальный `@zavx0z/immersive-nodes-tree` NodeTree.
 
 Graph остаётся канонической read-only проекцией мира. Этот модуль хранит только
 производный NodeTree, не читает доменные Store и не превращает NodeTree revision
@@ -31,14 +31,14 @@ import {
   type Node,
   type NodeTreeDefinition,
   type Socket,
-} from "@nodes/core/node-tree"
+} from "@zavx0z/immersive-nodes-tree/node-tree"
 import {
   equalNodeJsonValue,
   ownNodeJsonValue,
   Parameter,
   type NodeJsonObject,
   type NodeJsonValue,
-} from "@nodes/core/parameter"
+} from "@zavx0z/immersive-nodes-tree/parameter"
 
 /** Renderer-neutral presentation data for downstream NodeTree adapters. */
 export type GraphNodeTreeParameterPresentation = NodeJsonObject & Readonly<{

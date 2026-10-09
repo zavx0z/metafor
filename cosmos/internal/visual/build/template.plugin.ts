@@ -1,17 +1,15 @@
 import {dirname, resolve} from "node:path"
 import {fileURLToPath} from "node:url"
-import {createTemplateJsxBunPlugin} from "@zavx0z/template/bun"
+import createJsxBunPlugin from "@zavx0z/immersive-jsx-compiler-bun"
 
 const visualRoot = resolve(import.meta.dir, "..")
-const uiRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@zavx0z/ui/buttons/button"))), "..")
-const spaceRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@zavx0z/space"))), "..")
-const nodesRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@webxr/nodes/frame"))), "../..")
-const parametersRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@nodes/parameters/number"))), "../../..")
-const socketsRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@nodes/sockets/socket"))), "../..")
+const uiRoot = dirname(fileURLToPath(import.meta.resolve("@zavx0z/immersive-ui-component")))
+const spaceRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@zavx0z/immersive-space"))), "..")
+const nodesRoot = resolve(dirname(fileURLToPath(import.meta.resolve("@zavx0z/immersive-nodes/frame"))), "..")
 
-/** One compiler pass for Visual and the exact production WebXR components. */
-export default createTemplateJsxBunPlugin({
+/** One compiler pass for Visual and its public Immersive components. */
+export default createJsxBunPlugin({
   cwd: visualRoot,
-  sourceRoots: [resolve(visualRoot, "main"), uiRoot, spaceRoot, nodesRoot, parametersRoot, socketsRoot],
-  styleSourceRootIds: ["@internal/visual", "@zavx0z/ui", "@zavx0z/space", "@webxr/nodes", "@nodes/parameters", "@nodes/sockets"],
+  sourceRoots: [resolve(visualRoot, "main"), uiRoot, spaceRoot, nodesRoot],
+  styleSourceRootIds: ["@internal/visual", "@zavx0z/immersive-ui-component", "@zavx0z/immersive-space", "@zavx0z/immersive-nodes"],
 })

@@ -14,8 +14,8 @@ Release предоставляет native Canvas и declaration default font. Vi
 @packageDocumentation
 */
 
-import {createRoot} from "@zavx0z/browser"
-import {inspectRoot} from "@zavx0z/browser/diagnostics"
+import {createRoot} from "@zavx0z/immersive-browser"
+import {inspectRoot} from "@zavx0z/immersive-browser/diagnostics"
 import {App} from "./app.tsx"
 
 /** Точный browser environment этого platform entrypoint. */

@@ -2,7 +2,7 @@
 Строгий builder сериализуемой MetaDSL.
 
 Вызовы builder сохраняют обязательный порядок деклараций. Matter использует
-browser-safe parser `@zavx0z/template`, затем проецирует допустимый XML-like
+browser-safe parser `@zavx0z/immersive-template`, затем проецирует допустимый XML-like
 синтаксис в `MatterSchema`. State-условия создают Axion, dynamic enum `src`
 создаёт Fuzzy, а `map()` по array Field создаёт Macho.
 

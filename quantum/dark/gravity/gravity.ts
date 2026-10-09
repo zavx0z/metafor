@@ -1,5 +1,5 @@
 import type {Fields} from "@metafor/types/metafor/fields"
-import type {Node} from "@zavx0z/template"
+import type {Node} from "@zavx0z/immersive-template"
 
 type NodeMeta = Extract<Node, {type: "meta"}>
 

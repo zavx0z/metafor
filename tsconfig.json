@@ -16,7 +16,7 @@
     "checkJs": true,
     "moduleResolution": "bundler",
     "jsx": "preserve",
-    "jsxImportSource": "@zavx0z/template",
+    "jsxImportSource": "@zavx0z/immersive-jsx",
     "customConditions": [
       "cosmos:server",
       "internal:server"

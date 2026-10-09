@@ -1,7 +1,7 @@
-import {useEffect, useMemo} from "@zavx0z/component"
-import {createNodeTree, createNodeTreeExternalStore} from "@nodes/tree"
-import {layoutFixed} from "@nodes/layout/fixed"
-import {GraphEditor} from "@webxr/nodes/editor"
+import {useEffect, useMemo} from "@zavx0z/immersive-component"
+import {createNodeTree, createNodeTreeExternalStore} from "@zavx0z/immersive-nodes-tree"
+import {layoutFixed} from "@zavx0z/immersive-nodes-layout/fixed"
+import {GraphEditor} from "@zavx0z/immersive-nodes/editor"
 
 export function InfrastructureSurface(props: Readonly<{width: number; height: number}>) {
   const graph = useMemo(() => {

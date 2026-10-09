@@ -8,7 +8,7 @@ import {
   type RuntimeAtom,
   type RuntimeNode,
 } from "@metafor/types/metafor/graph"
-import type {NodeTreeChange} from "@nodes/core/node-tree"
+import type {NodeTreeChange} from "@zavx0z/immersive-nodes-tree/node-tree"
 import {createGraphFixture} from "../../quantum/tests/graph/fixture.ts"
 import {
   createGraphNodeTree,
@@ -34,12 +34,12 @@ describe("@metafor/node-tree package boundary", () => {
     })
     expect(manifest.dependencies).toEqual({
       "@metafor/types": "workspace:*",
-      "@nodes/core": "link:@nodes/core",
+      "@zavx0z/immersive-nodes-tree": "^0.0.0",
     })
     expect(imports).toEqual([
       "@metafor/types/metafor/graph",
-      "@nodes/core/node-tree",
-      "@nodes/core/parameter",
+      "@zavx0z/immersive-nodes-tree/node-tree",
+      "@zavx0z/immersive-nodes-tree/parameter",
     ])
   })
 })

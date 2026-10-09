@@ -51,15 +51,18 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@engine/core": "link:@engine/core",
     "@metafor/types": "workspace:*",
+    "shared": "workspace:*",
+    "@zavx0z/immersive-template": "^0.0.0",
+    "@zavx0z/immersive-jsx": "^0.0.0",
+    "@zavx0z/immersive-jsx-compiler-bun": "^0.0.0",
+    "@zavx0z/immersive-ui-component-button-basic": "^0.0.0",
+    "@engine/core": "link:@engine/core",
     "@nodes/core": "link:@nodes/core",
     "@nodes/editor": "link:@nodes/editor",
     "@nodes/worker": "link:@nodes/worker",
     "@ui/components": "link:@ui/components",
-    "@zavx0z/react": "link:@zavx0z/react",
-    "@zavx0z/template": "link:@zavx0z/template",
-    "shared": "workspace:*"
+    "@zavx0z/react": "link:@zavx0z/react"
   },
   "peerDependencies": {
     "typescript": "^7.0.2"
@@ -80,5 +83,26 @@
     "build:prod": "bun build create-metafor/dsl/index.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",
     "build:dev": "bun build create-metafor/dsl/index.ts --outdir ./dist --sourcemap=linked",
     "space:build": "bun build create-metafor/dsl/metafor.ts --outdir ./dist --sourcemap=linked"
+  },
+  "overrides": {
+    "@zavx0z/immersive-browser": "link:@zavx0z/immersive-browser",
+    "@zavx0z/immersive-component": "link:@zavx0z/immersive-component",
+    "@zavx0z/immersive-dom": "link:@zavx0z/immersive-dom",
+    "@zavx0z/immersive-engine": "link:@zavx0z/immersive-engine",
+    "@zavx0z/immersive-jsx": "link:@zavx0z/immersive-jsx",
+    "@zavx0z/immersive-jsx-compiler-bun": "link:@zavx0z/immersive-jsx-compiler-bun",
+    "@zavx0z/immersive-nodes": "link:@zavx0z/immersive-nodes",
+    "@zavx0z/immersive-nodes-layout": "link:@zavx0z/immersive-nodes-layout",
+    "@zavx0z/immersive-nodes-node": "link:@zavx0z/immersive-nodes-node",
+    "@zavx0z/immersive-nodes-parameter": "link:@zavx0z/immersive-nodes-parameter",
+    "@zavx0z/immersive-nodes-socket": "link:@zavx0z/immersive-nodes-socket",
+    "@zavx0z/immersive-nodes-tree": "link:@zavx0z/immersive-nodes-tree",
+    "@zavx0z/immersive-renderer-html": "link:@zavx0z/immersive-renderer-html",
+    "@zavx0z/immersive-space": "link:@zavx0z/immersive-space",
+    "@zavx0z/immersive-template": "link:@zavx0z/immersive-template",
+    "@zavx0z/immersive-ui-component": "link:@zavx0z/immersive-ui-component",
+    "@zavx0z/immersive-ui-component-button-basic": "link:@zavx0z/immersive-ui-component-button-basic",
+    "@zavx0z/immersive-ui-theme-icon-set": "link:@zavx0z/immersive-ui-theme-icon-set",
+    "@zavx0z/immersive-webgpu": "link:@zavx0z/immersive-webgpu"
   }
 }
