@@ -1,5 +1,9 @@
 # Visual
 
+Этот package сохранён как часть [архива Bulk](../../quantum/bulk/README.md#архивная-реализация).
+Он не входит в активный workspace, установку и стандартные проверки MetaFor.
+Исходники и договоры ниже сохранены для будущей переработки.
+
 `@metafor/visual` exposes executable named complete-snapshot layouts. Every
 catalog entry builds one immutable, identity-rich scene from a `BulkManifest`
 and exact owner-bound `StateGraph` inputs, so consumers do not switch on layout

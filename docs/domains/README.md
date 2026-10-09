@@ -12,7 +12,7 @@
   включая рождение, блокировку и структурные изменения.
 - [Energy](ENERGY.md) — исполнение Process, живые runtime-сущности и их
   декларация в DSL.
-- [Bulk manifestation и Visual projection](../../quantum/bulk/VISUAL.md) —
+- [Архив Bulk manifestation и Visual projection](../../quantum/bulk/VISUAL.md) —
   semantic manifestation и граница геометрии `pkg/visual`.
 
 Для Dark и Bulk целиком полного доменного контракта пока нет. До его появления

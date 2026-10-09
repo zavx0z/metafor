@@ -36,9 +36,9 @@
   ошибки.
 * [Energy](domains/ENERGY.md) — Process, Reaction, Mass, Energy и lifecycle
   живых ресурсов.
-* [Bulk Store и Visual projection](../quantum/bulk/VISUAL.md) — единый browser Store,
+* [Архив Bulk Store и Visual projection](../quantum/bulk/VISUAL.md) — сохранённый browser Store,
   локальные Force handlers и принадлежащая `pkg/visual` геометрия.
-* [Visual layouts](../pkg/visual/CONTRACT.md) — именованные способы показать
+* [Архив Visual layouts](../pkg/visual/CONTRACT.md) — сохранённые способы показать
   один полный Bulk scene snapshot.
 * [Документный renderer](https://github.com/zavx0z/renderer/blob/main/ARCHITECTURE.md) —
   единственная цепочка `@zavx0z/dom` → `@zavx0z/renderer` →

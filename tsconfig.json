@@ -58,6 +58,18 @@
     ".idea/**/*",
     ".cursor/**/*",
     ".vscode/**/*",
-    ".ai"
+    ".ai",
+    "quantum/bulk/**/*",
+    "pkg/visual/**/*",
+    "quantum/dark/server.ts",
+    "quantum/dark/server.spec.ts",
+    "quantum/dark/index.ts",
+    "test-preload.ts",
+    "template-plugin.ts",
+    "quantum/boundary/incremental.spec.ts",
+    "quantum/dark/checkpoint/dissolve-candidate.spec.ts",
+    "quantum/tests/agent-session.integration.spec.ts",
+    "quantum/tests/graph/bulk-projection.spec.ts",
+    "quantum/tests/graph/laboratory.spec.ts"
   ]
 }

@@ -2,99 +2,62 @@
 
 ## Установка
 
-### Связанные репозитории
+Активный workspace задан явным списком корневого `package.json`. Его установка
+не обходит весь репозиторий: архивные исходники, templates и внешние репозитории
+`cluster/` не становятся участниками автоматически.
 
-Template, Renderer, Engine, UI и Node являются соседними публичными
-репозиториями, построенными для [MetaFor](https://github.com/zavx0z/metafor).
-Локальные Bun links подключают точный checkout реального владельца без
-re-export либо TypeScript alias; internal identities Renderer, Engine, UI и
-Node отдельно не публикуются в npm.
-
-Документный runtime использует одну цепочку владельцев:
-`@zavx0z/dom` → `@zavx0z/renderer` → `@zavx0z/renderer-webgpu` →
-`@engine/core`. Generic Layout и `@ui/elements` выведены из production graph;
-доменный `@nodes/layout` остаётся отдельным Node package числовой раскладки и
-routing.
-
-Репозитории располагаются рядом:
-
-```text
-repozitarium/
-├── template/
-├── renderer/
-├── engine/
-├── ui/
-├── node/
-└── metafor/
-```
-
-После клонирования links регистрируются снизу вверх:
-
-```bash
-cd ../template
-bun install --frozen-lockfile
-bun run build
-bun link
-
-cd ../engine
-bun install --frozen-lockfile
-cd packages/core && bun link
-
-cd ../../../renderer
-bun install --frozen-lockfile
-for package in dom renderer renderer-webgpu renderer-browser; do (cd "packages/$package" && bun link); done
-
-cd ../ui
-bun install --frozen-lockfile
-(cd packages/components && bun link)
-
-cd ../node
-bun install --frozen-lockfile
-for package in core editor layout worker ui; do (cd "packages/$package" && bun link); done
-
-cd ../metafor
-```
+Текущие библиотеки визуальной среды принадлежат canonical checkout Immersive.
+Публичные package dependencies и корневые overrides связывают их с уже
+зарегистрированными локальными Bun links. Глобальные регистрации и исходники
+соседних проектов при установке MetaFor не изменяются.
 
 Из корня репозитория:
 
 ```bash
-bun install --frozen-lockfile
+bun install --frozen-lockfile --omit peer
 ```
 
-Workspace graph задан явным списком в root `package.json`. Рекурсивные globs не
-используются, поэтому templates, игнорируемый `cluster/` и внешние Atom-пакеты
-не становятся workspace MetaFor автоматически.
+## Архив Bulk
 
-## Запуск
+[Сохранённая реализация Bulk](../quantum/bulk/README.md#архивная-реализация)
+архивирована на месте. Из активного workspace исключены:
 
-| Command                          | Назначение                               |
-| -------------------------------- | ---------------------------------------- |
-| `bun run runtime:universe`       | постоянный полный контур                 |
-| `bun run runtime:universe:once`  | рождение полного контура и выход         |
-| `bun run runtime:universe:logs`  | полный контур с журналом сообщений Force |
+* `quantum/bulk` вместе с `types`, `gravity`, `strong`, `weak`;
+* связанный `pkg/visual`;
+* старый server-package `quantum/dark`, чей browser-gateway импортирует Bulk;
+* старый Universe launcher `cosmos/internal/supervisor`.
 
-Запуск Вселенной сначала рождает Dark вместе с его Force, затем Boundary,
-Energy и Bulk, а Matrix — последней. Meta автоматически не загружается. После
-изменения кода весь причинно связанный контур нужно явно остановить и запустить
-заново; частичная горячая перезагрузка доменов не поддерживается.
+Их manifests и реализация остаются в репозитории. Отдельные packages
+`quantum/dark/types` и `quantum/dark/gravity`, остальные библиотеки и проверки
+Quantum сохраняют участие в активном составе. Архив не переносится во внешний
+Production и не получает новых служебных полей `kind` или `status`.
 
-У contour один слушающий порт Dark. Boundary, Energy, Bulk и Matrix открывают к
-нему исходящие Oracle и Force WebSocket и не поднимают собственных HTTP servers.
-По умолчанию используется `127.0.0.1:4000`; второй независимый contour
-запускается на другом единственном порту:
+Стандартные тесты и TypeScript discovery пропускают Bulk, его visual package,
+старый supervisor, Dark server entrypoint и принадлежащий ему server test.
+Интеграционные проверки Boundary, checkpoint, агентной сессии и Graph,
+напрямую импортирующие Bulk, также относятся к сохранённому архивному контуру.
+Остальные доменные тесты остаются активными.
+Глобальный preload старого Bulk TSX больше не подключается. Проверки архива
+сохраняются, но не объявляются пройденными в текущем окружении.
 
-Обычный рабочий режим — `auto`:
+Команды `runtime:universe`, `runtime:universe:once`, `runtime:universe:logs` и
+`visual:playground` сняты с рабочего корневого manifest. Восстановление этого
+сохранённого контура требует отдельного согласования состава и зависимостей.
+
+## Запуск Cosmos
+
+Рабочий запуск и управление видимым контуром принадлежат
+[штатному lifecycle MetaFor](../.agents/skills/metafor-dev/SKILL.md#lifecycle).
+Из корня репозитория:
 
 ```bash
-bun run runtime:universe
-METAFOR_UNIVERSE_PORT=4100 bun run runtime:universe
-METAFOR_WEAK_BACKEND=gpu bun run runtime:universe
-METAFOR_WEAK_BACKEND=cpu bun run runtime:universe
+.agents/skills/metafor-dev/scripts/metafor-dev.sh status "$PWD"
+.agents/skills/metafor-dev/scripts/metafor-dev.sh start "$PWD"
 ```
 
-Без env используется WebGPU-first выбор с CPU fallback. `gpu` требует WebGPU и
-завершает рождение ошибкой при его отсутствии. `cpu` принудительно выбирает
-детерминированный reference backend.
+Cosmos запускает startup, выбранный release и internal Visual. Архив Bulk и
+старый Universe не участвуют в этой цепочке. Выпуск, его проверка и обновление
+следуют [порядку разработки Cosmos](../.agents/skills/metafor-dev/references/development.md).
 
 ## Boundary persistence
 
@@ -104,11 +67,8 @@ Development database по умолчанию:
 .metafor/dev.sqlite
 ```
 
-Явный изолированный путь:
-
-```bash
-BOUNDARY_PATH=/absolute/path/boundary.sqlite bun run runtime:universe
-```
+Нестандартный путь Boundary задаёт `BOUNDARY_PATH`. Эти параметры сохранённого
+Quantum-контура не запускают его вместе с Cosmos.
 
 Изолированный test run может перенаправить flat Mass catalog, не касаясь
 canonical live `mass/`:
@@ -132,7 +92,8 @@ METAFOR_LOG_DOMAINS=force,boundary,matrix,energy
 METAFOR_LOG_PARTS=inflaton,graviton,gluon,higgs,photon,z,w+,w-
 ```
 
-`bun run runtime:universe:logs` включает `METAFOR_LOG_IMPULSES=full`.
+Сохранённый Universe launcher использовал `METAFOR_LOG_IMPULSES=full`;
+его запуск исключён из текущего рабочего состава.
 
 ## Локальная проверка
 
@@ -149,7 +110,7 @@ bun run check
 ```
 
 `bun run test` задаёт недоступный `FORCE_ADDRESS`, отключает reconnect и
-исключает `cluster/**` из test discovery, чтобы случайно запущенный development
+исключает `cluster/**` и перечисленный выше архив из test discovery, чтобы случайно запущенный development
 contour и тесты внешних Atom-репозиториев не влияли на suites MetaFor.
 
 Домены можно проверять отдельно без перечисления внутренних файлов:
@@ -159,7 +120,6 @@ bun test create-metafor
 bun test boundary
 bun test matrix
 bun test energy
-bun test bulk
 ```
 
 Проверки Matrix с WebGPU требуют устройства, способного выполнить настоящий

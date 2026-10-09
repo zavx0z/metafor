@@ -11,12 +11,6 @@
         "@zavx0z/immersive-template": "^0.0.0",
         "@zavx0z/immersive-ui-component-button-basic": "^0.0.0",
         "shared": "workspace:*",
-        "@engine/core": "link:@engine/core",
-        "@nodes/core": "link:@nodes/core",
-        "@nodes/editor": "link:@nodes/editor",
-        "@nodes/worker": "link:@nodes/worker",
-        "@ui/components": "link:@ui/components",
-        "@zavx0z/react": "link:@zavx0z/react"
       },
       "devDependencies": {
         "@types/bun": "^1.4.0",
@@ -25,11 +19,11 @@
         "@zavx0z/highlighter": "link:@zavx0z/highlighter",
         "bun-webgpu": "^0.1.6",
         "oxc-parser": "^0.146.0",
-        "typescript": "^7.0.2"
+        "typescript": "^7.0.2",
       },
       "peerDependencies": {
-        "typescript": "^7.0.2"
-      }
+        "typescript": "^7.0.2",
+      },
     },
     "cosmos": {
       "name": "@metafor/cosmos",
@@ -43,10 +37,6 @@
       "devDependencies": {
         "devtools-protocol": "0.0.1653615",
       },
-    },
-    "cosmos/internal/supervisor": {
-      "name": "@internal/supervisor",
-      "version": "0.1.0",
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
@@ -70,19 +60,19 @@
         "@zavx0z/immersive-ui-component": "^0.0.0",
         "@zavx0z/immersive-ui-component-button-basic": "^0.0.0",
         "@zavx0z/immersive-ui-theme-icon-set": "^0.0.0",
-        "@zavx0z/immersive-webgpu": "^0.0.0"
-      }
+        "@zavx0z/immersive-webgpu": "^0.0.0",
+      },
     },
     "cosmos/release": {
       "name": "@cosmos/release",
       "version": "0.1.27",
       "dependencies": {
         "@internal/visual": "workspace:^0.1.10",
-        "@zavx0z/immersive-engine": "^0.0.0"
+        "@zavx0z/immersive-engine": "^0.0.0",
       },
       "devDependencies": {
-        "@types/serviceworker": "^0.0.200"
-      }
+        "@types/serviceworker": "^0.0.200",
+      },
     },
     "cosmos/startup": {
       "name": "@cosmos/startup",
@@ -142,17 +132,6 @@
         "typescript": "^7.0.2",
       },
     },
-    "pkg/visual": {
-      "name": "@metafor/visual",
-      "version": "0.0.1",
-      "dependencies": {
-        "@bulk/types": "workspace:*",
-        "@metafor/types": "workspace:*",
-      },
-      "devDependencies": {
-        "@engine/core": "link:@engine/core",
-      },
-    },
     "pkg/web-push": {
       "name": "@metafor/web-push",
       "version": "0.1.0",
@@ -197,65 +176,6 @@
       "name": "@boundary/wimp",
       "dependencies": {
         "@metafor/types": "workspace:*",
-      },
-    },
-    "quantum/bulk": {
-      "name": "bulk",
-      "version": "0.0.1",
-      "dependencies": {
-        "@bulk/gravity": "workspace:*",
-        "@bulk/strong": "workspace:*",
-        "@bulk/types": "workspace:*",
-        "@bulk/weak": "workspace:*",
-        "@engine/core": "link:@engine/core",
-        "@metafor/types": "workspace:*",
-        "@metafor/visual": "workspace:*",
-        "@ui/components": "link:@ui/components",
-        "@zavx0z/dom": "link:@zavx0z/dom",
-        "@zavx0z/react": "link:@zavx0z/react",
-        "@zavx0z/renderer": "link:@zavx0z/renderer",
-        "@zavx0z/renderer-browser": "link:@zavx0z/renderer-browser",
-        "@zavx0z/renderer-webgpu": "link:@zavx0z/renderer-webgpu",
-        "@zavx0z/template": "link:@zavx0z/template",
-        "shared": "workspace:*",
-      },
-    },
-    "quantum/bulk/gravity": {
-      "name": "@bulk/gravity",
-      "dependencies": {
-        "@bulk/types": "workspace:*",
-      },
-    },
-    "quantum/bulk/strong": {
-      "name": "@bulk/strong",
-      "dependencies": {
-        "@bulk/types": "workspace:*",
-      },
-    },
-    "quantum/bulk/types": {
-      "name": "@bulk/types",
-      "version": "0.0.1",
-      "dependencies": {
-        "@engine/core": "link:@engine/core",
-        "@metafor/types": "workspace:*",
-      },
-    },
-    "quantum/bulk/weak": {
-      "name": "@bulk/weak",
-      "dependencies": {
-        "@bulk/types": "workspace:*",
-      },
-    },
-    "quantum/dark": {
-      "name": "dark",
-      "version": "0.0.1",
-      "dependencies": {
-        "@dark/types": "workspace:*",
-        "@engine/core": "link:@engine/core",
-        "@metafor/dsl": "workspace:*",
-        "@metafor/types": "workspace:*",
-        "create-metafor": "workspace:*",
-        "shared": "workspace:*",
       },
     },
     "quantum/dark/gravity": {
@@ -338,9 +258,6 @@
     },
     "types": {
       "name": "@metafor/types",
-      "devDependencies": {
-        "@ui/components": "link:@ui/components",
-      },
     },
   },
   "overrides": {
@@ -373,14 +290,6 @@
 
     "@boundary/wimp": ["@boundary/wimp@workspace:quantum/boundary/wimp"],
 
-    "@bulk/gravity": ["@bulk/gravity@workspace:quantum/bulk/gravity"],
-
-    "@bulk/strong": ["@bulk/strong@workspace:quantum/bulk/strong"],
-
-    "@bulk/types": ["@bulk/types@workspace:quantum/bulk/types"],
-
-    "@bulk/weak": ["@bulk/weak@workspace:quantum/bulk/weak"],
-
     "@cosmos/release": ["@cosmos/release@workspace:cosmos/release"],
 
     "@cosmos/startup": ["@cosmos/startup@workspace:cosmos/startup"],
@@ -390,10 +299,6 @@
     "@dark/types": ["@dark/types@workspace:quantum/dark/types"],
 
     "@energy/types": ["@energy/types@workspace:quantum/energy/types"],
-
-    "@engine/core": ["@engine/core@link:@engine/core", {}],
-
-    "@internal/supervisor": ["@internal/supervisor@workspace:cosmos/internal/supervisor"],
 
     "@internal/visual": ["@internal/visual@workspace:cosmos/internal/visual"],
 
@@ -413,15 +318,7 @@
 
     "@metafor/types": ["@metafor/types@workspace:types"],
 
-    "@metafor/visual": ["@metafor/visual@workspace:pkg/visual"],
-
     "@metafor/web-push": ["@metafor/web-push@workspace:pkg/web-push"],
-
-    "@nodes/core": ["@nodes/core@link:@nodes/core", {}],
-
-    "@nodes/editor": ["@nodes/editor@link:@nodes/editor", {}],
-
-    "@nodes/worker": ["@nodes/worker@link:@nodes/worker", {}],
 
     "@oxc-parser/binding-android-arm-eabi": ["@oxc-parser/binding-android-arm-eabi@0.146.0", "", { "os": "android", "cpu": "arm" }, "sha512-jBCZIsff/9J/zdK1KSKZREScXOtRE4wYO+MUjrE+5NHGdsslrP4biJA9QJyKwErwS8lkwxH6Z537HaL4CQr0ow=="],
 
@@ -511,11 +408,7 @@
 
     "@typescript/typescript-win32-x64": ["@typescript/typescript-win32-x64@7.0.2", "", { "os": "win32", "cpu": "x64" }, "sha512-0BQ3HkAHHlKLSp1qRvf3SUhGpGsDuhB/jgFw75guyqbxJqEaS0Cw/VFO8i2nHglJUzQCRtMMR/IBAKE3ETMC4g=="],
 
-    "@ui/components": ["@ui/components@link:@ui/components", {}],
-
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
-
-    "@zavx0z/dom": ["@zavx0z/dom@link:@zavx0z/dom", {}],
 
     "@zavx0z/highlighter": ["@zavx0z/highlighter@link:@zavx0z/highlighter", {}],
 
@@ -557,16 +450,6 @@
 
     "@zavx0z/immersive-webgpu": ["@zavx0z/immersive-webgpu@link:@zavx0z/immersive-webgpu", {}],
 
-    "@zavx0z/react": ["@zavx0z/react@link:@zavx0z/react", {}],
-
-    "@zavx0z/renderer": ["@zavx0z/renderer@link:@zavx0z/renderer", {}],
-
-    "@zavx0z/renderer-browser": ["@zavx0z/renderer-browser@link:@zavx0z/renderer-browser", {}],
-
-    "@zavx0z/renderer-webgpu": ["@zavx0z/renderer-webgpu@link:@zavx0z/renderer-webgpu", {}],
-
-    "@zavx0z/template": ["@zavx0z/template@link:@zavx0z/template", {}],
-
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
     "asn1.js": ["asn1.js@5.4.1", "", { "dependencies": { "bn.js": "^4.0.0", "inherits": "^2.0.1", "minimalistic-assert": "^1.0.0", "safer-buffer": "^2.1.0" } }, "sha512-+I//4cYPccV8LdmBLiX8CYvf9Sp3vQsrqu2QNXRcrbiWvcx/UdlFiqUJJzxRQxgsZmvhXhn4cSKeSmoFjVdupA=="],
@@ -576,8 +459,6 @@
     "boundary": ["boundary@workspace:quantum/boundary"],
 
     "buffer-equal-constant-time": ["buffer-equal-constant-time@1.0.1", "", {}, "sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA=="],
-
-    "bulk": ["bulk@workspace:quantum/bulk"],
 
     "bun-types": ["bun-types@1.4.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q=="],
 
@@ -592,8 +473,6 @@
     "bun-webgpu-win32-x64": ["bun-webgpu-win32-x64@0.1.6", "", { "os": "win32", "cpu": "x64" }, "sha512-MHSFAKqizISb+C5NfDrFe3g0Al5Njnu0j/A+oO2Q+bIWX+fUYjBSowiYE1ZXJx65KuryuB+tiM7Qh6cQbVvkEg=="],
 
     "create-metafor": ["create-metafor@workspace:create-metafor"],
-
-    "dark": ["dark@workspace:quantum/dark"],
 
     "debug": ["debug@4.4.0", "", { "dependencies": { "ms": "^2.1.3" } }, "sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA=="],
 
