@@ -9,7 +9,7 @@ import {
 } from "@metafor/tech-build/identity"
 import {validateTargetReleaseVersions, type ReleaseCompositionMember} from "./composition"
 import type {PackageBuildArtifact, PackageManifest, PackageOwner} from "@metafor/tech-build"
-import type {PackageChange, PackageReleaseResult, PackageReleaseResultSet} from "./contracts"
+import type {PackageChange, PackageReleaseResult, PackageReleaseResultSet, ReleaseFileOperations} from "./contracts"
 import {packageArtifact, packageManifest} from "@metafor/tech-build"
 import {nextPackageVersion} from "./version"
 import {sourceMapArtifact} from "@metafor/tech-build"
@@ -22,6 +22,7 @@ import {
   resolveVersionedPackageArtifactPath,
   legacyVersionedArtifact,
   versionedPackageArtifactPath,
+  type PackageArtifactStorageOwner,
 } from "./artifact-path"
 import type {BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
 
@@ -34,7 +35,7 @@ interface ReleasePlan extends PackageChange {
 
 interface ReleaseArtifactPlan {
   env: PackageEnvironment
-  owner: PackageOwner
+  owner: PackageOwner & PackageArtifactStorageOwner
   stagedArtifact: string
   stagedOutdir: string
 }
@@ -56,6 +57,7 @@ export function createPublication(
     manifest: string
     builder: PackageBuilder
     isMember(name: string): boolean
+    io?: ReleaseFileOperations
   },
   composition: ReturnType<typeof createReleaseComposition>,
   queue: ReturnType<typeof createPublicationQueue>,
@@ -63,6 +65,8 @@ export function createPublication(
   state: ReturnType<typeof createReleaseState>,
   storage: ReturnType<typeof createReleaseStorage>,
 ) {
+  const renameManifest = options.io?.rename ?? rename
+  const linkArtifact = options.io?.link ?? link
   const {buildPackage} = options.builder
   const {readReleaseComposition, readReleaseIntentComposition} = composition
   const {serializePublication} = queue
@@ -126,13 +130,14 @@ export function createPublication(
       ),
     )
     let rootIntentWritten = false
-    let childrenWritten = false
+    const writtenChildren = new Set<string>()
 
     try {
       assignArtifacts(plans, staging)
       await writeRootVersions(
         options.manifest,
         new Map(plans.map(({name, version}) => [name, version])),
+        renameManifest,
       )
       rootIntentWritten = true
       debug("root intent публикации сохранён", {
@@ -145,7 +150,7 @@ export function createPublication(
 
       const results = await buildPlans(plans)
       if (results.some((result) => !result.success)) {
-        await restoreManifest(options.manifest, rootSource)
+        await restoreManifest(options.manifest, rootSource, renameManifest)
         rootIntentWritten = false
         debug("публикация отменена с восстановлением root", {
           packages: plans.map(({name, previousVersion, version}) => ({
@@ -160,8 +165,10 @@ export function createPublication(
 
       await materializePlans(plans, results)
       for (const plan of plans) await storage.markReady(plan.name, plan.version)
-      childrenWritten = true
-      await writeChildVersions(plans)
+      await writeChildVersions(plans, async (source, target) => {
+        await renameManifest(source, target)
+        writtenChildren.add(String(target))
+      })
       const packages = await readReleasedPackages()
       replaceDesiredPackageArtifacts(
         plans.map(({name}) => name),
@@ -173,18 +180,33 @@ export function createPublication(
         packages: plans.flatMap(({name}) => packages.filter((entry) => entry.name === name)),
       }
     } catch (error) {
-      if (childrenWritten)
-        await Promise.all([...childSources].map(([path, source]) => restoreManifest(path, source)))
-      if (rootIntentWritten) await restoreManifest(options.manifest, rootSource)
+      const childRollbacks = await Promise.allSettled([...writtenChildren].map(async (path) => {
+        try {
+          await restoreManifest(path, childSources.get(path)!, renameManifest)
+        } catch (cause) {
+          throw new Error(`Child manifest rollback failed: ${path}: ${errorMessage(cause)}`, {cause})
+        }
+      }))
+      const rollbackErrors = childRollbacks.flatMap((result) => result.status === "rejected" ? [result.reason] : [])
+      if (rootIntentWritten) {
+        try {
+          await restoreManifest(options.manifest, rootSource, renameManifest)
+        } catch (cause) {
+          rollbackErrors.push(new Error(`Root manifest rollback failed: ${options.manifest}: ${errorMessage(cause)}`, {cause}))
+        }
+      }
+      const failure = rollbackErrors.length > 0
+        ? new AggregateError([error, ...rollbackErrors], `Publication failed: ${errorMessage(error)}; rollback failed: ${rollbackErrors.map(errorMessage).join("; ")}`, {cause: error})
+        : error
       console.error("[@metafor/tech-release]", "публикация завершилась с ошибкой", {
-        error: errorMessage(error),
+        error: errorMessage(failure),
         packages: plans.map(({name, previousVersion, version}) => ({
           from: previousVersion,
           name,
           to: version,
         })),
       })
-      throw error
+      throw failure
     } finally {
       await rm(staging, {recursive: true, force: true})
     }
@@ -221,7 +243,7 @@ export function createPublication(
 
       await materializePlans(plans, results)
       for (const plan of plans) await storage.markReady(plan.name, plan.version)
-      await writeChildVersions(pending)
+      await writeChildVersions(pending, renameManifest)
       await readReleasedPackages()
       replaceDesiredBrowserArtifacts(desiredBrowserArtifacts(results))
       const artifacts = await exactPlanArtifacts(plans)
@@ -273,6 +295,22 @@ export function createPublication(
   }
 
   async function buildPlans(plans: ReleasePlan[]): Promise<PackageReleaseResult[]> {
+    // Зафиксированная child version и сохранившиеся файлы доказывают существование
+    // опубликованной версии. Потеря её root не разрешает вызывать компилятор.
+    const publishedVersions = new Set<string>()
+    for (const plan of plans) {
+      if (plan.member.childVersion !== plan.version) continue
+      for (const {owner} of plan.artifacts) {
+        const directories = new Set([
+          dirname(versionedPackageArtifactPath(owner, plan.version, rootPackageArtifact)),
+          dirname(legacyVersionedArtifact(owner.artifact, plan.version)),
+        ])
+        for (const directory of directories) {
+          const files = await Array.fromAsync(new Bun.Glob("**/*").scan({cwd: directory, dot: true, onlyFiles: true})).catch(() => [])
+          if (files.length > 0) publishedVersions.add(`${plan.name}@${plan.version}`)
+        }
+      }
+    }
     const settled = await Promise.allSettled(
       plans.flatMap((plan) =>
         plan.artifacts.map(async (artifact) => {
@@ -292,9 +330,11 @@ export function createPublication(
             if (root && legacy && (root.sha256 !== legacy.sha256 || root.size !== legacy.size))
               throw new Error(`Immutable artifact conflict: ${legacy.path}`)
           }
-          const existing = prepared
-            ? await storage.restore(prepared)
-            : await readExistingVersion(plan.name, artifact.owner, plan.version)
+          const legacy = prepared ? null : await readExistingVersion(plan.name, artifact.owner, plan.version)
+          if (legacy) artifact.owner = legacy.owner
+          const existing = prepared ? await storage.restore(prepared) : legacy?.outputs
+          if (!existing && publishedVersions.has(`${plan.name}@${plan.version}`))
+            throw new Error(`Published artifact is missing without a trusted copy: ${plan.name}:${artifact.env}@${plan.version}`)
           const build = existing
             ? {
                 module: plan.name,
@@ -309,7 +349,7 @@ export function createPublication(
                 plan.name,
                 artifact.owner.sources.length > 1
                   ? {env: artifact.env, outdir: artifact.stagedOutdir, version: plan.version}
-                  : {env: artifact.env, artifact: artifact.stagedArtifact},
+                  : {env: artifact.env, artifact: artifact.stagedArtifact, version: plan.version},
               )
           if (build.success && !prepared) {
             const outputs = build.outputs.map((output) => ({
@@ -451,7 +491,15 @@ export function createPublication(
       for (const record of [...group].sort((left, right) =>
         left.target.localeCompare(right.target),
       )) {
-        const artifact = await publishPreparedArtifact(staged, record.target, expected, linkSource)
+        const artifact = await publishPreparedArtifact(
+          staged,
+          record.target,
+          expected,
+          linkSource,
+          linkArtifact,
+          renameManifest,
+          options.io?.copyFile ?? copyFile,
+        )
         if (artifact.sha256 === expected.sha256 && artifact.size === expected.size) {
           linkSource ??= record.target
           publishedByIntegrity.set(integrity, record.target)
@@ -515,8 +563,13 @@ async function publishPreparedArtifact(
   target: string,
   expected: PackageBuildArtifact,
   linkSource?: string,
+  linkArtifact: typeof link = link,
+  renameArtifact: typeof rename = rename,
+  copyArtifact: typeof copyFile = copyFile,
 ) {
   const existing = await packageArtifact(target)
+  if (!existing && (await Bun.file(target).exists()))
+    throw new Error(`Immutable artifact is empty: ${target}`)
   if (existing) {
     if (existing.sha256 !== expected.sha256 || existing.size !== expected.size)
       throw new Error(`Immutable artifact conflict: ${target}`)
@@ -529,14 +582,14 @@ async function publishPreparedArtifact(
     let linked = false
     if (linkSource !== undefined) {
       try {
-        await link(linkSource, temporary)
+        await linkArtifact(linkSource, temporary)
         linked = true
       } catch {
         // Cross-device and unsupported hard links use the same atomic copy path.
       }
     }
-    if (!linked) await copyFile(staged, temporary)
-    await rename(temporary, target)
+    if (!linked) await copyArtifact(staged, temporary)
+    await renameArtifact(temporary, target)
   } finally {
     await rm(temporary, {force: true})
   }
@@ -555,30 +608,42 @@ export async function publishImmutableArtifact(staged: string, target: string) {
 }
 
 /** Первой durable записью меняет только target caret dependencies root. */
-export async function writeRootVersions(path: string, versions: ReadonlyMap<string, string>) {
+export async function writeRootVersions(
+  path: string,
+  versions: ReadonlyMap<string, string>,
+  renameManifest: typeof rename = rename,
+) {
   const root = (await Bun.file(path).json()) as PackageManifest
   const dependencies = {...root.dependencies}
   for (const [name, version] of versions) dependencies[name] = `workspace:^${version}`
   root.dependencies = dependencies
-  await writeJsonAtomic(path, root)
+  await writeJsonAtomic(path, root, renameManifest)
 }
 
-async function writeChildVersions(plans: ReleasePlan[]) {
+async function writeChildVersions(plans: ReleasePlan[], renameManifest: typeof rename) {
   for (const {member, version} of plans) {
     const manifest = (await Bun.file(member.manifest).json()) as PackageManifest
     manifest.version = version
-    await writeJsonAtomic(member.manifest, manifest)
+    await writeJsonAtomic(member.manifest, manifest, renameManifest)
   }
 }
 
-export async function restoreManifest(path: string, source: string) {
+export async function restoreManifest(
+  path: string,
+  source: string,
+  renameManifest: typeof rename = rename,
+) {
   const temporary = `${path}.${crypto.randomUUID()}.tmp`
-  await Bun.write(temporary, source)
-  await rename(temporary, path)
+  try {
+    await Bun.write(temporary, source)
+    await renameManifest(temporary, path)
+  } finally {
+    await rm(temporary, {force: true})
+  }
 }
 
-async function writeJsonAtomic(path: string, value: unknown) {
-  await restoreManifest(path, `${JSON.stringify(value, null, 2)}\n`)
+async function writeJsonAtomic(path: string, value: unknown, renameManifest: typeof rename) {
+  await restoreManifest(path, `${JSON.stringify(value, null, 2)}\n`, renameManifest)
 }
 
 function debug(event: string, details: unknown) {

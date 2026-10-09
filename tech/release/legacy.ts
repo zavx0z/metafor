@@ -1,7 +1,8 @@
-import {join, dirname, relative} from "node:path"
+import {join, dirname, extname, relative, resolve} from "node:path"
 import {packageArtifact, type PackageBuildArtifact, type PackageOwner} from "@metafor/tech-build"
 import {
   browserPackageArtifactUrl,
+  parseBrowserPackageArtifactUrl,
   isBrowserPackageEnvironment,
   rootPackageArtifact,
   type PackageArtifactKey,
@@ -23,7 +24,7 @@ export async function readExistingVersion(name: string, owner: PackageOwner, ver
     [publicRoot, false],
   ] as const) {
     for (const path of await Array.fromAsync(
-      new Bun.Glob("**/*").scan({cwd: directory, onlyFiles: true, absolute: true}),
+      new Bun.Glob("**/*").scan({cwd: directory, dot: true, onlyFiles: true, absolute: true}),
     ).catch(() => [])) {
       if (path.endsWith(".map")) continue
       const local = relative(directory, path)
@@ -31,6 +32,18 @@ export async function readExistingVersion(name: string, owner: PackageOwner, ver
       const artifact = await packageArtifact(path)
       if (!artifact) throw new Error(`Published artifact is empty: ${path}`)
       outputs.push({...artifact, artifact: key, kind: generated ? "chunk" : "copy", load: "lazy"})
+    }
+  }
+  const savedCode = new Map<string, {source: string; imports: ReturnType<Bun.Transpiler["scan"]>["imports"]}>()
+  for (const output of outputs) {
+    const source = await Bun.file(output.path).text()
+    const imports = output.type.includes("javascript") ? new Bun.Transpiler({loader: "js"}).scan(source).imports : []
+    savedCode.set(output.path, {source, imports})
+    for (const entry of imports) {
+      if (!entry.path.startsWith("./") && !entry.path.startsWith("../")) continue
+      const dependency = resolve(dirname(output.path), entry.path)
+      if (!(await packageArtifact(dependency)))
+        throw new Error(`Published artifact dependency is missing: ${name}:${owner.env}@${version} ${entry.path} from ${output.path}`)
     }
   }
   // Читаем import edges из сохранённого кода; компиляция исходников не выполняется.
@@ -41,16 +54,22 @@ export async function readExistingVersion(name: string, owner: PackageOwner, ver
         output,
       ]),
     )
+    for (const {source, imports} of savedCode.values()) {
+      const references = [...imports.map(({path}) => path), ...Array.from(source.matchAll(/(["'`])(\/@[^"'`\s]+)\1/g), (match) => match[2]!)]
+      for (const reference of references) {
+        const identity = parseBrowserPackageArtifactUrl(new URL(reference, "http://release.invalid"))
+        if (identity?.name !== name || identity.env !== owner.env || identity.version !== version) continue
+        if (!urls.has(reference))
+          throw new Error(`Published artifact dependency is missing: ${name}:${owner.env}@${version} ${reference}`)
+      }
+    }
     const pending = [outputs[0]!]
     const visited = new Set<string>()
     while (pending.length) {
       const current = pending.pop()!
       if (visited.has(current.path)) continue
       visited.add(current.path)
-      const source = await Bun.file(current.path).text()
-      const imports = current.type.includes("javascript")
-        ? new Bun.Transpiler({loader: "js"}).scan(source).imports
-        : []
+      const {source, imports} = savedCode.get(current.path)!
       for (const [url, output] of urls) {
         const staticImport = imports.some(
           (entry) => entry.path === url && entry.kind !== "dynamic-import",
@@ -72,5 +91,6 @@ export async function readExistingVersion(name: string, owner: PackageOwner, ver
         sourceMapFor: output.artifact!,
       })
   }
-  return outputs
+  const publicArtifactExtensions = Object.fromEntries(outputs.filter((output) => output.kind !== "sourcemap" && output.artifact !== rootPackageArtifact && !output.artifact?.startsWith("./.cosmos/")).map((output) => [output.artifact!, extname(output.path)]))
+  return {outputs, owner: {...owner, publicArtifactExtensions}}
 }

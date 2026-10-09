@@ -1,3 +1,4 @@
+import type {copyFile, link, rename} from "node:fs/promises"
 import type {PackageBuildResult} from "@metafor/tech-build"
 import type {BrowserPackageEnvironment, BrowserPackageIdentity} from "@metafor/tech-build/identity"
 export type ReleasablePackage = string
@@ -29,4 +30,11 @@ export interface PackageReleaseResultSet {
   success: boolean
   results: PackageReleaseResult[]
   packages: ReleasedPackage[]
+}
+
+/** Системные операции публикации; хост может предоставить собственный файловый адаптер. */
+export interface ReleaseFileOperations {
+  rename?: typeof rename
+  link?: typeof link
+  copyFile?: typeof copyFile
 }

@@ -12,7 +12,10 @@ import type {PackageOwner} from "@metafor/tech-build"
 import {packagePublicArtifactOutput} from "@metafor/tech-build"
 
 export type PackageArtifactStorageOwner = Pick<PackageOwner, "root" | "env"> &
-  Partial<Pick<PackageOwner, "artifact" | "sources">>
+  Partial<Pick<PackageOwner, "artifact" | "sources">> & {
+    /** Суффиксы сохранённых public aliases при принятии версии без receipt. */
+    publicArtifactExtensions?: Readonly<Record<string, string>>
+  }
 
 /** Historical versioned path derived from one mutable package build output. */
 export function legacyVersionedArtifact(artifact: string, version: string) {
@@ -62,7 +65,16 @@ export function versionedPackageArtifactPath(
 }
 
 /** Returns the physical suffix of one semantic public subpath. */
-export function publicArtifactOutput(owner: PackageOwner, artifact: PackageExportSubpath) {
+export function publicArtifactOutput(
+  owner: PackageOwner & Pick<PackageArtifactStorageOwner, "publicArtifactExtensions">,
+  artifact: PackageExportSubpath,
+) {
+  const savedExtension = owner.publicArtifactExtensions?.[artifact]
+  if (savedExtension !== undefined) {
+    if (!/^\.[A-Za-z0-9._+-]+$/.test(savedExtension))
+      throw new Error(`Invalid saved public artifact extension: ${artifact}`)
+    return join(artifact.slice(2), `.cosmos-artifact${savedExtension}`)
+  }
   const source = owner.sources.find((candidate) => candidate.artifact === artifact)
   if (!source) throw new Error(`${owner.env} does not export artifact ${artifact}`)
   const extension = extname(packagePublicArtifactOutput(artifact, source.source))

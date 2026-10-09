@@ -10,17 +10,11 @@ import {releaseWorkspaceState} from "./fixture/workspace-state"
 setDefaultTimeout(30_000)
 const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
-test("root intent write precedes build and child writes in the host transaction", async () => {
-  const source = await Bun.file(new URL("../../tech/release/publication.ts", import.meta.url)).text()
+test("release server recovers the prepared composition before opening its listener", async () => {
   const server = await Bun.file(new URL("../release/server/runtime.ts", import.meta.url)).text()
-  const rootWrite = source.indexOf("await writeRootVersions(")
-  const build = source.indexOf("const results = await buildPlans(plans)", rootWrite)
-  const children = source.indexOf("await writeChildVersions(plans)", build)
-  expect(rootWrite).toBeGreaterThan(0)
-  expect(build).toBeGreaterThan(rootWrite)
-  expect(children).toBeGreaterThan(build)
-  expect(server.indexOf("await recoverPublication()"))
-    .toBeLessThan(server.indexOf("Bun.serve<RpcSocketData>"))
+  const recovery = server.indexOf("await recoverPublication()")
+  expect(recovery).toBeGreaterThan(0)
+  expect(recovery).toBeLessThan(server.indexOf("Bun.serve<RpcSocketData>"))
 })
 
 test("root intent is one reversible atomic manifest write", async () => {

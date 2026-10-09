@@ -45,23 +45,26 @@ export function createReleaseComposition(
   /** Читает target root intent, разрешая ещё не сошедшиеся child versions. */
   async function readReleaseIntentComposition(): Promise<ReleaseCompositionMember[]> {
     const root = await packageManifest(options.manifest)
-    const members = await Promise.all(
-      Object.entries(root.dependencies ?? {}).flatMap(([name, dependency]) => {
-        if (!options.isMember(name) || typeof dependency !== "string") return []
-        const version = caretVersion(dependency)
-        if (version !== null) return [readReleaseMember(name, version)]
-        if (dependency === "workspace:*")
-          return [
-            (async () => {
-              const location = await options.builder.packageSourceLocation(name)
-              const manifest = await packageManifest(location.manifest)
-              if (!isVersion(manifest.version)) throw new Error(`Invalid release version ${name}`)
-              return await readReleaseMember(name, manifest.version)
-            })(),
-          ]
+    const declarations = Object.entries(root.dependencies ?? {}).flatMap(([name, dependency]) => {
+      if (!options.isMember(name) || typeof dependency !== "string") return []
+      const version = caretVersion(dependency)
+      if (version === null && dependency !== "workspace:*")
         throw new Error(`Invalid release dependency ${name}@${dependency}`)
-      }),
-    )
+      return [{name, version}]
+    })
+    // Проверка деклараций предшествует I/O. После начала чтения ждём каждого
+    // участника даже при отказе соседа: очистка не должна опережать чтения.
+    const settled = await Promise.allSettled(declarations.map(async ({name, version}) => {
+      if (version !== null) return await readReleaseMember(name, version)
+      const location = await options.builder.packageSourceLocation(name)
+      const manifest = await packageManifest(location.manifest)
+      if (!isVersion(manifest.version)) throw new Error(`Invalid release version ${name}`)
+      return await readReleaseMember(name, manifest.version)
+    }))
+    const members = settled.map((result) => {
+      if (result.status === "rejected") throw result.reason
+      return result.value
+    })
     validateReleaseDependencyGraph(members, options.isMember)
     return members
   }
@@ -71,6 +74,11 @@ export function createReleaseComposition(
     version: string,
   ): Promise<ReleaseCompositionMember> {
     const prepared = await storage.read(name, version)
+    if (await storage.isReady(name, version)) {
+      if (prepared.length === 0) throw new Error(`Published release record is missing: ${name}@${version}`)
+      const missing = prepared[0]!.environments.find((env) => !prepared.some((record) => record.env === env))
+      if (missing) throw new Error(`Published environment record is missing: ${name}:${missing}@${version}`)
+    }
     const complete =
       prepared.length > 0 &&
       prepared[0]!.environments.every((env) => prepared.some((record) => record.env === env))
