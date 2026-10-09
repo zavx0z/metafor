@@ -14,7 +14,7 @@ test("development artifact canonicalization removes Bun debug identities", async
     const second = await canonicalize(artifact, "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
     expect(second).toEqual(first)
     expect(first.source).toBe("export const ready=true\n")
-    expect(first.map).toEqual({version: 3, sources: ["main.ts"], names: [], mappings: "AAAA"})
+    expect(first.map).toEqual({version: 3, sources: ["main.ts"], sourcesContent: ["export const ready=true"], names: [], mappings: "AAAA"})
   } finally {
     await rm(directory, {recursive: true, force: true})
   }
@@ -64,6 +64,7 @@ async function canonicalize(artifact: string, debugId: string) {
     version: 3,
     debugId,
     sources: ["main.ts"],
+    sourcesContent: ["export const ready=true"],
     names: [],
     mappings: "AAAA",
   }
@@ -85,6 +86,7 @@ async function canonicalizeInline(artifact: string, debugId: string) {
     version: 3,
     debugId,
     sources: ["entry.ts"],
+    sourcesContent: ["export const ready=true"],
     names: [],
     mappings: "AAAA",
   }

@@ -1,5 +1,5 @@
-import {mkdir, mkdtemp, realpath, rm} from "node:fs/promises"
-import {basename, dirname, isAbsolute, join, relative, resolve, sep} from "node:path"
+import {mkdir, mkdtemp, rm} from "node:fs/promises"
+import {basename, dirname, join, resolve} from "node:path"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
 import {
@@ -13,28 +13,43 @@ import type {
   BuildablePackage,
   PackageBuildArtifact,
   PackageBuildOptions,
-  PackageBuildReport,
-  PackageBuildReportOutput,
   PackageBuildResult,
   PackageOwner,
 } from "./contracts"
 import {packageArtifact, createPackageReader, type PackageReaderOptions} from "./manifest"
 import {externalizeSourceMap, sourceMapArtifact} from "./source-map"
-import {packageBuildEntrypoints, packageBuildSourceKind} from "./source"
-import {
-  isGeneratedPackageArtifactKey,
-  rootPackageArtifact,
-  type PackageArtifactKey,
-} from "./identity/artifact"
-import {browserPackageArtifactUrl} from "./identity/artifact-url"
-import {isBrowserPackageEnvironment} from "./identity/environment"
+import {packageBuildEntrypoints} from "./source"
+import {isGeneratedPackageArtifactKey, rootPackageArtifact} from "./identity/artifact"
+import {validatePackageBuildOutputs} from "./report"
 
 export interface PackageBuilderOptions extends PackageReaderOptions {
   profile?: "development" | "production"
+  /** Instance-owned executor; по умолчанию штатный Bun.spawn. */
+  spawn?: typeof Bun.spawn
 }
 
-/** Создаёт независимый сборщик без корня приложения и глобальной очереди. */
+/**
+Создаёт экземпляр [сборщика](./README.md) с явными разрешением пакетов и профилем.
+
+`preparePackage` подготавливает все объявленные окружения, `buildPackage` — одно.
+Target version задаётся отдельно от исходного manifest и передаётся как CLI,
+так и compiler-plugin сборке. Совпадающие незавершённые операции объединяются
+внутри экземпляра. Публикация не выполняется, source manifests не меняются.
+
+`spawn` сохраняет семантику Bun process executor. Каждая операция ожидает выход
+дочернего процесса, собирает stdout/stderr, проверяет полный compiler report
+и освобождает временный report при успехе, отказе и прерывании. Development
+выносит карты исходников в отдельные companions перед вычислением identity.
+
+@throws Проверка входного контракта отклоняет недопустимые декларации до
+  запуска compiler. Отказы исполнения возвращаются с exitCode, стадией и
+  исходной диагностикой; частичный граф не возвращается успешным.
+
+Сценарии: [примеры](./spec/scenario.spec.ts),
+[исполнение](./spec/execution.spec.ts), [отказы](./spec/failures.spec.ts).
+*/
 export function createPackageBuilder(options: PackageBuilderOptions) {
+  const spawn = options.spawn ?? Bun.spawn
   const reader = createPackageReader(options)
   const {packageOwner, packageSourceLocation} = reader
   const optionsProfile = () => options.profile ?? "production"
@@ -77,7 +92,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     }
   }
 
-  /** Resolves a Cosmos package independently of its current environment graph. */
+  /** Разрешает известный пакет независимо от выбранного окружения. */
   async function knownPackage(value: string | null): Promise<BuildablePackage | null> {
     if (value === null) return null
     try {
@@ -119,13 +134,23 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     options: PackageBuildOptions,
   ): Promise<PackageBuildResult> {
     let reportDirectory: string | undefined
+    let finishChild: (() => Promise<void>) | undefined
+    let stage: NonNullable<PackageBuildResult["stage"]> = "configuration"
+    let exitCode: number | null = null
+    let stdout = ""
+    let stderr = ""
     try {
+      const profile = optionsProfile()
+      const execution = await packageBuildExecution(name, owner, options, profile)
+      if (execution.kind === "adapter") reportDirectory = execution.reportDirectory
+      stage = "typecheck"
       const typecheck = await runPackageTypecheck(name, owner)
       if (typecheck.exitCode !== 0) {
         return {
           module: name,
           env: owner.env,
           success: false,
+          stage,
           exitCode: typecheck.exitCode,
           stdout: typecheck.stdout,
           stderr: typecheck.stderr,
@@ -133,9 +158,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
         }
       }
 
-      const profile = optionsProfile()
-      const execution = await packageBuildExecution(owner, options, profile)
-      if (execution.kind === "adapter") reportDirectory = execution.reportDirectory
+      stage = "compiler"
       debug("сборка artifact начата", {
         artifact: execution.kind === "legacy" ? execution.artifact : execution.output,
         command: execution.command,
@@ -147,12 +170,12 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
 
       const child =
         execution.kind === "legacy"
-          ? Bun.spawn(execution.command, {
+          ? spawn(execution.command, {
               cwd: owner.root,
               stdout: "pipe",
               stderr: "pipe",
             })
-          : Bun.spawn(execution.command, {
+          : spawn(execution.command, {
               cwd: owner.root,
               env: {...process.env, NODE_ENV: profile},
               stdin: new Blob([
@@ -171,28 +194,45 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
               stdout: "pipe",
               stderr: "pipe",
             })
-      const [exitCode, buildStdout, buildStderr] = await Promise.all([
+      finishChild = async () => {
+        if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM")
+        await child.exited
+      }
+      const [buildExitCode, buildStdout, buildStderr] = await Promise.all([
         child.exited,
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ])
-      const stdout = `${typecheck.stdout}${buildStdout}`
-      const stderr = `${typecheck.stderr}${buildStderr}`
+      exitCode = buildExitCode
+      stdout = `${typecheck.stdout}${buildStdout}`
+      stderr = `${typecheck.stderr}${buildStderr}`
 
       if (exitCode !== 0) {
+        if (execution.kind === "adapter" && await Bun.file(execution.report).exists()) {
+          const failure = await Bun.file(execution.report).json()
+          if (failure?.failure?.stage === "outputs") stage = "outputs"
+        }
+        if (child.signalCode !== null) stderr += `\nPackage build process interrupted by ${child.signalCode}`
         debug("сборка artifact завершилась с ошибкой", {
           env: owner.env,
           error: stderr,
           exitCode,
           package: name,
         })
-        return {module: name, env: owner.env, success: false, exitCode, stdout, stderr, outputs: []}
+        return {module: name, env: owner.env, success: false, stage, exitCode, stdout, stderr, outputs: []}
       }
 
+      stage = "outputs"
       const outputs =
         execution.kind === "legacy"
           ? await legacyBuildOutputs(execution.artifact)
-          : await adapterBuildOutputs(name, owner, execution)
+          : await validatePackageBuildOutputs(
+              name,
+              owner,
+              execution,
+              await Bun.file(execution.report).json(),
+              profile,
+            )
       if (outputs.length === 0)
         return buildContractFailure(
           {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs: []},
@@ -206,47 +246,53 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
       debug("сборка artifact завершилась с ошибкой", {
         env: owner.env,
         error: errorMessage(error),
-        exitCode: null,
+        exitCode,
         package: name,
       })
       return {
         module: name,
         env: owner.env,
         success: false,
-        exitCode: null,
-        stdout: "",
-        stderr: error instanceof Error ? error.message : String(error),
+        stage,
+        exitCode,
+        stdout,
+        stderr: [stderr.trimEnd(), errorMessage(error)].filter(Boolean).join("\n"),
         outputs: [],
       }
     } finally {
+      await finishChild?.()
       if (reportDirectory !== undefined) await rm(reportDirectory, {recursive: true, force: true})
     }
   }
 
   async function packageBuildExecution(
+    name: string,
     owner: PackageOwner,
     options: PackageBuildOptions,
     profile: "development" | "production",
   ): Promise<PackageBuildExecution> {
-    if (
-      options.artifact !== undefined &&
-      (options.outdir !== undefined || options.version !== undefined)
-    )
-      throw new Error("Package build artifact cannot be combined with outdir or version")
+    if (options.artifact !== undefined && options.outdir !== undefined)
+      throw new Error("Package build artifact cannot be combined with outdir")
 
     const onlyLegacyRoot =
       owner.sources.length === 1 &&
       owner.sources[0]?.artifact === rootPackageArtifact &&
       owner.plugins.length === 0
     if (onlyLegacyRoot) {
-      if (options.outdir !== undefined || options.version !== undefined)
-        throw new Error("Legacy package build does not accept outdir or version overrides")
+      if (options.outdir !== undefined)
+        throw new Error("Legacy package build does not accept an outdir override")
+      const version = canonicalBuildVersion(options.version ?? owner.version)
       const artifact = options.artifact ?? owner.artifact
       await mkdir(dirname(artifact), {recursive: true})
       return {
         kind: "legacy",
         artifact,
-        command: withPackageBuildOutput(packageBuildCommand(owner.build, profile), artifact),
+        command: [
+          ...withPackageBuildOutput(packageBuildCommand(owner.build, profile), artifact),
+          `--define=import.meta.env.COSMOS_PACKAGE_NAME=${JSON.stringify(name)}`,
+          `--define=import.meta.env.COSMOS_PACKAGE_ENV=${JSON.stringify(owner.env)}`,
+          `--define=import.meta.env.COSMOS_PACKAGE_VERSION=${JSON.stringify(version)}`,
+        ],
       }
     }
 
@@ -324,357 +370,17 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     return outputs
   }
 
-  async function adapterBuildOutputs(
-    name: string,
-    owner: PackageOwner,
-    execution: Extract<PackageBuildExecution, {kind: "adapter"}>,
-  ): Promise<PackageBuildArtifact[]> {
-    const report = await readPackageBuildReport(execution.report)
-    await validateBuildReportPaths(execution, report)
-    const bindings = await validateBuildReportGraph(name, owner, execution, report)
-
-    if (optionsProfile() === "development") {
-      const canonicalized = new Set<string>()
-      for (const {output} of bindings) {
-        if (canonicalized.has(output.path)) continue
-        if (output.kind !== "entry-point" && output.kind !== "chunk") continue
-        if (!output.path.endsWith(".js")) continue
-        canonicalized.add(output.path)
-        await externalizeSourceMap(output.path)
-      }
-    }
-
-    const outputs: PackageBuildArtifact[] = []
-    const physical = new Map<string, Promise<PackageBuildArtifact | null>>()
-    for (const binding of bindings) {
-      let artifactRead = physical.get(binding.output.path)
-      if (!artifactRead) {
-        artifactRead = packageArtifact(binding.output.path)
-        physical.set(binding.output.path, artifactRead)
-      }
-      const artifact = await artifactRead
-      if (!artifact) throw new Error(`Package build output is missing: ${binding.output.path}`)
-      outputs.push({
-        ...artifact,
-        artifact: binding.artifact,
-        kind: binding.output.kind,
-        load: binding.load,
-      })
-      if (
-        optionsProfile() === "development" &&
-        (binding.output.kind === "entry-point" || binding.output.kind === "chunk") &&
-        binding.output.path.endsWith(".js")
-      ) {
-        const mapPath = sourceMapArtifact(binding.output.path)
-        const sourceMap = await packageArtifact(mapPath)
-        if (!sourceMap) throw new Error(`Package development source map is missing: ${mapPath}`)
-        outputs.push({
-          ...sourceMap,
-          artifact: generatedMapArtifact(`${binding.output.relative}.map`),
-          kind: "sourcemap",
-          sourceMapFor: binding.artifact,
-          load: binding.load,
-        })
-      }
-    }
-    return outputs.sort(compareBuildArtifacts)
-  }
-
-  interface PackageBuildBinding {
-    artifact: PackageArtifactKey
-    load: "eager" | "lazy"
-    output: PackageBuildReportOutput
-  }
-
-  async function validateBuildReportGraph(
-    name: string,
-    owner: PackageOwner,
-    execution: Extract<PackageBuildExecution, {kind: "adapter"}>,
-    report: PackageBuildReport,
-  ): Promise<PackageBuildBinding[]> {
-    const byRelative = new Map<string, PackageBuildReportOutput>()
-    const byEntrypoint = new Map<string, PackageBuildReportOutput[]>()
-    const byCopySource = new Map<string, PackageBuildReportOutput[]>()
-    for (const output of report.outputs) {
-      if (byRelative.has(output.relative))
-        throw new Error(`Package build report duplicates output ${output.relative}`)
-      byRelative.set(output.relative, output)
-      if (output.entryPoint !== undefined) {
-        const current = byEntrypoint.get(output.entryPoint) ?? []
-        current.push(output)
-        byEntrypoint.set(output.entryPoint, current)
-      }
-      if (output.source !== undefined) {
-        const current = byCopySource.get(output.source) ?? []
-        current.push(output)
-        byCopySource.set(output.source, current)
-      }
-    }
-
-    const external = new Set(
-      report.externalImports.map(({path, kind, external}) => {
-        if (!external)
-          throw new Error(`Package build report marks local import as external: ${path}`)
-        return `${kind}\u0000${path}`
-      }),
-    )
-    for (const output of report.outputs) {
-      for (const imported of output.imports) {
-        if (imported.external) {
-          if (!external.has(`${imported.kind}\u0000${imported.path}`))
-            throw new Error(`Package build output has undeclared external import ${imported.path}`)
-        } else if (!byRelative.has(imported.path)) {
-          throw new Error(`Package build output import is missing: ${imported.path}`)
-        }
-      }
-    }
-
-    const rootSource = owner.sources.find(({artifact}) => artifact === rootPackageArtifact)?.source
-    if (!rootSource) throw new Error("Package build root source is missing")
-    const rootOutput = byEntrypoint.get(rootSource)
-    if (rootOutput?.length !== 1) throw new Error("Package build root must map to one output")
-    const rootClosure = new Set(report.rootClosure)
-    if (rootClosure.size !== report.rootClosure.length)
-      throw new Error("Package build root closure contains duplicates")
-    if (!rootClosure.has(rootOutput[0]!.relative))
-      throw new Error("Package build root closure must contain root output")
-    for (const relativePath of rootClosure) {
-      if (!byRelative.has(relativePath))
-        throw new Error(`Package build root closure output is missing: ${relativePath}`)
-    }
-    const projectedClosure = new Set<string>()
-    const pendingClosure = [rootOutput[0]!.relative]
-    while (pendingClosure.length > 0) {
-      const relativePath = pendingClosure.pop()!
-      if (projectedClosure.has(relativePath)) continue
-      projectedClosure.add(relativePath)
-      const output = byRelative.get(relativePath)!
-      for (const imported of output.imports) {
-        if (imported.external || imported.kind === "dynamic-import") continue
-        if (byRelative.has(imported.path)) pendingClosure.push(imported.path)
-      }
-    }
-    if (JSON.stringify([...projectedClosure].sort()) !== JSON.stringify([...rootClosure].sort()))
-      throw new Error("Package build root closure projection differs from output imports")
-
-    const expectedUrls = new Map<string, PackageArtifactKey>()
-    if (isBrowserPackageEnvironment(owner.env)) {
-      for (const source of owner.sources) {
-        if (source.artifact === rootPackageArtifact) continue
-        expectedUrls.set(
-          browserPackageArtifactUrl(name, owner.env, source.artifact, execution.version),
-          source.artifact,
-        )
-      }
-    }
-    const rootClosureText = (
-      await Promise.all(
-        report.rootClosure.map((relativePath) =>
-          Bun.file(byRelative.get(relativePath)!.path).text(),
-        ),
-      )
-    ).join("\n")
-    const eagerPublic = new Set<PackageArtifactKey>([rootPackageArtifact])
-    if (new Set(report.publicArtifactUrls).size !== report.publicArtifactUrls.length)
-      throw new Error("Package build report public artifact URLs contain duplicates")
-    const recognizedUrls = [...expectedUrls.keys()]
-      .filter((url) => rootClosureText.includes(url))
-      .sort()
-    if (JSON.stringify(recognizedUrls) !== JSON.stringify([...report.publicArtifactUrls].sort()))
-      throw new Error(
-        "Package build report public artifact URL projection differs from root closure",
-      )
-    for (const url of recognizedUrls) {
-      const artifact = expectedUrls.get(url)
-      if (!artifact) throw new Error(`Package build report has unknown public artifact URL ${url}`)
-      eagerPublic.add(artifact)
-    }
-
-    const bindings: PackageBuildBinding[] = []
-    const claimed = new Set<PackageBuildReportOutput>()
-    for (const source of owner.sources) {
-      const kind = packageBuildSourceKind(source.source)
-      const matches =
-        kind === "copy" ? byCopySource.get(source.source) : byEntrypoint.get(source.source)
-      if (matches?.length !== 1)
-        throw new Error(`Package export source must map to one output: ${source.source}`)
-      const output = matches[0]!
-      claimed.add(output)
-      if (source.artifact === rootPackageArtifact) {
-        bindings.push({artifact: source.artifact, load: "eager", output})
-        continue
-      }
-      bindings.push({
-        artifact: source.artifact,
-        load: eagerPublic.has(source.artifact) ? "eager" : "lazy",
-        output,
-      })
-      if (kind !== "copy") {
-        const generated = generatedOutputArtifact(output.relative)
-        bindings.push({
-          artifact: generated,
-          load: rootClosure.has(output.relative) ? "eager" : "lazy",
-          output,
-        })
-      }
-    }
-
-    for (const output of report.outputs) {
-      if (claimed.has(output)) continue
-      const artifact = generatedOutputArtifact(output.relative)
-      bindings.push({
-        artifact,
-        load: rootClosure.has(output.relative) ? "eager" : "lazy",
-        output,
-      })
-    }
-
-    const identities = new Set<string>()
-    for (const {artifact} of bindings) {
-      if (identities.has(artifact)) throw new Error(`Package build duplicates artifact ${artifact}`)
-      identities.add(artifact)
-    }
-    if (!identities.has(rootPackageArtifact))
-      throw new Error("Package build root artifact is missing")
-    return bindings
-  }
-
-  async function validateBuildReportPaths(
-    execution: Extract<PackageBuildExecution, {kind: "adapter"}>,
-    report: PackageBuildReport,
-  ) {
-    const paths = new Set<string>()
-    const canonicalRoot = await realpath(
-      execution.output.mode === "multi"
-        ? execution.output.outdir
-        : dirname(execution.output.artifact),
-    )
-    for (const output of report.outputs) {
-      canonicalReportRelative(output.relative)
-      if (paths.has(output.path))
-        throw new Error(`Package build report duplicates path ${output.path}`)
-      paths.add(output.path)
-      const allowed =
-        execution.output.mode === "multi"
-          ? inside(execution.output.outdir, output.path)
-          : output.path === execution.output.artifact ||
-            inside(join(dirname(execution.output.artifact), ".cosmos"), output.path) ||
-            inside(join(dirname(execution.output.artifact), "raw"), output.path)
-      if (!allowed) throw new Error(`Package build output escapes staging boundary: ${output.path}`)
-      if (execution.output.mode === "multi") {
-        const actualRelative = relative(execution.output.outdir, output.path).split(sep).join("/")
-        if (actualRelative !== output.relative)
-          throw new Error(
-            `Package build output relative path differs from staging path: ${output.path}`,
-          )
-      }
-      const canonical = await realpath(output.path)
-      if (!inside(canonicalRoot, canonical))
-        throw new Error(`Package build output resolves outside staging boundary: ${output.path}`)
-    }
-  }
-
-  async function readPackageBuildReport(path: string): Promise<PackageBuildReport> {
-    const file = Bun.file(path)
-    if (!(await file.exists())) throw new Error("Package build report is missing")
-    const value = (await file.json()) as PackageBuildReport
-    if (
-      typeof value !== "object" ||
-      value === null ||
-      !Array.isArray(value.outputs) ||
-      !Array.isArray(value.externalImports) ||
-      !Array.isArray(value.rootClosure) ||
-      !Array.isArray(value.publicArtifactUrls)
-    )
-      throw new Error("Package build report has invalid shape")
-    for (const output of value.outputs) {
-      if (
-        typeof output !== "object" ||
-        output === null ||
-        typeof output.path !== "string" ||
-        typeof output.relative !== "string" ||
-        !["entry-point", "chunk", "asset", "copy"].includes(output.kind) ||
-        typeof output.loader !== "string" ||
-        (output.entryPoint !== undefined && typeof output.entryPoint !== "string") ||
-        (output.source !== undefined && typeof output.source !== "string") ||
-        !Array.isArray(output.imports)
-      )
-        throw new Error("Package build report output has invalid shape")
-      for (const imported of output.imports) {
-        if (
-          typeof imported !== "object" ||
-          imported === null ||
-          typeof imported.path !== "string" ||
-          typeof imported.kind !== "string" ||
-          typeof imported.external !== "boolean"
-        )
-          throw new Error("Package build report import has invalid shape")
-      }
-    }
-    for (const imported of value.externalImports) {
-      if (
-        typeof imported !== "object" ||
-        imported === null ||
-        typeof imported.path !== "string" ||
-        typeof imported.kind !== "string" ||
-        imported.external !== true
-      )
-        throw new Error("Package build report external import has invalid shape")
-    }
-    if (
-      value.rootClosure.some((item) => typeof item !== "string") ||
-      value.publicArtifactUrls.some((item) => typeof item !== "string")
-    )
-      throw new Error("Package build report projection has invalid shape")
-    for (const relativePath of value.rootClosure) canonicalReportRelative(relativePath)
-    return value
-  }
-
-  function canonicalReportRelative(value: string) {
-    if (
-      value === "" ||
-      value.startsWith("/") ||
-      value.includes("\\") ||
-      value.split("/").some((segment) => !segment || segment === "." || segment === "..")
-    )
-      throw new Error(`Package build report relative path is invalid: ${value}`)
-    return value
+  function generatedMapArtifact(path: string) {
+    const artifact = `./.cosmos/asset/${path}` as const
+    if (!isGeneratedPackageArtifactKey(artifact))
+      throw new Error(`Package source map artifact key is invalid: ${artifact}`)
+    return artifact
   }
 
   function canonicalBuildVersion(value: string) {
     if (!/^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/.test(value))
       throw new Error(`Package build version is not canonical SemVer: ${value}`)
     return value
-  }
-
-  function generatedMapArtifact(path: string) {
-    const artifact = `./.cosmos/asset/${path.split(sep).join("/")}` as const
-    if (!isGeneratedPackageArtifactKey(artifact))
-      throw new Error(`Package source map artifact key is invalid: ${artifact}`)
-    return artifact
-  }
-
-  function generatedOutputArtifact(path: string) {
-    const relativePath = path.split(sep).join("/")
-    const rooted = /^(?:entry|chunk|asset)\//.test(relativePath)
-      ? relativePath
-      : `asset/${relativePath}`
-    const artifact = `./.cosmos/${rooted}` as const
-    if (!isGeneratedPackageArtifactKey(artifact))
-      throw new Error(`Package generated artifact key is invalid: ${artifact}`)
-    return artifact
-  }
-
-  function compareBuildArtifacts(left: PackageBuildArtifact, right: PackageBuildArtifact) {
-    return (
-      (left.artifact ?? "").localeCompare(right.artifact ?? "") ||
-      left.path.localeCompare(right.path)
-    )
-  }
-
-  function inside(root: string, path: string) {
-    const pathFromRoot = relative(resolve(root), resolve(path))
-    return pathFromRoot === "" || (!pathFromRoot.startsWith("..") && !isAbsolute(pathFromRoot))
   }
 
   async function packageBuildAdapterEntrypoint() {
@@ -707,7 +413,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
   }
 
   async function executePackageTypecheck(owner: PackageOwner): Promise<PackageTypecheckResult> {
-    const child = Bun.spawn([Bun.which("bun") ?? "bun", "run", "--silent", owner.typecheck], {
+    const child = spawn([Bun.which("bun") ?? "bun", "run", "--silent", owner.typecheck], {
       cwd: owner.root,
       stdout: "pipe",
       stderr: "pipe",
@@ -725,6 +431,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     return {
       ...result,
       success: false,
+      stage: "outputs",
       stderr: [result.stderr.trimEnd(), message].filter(Boolean).join("\n"),
       outputs: [],
     }
@@ -750,7 +457,11 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
                 outdir: join(target.outdir, owner.env),
                 version: target.version ?? owner.version,
               }
-            : {env: owner.env, artifact: join(target.outdir, `${owner.env}.js`)},
+            : {
+                env: owner.env,
+                artifact: join(target.outdir, `${owner.env}.js`),
+                version: target.version ?? owner.version,
+              },
         ),
       ),
     )

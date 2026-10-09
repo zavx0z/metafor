@@ -238,7 +238,7 @@ test("isolated plugin adapter fails closed when a plugin mutates build outputs",
   expect(result.success).toBeFalse()
   expect(result.exitCode).toBe(1)
   expect(result.outputs).toBe(0)
-  expect(result.stderr).toContain("root output is missing")
+  expect(result.stderr).toContain("cannot modify the compiler output graph")
 })
 
 interface PluginFixtureResult {

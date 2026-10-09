@@ -1,6 +1,58 @@
 /** Отрицательные примеры. Fixture задаёт изменения изолированной копии пакета или повреждённый отчёт compiler; это не API сборщика. */
-import {describe, expect, test} from "bun:test"
-import {resolve} from "node:path"
+import {afterAll, beforeAll, describe, expect, test} from "bun:test"
+import {join, resolve} from "node:path"
+
+import {validatePackageBuildOutputs, type PackageBuildReport, type PackageBuildResult} from "@metafor/tech-build"
+import {buildOutcome, executionFixture, fixtureBuilder, reportDirectories, type ExecutionFixture} from "./execution-fixture"
+
+const diagnostics: Record<string, RegExp> = {
+  "Корень без окружения": /root subpath/i,
+  "Нет корневого export": /root subpath/i,
+  "Маска вместо корневого входа": /must target/i,
+  "Неизвестное окружение": /unsupported package environment/i,
+  "Неверный scope condition": /unsupported root export condition/i,
+  "Подпуть в необъявленном окружении": /environment|condition/i,
+  "Выход source за границу пакета": /path|package root/i,
+  "Source через символическую ссылку": /symbolic|symlink/i,
+  "Один source под двумя public keys": /source.*multiple|duplicate/i,
+  "Пересекающиеся маски exports": /duplicate|multiple|collision/i,
+  "Служебный public key": /invalid package export subpath/i,
+  "Отсутствующий source": /ENOENT|missing|exist/i,
+  "Необъявленная зависимость source": /direct.*dependency/i,
+  "Закрытый source зависимости": /public export/i,
+  "Нет единого typecheck": /typecheck.*missing/i,
+  "Запрещённый prebuild": /prebuild/i,
+  "Неоднозначная команда сборки": /exactly one outfile or outdir/i,
+  "Раздельные typecheck окружений": /one package-wide typecheck/i,
+  "Неверный target окружения": /target/i,
+  "Общий outfile разных окружений": /share build outfile/i,
+  "Build output вне пакета": /output|outfile|package root/i,
+  "Несовместимые staging options": /artifact.*outdir/i,
+  "Неполная пара staging и версии": /outdir.*version.*together/i,
+  "Multi-entry без splitting": /splitting|conditions|outdir/i,
+  "Чужая таблица build config": /unsupported key/i,
+  "Plugin для отсутствующего окружения": /unsupported environment/i,
+  "Пустой список plugins": /non-empty string array/i,
+  "Повтор plugin": /unique/i,
+  "Два пути к одному plugin": /duplicate modules/i,
+  "Превышен предел plugins": /exceed limit/i,
+  "Неверный loader": /loader extension|loader.*unsupported/i,
+  "Plugin вне владельца": /plugin.*missing|escapes package root/i,
+  "Plugin из непрямой зависимости": /direct dependency/i,
+  "Неверный default plugin": /default export.*Bun plugin/i,
+  "Plugin изменяет параметры": /cannot modify.*validated build plan/i,
+  "Plugin изменяет outputs": /cannot modify.*compiler output graph/i,
+  "Ошибка типов": /TS2322/i,
+  "Ошибка компиляции": /missing.ts/i,
+  "Нет корневого output": /root.*one output/i,
+  "Output за пределами staging": /escapes staging boundary/i,
+  "Коллизия физических outputs": /duplicates path/i,
+  "Разорванный import graph": /import is missing/i,
+  "Необъявленный внешний import": /undeclared external import/i,
+  "Отсутствующая development map": /inline source map is missing/i,
+  "Некорректная source map": /JSON|json/i,
+  "Source map без исходников": /sources, sourcesContent and mappings/i,
+}
 
 describe.each([
   {
@@ -268,7 +320,7 @@ describe.each([
       manifest: {
         exports: {
           ".": {
-            "internal:main": "./main/missing.ts"
+            "internal:main": "./main/index.ts"
           }
         }
       }
@@ -341,7 +393,7 @@ describe.each([
     fixture: {
       manifest: {
         scripts: {
-          "build:main": "bun build ./main/index.ts --target=browser --outfile=dist/main.js"
+          "build:main": "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --outfile=dist/main.js"
         }
       }
     },
@@ -363,7 +415,7 @@ describe.each([
         scripts: {
           typecheck: "tsc --noEmit",
           prebuild: "bun hook.ts",
-          "build:main": "bun build ./main/index.ts --target=browser --outfile=dist/main.js"
+          "build:main": "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --outfile=dist/main.js"
         }
       }
     },
@@ -384,7 +436,7 @@ describe.each([
       manifest: {
         scripts: {
           typecheck: "tsc --noEmit",
-          "build:main": "bun build ./main/index.ts other.ts --outfile=a.js --outdir=dist"
+          "build:main": "bun build ./main/index.ts other.ts --conditions=internal:main --target=browser --outfile=a.js --outdir=dist"
         }
       }
     },
@@ -406,7 +458,7 @@ describe.each([
         scripts: {
           typecheck: "tsc --noEmit",
           "typecheck:main": "tsc --noEmit",
-          "build:main": "bun build ./main/index.ts --target=browser --outfile=dist/main.js"
+          "build:main": "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --outfile=dist/main.js"
         }
       }
     },
@@ -531,7 +583,7 @@ describe.each([
       manifest: {
         scripts: {
           typecheck: "tsc --noEmit",
-          "build:main": "bun build ./main/index.ts --target=browser --outfile=dist/main.js"
+          "build:main": "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --outfile=dist/main.js"
         }
       }
     },
@@ -753,7 +805,7 @@ describe.each([
     fixture: {
       files: {
         "bunfig.toml": "[cosmos.package-build.environments.main]\nplugins = [\"./plugin.ts\"]\n",
-        "plugin.ts": "export default {name:\"mutating\",setup(build){build.onEnd(result=>{result.outputs.length=0})}}\n"
+        "plugin.ts": "export default {\n  name: \"mutating\",\n  setup(build) {\n    build.onEnd(async (result) => {\n      console.log(\"compiler-stdout\")\n      console.error(\"compiler-stderr\")\n      await result.outputs[0].text()\n      result.outputs.length = 0\n    })\n  },\n}\n"
       }
     },
     reason: "Plugin не подменяет output graph после компиляции",
@@ -958,40 +1010,122 @@ describe.each([
       compilations: 1,
       success: false
     }
-  }
-])("$name", ({name, props, expected}) => {
-  test.todo("Отказ", () => {
-    expect<unknown>(
-      undefined,
-      "Неверный вход или результат сборки возвращает отказ, а не готовую версию",
-    ).toEqual(expected.success)
+  },
+  {
+    name: "Source map без исходников",
+    props: {path: resolve(import.meta.dir, "fixture/single"), profile: "development"},
+    fixture: {compilerReport: {javascript: "//# sourceMappingURL=data:application/json;base64," + Buffer.from(JSON.stringify({version: 3, mappings: ""})).toString("base64") + "\n"}},
+    reason: "JSON версии 3 обязан содержать настоящие sources и sourcesContent",
+    expected: {stage: "outputs", compilations: 1, success: false},
+  },
+])("$name", ({name, props, fixture: changes, reason, expected}) => {
+  let fixture: ExecutionFixture
+  let result: PackageBuildResult
+  let repeated: PackageBuildResult
+  let compilations: number
+  let resourcesReleased: boolean
+  let originalManifest: string
+
+  beforeAll(async () => {
+    const reportPatch = "compilerReport" in changes ? changes.compilerReport : undefined
+    const preparation: import("./fixture").BuildFixtureChanges & {symbolicLinks?: Record<string, string>} = {...changes}
+    if (reportPatch) {
+      preparation.files = {
+        ...("files" in changes ? changes.files : {}),
+        "bunfig.toml": '[cosmos.package-build.environments.main]\nplugins = ["./plugin.ts"]\n',
+        "plugin.ts": 'export default {name:"report-fixture",setup(){}}\n',
+      }
+    }
+    fixture = await executionFixture(props.path, preparation)
+    originalManifest = await Bun.file(join(fixture.root, "package.json")).text()
+    await Bun.write(join(fixture.root, "published/current.txt"), "previous immutable version")
+    if (name === "Plugin вне владельца") await Bun.write(join(fixture.root, "../outside.ts"), 'export default {name:"outside",setup(){}}\n')
+    if (name === "Закрытый source зависимости") await Bun.write(join(fixture.directory, "node_modules/@fixture/library/private.ts"), "export const privateValue = 1\n")
+    if (name === "Отсутствующий source") await import("node:fs/promises").then(({rm}) => rm(join(fixture.root, "main/index.ts")))
+    const builder = fixtureBuilder(fixture, reportPatch ? "production" : props.profile as "production" | "development")
+    const options = "options" in props ? props.options : {}
+    const attempt = async (): Promise<PackageBuildResult> => {
+      if (!reportPatch) return await buildOutcome(builder, fixture.name, options)
+      const captured = fixture.observation.processes.find(({report}) => report !== undefined)
+      if (!captured?.report || !captured.request) throw new Error("Real compiler report was not captured")
+      const report = {...structuredClone(captured.report)}
+      const base = report.outputs[0]!
+      if ("outputs" in reportPatch) {
+        report.outputs = reportPatch.outputs!.map((patch, index) => ({
+          ...base,
+          relative: name === "Output за пределами staging" ? "escape.js" : patch.path,
+          path: resolve(dirnameForOutput(captured.request!.output), patch.path),
+          ...("imports" in patch ? {imports: patch.imports.map((edge) => ({kind: "import-statement", ...edge}))} : {}),
+          ...(index === 0 ? {} : {entryPoint: `./part-${index}.ts`}),
+        }))
+        if (name === "Коллизия физических outputs") {
+          report.outputs = report.outputs.map((output, index) => ({...output, relative: `collision-${index}.js`, path: index === 0 ? base.path : base.path.replace(/\/([^/]+)$/, "/unused/../$1")}))
+        }
+      }
+      if (name === "Необъявленный внешний import") {
+        report.externalImports = [{path: "@unknown/runtime", kind: "import-statement", external: true}]
+      }
+      if ("javascript" in reportPatch) await Bun.write(base.path, reportPatch.javascript!)
+      try {
+        const owner = await builder.packageOwner(fixture.name)
+        const outputs = await validatePackageBuildOutputs(fixture.name, owner, captured.request, report, props.profile as "production" | "development")
+        return {module: fixture.name, env: owner.env, success: true, exitCode: 0, stdout: "", stderr: "", outputs}
+      } catch (error) {
+        return {module: fixture.name, env: "main", success: false, stage: "outputs", exitCode: 0, stdout: "", stderr: error instanceof Error ? error.message : String(error), outputs: []}
+      }
+    }
+    if (reportPatch) {
+      const compiled = await buildOutcome(builder, fixture.name)
+      if (!compiled.success) throw new Error(`Compiler fixture failed before validation: ${compiled.stderr}`)
+    }
+    result = await attempt()
+    compilations = fixture.observation.count("compiler")
+    repeated = await attempt()
+    resourcesReleased = await fixture.observation.released() && (await reportDirectories(fixture)).every(Boolean)
+  }, 20_000)
+
+  afterAll(async () => {await fixture?.cleanup()})
+  test("Отказ", () => {
+    expect(result.success, reason).toEqual(expected.success)
   })
 
-  test.todo("Стадия и причина", () => {
-    expect<unknown>(
-      undefined,
-      "Диагностика позволяет определить стадию и конкретную причину отказа, сохраняя ошибку дочернего процесса",
-    ).toEqual(expected.stage)
+  test("Стадия и причина", () => {
+    expect(result.stage, "Диагностика определяет реальную стадию отказа").toEqual(expected.stage)
+    expect(result.stdout + result.stderr, reason).toMatch(diagnostics[name]!)
+    if (expected.stage === "compiler") {
+      expect(result.exitCode, "Сохранён неуспешный exit code настоящего compiler process").not.toBe(0)
+      expect(result.exitCode, "Exit code дочернего compiler не потерян").not.toBeNull()
+    }
   })
 
-  test.todo("Допуск сборочного процесса", () => {
-    expect<unknown>(
-      undefined,
-      "Ошибка контракта или типов не запускает сборочный процесс; отказ plugin, compiler или output фиксируется внутри уже запущенной операции",
-    ).toEqual(expected.compilations)
+  test("Допуск сборочного процесса", () => {
+    expect(compilations, "Контракт и typecheck останавливают compiler до запуска").toEqual(expected.compilations)
   })
 
-  test.todo("Отсутствие частичного успеха", () => {
-    expect<unknown>(
-      undefined,
-      "Отказ не возвращает подтверждённый output graph и не меняет опубликованное состояние",
-    ).toEqual([])
+  test("Отсутствие частичного успеха", async () => {
+    expect(result.outputs, "Отказ не возвращает подтверждённый output graph").toEqual([])
+    expect(await Bun.file(join(fixture.root, "package.json")).text(), "Исходный manifest не изменён сборщиком").toEqual(originalManifest)
+    expect(await Bun.file(join(fixture.root, "published/current.txt")).text(), "Опубликованное состояние предшественника сохранено").toEqual("previous immutable version")
   })
 
-  test.todo("Освобождение ресурсов", () => {
-    expect<unknown>(
-      undefined,
-      "После ошибки снимаются pending, завершается принадлежащий процесс и удаляется временный report",
-    ).toEqual(true)
+  describe.skipIf(name !== "Plugin изменяет outputs")("Диагностика завершённого compiler", () => {
+    test("Сохранение process streams", () => {
+      expect(result.stdout, "Output validation сохраняет stdout compiler").toContain("compiler-stdout")
+      expect(result.stderr, "Output validation сохраняет stderr compiler").toContain("compiler-stderr")
+      expect(result.exitCode, "Отказ callback сохраняет compiler exit code").toBe(1)
+    })
+  })
+
+  test("Освобождение ресурсов", () => {
+    expect(resourcesReleased, "Дочерние процессы завершены, временные report directories удалены").toEqual(true)
+    expect(repeated, "Завершённый отказ не остаётся в pending map").not.toBe(result)
+    expect(repeated.success, "Повтор заново проверяет тот же ошибочный вход").toBe(false)
+    if (expected.compilations > 0 && !("compilerReport" in changes)) {
+      expect(fixture.observation.count("compiler"), "Повтор после ошибки запускает новую компиляцию").toBe(compilations + 1)
+    }
   })
 })
+
+function dirnameForOutput(output: {mode: "single"; artifact: string} | {mode: "multi"; outdir: string}) {
+  return output.mode === "multi" ? output.outdir : resolve(output.artifact, "..")
+}

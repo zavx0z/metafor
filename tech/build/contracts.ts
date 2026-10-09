@@ -32,6 +32,8 @@ export interface PackageBuildResult {
   module: BuildablePackage
   env: PackageEnvironment
   success: boolean
+  /** Стадия отказа после разрешения package contract; отсутствует при успехе. */
+  stage?: "configuration" | "typecheck" | "compiler" | "outputs"
   exitCode: number | null
   stdout: string
   stderr: string
@@ -44,7 +46,7 @@ export interface PackageBuildOptions {
   env?: PackageEnvironment
   /** Staging directory override полного multi-output graph. */
   outdir?: string
-  /** Exact package version, парная явному multi-output staging directory. */
+  /** Exact package version; для полного графа передаётся вместе с outdir. */
   version?: string
 }
 

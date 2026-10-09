@@ -55,8 +55,13 @@ config: entrypoints, profile, resolution conditions и staging destination уж�
 export async function runIsolatedPackageBuild(
   request: IsolatedPackageBuildRequest,
 ): Promise<number> {
+  let stage = "compiler"
   try {
-    const plugins = await Promise.all(request.plugins.map(loadPlugin))
+    const plugins = await Promise.all(
+      request.plugins.map((path) => loadPlugin(path, () => {
+        stage = "outputs"
+      })),
+    )
     const buildSources = request.sources.filter(
       ({source}) => packageBuildSourceKind(source) !== "copy",
     )
@@ -94,13 +99,13 @@ export async function runIsolatedPackageBuild(
               asset: "asset/[hash].[ext]",
             },
             ...(publicPath === undefined ? {} : {publicPath}),
-            define: {
-              "import.meta.env.COSMOS_PACKAGE_NAME": JSON.stringify(request.name),
-              "import.meta.env.COSMOS_PACKAGE_ENV": JSON.stringify(request.env),
-              "import.meta.env.COSMOS_PACKAGE_VERSION": JSON.stringify(request.version),
-            },
           }
         : {}),
+      define: {
+        "import.meta.env.COSMOS_PACKAGE_NAME": JSON.stringify(request.name),
+        "import.meta.env.COSMOS_PACKAGE_ENV": JSON.stringify(request.env),
+        "import.meta.env.COSMOS_PACKAGE_VERSION": JSON.stringify(request.version),
+      },
       throw: false,
     })
 
@@ -109,7 +114,11 @@ export async function runIsolatedPackageBuild(
         message: String(log),
       })
     }
-    if (!result.success) return 1
+    if (!result.success) {
+      if (stage === "outputs") await Bun.write(request.report, JSON.stringify({failure: {stage}}))
+      return 1
+    }
+    stage = "outputs"
 
     if (!result.metafile) throw new Error("Package build metafile is missing")
     const outputs = await writeBuildOutputs(request, result.outputs, result.metafile)
@@ -125,6 +134,7 @@ export async function runIsolatedPackageBuild(
     await Bun.write(request.report, `${JSON.stringify(report)}\n`)
     return 0
   } catch (error) {
+    await Bun.write(request.report, JSON.stringify({failure: {stage}}))
     console.error("[@metafor/tech-build:adapter]", "isolated package build failed", {
       error: error instanceof Error ? (error.stack ?? error.message) : String(error),
     })
@@ -295,7 +305,7 @@ function outputRelative(value: string) {
   return normalized
 }
 
-async function loadPlugin(path: string): Promise<Bun.BunPlugin> {
+async function loadPlugin(path: string, outputFailure: () => void): Promise<Bun.BunPlugin> {
   const module = await import(pathToFileURL(path).href)
   const plugin = module.default as Partial<Bun.BunPlugin> | undefined
   if (
@@ -306,25 +316,40 @@ async function loadPlugin(path: string): Promise<Bun.BunPlugin> {
     typeof plugin.setup !== "function"
   )
     throw new Error(`Build plugin must default export a Bun plugin: ${path}`)
-  return protectBuildPlan(plugin as Bun.BunPlugin)
+  return protectBuildPlan(plugin as Bun.BunPlugin, outputFailure)
 }
 
-function protectBuildPlan(plugin: Bun.BunPlugin): Bun.BunPlugin {
+function protectBuildPlan(plugin: Bun.BunPlugin, outputFailure: () => void): Bun.BunPlugin {
   return {
     name: plugin.name,
     ...(plugin.target === undefined ? {} : {target: plugin.target}),
     setup(builder) {
-      return plugin.setup(readonlyBuilder(builder))
+      return plugin.setup(readonlyBuilder(builder, outputFailure))
     },
   }
 }
 
-function readonlyBuilder(builder: Bun.PluginBuilder): Bun.PluginBuilder {
+function readonlyBuilder(builder: Bun.PluginBuilder, outputFailure: () => void): Bun.PluginBuilder {
   const values = new WeakMap<object, object>()
   let proxy!: Bun.PluginBuilder
   proxy = new Proxy(builder, {
     get(target, property, receiver) {
       if (property === "config") return readonlyValue(target.config, values)
+      if (property === "onEnd") {
+        return (callback: Parameters<Bun.PluginBuilder["onEnd"]>[0]) =>
+          target.onEnd(async (result) => {
+            try {
+              await callback(readonlyValue(
+                result,
+                values,
+                "Package build plugin cannot modify the compiler output graph",
+              ))
+            } catch (error) {
+              outputFailure()
+              throw error
+            }
+          })
+      }
       const value = Reflect.get(target, property, receiver) as unknown
       if (typeof value !== "function") return value
       return (...args: unknown[]) => {
@@ -345,22 +370,28 @@ function readonlyBuilder(builder: Bun.PluginBuilder): Bun.PluginBuilder {
   return proxy
 }
 
-function readonlyValue<T extends object>(value: T, values: WeakMap<object, object>): T {
+function readonlyValue<T extends object>(
+  value: T,
+  values: WeakMap<object, object>,
+  message = "Package build plugin cannot modify the validated build plan",
+): T {
   const existing = values.get(value)
   if (existing) return existing as T
   const proxy = new Proxy(value, {
     get(target, property, receiver) {
-      const nested = Reflect.get(target, property, receiver) as unknown
-      return typeof nested === "object" && nested !== null ? readonlyValue(nested, values) : nested
+      const nested = Reflect.get(target, property, target) as unknown
+      if (typeof nested === "function" && (target instanceof Blob || Object.prototype.toString.call(target) === "[object BuildArtifact]"))
+        return nested.bind(target)
+      return typeof nested === "object" && nested !== null ? readonlyValue(nested, values, message) : nested
     },
     set() {
-      throw new Error("Package build plugin cannot modify the validated build plan")
+      throw new Error(message)
     },
     defineProperty() {
-      throw new Error("Package build plugin cannot modify the validated build plan")
+      throw new Error(message)
     },
     deleteProperty() {
-      throw new Error("Package build plugin cannot modify the validated build plan")
+      throw new Error(message)
     },
   })
   values.set(value, proxy)

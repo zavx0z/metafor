@@ -9,6 +9,11 @@
     "./theme.css": "./theme.css",
     "./icon.svg": "./icon.svg",
     "./kernel.wasm": "./kernel.wasm",
-    "./compiler": "./compiler.ts"
+    "./compiler": "./compiler.ts",
+    "./target": {
+      "browser": "./browser.ts",
+      "bun": "./bun.ts",
+      "default": "./browser.ts"
+    }
   }
 }

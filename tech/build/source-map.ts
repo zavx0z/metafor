@@ -26,7 +26,7 @@ export async function externalizeSourceMap(artifact: string) {
   if (!encoded) throw new Error(`Inline source map payload is missing: ${artifact}`)
   const sourceMap = Buffer.from(encoded, "base64")
   const parsed = JSON.parse(sourceMap.toString("utf8")) as Record<string, unknown>
-  if (parsed.version !== 3) throw new Error(`Source map has unsupported version: ${artifact}`)
+  validateSourceMap(parsed, artifact)
   delete parsed.debugId
 
   const canonicalSourceMap = Buffer.from(JSON.stringify(parsed))
@@ -52,9 +52,24 @@ export async function canonicalizeInlineSourceMap(artifact: string) {
     string,
     unknown
   >
-  if (parsed.version !== 3) throw new Error(`Source map has unsupported version: ${artifact}`)
+  validateSourceMap(parsed, artifact)
   delete parsed.debugId
   const canonicalMap = Buffer.from(JSON.stringify(parsed)).toString("base64")
   const executable = canonicalExecutableSource(source.slice(0, markerIndex)).trimEnd()
   await Bun.write(artifact, `${executable}\n${marker}${canonicalMap}\n`)
+}
+
+function validateSourceMap(value: Record<string, unknown>, artifact: string) {
+  if (value === null || typeof value !== "object" || value.version !== 3)
+    throw new Error(`Source map has unsupported version: ${artifact}`)
+  if (
+    !Array.isArray(value.sources) ||
+    value.sources.length === 0 ||
+    value.sources.some((source) => typeof source !== "string") ||
+    !Array.isArray(value.sourcesContent) ||
+    value.sourcesContent.length !== value.sources.length ||
+    value.sourcesContent.some((source) => typeof source !== "string") ||
+    typeof value.mappings !== "string"
+  )
+    throw new Error(`Source map must contain sources, sourcesContent and mappings: ${artifact}`)
 }

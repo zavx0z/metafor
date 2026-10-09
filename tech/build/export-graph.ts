@@ -305,7 +305,12 @@ async function resolveDependencyExport(
       : record(manifest.dependencies, "Package dependencies must be an object")
   if (dependency === manifest.name || !Object.hasOwn(dependencies, dependency))
     throw new Error(`Export source must name a direct runtime dependency: ${specifier}`)
-  const resolved = Bun.resolveSync(specifier, root)
+  let resolved: string
+  try {
+    resolved = Bun.resolveSync(specifier, root)
+  } catch (error) {
+    throw new Error(`Cannot resolve public export of direct dependency: ${specifier}`, {cause: error})
+  }
   if (!isAbsolute(resolved))
     throw new Error(`Dependency export is not a filesystem source: ${specifier}`)
   const source = await realpath(resolved)

@@ -5,10 +5,11 @@ props.path указывает на исходный пример. Fixture опи
 Вызов публичного сборщика выполняется один раз для каждого примера.
 */
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {join, resolve} from "node:path"
+import {isAbsolute, join, relative, resolve} from "node:path"
 import {createPackageBuilder, type PackageBuildResult} from "@metafor/tech-build"
 import {artifactIntegrity} from "@metafor/tech-build/identity"
-import {buildFixture} from "./fixture"
+import {buildFixture, executeBuildFixture, snapshotBuildInputs} from "./fixture"
+import {browserPackageArtifactUrl} from "@metafor/tech-build/identity"
 
 describe.each([
   {
@@ -50,7 +51,8 @@ describe.each([
           artifact: "."
         }
       ]
-    }
+    },
+    fixture: {dependencies: {"@fixture/library": resolve(import.meta.dir, "fixture/library")}}
   },
   {
     name: "Все поддержанные окружения",
@@ -82,7 +84,8 @@ describe.each([
           artifact: "."
         }
       ]
-    }
+    },
+    fixture: {dependencies: {"@fixture/library": resolve(import.meta.dir, "fixture/library")}}
   },
   {
     name: "Несколько входов и ресурсы",
@@ -183,6 +186,18 @@ describe.each([
         }
       ]
     }
+  },
+  {
+    name: "Будущая версия одного входа с compiler plugin",
+    props: {
+      path: resolve(import.meta.dir, "fixture/plugin"),
+      profile: "production",
+      options: {outdir: "staging/plugin", version: "1.0.1"},
+    },
+    expected: {
+      environments: ["main"],
+      publicArtifacts: [{env: "main", artifact: "."}],
+    },
   },
   {
     name: "Development с compiler plugin",
@@ -406,9 +421,9 @@ describe.each([
 
   test("Граница сборки", async () => {
     expect(
-      (await Bun.file(join(workspace.root, "package.json")).text()) === workspace.manifest,
+      await snapshotBuildInputs(workspace.root),
       "Сборка сохраняет входные исходники и manifests, возвращает артефакты и диагностику; публикация, версия выпуска и активация runtime не меняются",
-    ).toEqual(true)
+    ).toEqual(workspace.inputs)
   })
 
   /** @remarks Эти примеры содержат несколько частей одной версии пакета. */
@@ -420,35 +435,53 @@ describe.each([
       ).toEqual(true)
     })
 
-    test.todo("Назначение target", () => {
-      expect<unknown>(
-        undefined,
-        "Main, worker и service предназначены для browser; server и server-worker — для Bun; расширение исходника не определяет среду",
-      ).toEqual(true)
+    test("Назначение target", async () => {
+      const targets = await executeBuildFixture<Record<string, string>>(
+        workspace.directory, results, "1.0.0",
+        'const targets = {}; for (const env of '+JSON.stringify(expected.environments)+') targets[env] = (await load(env)).target; return targets',
+      )
+      expect(targets, "Target выбирает browser или bun public condition зависимости независимо от .ts исходника").toEqual(
+        Object.fromEntries(expected.environments.map((env) => [env, env === "server" || env === "server-worker" ? "bun" : "browser"])),
+      )
     })
   })
 
   /** @remarks Эти варианты содержат два code entrypoint и общую зависимость. */
   describe.skipIf(!["Несколько входов и ресурсы", "Development с внешними картами", "Production без диагностики"].includes(name))("Совместная сборка входов", () => {
-    test.todo("Единый экземпляр зависимости", () => {
-      expect<unknown>(
-        undefined,
-        "Изменение общего state через editor видно основному входу, общий модуль не дублирует состояние",
-      ).toEqual(true)
+    test("Единый экземпляр зависимости", async () => {
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.0", `
+        const root = await load("main")
+        const lazyEditor = await root.openEditor()
+        const publicEditor = await load("main", "./editor")
+        const first = lazyEditor.increment()
+        const second = publicEditor.increment()
+        return {first, second, current: root.currentValue(), sameModule: lazyEditor === publicEditor}
+      `)
+      expect(actual, "Lazy и публичный editor изменяют общий экземпляр state, видимый root").toEqual({first: 1, second: 2, current: 2, sameModule: true})
     })
 
-    test.todo("Отложенный вход", () => {
-      expect<unknown>(
-        undefined,
-        "Динамический import редактора разрешается внутри результата и остаётся lazy; нужные root chunks принадлежат eager closure",
-      ).toEqual(true)
+    test("Отложенный вход", async () => {
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.0", `
+        const root = await load("main")
+        const before = globalThis.__fixtureEditorLoads ?? 0
+        await root.openEditor()
+        return {before, after: globalThis.__fixtureEditorLoads}
+      `)
+      expect(actual, "Import editor остаётся lazy и разрешается только после openEditor").toEqual({before: 0, after: 1})
+      const code = results[0]!.outputs.filter(({type}) => type.includes("javascript"))
+      expect(code.find(({artifact}) => artifact === ".")?.load, "Root принадлежит eager closure").toBe("eager")
+      expect(code.find(({artifact}) => artifact === "./editor")?.load, "Отложенный public editor не принадлежит eager closure").toBe("lazy")
+      expect(code.some(({kind, load}) => kind === "chunk" && load === "eager"), "Общий state chunk входит в eager closure root").toBe(true)
     })
 
-    test.todo("Независимые публичные адреса", () => {
-      expect<unknown>(
-        undefined,
-        "Public exports и generated chunks получают однозначные keys; общий физический output сохраняет все необходимые адреса без второго resource manifest",
-      ).toEqual(true)
+    test("Независимые публичные адреса", () => {
+      const outputs = results[0]!.outputs.filter(({kind}) => kind !== "sourcemap")
+      const keys = outputs.map(({artifact}) => artifact)
+      const urls = keys.map((artifact) => browserPackageArtifactUrl(workspace.name, "main", artifact!, "1.0.0"))
+      expect(new Set(keys).size, "Каждый public export и generated chunk получает один однозначный key").toBe(keys.length)
+      expect(new Set(urls).size, "Каждому key соответствует независимый canonical URL").toBe(keys.length)
+      expect(outputs.filter(({kind}) => kind === "chunk").every(({artifact}) => artifact?.startsWith("./.cosmos/")), "Общие chunks адресуются generated keys без resource manifest").toBe(true)
+      expect(keys, "Публичные адреса сохраняются при разделении общего output graph").toEqual(expect.arrayContaining([".", "./editor", "./theme.css", "./icon.svg"]))
     })
   })
 
@@ -461,11 +494,25 @@ describe.each([
       ).toEqual(true)
     })
 
-    test.todo("Отдельные source maps", () => {
-      expect<unknown>(
-        undefined,
-        "Каждый JavaScript root, public entrypoint и chunk имеет отдельную map версии 3 с sourcesContent и точным sourceMapFor; inline base64 в JS отсутствует",
-      ).toEqual(true)
+    test("Отдельные source maps", async () => {
+      for (const {outputs} of results) {
+        const javascript = outputs.filter(({type}) => type.includes("javascript"))
+        const maps = outputs.filter(({kind}) => kind === "sourcemap")
+        expect(maps.length, "Каждый JavaScript output имеет ровно одну внешнюю map").toBe(javascript.length)
+        for (const output of javascript) {
+          const source = await Bun.file(output.path).text()
+          const companions = maps.filter(({sourceMapFor}) => sourceMapFor === output.artifact)
+          expect(companions.length, "Map относится к точному root, public entrypoint или chunk").toBe(1)
+          const companion = companions[0]!
+          const map = await Bun.file(companion.path).json()
+          expect(map.version, "Карта имеет стандартную версию 3").toBe(3)
+          expect(map.sourcesContent?.length, "Карта сохраняет содержимое всех исходников").toBe(map.sources.length)
+          expect(map.sourcesContent.every((content: unknown) => typeof content === "string"), "sourcesContent содержит реальные исходные тексты").toBe(true)
+          expect(source.includes("data:application/json"), "Inline base64 map отсутствует в JavaScript").toBe(false)
+          expect(companion.artifact?.startsWith("./.cosmos/"), "Map имеет companion identity вне публичных runtime exports").toBe(true)
+          expect(companion.kind, "Map не объявлена исполняемым entry-point или chunk").toBe("sourcemap")
+        }
+      }
     })
 
     test("Каноническая identity", async () => {
@@ -485,6 +532,12 @@ describe.each([
       ).toEqual(true)
     })
 
+    test("Минификация JavaScript", async () => {
+      const sources = await Promise.all(results.flatMap(({outputs}) => outputs.filter(({type}) => type.includes("javascript"))).map(async ({path}) => await Bun.file(path).text()))
+      expect(sources.every((source) => !/^\s{2,}\S/m.test(source)), "JavaScript outputs не содержат форматирующих отступов").toBe(true)
+      expect(sources.some((source) => source.includes("state.value") || source.includes("function increment")), "Минификация сокращает локальные identifiers fixture, сохраняя public exports").toBe(false)
+    })
+
     test("Отсутствие companions", async () => {
       expect(
         results.every(({outputs}) => outputs.every(({kind}) => kind !== "sourcemap")),
@@ -494,90 +547,132 @@ describe.each([
   })
 
   /** @remarks Fixture plugin подтверждает чтение TSX и преобразует конкретный исходник. */
-  describe.skipIf(!["TSX через локальный plugin", "Development с compiler plugin"].includes(name))("Compiler plugin", () => {
-    test.todo("Преобразование TSX", () => {
-      expect<unknown>(
-        undefined,
-        "Plugin прочитал TSX и loader загрузил shader.fixture: rendered равен ожидаемой строке",
-      ).toEqual("compiled-button:fixture-shader\n")
+  describe.skipIf(!["TSX через локальный plugin", "Development с compiler plugin", "Будущая версия одного входа с compiler plugin"].includes(name))("Compiler plugin", () => {
+    test("Преобразование TSX", async () => {
+      const actual = await executeBuildFixture(workspace.directory, results, props.options?.version ?? "1.0.0", 'return (await load("main")).rendered')
+      expect(actual, "Plugin прочитал настоящий TSX и text loader загрузил shader.fixture").toBe("compiled-button:fixture-shader\n")
     })
 
-    test.todo("Изоляция compiler", () => {
-      expect<unknown>(
-        undefined,
-        "Plugin выполняется в отдельном сборочном процессе, не изменяет validated build options и не становится runtime dependency",
-      ).toEqual(true)
+    test("Изоляция compiler", async () => {
+      const record = await Bun.file(join(workspace.directory, "compiler.json")).json()
+      expect(record.pid, "Compiler plugin выполняется в отдельном процессе").not.toBe(process.pid)
+      expect(record.unchanged, "Validated options не изменились после попыток plugin").toBe(true)
+      expect(record.rejected.length, "Запись target, entrypoints и loaders запрещена").toBe(3)
+      expect(record.rejected.every((message: string) => message.includes("validated build plan")), "Все изменения блокирует защита build plan").toBe(true)
+      expect((globalThis as {__fixtureCompilerPid?: number}).__fixtureCompilerPid, "Plugin не зарегистрирован в тестовом процессе").toBeUndefined()
+      const runtime = await executeBuildFixture(workspace.directory, results, props.options?.version ?? "1.0.0", 'await load("main"); return globalThis.__fixtureCompilerPid ?? null')
+      expect(runtime, "Compiler plugin не становится runtime dependency").toBeNull()
+    })
+  })
+
+  /** @remarks Один plugin-enabled root направлен в staging с версией будущего выпуска. */
+  describe.skipIf(name !== "Будущая версия одного входа с compiler plugin")("Версия single-entry plugin", () => {
+    test("Целевая версия в исполняемом коде", async () => {
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.1", 'return (await load("main")).builtVersion')
+      expect(actual, "Single-entry adapter подставляет target version в import.meta.env.COSMOS_PACKAGE_VERSION").toBe("1.0.1")
+      expect(JSON.parse(workspace.manifest).version, "Подготовка будущей версии не изменяет manifest исходного пакета").toBe("1.0.0")
+      expect(results[0]!.outputs.filter(({type}) => type.includes("javascript")).map(({artifact}) => artifact), "Версия проверена на одном root без перехода в multi-entry graph").toEqual(["."])
     })
   })
 
   /** @remarks Локальный bunfig задаёт text loader без таблицы compiler plugins. */
   describe.skipIf(name !== "Loader без compiler plugin")("Loader", () => {
-    test.todo("Loader самостоятелен", () => {
-      expect<unknown>(
-        undefined,
-        "Расширение .fixture загружается как текст при отсутствии compiler plugin",
-      ).toEqual("fixture-shader\n")
+    test("Loader самостоятелен", async () => {
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.0", 'return [(await load("main")).source, (await load("server")).source]')
+      expect(actual, "Text loader работает без compiler plugin в browser и Bun окружениях").toEqual(["fixture-shader\n", "fixture-shader\n"])
     })
   })
 
   /** @remarks В manifest есть conditionless exports, маска и исключённая закрытая директория. */
   describe.skipIf(name !== "Общие exports и маски")("Публичный граф", () => {
-    test.todo("Общие exports", () => {
-      expect<unknown>(
-        undefined,
-        "Shared source, CSS и WASM относятся к каждому объявленному окружению, сохраняя собственные identities",
-      ).toEqual(true)
+    test("Общие exports", async () => {
+      const expectedKeys = ["./shared", "./theme.css", "./kernel.wasm"]
+      for (const key of expectedKeys) {
+        const outputs = results.flatMap(({env, outputs}) => outputs.filter(({artifact}) => artifact === key).map((output) => ({env, ...output})))
+        expect(outputs.map(({env}) => env), "Conditionless export присутствует в обоих окружениях").toEqual(["main", "server"])
+        expect(outputs[0]!.path, "Общий источник не объединяет физические identities окружений").not.toBe(outputs[1]!.path)
+      }
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.0", 'return [(await load("main", "./shared")).shared, (await load("server", "./shared")).shared]')
+      expect(actual, "Conditionless code export остаётся исполняемым в каждом окружении").toEqual([42, 42])
     })
 
-    test.todo("Маски и исключения", () => {
-      expect<unknown>(
-        undefined,
-        "Раскрытие маски детерминировано, включает nested/remove.svg и исключает private/hidden.svg",
-      ).toEqual(true)
+    test("Маски и исключения", () => {
+      for (const result of results) {
+        expect(
+          result.outputs.filter(({artifact}) => artifact?.startsWith("./icons/")).map(({artifact}) => artifact),
+          "Маска раскрывается в детерминированном порядке с nested/remove.svg и без закрытых exports",
+        ).toEqual(["./icons/add.svg", "./icons/nested/remove.svg"])
+        expect(result.outputs.some(({artifact}) => artifact?.includes("private")), "Null export исключает private/hidden.svg").toBe(false)
+      }
     })
 
-    test.todo("Типы ресурсов", () => {
-      expect<unknown>(
-        undefined,
-        "CSS сохраняет объявленный стиль, SVG и WASM сохраняют raw bytes; их MIME соответствует содержимому",
-      ).toEqual(true)
+    test("Типы ресурсов", async () => {
+      for (const {outputs} of results) {
+        const css = outputs.find(({artifact}) => artifact === "./theme.css")!
+        expect(css.type.split(";")[0], "CSS имеет MIME text/css").toBe("text/css")
+        expect((await Bun.file(css.path).text()).replace(/\s/g, ""), "CSS сохраняет объявленный стиль после минификации").toContain("--accent:#2478ff")
+        for (const [artifact, mime] of [["./kernel.wasm", "application/wasm"], ["./icons/add.svg", "image/svg+xml"], ["./icons/nested/remove.svg", "image/svg+xml"]]) {
+          const output = outputs.find((output) => output.artifact === artifact)!
+          expect(output.type.split(";")[0], "MIME raw-ресурса соответствует его формату").toBe(mime)
+          expect(new Uint8Array(await Bun.file(output.path).arrayBuffer()), "Raw bytes ресурса сохранены без преобразования").toEqual(new Uint8Array(await Bun.file(join(workspace.root, artifact!.slice(2))).arrayBuffer()))
+        }
+      }
     })
   })
 
   /** @remarks Локальный источник зависимости задан в данных изолированной fixture. */
   describe.skipIf(name !== "Источники публичной зависимости")("Граница зависимости", () => {
-    test.todo("Public exports зависимости", () => {
-      expect<unknown>(
-        undefined,
-        "TS, CSS, SVG и WASM разрешаются через public exports прямой runtime dependency и публикуются под ключами собираемого пакета",
-      ).toEqual(true)
+    test("Public exports зависимости", async () => {
+      const output = results[0]!
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.0", 'return (await load("main", "./library")).value')
+      expect(actual, "TS экспорт зависимости связан в публичный код пакета-потребителя").toBe(42)
+      const libraryRoot = join(workspace.directory, "node_modules/@fixture/library")
+      for (const [artifact, mime] of [["./theme.css", "text/css"], ["./icon.svg", "image/svg+xml"], ["./kernel.wasm", "application/wasm"]]) {
+        const prepared = output.outputs.find((output) => output.artifact === artifact)!
+        expect(prepared.type.split(";")[0], "Публичный ресурс зависимости сохраняет MIME под ключом потребителя").toBe(mime)
+        const source = Bun.file(join(libraryRoot, artifact!.slice(2)))
+        if (mime === "text/css") {
+          expect((await Bun.file(prepared.path).text()).replace(/\s/g, ""), "Public CSS зависимости сохраняет авторский стиль").toContain("--accent:#2478ff")
+        } else {
+          expect(new Uint8Array(await Bun.file(prepared.path).arrayBuffer()), "Public SVG и WASM зависимости сохраняют точные байты").toEqual(new Uint8Array(await source.arrayBuffer()))
+        }
+      }
     })
 
-    test.todo("Обычная зависимость не становится release package", () => {
-      expect<unknown>(
-        undefined,
-        "Код библиотеки связывается в output владельца; её динамический import создаёт доступный lazy artifact, а не отдельную запись выпуска",
-      ).toEqual(true)
+    test("Обычная зависимость не становится release package", async () => {
+      expect(results.map(({module}) => module), "Результат содержит только собираемый пакет, без отдельного выпуска библиотеки").toEqual([workspace.name])
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.0", 'return (await (await load("main", "./library")).load()).lazyValue')
+      expect(actual, "Динамический import обычной зависимости разрешается в подготовленном графе потребителя").toBe(7)
+      const lazy = results[0]!.outputs.filter(({kind, load}) => kind === "chunk" && load === "lazy")
+      expect(lazy.length, "Lazy ветвь библиотеки создаёт доступный generated artifact").toBeGreaterThan(0)
+      expect(lazy.every(({artifact}) => artifact?.startsWith("./.cosmos/")), "Производные artifacts принадлежат identity потребителя").toBe(true)
     })
   })
 
   /** @remarks Bare plugin разрешается из public export объявленной прямой dependency. */
   describe.skipIf(name !== "Plugin из прямой зависимости")("Внешний compiler", () => {
-    test.todo("Публичный compiler", () => {
-      expect<unknown>(
-        undefined,
-        "Plugin берётся по публичному адресу @fixture/library/compiler; глобальные регистрации соседних пакетов не меняются",
-      ).toEqual(true)
+    test("Публичный compiler", async () => {
+      const record = await Bun.file(join(workspace.directory, "dependency-compiler.json")).json()
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.0", 'const module = await load("main"); return {compiled: module.compiledByDependency, compiler: globalThis.__fixtureDependencyCompiler ?? null}')
+      expect(actual, "Plugin разрешён через public export прямой dependency и выполнил преобразование; runtime его не загружает").toEqual({compiled: "public-compiler", compiler: null})
+      expect(record.pid, "Внешний compiler работает в изолированном процессе").not.toBe(process.pid)
+      expect((globalThis as {__fixtureDependencyCompiler?: number}).__fixtureDependencyCompiler, "Глобальные регистрации тестового процесса не изменены").toBeUndefined()
     })
   })
 
   /** @remarks Полный граф корня и raw-ресурса направлен в одну staging-директорию. */
   describe.skipIf(name !== "Корень и копируемый ресурс")("Staging", () => {
-    test.todo("Полный staging-граф", () => {
-      expect<unknown>(
-        undefined,
-        "Корневой JS и SVG подготовлены под целевую версию 1.0.1 в staging; исходный manifest остаётся версии 1.0.0",
-      ).toEqual(true)
+    test("Полный staging-граф", async () => {
+      const staging = join(workspace.directory, "staging/raw")
+      const outputs = results[0]!.outputs
+      expect(outputs.map(({artifact}) => artifact).sort(), "В staging подготовлен полный граф корня и raw-ресурса").toEqual([".", "./icon.svg"])
+      expect(outputs.every(({path}) => { const local = relative(staging, path); return local !== "" && !local.startsWith("..") && !isAbsolute(local) }), "Все outputs принадлежат явной staging-директории").toBe(true)
+      expect(JSON.parse(workspace.manifest).version, "Исходный manifest остаётся версии 1.0.0").toBe("1.0.0")
+      const icon = outputs.find(({artifact}) => artifact === "./icon.svg")!
+      expect(new Uint8Array(await Bun.file(icon.path).arrayBuffer()), "Raw-ресурс в staging сохраняет исходные байты").toEqual(new Uint8Array(await Bun.file(join(workspace.root, "icon.svg")).arrayBuffer()))
+      expect(browserPackageArtifactUrl(workspace.name, "main", "./icon.svg", props.options?.version), "Адрес staging-ресурса закреплён за целевой версией").toBe("/@internal/example/icon.svg?env=main&version=1.0.1")
+      const actual = await executeBuildFixture(workspace.directory, results, "1.0.1", 'const root = await load("main"); return {value: root.value, identity: root.buildIdentity}')
+      expect(actual, "Staging root исполняется с настоящими defines целевой версии 1.0.1").toEqual({value: 42, identity: {name: workspace.name, env: "main", version: "1.0.1"}})
     })
   })
 })
