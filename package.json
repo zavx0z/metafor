@@ -9,6 +9,7 @@
   "workspaces": [
     "types",
     "shared",
+    "tech/release",
     "quantum/dark/types",
     "quantum/boundary",
     "quantum/boundary/types",

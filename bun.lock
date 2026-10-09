@@ -256,6 +256,10 @@
         "@metafor/types": "workspace:*",
       },
     },
+    "tech/release": {
+      "name": "@metafor/tech-release",
+      "version": "0.0.0",
+    },
     "types": {
       "name": "@metafor/types",
     },
@@ -315,6 +319,8 @@
     "@metafor/dsl": ["@metafor/dsl@workspace:create-metafor/dsl"],
 
     "@metafor/node-tree": ["@metafor/node-tree@workspace:pkg/node-tree"],
+
+    "@metafor/tech-release": ["@metafor/tech-release@workspace:tech/release"],
 
     "@metafor/types": ["@metafor/types@workspace:types"],
 

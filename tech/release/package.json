@@ -1,0 +1,11 @@
+{
+  "name": "@metafor/tech-release",
+  "label": "Выпуск",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Сценарии подготовки и публикации согласованного состава версий пакетов",
+  "scripts": {
+    "test": "bun test spec"
+  }
+}
