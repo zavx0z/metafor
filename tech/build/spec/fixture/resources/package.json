@@ -1,0 +1,22 @@
+{
+  "name": "@internal/example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "internal:main": "./main/index.ts",
+      "internal:server": "./server/index.ts"
+    },
+    "./shared": "./shared.ts",
+    "./theme.css": "./theme.css",
+    "./kernel.wasm": "./kernel.wasm",
+    "./icons/*": "./icons/*",
+    "./icons/private/*": null
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "build:main": "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
+    "build:server": "bun build ./server/index.ts --conditions=internal:server --target=bun --production --minify --drop console.debug --outdir=dist/server --splitting"
+  }
+}

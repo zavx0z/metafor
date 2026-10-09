@@ -1,0 +1,5 @@
+[loader]
+".fixture" = "text"
+
+[cosmos.package-build.environments.main]
+plugins = ["./build/plugin.ts"]

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "main/**/*.ts",
+    "worker/**/*.ts",
+    "service/**/*.ts",
+    "server/**/*.ts",
+    "server-worker/**/*.ts"
+  ]
+}

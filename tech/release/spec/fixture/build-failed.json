@@ -1,0 +1,119 @@
+{
+  "current": {
+    "@example/host": "1.0.0",
+    "@example/view": "1.0.0"
+  },
+  "rootIntent": {
+    "@example/host": "1.0.0",
+    "@example/view": "1.0.0"
+  },
+  "childVersions": {
+    "@example/host": "1.0.0",
+    "@example/view": "1.0.0"
+  },
+  "dependencies": {
+    "@example/host": {
+      "@example/view": "workspace:^1.0.0"
+    },
+    "@example/view": {}
+  },
+  "published": [
+    {
+      "name": "@example/host",
+      "version": "1.0.0",
+      "env": "main",
+      "artifact": ".",
+      "bytes": "export const identity = \"@example/host:main:.:1.0.0\"\n",
+      "sha256": "fa9a8355933d55a3bd47f4aeeaa5464e2c3f6de81aa97ae205bc510ebaf32cae",
+      "size": 53
+    },
+    {
+      "name": "@example/host",
+      "version": "1.0.0",
+      "env": "service",
+      "artifact": ".",
+      "bytes": "export const identity = \"@example/host:service:.:1.0.0\"\n",
+      "sha256": "bb493761ba93c304fa630cc58f11385770f59c12840fa7233a908c5a7c4a47f7",
+      "size": 56
+    },
+    {
+      "name": "@example/host",
+      "version": "1.0.0",
+      "env": "server",
+      "artifact": ".",
+      "bytes": "export const identity = \"@example/host:server:.:1.0.0\"\n",
+      "sha256": "b0816a77b3a4a6d842235c6d4b0e37d64df963d6f41a0288214784036c3380ef",
+      "size": 55
+    },
+    {
+      "name": "@example/view",
+      "version": "1.0.0",
+      "env": "main",
+      "artifact": ".",
+      "bytes": "export const identity = \"@example/view:main:.:1.0.0\"\n",
+      "sha256": "8119ebcecc9c79b1ec871eb9edc69e9995b628f97ed9bad15f64d67423f3f6fa",
+      "size": 53
+    },
+    {
+      "name": "@example/view",
+      "version": "1.0.0",
+      "env": "main",
+      "artifact": "./editor",
+      "bytes": "export const identity = \"@example/view:main:./editor:1.0.0\"\n",
+      "sha256": "5d0c516486c4c96f386eec8145d5429acead23b57a504eb94f338ff7f1226112",
+      "size": 60
+    },
+    {
+      "name": "@example/view",
+      "version": "1.0.0",
+      "env": "main",
+      "artifact": "./theme.css",
+      "bytes": ":root { --accent: #2478ff; }\n",
+      "sha256": "f2b96a6bba1ca1575bcd04341d7524218c56057d1505d516dde42781b0fe9363",
+      "size": 29
+    },
+    {
+      "name": "@example/view",
+      "version": "1.0.0",
+      "env": "main",
+      "artifact": "./.cosmos/chunk/shared.js",
+      "bytes": "export const identity = \"@example/view:main:./.cosmos/chunk/shared.js:1.0.0\"\n",
+      "sha256": "c6d0778ce1a6d2d35e9b5fd70d4f28d3163503569a941a2f7e03ccbddc5e3774",
+      "size": 77
+    },
+    {
+      "name": "@example/view",
+      "version": "1.0.0",
+      "env": "server",
+      "artifact": ".",
+      "bytes": "export const identity = \"@example/view:server:.:1.0.0\"\n",
+      "sha256": "494afd04362e613cc23f38aa2b0e853f4192d566693dcac9898cef02fcaa7350",
+      "size": 55
+    }
+  ],
+  "prepared": [],
+  "request": {
+    "packages": [
+      {
+        "name": "@example/host",
+        "change": "patch"
+      },
+      {
+        "name": "@example/view",
+        "change": "patch"
+      }
+    ]
+  },
+  "buildResults": [
+    {
+      "name": "@example/host",
+      "success": true
+    },
+    {
+      "name": "@example/view",
+      "success": false,
+      "exitCode": 2,
+      "stderr": "typecheck failed"
+    }
+  ]
+}

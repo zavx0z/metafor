@@ -1,0 +1,14 @@
+{
+  "name": "@fixture/library",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./lazy": "./lazy.ts",
+    "./theme.css": "./theme.css",
+    "./icon.svg": "./icon.svg",
+    "./kernel.wasm": "./kernel.wasm",
+    "./compiler": "./compiler.ts"
+  }
+}

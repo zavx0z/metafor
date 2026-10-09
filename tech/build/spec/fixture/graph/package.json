@@ -1,0 +1,24 @@
+{
+  "name": "@internal/example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "internal:main": "./main/index.ts"
+    },
+    "./editor": {
+      "internal:main": "./main/editor.ts"
+    },
+    "./theme.css": {
+      "internal:main": "./theme.css"
+    },
+    "./icon.svg": {
+      "internal:main": "./icon.svg"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "build:main": "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting"
+  }
+}

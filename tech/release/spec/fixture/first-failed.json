@@ -1,0 +1,28 @@
+{
+  "current": null,
+  "rootIntent": {
+    "@example/host": "1.0.0",
+    "@example/view": "1.0.0"
+  },
+  "childVersions": {
+    "@example/host": "1.0.0",
+    "@example/view": "1.0.0"
+  },
+  "dependencies": {
+    "@example/host": {
+      "@example/view": "workspace:^1.0.0"
+    },
+    "@example/view": {}
+  },
+  "published": [],
+  "prepared": [],
+  "request": null,
+  "buildResults": [
+    {
+      "name": "@example/view",
+      "success": false,
+      "exitCode": 2,
+      "stderr": "typecheck failed"
+    }
+  ]
+}

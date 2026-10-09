@@ -1,0 +1,22 @@
+{
+  "name": "@internal/example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "internal:main": "./main/index.ts"
+    },
+    "./library": "@fixture/library",
+    "./theme.css": "@fixture/library/theme.css",
+    "./icon.svg": "@fixture/library/icon.svg",
+    "./kernel.wasm": "@fixture/library/kernel.wasm"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "build:main": "bun build ./main/index.ts --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting"
+  },
+  "dependencies": {
+    "@fixture/library": "1.0.0"
+  }
+}
