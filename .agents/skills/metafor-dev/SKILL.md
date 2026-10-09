@@ -94,14 +94,15 @@ identity bytes, negotiated wire bytes, external source maps, every Cache
 Storage entry, and browser quota usage. The diagnostic uses Bun `fetch`, so
 Brotli support does not depend on the system `curl` build.
 
-Never attach Puppeteer to this persistent Chrome without
-`defaultViewport: null`: Puppeteer's default `800×600` viewport survives on the
-target and leaves gray space around the application. For an intentional
-emulated viewport, restore native metrics before handoff. Running `start` or
-`restart` performs the native reset mechanically.
+Use direct CDP over the managed target's WebSocket for browser diagnostics,
+input and screenshots. Preserve the native viewport by default. If a check
+intentionally emulates a viewport, restore native metrics before handoff.
+Running `start` or `restart` performs the native reset mechanically.
+Use `Debugger` and `Input` for an owner-visible breakpoint demonstration;
+keep fixture evaluation and diagnostics outside production source and bundles.
 
-For a visual or performance proof, read `references/workflow.md`. For first
-Inspector installation or repair only, read `references/setup.md`. Keep all
+For a visual or performance proof, read `references/workflow.md`. For connecting an existing external
+Inspector only, read `references/setup.md`. Keep all
 Inspector instrumentation external to MetaFor source and runtime bundles.
 
 ## Handoff

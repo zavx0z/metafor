@@ -19,6 +19,6 @@
     "@zavx0z/immersive-engine": "^0.0.0"
   },
   "devDependencies": {
-    "puppeteer-core": "25.4.0"
+    "devtools-protocol": "0.0.1653615"
   }
 }

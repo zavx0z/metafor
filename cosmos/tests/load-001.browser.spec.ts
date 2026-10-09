@@ -5,13 +5,9 @@ import {createServer} from "node:net"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 import {fileURLToPath} from "node:url"
-import puppeteer, {
-  TargetType,
-  type Browser,
-  type Page,
-  type Target,
-  type WebWorker,
-} from "puppeteer-core"
+import {evaluate} from "./fixture/cdp"
+import {launchChrome, openPage, navigate, waitForNavigation, observeNavigation, observeDiagnostics,
+  type ChromeFixture, type ChromePage, type WorkerTarget} from "./fixture/chrome"
 import {releaseWorkspaceState} from "./fixture/workspace-state"
 import type {NonRootPackageArtifactKey} from "../release/shared/artifact"
 
@@ -30,11 +26,6 @@ interface RunningServer {
   root: string
   output: () => string
   stop: () => Promise<void>
-}
-
-interface WorkerHandle {
-  target: Target
-  worker: WebWorker
 }
 
 interface CacheSnapshot {
@@ -82,7 +73,7 @@ beforeAll(async () => {
   })))
   const failure = results.find(({result}) => !result.success)
   if (failure) throw new Error(
-    `Browser fixture build failed for ${failure.plan.name}:${failure.plan.env}: ${failure.result.stderr}`,
+    `ChromeFixture fixture build failed for ${failure.plan.name}:${failure.plan.env}: ${failure.result.stderr}`,
   )
   fixtureArtifacts = results.flatMap(({plan, artifacts}) =>
     artifacts.map(({artifact, load, path, type}) => ({
@@ -147,9 +138,9 @@ console.log(JSON.stringify(await Promise.all(plans.map(async ({name,env,version,
     new Response(child.stdout).text(),
     new Response(child.stderr).text(),
   ])
-  if (exitCode !== 0) throw new Error(`Browser fixture build process failed: ${stderr || stdout}`)
+  if (exitCode !== 0) throw new Error(`ChromeFixture fixture build process failed: ${stderr || stdout}`)
   const line = stdout.trim().split("\n").at(-1)
-  if (!line) throw new Error(`Browser fixture build result is missing: ${stderr}`)
+  if (!line) throw new Error(`ChromeFixture fixture build result is missing: ${stderr}`)
   const results = JSON.parse(line) as Array<{
     name: FixtureArtifact["name"]
     env: FixtureArtifact["env"]
@@ -175,46 +166,42 @@ test.serial("UPD-003 updates two isolated browser profiles independently", async
   const firstProfile = await mkdtemp(join(tmpdir(), "metafor-upd-003-profile-a-"))
   const secondProfile = await mkdtemp(join(tmpdir(), "metafor-upd-003-profile-b-"))
   const server = await startServer("update")
-  let firstBrowser: Browser | null = null
-  let secondBrowser: Browser | null = null
+  let firstBrowser: ChromeFixture | null = null
+  let secondBrowser: ChromeFixture | null = null
 
   try {
     firstBrowser = await launchBrowser(firstProfile)
     secondBrowser = await launchBrowser(secondProfile)
     const [firstPage, secondPage] = await Promise.all([
-      firstBrowser.newPage(),
-      secondBrowser.newPage(),
+      openPage(firstBrowser),
+      openPage(secondBrowser),
     ])
     const [firstNavigation, secondNavigation] = await Promise.all([
-      firstPage.goto(server.root, {waitUntil: "load"}),
-      secondPage.goto(server.root, {waitUntil: "load"}),
+      navigate(firstPage, server.root),
+      navigate(secondPage, server.root),
     ])
-    expect(firstNavigation?.status()).toBe(200)
-    expect(secondNavigation?.status()).toBe(200)
+    expect(firstNavigation?.status).toBe(200)
+    expect(secondNavigation?.status).toBe(200)
     await Promise.all([
       waitForAcceptedCaches(firstPage),
       waitForAcceptedCaches(secondPage),
     ])
     await waitUntil(async () => await fixtureConnections(server.root) >= 2)
 
-    await firstPage.evaluate(async () => {
+    await evaluate(firstPage.session, async () => {
       await (await caches.open("profile-proof")).put("/only-first-profile", new Response("first"))
     })
     expect((await cacheSnapshot(firstPage))["profile-proof"]).toEqual(["/only-first-profile"])
     expect((await cacheSnapshot(secondPage))["profile-proof"]).toBeUndefined()
-    await firstPage.evaluate(async () => { await caches.delete("profile-proof") })
+    await evaluate(firstPage.session, async () => { await caches.delete("profile-proof") })
 
     const firstBefore = await updateSources(firstPage)
     const secondBefore = await updateSources(secondPage)
     const navigations = {first: 0, second: 0}
-    firstPage.on("framenavigated", (frame) => {
-      if (frame === firstPage.mainFrame()) navigations.first += 1
-    })
-    secondPage.on("framenavigated", (frame) => {
-      if (frame === secondPage.mainFrame()) navigations.second += 1
-    })
-    const firstReload = firstPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
-    const secondReload = secondPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    observeNavigation(firstPage, () => { navigations.first += 1 })
+    observeNavigation(secondPage, () => { navigations.second += 1 })
+    const firstReload = waitForNavigation(firstPage)
+    const secondReload = waitForNavigation(secondPage)
 
     const build = await requestBuild(server.root, [
       {name: "@internal/visual", change: "patch"},
@@ -253,26 +240,25 @@ test.serial("UPD-003 updates two isolated browser profiles independently", async
 test.serial("UPD-002 updates one module group and restarts every Window once", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-"))
   const server = await startServer("update-build-failure-once")
-  let browser: Browser | null = null
+  let browser: ChromeFixture | null = null
   const browserDiagnostics: string[] = []
 
   try {
     browser = await launchBrowser(profile)
     const firstWorkerObserver = observeStartupWorker(browser, browserDiagnostics)
-    const firstPage = await browser.newPage()
+    const firstPage = await openPage(browser)
     const startupDiagnostics: string[] = []
-    firstPage.on("console", (message) => startupDiagnostics.push(`console:${message.type()}:${message.text()}`))
-    firstPage.on("pageerror", (error) => startupDiagnostics.push(`pageerror:${String(error)}`))
-    firstPage.on("requestfailed", (request) =>
-      startupDiagnostics.push(`requestfailed:${request.url()}:${request.failure()?.errorText ?? "unknown"}`))
+    observeDiagnostics(firstPage.session, startupDiagnostics, "console")
+    firstPage.session.on("Network.loadingFailed", event =>
+      startupDiagnostics.push(`requestfailed:${event.requestId}:${event.errorText}`))
     const connectionsBefore = countMatches(server.output(), "подписка release service создана")
 
-    const firstNavigation = await firstPage.goto(server.root, {waitUntil: "load"})
-    expect(firstNavigation?.status()).toBe(200)
+    const firstNavigation = await navigate(firstPage, server.root)
+    expect(firstNavigation?.status).toBe(200)
     const firstWorker = await Promise.race([
       firstWorkerObserver.promise,
       Bun.sleep(15_000).then(async () => {
-        const state = await firstPage.evaluate(async () => ({
+        const state = await evaluate(firstPage.session, async () => ({
           controller: navigator.serviceWorker.controller?.scriptURL ?? null,
           registrations: (await navigator.serviceWorker.getRegistrations())
             .map((registration) => ({
@@ -288,10 +274,10 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     await waitUntil(() =>
       countMatches(server.output(), "подписка release service создана") > connectionsBefore)
 
-    const secondPage = await browser.newPage()
-    const secondNavigation = await secondPage.goto(server.root, {waitUntil: "load"})
-    expect(secondNavigation?.status()).toBe(200)
-    expect(await secondPage.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
+    const secondPage = await openPage(browser)
+    const secondNavigation = await navigate(secondPage, server.root)
+    expect(secondNavigation?.status).toBe(200)
+    expect(await evaluate(secondPage.session, () => Boolean(navigator.serviceWorker.controller))).toBe(true)
 
     const packages = [
       {name: "@cosmos/release", change: "patch"},
@@ -305,12 +291,8 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(sourceBefore.internalVisual.length).toBeGreaterThan(0)
 
     const navigations = {first: 0, second: 0}
-    firstPage.on("framenavigated", (frame) => {
-      if (frame === firstPage.mainFrame()) navigations.first += 1
-    })
-    secondPage.on("framenavigated", (frame) => {
-      if (frame === secondPage.mainFrame()) navigations.second += 1
-    })
+    observeNavigation(firstPage, () => { navigations.first += 1 })
+    observeNavigation(secondPage, () => { navigations.second += 1 })
 
     const legacyUrl = new URL("/code", server.root)
     legacyUrl.searchParams.set("module", "@cosmos/release")
@@ -333,8 +315,8 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     expect(navigations).toEqual({first: 0, second: 0})
     expect(await updateSources(firstPage)).toEqual(sourceBefore)
 
-    const firstReload = firstPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
-    const secondReload = secondPage.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    const firstReload = waitForNavigation(firstPage)
+    const secondReload = waitForNavigation(secondPage)
     const build = await requestBuild(server.root, packages)
     expect(build.status).toBe(200)
     expect(build.body.success).toBe(true)
@@ -353,9 +335,9 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
     ])
     if (!firstReloadResponse || !secondReloadResponse)
       throw new Error("Updated Window navigation response is missing")
-    expect([200, 304]).toContain(firstReloadResponse.status())
-    expect([200, 304]).toContain(secondReloadResponse.status())
-    const workerState = await firstPage.evaluate(async () => ({
+    expect([200, 304]).toContain(firstReloadResponse.status)
+    expect([200, 304]).toContain(secondReloadResponse.status)
+    const workerState = await evaluate(firstPage.session, async () => ({
       controller: navigator.serviceWorker.controller?.scriptURL ?? null,
       registrations: (await navigator.serviceWorker.getRegistrations()).map((registration) => ({
         active: registration.active?.scriptURL ?? null,
@@ -369,7 +351,7 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
         scope: `${server.root}/`,
       }],
     })
-    expect(browser.targets()).toContain(firstWorker.target)
+    expect(browser.targets.has(firstWorker.info.targetId)).toBeTrue()
 
     await waitForAcceptedCaches(firstPage)
     await waitUntil(() =>
@@ -419,17 +401,12 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
 
     browser = await launchBrowser(profile)
     const restoredWorkerObserver = observeStartupWorker(browser, browserDiagnostics)
-    const restoredPage = await browser.newPage()
-    restoredPage.on("console", (message) =>
-      browserDiagnostics.push(`page:${message.type()}:${message.text()}`))
-    restoredPage.on("pageerror", (error) =>
-      browserDiagnostics.push(`pageerror:${String(error)}`))
+    const restoredPage = await openPage(browser)
+    observeDiagnostics(restoredPage.session, browserDiagnostics, "page")
     let restoredNavigations = 0
-    restoredPage.on("framenavigated", (frame) => {
-      if (frame === restoredPage.mainFrame()) restoredNavigations += 1
-    })
-    const restoredNavigation = await restoredPage.goto(server.root, {waitUntil: "load"})
-    expect(restoredNavigation?.status()).toBe(200)
+    observeNavigation(restoredPage, () => { restoredNavigations += 1 })
+    const restoredNavigation = await navigate(restoredPage, server.root)
+    expect(restoredNavigation?.status).toBe(200)
     await Promise.race([
       restoredWorkerObserver.promise,
       Bun.sleep(15_000).then(() => {
@@ -466,21 +443,19 @@ test.serial("UPD-002 updates one module group and restarts every Window once", a
 test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed transaction", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-atomic-"))
   const server = await startServer("update-fetch-failure-once")
-  let browser: Browser | null = null
+  let browser: ChromeFixture | null = null
 
   try {
     browser = await launchBrowser(profile)
-    const page = await browser.newPage()
-    const navigation = await page.goto(server.root, {waitUntil: "load"})
-    expect(navigation?.status()).toBe(200)
+    const page = await openPage(browser)
+    const navigation = await navigate(page, server.root)
+    expect(navigation?.status).toBe(200)
     await waitForAcceptedCaches(page)
     const sourceBefore = await updateSources(page)
     let navigations = 0
-    page.on("framenavigated", (frame) => {
-      if (frame === page.mainFrame()) navigations += 1
-    })
+    observeNavigation(page, () => { navigations += 1 })
 
-    const reload = page.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    const reload = waitForNavigation(page)
     const transactionStarted = (async () => {
       let interrupted: CacheSnapshot | undefined
       await waitUntil(async () => {
@@ -531,13 +506,13 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
 test.serial("UPD-002 reconnects after a clean server-side WebSocket close", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-002-reconnect-"))
   const server = await startServer("update")
-  let browser: Browser | null = null
+  let browser: ChromeFixture | null = null
 
   try {
     browser = await launchBrowser(profile)
-    const page = await browser.newPage()
-    const navigation = await page.goto(server.root, {waitUntil: "load"})
-    expect(navigation?.status()).toBe(200)
+    const page = await openPage(browser)
+    const navigation = await navigate(page, server.root)
+    expect(navigation?.status).toBe(200)
     await waitForAcceptedCaches(page)
     await waitUntil(async () => await fixtureConnections(server.root) === 1)
     await waitUntil(() => server.output().includes("состояние browser cache сверено"))
@@ -562,22 +537,20 @@ test.serial("UPD-002 reconnects after a clean server-side WebSocket close", asyn
 test.serial("UPD-003 discards an empty transaction without reloading a Window", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-003-empty-transaction-"))
   const server = await startServer("update")
-  let browser: Browser | null = null
+  let browser: ChromeFixture | null = null
 
   try {
     browser = await launchBrowser(profile)
-    const page = await browser.newPage()
-    const navigation = await page.goto(server.root, {waitUntil: "load"})
-    expect(navigation?.status()).toBe(200)
+    const page = await openPage(browser)
+    const navigation = await navigate(page, server.root)
+    expect(navigation?.status).toBe(200)
     await waitForAcceptedCaches(page)
     await waitUntil(() => server.output().includes("состояние browser cache сверено"))
     await Bun.sleep(250)
 
     let navigations = 0
-    page.on("framenavigated", (frame) => {
-      if (frame === page.mainFrame()) navigations += 1
-    })
-    await page.evaluate(async () => { await caches.open("transaction") })
+    observeNavigation(page, () => { navigations += 1 })
+    await evaluate(page.session, async () => { await caches.open("transaction") })
     expect((await cacheSnapshot(page)).transaction).toEqual([])
 
     const connections = await fixtureConnections(server.root)
@@ -606,19 +579,19 @@ test.serial("UPD-003 discards an empty transaction without reloading a Window", 
 test.serial("UPD-003 resumes after canonical put and commits a removal-only delta", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-upd-003-remove-recovery-"))
   const server = await startServer("update")
-  let browser: Browser | null = null
+  let browser: ChromeFixture | null = null
 
   try {
     browser = await launchBrowser(profile)
-    const page = await browser.newPage()
-    const navigation = await page.goto(server.root, {waitUntil: "load"})
-    expect(navigation?.status()).toBe(200)
+    const page = await openPage(browser)
+    const navigation = await navigate(page, server.root)
+    expect(navigation?.status).toBe(200)
     await waitForAcceptedCaches(page)
     await waitUntil(async () => await fixtureConnections(server.root) === 1)
     await waitUntil(() => server.output().includes("состояние browser cache сверено"))
     await Bun.sleep(250)
 
-    await page.evaluate(async () => {
+    await evaluate(page.session, async () => {
       const state = await (await fetch("/code", {cache: "no-store"})).json() as {
         packages: Array<{
           name: string
@@ -660,10 +633,8 @@ test.serial("UPD-003 resumes after canonical put and commits a removal-only delt
       new URL(path, "http://cache.test").pathname === "/@cosmos/release")).toHaveLength(3)
 
     let navigations = 0
-    page.on("framenavigated", (frame) => {
-      if (frame === page.mainFrame()) navigations += 1
-    })
-    const reload = page.waitForNavigation({waitUntil: "load", timeout: 30_000})
+    observeNavigation(page, () => { navigations += 1 })
+    const reload = waitForNavigation(page)
     const close = await fetch(new URL("/__tests/rpc/close", server.root), {method: "POST"})
     expect(close.status).toBe(204)
     expect(await reload).not.toBeNull()
@@ -683,7 +654,7 @@ test.serial("UPD-003 resumes after canonical put and commits a removal-only delt
 test.serial("LOAD-001 restores accepted startup and release from caches", async () => {
   const profile = await mkdtemp(join(tmpdir(), "metafor-load-001-"))
   const server = await startServer()
-  let browser: Browser | null = null
+  let browser: ChromeFixture | null = null
   let witness: ReturnType<typeof startColdWitness> | null = null
   let serverStopped = false
 
@@ -744,26 +715,26 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     const requests: string[] = []
     const serviceWorkerResponses: string[] = []
     const workerObserver = observeStartupWorker(browser)
-    const page = await browser.newPage()
+    const page = await openPage(browser)
 
-    page.on("request", (request) => {
-      const url = new URL(request.url())
+    page.session.on("Network.requestWillBeSent", ({request}) => {
+      const url = new URL(request.url)
       requests.push(`${url.pathname}${url.search}`)
     })
-    page.on("response", (response) => {
-      const url = new URL(response.url())
-      if (response.fromServiceWorker()) serviceWorkerResponses.push(`${url.pathname}${url.search}`)
+    page.session.on("Network.responseReceived", ({response}) => {
+      const url = new URL(response.url)
+      if (response.fromServiceWorker) serviceWorkerResponses.push(`${url.pathname}${url.search}`)
     })
 
-    const navigation = await page.goto(server.root, {waitUntil: "load"})
-    expect(navigation?.status()).toBe(200)
+    const navigation = await navigate(page, server.root)
+    expect(navigation?.status).toBe(200)
 
     const firstWorker = await workerObserver.promise
-    expect(`${new URL(firstWorker.target.url()).pathname}${new URL(firstWorker.target.url()).search}`)
+    expect(`${new URL(firstWorker.info.url).pathname}${new URL(firstWorker.info.url).search}`)
       .toBe(startupServiceUrl)
     await waitForAcceptedCaches(page)
 
-    const documentContract = await page.evaluate(async () => ({
+    const documentContract = await evaluate(page.session, async () => ({
       scripts: Array.from(document.scripts, (script) => script.getAttribute("src")),
       controller: navigator.serviceWorker.controller?.scriptURL ?? null,
       scope: (await navigator.serviceWorker.getRegistration())?.scope ?? null,
@@ -794,7 +765,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(hasCachedPackage(initial, "internal", "@internal/visual")).toBe(true)
     expect(initial.metafor).toBeUndefined()
 
-    const missingScript = await page.evaluate(async () => {
+    const missingScript = await evaluate(page.session, async () => {
       const response = await fetch("/missing.js")
       return {status: response.status, type: response.headers.get("content-type")}
     })
@@ -802,7 +773,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     expect(missingScript.type ?? "").not.toContain("text/html")
 
     const runtimeFont = "/assets/fonts/jetbrains-mono-bold.ttf"
-    const onlineFont = await page.evaluate(async (path) => {
+    const onlineFont = await evaluate(page.session, async (path) => {
       const response = await fetch(path)
       return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}
     }, runtimeFont)
@@ -821,7 +792,7 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     )
     expect(presentationAsset).toBeDefined()
 
-    const onlineAsset = await page.evaluate(async (path) => {
+    const onlineAsset = await evaluate(page.session, async (path) => {
       const response = await fetch(path)
       return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}
     }, presentationAsset!)
@@ -836,30 +807,30 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     )
     await server.stop()
     serverStopped = true
-    await page.setOfflineMode(false)
+    await page.session.send("Network.emulateNetworkConditions", {offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1})
 
-    const offlineFont = await page.evaluate(async (path) => {
+    const offlineFont = await evaluate(page.session, async (path) => {
       const response = await fetch(path)
       return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}
     }, runtimeFont)
     expect(offlineFont).toEqual(onlineFont)
 
-    const offlineAsset = await page.evaluate(async (path) => {
+    const offlineAsset = await evaluate(page.session, async (path) => {
       const response = await fetch(path)
       return {status: response.status, bytes: (await response.arrayBuffer()).byteLength}
     }, presentationAsset!)
     expect(offlineAsset).toEqual({status: 503, bytes: 0})
 
-    const missingOfflineAsset = await page.evaluate(async () => {
+    const missingOfflineAsset = await evaluate(page.session, async () => {
       const response = await fetch("/assets/not-cached.png")
       return response.status
     })
     expect(missingOfflineAsset).toBe(503)
 
-    const nested = await page.goto(`${server.root}/net/peer`, {waitUntil: "load"})
-    expect(nested?.status()).toBe(200)
-    expect(nested?.fromServiceWorker()).toBe(true)
-    expect(page.url()).toBe(`${server.root}/net/peer`)
+    const nested = await navigate(page, `${server.root}/net/peer`)
+    expect(nested?.status).toBe(200)
+    expect(nested?.fromServiceWorker).toBe(true)
+    expect(page.url).toBe(`${server.root}/net/peer`)
     await waitUntil(() =>
       countMatches(requests.join("\n"), releaseMainUrl) > mainReleaseRequestsBeforeOffline)
     await waitUntil(() => countMatches(
@@ -878,23 +849,23 @@ test.serial("LOAD-001 restores accepted startup and release from caches", async 
     const coldWorkerObserver = observeStartupWorker(browser)
     const coldRequests: string[] = []
     const coldServiceWorkerResponses: string[] = []
-    const coldPage = await browser.newPage()
-    coldPage.on("request", (request) => {
-      const url = new URL(request.url())
+    const coldPage = await openPage(browser)
+    coldPage.session.on("Network.requestWillBeSent", ({request}) => {
+      const url = new URL(request.url)
       coldRequests.push(`${url.pathname}${url.search}`)
     })
-    coldPage.on("response", (response) => {
-      const url = new URL(response.url())
-      if (response.fromServiceWorker())
+    coldPage.session.on("Network.responseReceived", ({response}) => {
+      const url = new URL(response.url)
+      if (response.fromServiceWorker)
         coldServiceWorkerResponses.push(`${url.pathname}${url.search}`)
     })
 
-    const coldNavigation = await coldPage.goto(`${server.root}/cold/restored`, {waitUntil: "load"})
-    expect(coldNavigation?.status()).toBe(200)
-    expect(coldNavigation?.fromServiceWorker()).toBe(true)
+    const coldNavigation = await navigate(coldPage, `${server.root}/cold/restored`)
+    expect(coldNavigation?.status).toBe(200)
+    expect(coldNavigation?.fromServiceWorker).toBe(true)
 
     const coldWorker = await coldWorkerObserver.promise
-    expect(`${new URL(coldWorker.target.url()).pathname}${new URL(coldWorker.target.url()).search}`)
+    expect(`${new URL(coldWorker.info.url).pathname}${new URL(coldWorker.info.url).search}`)
       .toBe(startupServiceUrl)
     await waitUntil(() => coldRequests.includes(releaseMainUrl))
     await waitUntil(() => coldServiceWorkerResponses.includes(releaseMainUrl))
@@ -932,13 +903,13 @@ test.serial("LOAD-001 rejects a failed release artifact and retries its exact en
   ] as const) {
     const profile = await mkdtemp(join(tmpdir(), `metafor-load-001-${scenario.fault}-`))
     const server = await startServer(scenario.fault)
-    let browser: Browser | null = null
+    let browser: ChromeFixture | null = null
 
     try {
       browser = await launchBrowser(profile)
-      const page = await browser.newPage()
-      await page.goto(server.root, {waitUntil: "load"})
-      await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller))
+      const page = await openPage(browser)
+      await navigate(page, server.root)
+      await waitUntil(() => evaluate(page.session, () => Boolean(navigator.serviceWorker.controller)))
       await waitForRequestCount(page, scenario.failed, 2)
       await waitForAcceptedCaches(page)
 
@@ -1010,74 +981,51 @@ async function startServer(
 }
 
 async function launchBrowser(profile: string) {
-  return await puppeteer.launch({
-    executablePath: chrome,
-    headless: true,
-    userDataDir: profile,
-    args: [
-      "--disable-background-networking",
-      "--no-default-browser-check",
-      "--no-first-run",
-    ],
-  })
+  return await launchChrome(chrome, profile)
 }
 
-async function browserFailureState(browser: Browser) {
-  const pages = await Promise.all((await browser.pages())
-    .filter((page) => page.url().startsWith("http"))
-    .map(async (page) => ({
-    url: page.url(),
-    caches: await cacheSnapshot(page).catch((error: unknown) => ({error: String(error)})),
-    sources: await updateSources(page).then((sources) => Object.fromEntries(
-      Object.entries(sources).map(([name, source]) => [name, {
-        bytes: source.length,
-        revision: source.match(/fixture @[a-z/]+ \d+/)?.[0] ?? null,
-      }]),
-    )).catch((error: unknown) => ({error: String(error)})),
-    fixture: await page.evaluate(async () => await fetch("/__tests/state").then((response) => response.json()))
-      .catch((error: unknown) => ({error: String(error)})),
+async function browserFailureState(browser: ChromeFixture) {
+  const pages = await Promise.all(browser.pages
+    .filter(page => page.url.startsWith("http"))
+    .map(async page => ({
+      url: page.url,
+      caches: await cacheSnapshot(page).catch((error: unknown) => ({error: String(error)})),
+      sources: await updateSources(page).then(sources => Object.fromEntries(
+        Object.entries(sources).map(([name, source]) => [name, {
+          bytes: source.length,
+          revision: source.match(/fixture @[a-z/]+ \d+/)?.[0] ?? null,
+        }]),
+      )).catch((error: unknown) => ({error: String(error)})),
+      fixture: await evaluate(page.session, async () => await fetch("/__tests/state").then(response => response.json()))
+        .catch((error: unknown) => ({error: String(error)})),
     })))
-  const services = await Promise.all(browser.targets()
-    .filter((target) => target.type() === TargetType.SERVICE_WORKER)
-    .map(async (target) => ({
-      url: target.url(),
-      state: await target.worker().then(async (worker) => await worker?.evaluate(async () => ({
-        caches: Object.fromEntries(await Promise.all((await caches.keys()).map(async (name) => [
-          name,
-          (await (await caches.open(name)).keys()).map(({url}) => url),
-        ]))),
-        location: location.href,
-      }))).catch((error: unknown) => ({error: String(error)})),
-    })))
+  const services = await Promise.all([...browser.workers.values()].map(async worker => ({
+    url: worker.info.url,
+    state: await evaluate(worker.session, async () => ({
+      caches: Object.fromEntries(await Promise.all((await caches.keys()).map(async name => [
+        name, (await (await caches.open(name)).keys()).map(({url}) => url),
+      ]))),
+      location: location.href,
+    })).catch((error: unknown) => ({error: String(error)})),
+  })))
   return {pages, services}
 }
 
-function observeStartupWorker(browser: Browser, diagnostics?: string[]) {
-  let resolve!: (handle: WorkerHandle) => void
+function observeStartupWorker(browser: ChromeFixture, diagnostics?: string[]) {
+  let resolve!: (worker: WorkerTarget) => void
   let settled = false
-  const promise = new Promise<WorkerHandle>((ready) => { resolve = ready })
-
-  const inspect = (target: Target) => {
-    if (settled || target.type() !== TargetType.SERVICE_WORKER) return
-    const url = new URL(target.url())
+  const promise = new Promise<WorkerTarget>(ready => { resolve = ready })
+  const inspect = (worker: WorkerTarget) => {
+    if (settled || !worker.info.url) return
+    const url = new URL(worker.info.url)
     if (`${url.pathname}${url.search}` !== startupServiceUrl) return
-    void target.worker()
-      .then((worker) => {
-        if (!worker || settled) return
-        if (diagnostics) {
-          worker.on("console", (message) =>
-            diagnostics.push(`service:${message.type()}:${message.text()}`))
-          worker.on("error", (error) =>
-            diagnostics.push(`service-error:${String(error)}`))
-        }
-        settled = true
-        resolve({target, worker})
-      })
-      .catch(() => {})
+    if (diagnostics) observeDiagnostics(worker.session, diagnostics, "service")
+    settled = true
+    browser.workerListeners.delete(inspect)
+    resolve(worker)
   }
-
-  browser.on("targetcreated", inspect)
-  for (const target of browser.targets()) inspect(target)
+  browser.workerListeners.add(inspect)
+  for (const worker of browser.workers.values()) inspect(worker)
   return {promise}
 }
 
@@ -1109,11 +1057,11 @@ function startColdWitness(port: number) {
   }
 }
 
-async function waitForAcceptedCaches(page: Page) {
+async function waitForAcceptedCaches(page: ChromePage) {
   try {
     await waitUntil(async () => {
       try {
-        return await page.evaluate(async () => {
+        return await evaluate(page.session, async () => {
           const startup = await caches.open("startup")
           const releases = await caches.open("release")
           const internal = await caches.open("internal")
@@ -1178,25 +1126,25 @@ async function waitForAcceptedCaches(page: Page) {
       }
     }, 30_000)
   } catch (error) {
-    throw new Error(`Browser caches did not become ready: ${JSON.stringify(await cacheSnapshot(page))}`, {
+    throw new Error(`ChromeFixture caches did not become ready: ${JSON.stringify(await cacheSnapshot(page))}`, {
       cause: error,
     })
   }
 }
 
-async function waitForRequestCount(page: Page, field: "releaseService", count: number) {
-  await page.waitForFunction(async ({field, count}) => {
+async function waitForRequestCount(page: ChromePage, field: "releaseService", count: number) {
+  await waitUntil(() => evaluate(page.session, async ({field, count}) => {
     const state = await (await fetch("/__tests/state")).json() as {
       requests: Record<string, number>
     }
     return (state.requests[field] ?? 0) >= count
-  }, {timeout: 30_000}, {field, count})
+  }, {field, count}), 30_000)
 }
 
-async function cacheSnapshot(page: Page): Promise<CacheSnapshot> {
+async function cacheSnapshot(page: ChromePage): Promise<CacheSnapshot> {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      return await page.evaluate(async () => Object.fromEntries(await Promise.all(
+      return await evaluate(page.session, async () => Object.fromEntries(await Promise.all(
         (await caches.keys()).sort().map(async (name) => [
           name,
           (await (await caches.open(name)).keys())
@@ -1235,7 +1183,7 @@ function hasCachedSlot(
   }) ?? false
 }
 
-async function expectCanonicalReleaseCaches(page: Page) {
+async function expectCanonicalReleaseCaches(page: ChromePage) {
   const snapshot = await cacheSnapshot(page)
 
   expect(Object.keys(snapshot).sort()).toEqual(["internal", "release", "startup"])
@@ -1309,8 +1257,8 @@ async function requestBuild(
   return {status: response.status, body}
 }
 
-async function updateSources(page: Page) {
-  return await page.evaluate(async () => {
+async function updateSources(page: ChromePage) {
+  return await evaluate(page.session, async () => {
     const source = async (
       name: string,
       env: "main" | "worker" | "service",
@@ -1373,13 +1321,13 @@ async function waitUntil(check: () => boolean | Promise<boolean>, timeout = 30_0
 
 function resolveChrome() {
   const candidates = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_EXECUTABLE_PATH,
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     Bun.which("google-chrome"),
     Bun.which("chromium"),
   ]
   const executable = candidates.find((candidate): candidate is string => Boolean(candidate && existsSync(candidate)))
-  if (!executable) throw new Error("Chrome executable is missing; set PUPPETEER_EXECUTABLE_PATH")
+  if (!executable) throw new Error("Chrome executable is missing; set CHROME_EXECUTABLE_PATH")
   return executable
 }
 

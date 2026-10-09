@@ -1,32 +1,30 @@
-# Optional Inspector setup
+# Optional external Inspector connection
 
-Read this reference only for first WebGPU Inspector installation, repair, or
-environment migration. Cosmos development, browser functional checks, and
-the visible iTerm lifecycle do not require Inspector.
+Read this reference only to connect an already provisioned WebGPU Inspector.
+Cosmos development, browser functional checks and the visible iTerm lifecycle
+use direct CDP and do not require this profiler.
 
-## Required profiling components
+## External tool boundary
 
-- Node.js 18 or newer for the WebGPU Inspector MCP.
-- `jq`, Git, curl, and the MetaFor Dev CDP Chrome on port 9222.
-- WebGPU Inspector under
-  `${CODEX_HOME:-$HOME/.codex}/tools/webgpu-inspector`.
+The Inspector is a separate tool outside the MetaFor repository. Its owner
+supplies its built server, extension and dependencies. MetaFor does not clone,
+build, install dependencies for, or update that external checkout.
 
-On this Intel Mac install system packages through MacPorts, never Homebrew.
-Project-local JavaScript or Python dependencies may remain isolated.
+The connection needs Node.js 18 or newer and Codex. The default external
+checkout is `${CODEX_HOME:-$HOME/.codex}/tools/webgpu-inspector`.
+System packages on this Intel Mac are managed through MacPorts.
 
-## Installation
+## Registration
 
-Use the pinned installer:
+Register the existing built tool:
 
 ```bash
-scripts/setup-inspector.sh
+scripts/setup-inspector.sh [existing-inspector-checkout]
 ```
 
-The installer defaults to the owner fork at the tested immutable revision. Pass
-another repository URL and full commit only for an owner-approved experiment.
-It refuses dirty or mismatched checkouts, builds the extension, runs its tests,
-and registers the MCP. Restart Codex after registration.
+The helper verifies that the server and extension exist and registers the MCP.
+It does not install software or change the external source. Restart Codex after
+registration and run `scripts/doctor.sh <checkout>` to check the environment.
 
-Run `scripts/doctor.sh <checkout>` after setup. Do not install the Inspector
-Chrome extension into the persistent CDP profile; the MCP instruments only the
-temporary diagnostic page.
+Do not install the Inspector Chrome extension into the persistent CDP profile;
+GPU instrumentation belongs only to its temporary diagnostic page.
