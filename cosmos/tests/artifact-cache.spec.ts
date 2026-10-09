@@ -17,6 +17,30 @@ import {createReleaseCache} from "../release/service/fetch"
 
 const origin = "https://artifact-cache.test"
 
+test.serial("source maps always use the network and never enter package caches", async () => {
+  const storage = new MemoryCacheStorage()
+  const fetched: string[] = []
+  await withServiceGlobals(storage, async request => {
+    fetched.push(request.url)
+    return new Response('{"version":3}', {headers: {"Content-Type": "application/json"}})
+  }, async () => {
+    const cache = createReleaseCache(unusedLoader())
+    for (const path of [
+      "/@internal/visual?env=main&version=1.0.1&source-map",
+      "/@internal/visual/component?env=main&version=1.0.1&source-map",
+      "/@internal/visual/.cosmos/main/1.0.1/chunk/shared.js?source-map",
+      "/@internal/visual/.cosmos/main/1.0.1/chunk/shared.js.map",
+    ]) {
+      const request = new Request(`${origin}${path}`)
+      expect(await (await cache.cacheFirst(request)).json()).toEqual({version: 3})
+      expect(await (await cache.cacheFirst(request)).json()).toEqual({version: 3})
+    }
+    expect(fetched).toHaveLength(8)
+    for (const name of ["startup", "release", "internal"])
+      expect(await (await storage.open(name)).keys()).toEqual([])
+  })
+})
+
 test.serial("stable public artifact follows the first active root during overlap", async () => {
   const storage = new MemoryCacheStorage()
   const internal = await storage.open("internal")

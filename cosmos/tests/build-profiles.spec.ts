@@ -456,11 +456,9 @@ test("development keeps debug and source maps while production drops both", asyn
     expect(development.sources.internalVisual).toContain("[@internal/visual:main]")
     expect(development.releaseServer).toContain("Bun.serve")
     expect(development.releaseServer).toContain("process.send")
-    for (const [name, artifact] of Object.entries(development.sources)) {
-      if (name === "internalVisual") continue
+    for (const artifact of Object.values(development.sources)) {
       expect(artifact).not.toContain("sourceMappingURL=data:application/json")
     }
-    expect(development.sources.internalVisual).toContain("sourceMappingURL=data:application/json")
     for (const artifact of Object.values(development.sources))
       expect(artifact).not.toContain("//# debugId=")
     expect(development.sourceMaps.every(Boolean)).toBeTrue()
@@ -616,8 +614,7 @@ async function build(mode: "development" | "production") {
       },
       sourceMaps: await Promise.all(
         Object.entries(artifacts)
-          .filter(([name]) => name !== "internalVisual")
-          .map(([, artifact]) => Bun.file(`${artifact}.map`).exists()),
+          .map(([name, artifact]) => Bun.file(`${name === "internalVisual" ? visualRoot.path : artifact}.map`).exists()),
       ),
     }
   } finally {

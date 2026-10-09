@@ -38,7 +38,7 @@ export async function getPackage(request: Request) {
   }
 
   const response = sourceMap
-    ? await releasedPackageSourceMapResponse(name, requested.env, requested.version, request)
+    ? await releasedPackageSourceMapResponse(name, requested.env, requested.version, request, sourceMap.artifact)
     : await releasedPackageArtifactResponse(
         name,
         requested.env,

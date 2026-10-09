@@ -411,8 +411,10 @@ function publishedOutputPath(
   output: PackageBuildArtifact,
 ) {
   if (output.artifact === undefined) throw new Error(`${owner.env} build output lacks artifact identity`)
-  if (output.kind === "sourcemap" && output.sourceMapFor === rootPackageArtifact)
-    return sourceMapArtifact(versionedPackageArtifactPath(owner, version, rootPackageArtifact))
+  if (output.kind === "sourcemap") {
+    if (output.sourceMapFor === undefined) throw new Error(`${owner.env} source map lacks its JavaScript owner`)
+    return sourceMapArtifact(versionedPackageArtifactPath(owner, version, output.sourceMapFor))
+  }
   return versionedPackageArtifactPath(owner, version, output.artifact)
 }
 

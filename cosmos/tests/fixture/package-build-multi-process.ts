@@ -42,6 +42,7 @@ test("multi-entry package build fixture", async () => {
     }
     const outputs = await Promise.all(result.outputs.map(async (output) => {
       const source = await Bun.file(output.path).text().catch(() => "")
+      const map = output.kind === "sourcemap" ? JSON.parse(source) : null
       return {
         artifact: output.artifact,
         kind: output.kind,
@@ -51,6 +52,11 @@ test("multi-entry package build fixture", async () => {
         sourceMapFor: output.sourceMapFor,
         source: source.slice(0, 2_000),
         inlineMap: source.includes("sourceMappingURL=data:"),
+        ...(map === null ? {} : {
+          mapVersion: map.version,
+          mapSources: map.sources,
+          hasSourcesContent: map.sourcesContent?.length === map.sources.length,
+        }),
       }
     }))
     console.log(JSON.stringify({

@@ -105,7 +105,9 @@ export async function resolveVersionedPackageArtifactPath(
   let candidates
   try {
     candidates = (await readdir(directory, {withFileTypes: true}))
-      .filter((entry) => entry.isFile() && /^\.cosmos-artifact(?:\.[A-Za-z0-9._+-]+)?$/.test(entry.name))
+      .filter((entry) => entry.isFile()
+        && /^\.cosmos-artifact(?:\.[A-Za-z0-9._+-]+)?$/.test(entry.name)
+        && !entry.name.endsWith(".js.map"))
   } catch {
     return null
   }

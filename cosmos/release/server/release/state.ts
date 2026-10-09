@@ -131,11 +131,9 @@ export async function releasedPackageArtifactResponse(
       "Content-Type": artifact.type,
       ...packageArtifactIdentityHeaders(identity),
     })
-    const sourceMap = artifactKey === rootPackageArtifact
-      ? await packageArtifact(sourceMapArtifact(artifact.path))
-      : null
+    const sourceMap = await packageArtifact(sourceMapArtifact(artifact.path))
     if (sourceMap) {
-      headers.set("SourceMap", browserPackageSourceMapUrl(name, env, version))
+      headers.set("SourceMap", browserPackageSourceMapUrl(name, env, version, artifactKey))
     } else if (generated) {
       const generatedMap = `${artifactKey}.map` as PackageArtifactKey
       const sourceMap = await packageArtifact(
@@ -181,6 +179,7 @@ export async function releasedPackageSourceMapResponse(
   env: BrowserPackageEnvironment,
   requestedVersion: string | null,
   request?: Request,
+  artifactKey: PackageArtifactKey = rootPackageArtifact,
 ) {
   const target = await releasedPackageTarget(name, env, requestedVersion)
   if (!target) return new Response(null, {status: 404})
@@ -189,7 +188,7 @@ export async function releasedPackageSourceMapResponse(
   const root = await resolveVersionedPackageArtifactPath(
     storageOwner,
     version,
-    rootPackageArtifact,
+    artifactKey,
   )
   if (root === null) return new Response(null, {status: 404})
   const artifact = await packageArtifact(sourceMapArtifact(root))
@@ -198,7 +197,7 @@ export async function releasedPackageSourceMapResponse(
     "Content-Type": artifact.type,
   }))
 
-  if (current !== undefined || version !== currentVersion || !owner)
+  if (artifactKey !== rootPackageArtifact || current !== undefined || version !== currentVersion || !owner)
     return new Response(null, {status: 404})
   return await packageSourceMapResponse(name, env, request)
 }

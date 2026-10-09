@@ -28,6 +28,8 @@ export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
     const url = new URL(request.url)
     if (url.origin !== location.origin) return await fetch(request)
     const browserArtifact = parseBrowserPackageArtifactUrl(url)
+    if (url.searchParams.has("source-map") || browserArtifact?.artifact?.endsWith(".js.map"))
+      return await fetch(request)
     const packageOwner = browserPackageCache(browserArtifact?.name ?? null)
     const owner = packageOwner === "startup" ? null : packageOwner
     const cacheName = owner ?? "startup"

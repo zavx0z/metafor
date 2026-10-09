@@ -1,9 +1,6 @@
 import type {BrowserPackageEnvironment} from "../../../shared/package/environment"
-import {
-  browserPackageUrl,
-  parseBrowserPackageUrl,
-  type BrowserPackageUrl,
-} from "../../../shared/package/url"
+import {browserPackageArtifactUrl, parseBrowserPackageArtifactUrl, type BrowserPackageArtifactUrl} from "../../shared/artifact-url"
+import {rootPackageArtifact, type PackageArtifactKey} from "../../shared/artifact"
 
 const sourceMapSuffix = "&source-map"
 
@@ -27,7 +24,8 @@ export async function externalizeSourceMap(artifact: string) {
   const markerIndex = source.lastIndexOf(marker)
   if (markerIndex === -1) throw new Error(`Inline source map is missing: ${artifact}`)
 
-  const encoded = source.slice(markerIndex + marker.length).trim()
+  const encoded = source.slice(markerIndex + marker.length).split(/\r?\n/, 1)[0]?.trim()
+  if (!encoded) throw new Error(`Inline source map payload is missing: ${artifact}`)
   const sourceMap = Buffer.from(encoded, "base64")
   const parsed = JSON.parse(sourceMap.toString("utf8")) as Record<string, unknown>
   if (parsed.version !== 3) throw new Error(`Source map has unsupported version: ${artifact}`)
@@ -62,24 +60,28 @@ export function browserPackageSourceMapUrl(
   name: string,
   env: BrowserPackageEnvironment,
   version?: string,
+  artifact: PackageArtifactKey = rootPackageArtifact,
 ) {
-  return `${browserPackageUrl(name, env, version)}${sourceMapSuffix}`
+  const url = browserPackageArtifactUrl(name, env, artifact, version)
+  return `${url}${url.includes("?") ? "&" : "?"}source-map`
 }
 
 /** Строго разбирает source map URL после canonical package parameters. */
-export function parseBrowserPackageSourceMapUrl(url: URL): BrowserPackageUrl | null {
+export function parseBrowserPackageSourceMapUrl(url: URL): BrowserPackageArtifactUrl | null {
   const source = `${url.pathname}${url.search}`
-  if (!source.endsWith(sourceMapSuffix)) return null
+  const suffix = url.search === "?source-map" ? "?source-map" : sourceMapSuffix
+  if (!source.endsWith(suffix)) return null
 
   const packageUrl = new URL(url)
-  packageUrl.search = url.search.slice(0, -sourceMapSuffix.length)
-  const artifact = parseBrowserPackageUrl(packageUrl)
+  packageUrl.search = url.search.slice(0, -suffix.length)
+  const artifact = parseBrowserPackageArtifactUrl(packageUrl)
   if (artifact === null) return null
 
   const canonical = browserPackageSourceMapUrl(
     artifact.name,
     artifact.env,
     artifact.version ?? undefined,
+    artifact.artifact,
   )
   return source === canonical ? artifact : null
 }

@@ -13,6 +13,16 @@ test("multi-output publication fixture", async () => {
 
   try {
     await createWorkspace(cosmos, packageRoot)
+    if (scenario === "source-maps") {
+      const manifestPath = join(packageRoot, "package.json")
+      const manifest = await Bun.file(manifestPath).json()
+      manifest.exports["./lazy"] = {"internal:main": "./main/lazy.ts"}
+      await writeJson(manifestPath, manifest)
+      const entry = join(packageRoot, "main/index.ts")
+      await writeSource(entry, `${await Bun.file(entry).text()}\nimport {shared} from "./shared.ts"\nexport const value = shared\nexport const load = () => import("./lazy.ts")\n`)
+      await writeSource(join(packageRoot, "main/lazy.ts"), 'import {shared} from "./shared.ts"\nexport const lazy = `lazy:${shared}`\n')
+      await writeSource(join(packageRoot, "main/shared.ts"), `export const shared = ${JSON.stringify("shared-source-map-value".repeat(256))}\n`)
+    }
     await linkPackage(repository, "@internal/fixture", packageRoot)
     const mockedPaths = {
       cosmosRoot: cosmos,
@@ -40,6 +50,22 @@ test("multi-output publication fixture", async () => {
     const generatedStat = await stat(themeGenerated.path, {bigint: true})
     const wasmStats = await Promise.all(wasmOutputs.map(({path}) => stat(path, {bigint: true})))
     const desiredAfterPublish = readDesiredBrowserArtifacts()
+    const sourceMaps: Array<{artifact: string; status: number; mapStatus: number; inline: boolean; version: number; hasSources: boolean; header: string | null}> = []
+    if (scenario === "source-maps") {
+      const {getPackage} = await import("../../release/server/http/delivery")
+      const {browserPackageArtifactUrl} = await import("../../release/shared/artifact-url")
+      for (const output of publication.results.find(({env}) => env === "main")!.outputs) {
+        if (output.kind !== "entry-point" && output.kind !== "chunk") continue
+        const url = browserPackageArtifactUrl("@internal/fixture", "main", output.artifact!, "1.0.1")
+        const response = await getPackage(new Request(`https://maps.test${url}`))
+        const header = response.headers.get("SourceMap")
+        const map = await getPackage(new Request(new URL(header ?? "/missing-map", "https://maps.test")))
+        const body = await map.json() as {version: number; sources: string[]; sourcesContent: string[]}
+        sourceMaps.push({artifact: output.artifact!, status: response.status, mapStatus: map.status,
+          inline: (await response.text()).includes("sourceMappingURL=data:"), version: body.version,
+          hasSources: body.sources.length > 0 && body.sourcesContent.length === body.sources.length, header})
+      }
+    }
 
     let recoveryError: string | null = null
     let repaired = false
@@ -163,6 +189,7 @@ test("multi-output publication fixture", async () => {
 
     console.log(JSON.stringify({
       success: publication.success,
+      sourceMaps,
       outputs: publication.results.flatMap((result) =>
         result.outputs.map(({artifact, kind, load, path, sha256, size}) => ({
           env: result.env,

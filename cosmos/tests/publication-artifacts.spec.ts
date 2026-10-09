@@ -12,6 +12,20 @@ const cosmos = fileURLToPath(new URL("../", import.meta.url))
 
 setDefaultTimeout(30_000)
 
+test("development publication delivers separate maps for every JavaScript identity and excludes maps from release delta", async () => {
+  const result = await publicationFixture("source-maps")
+  expect(result.success).toBeTrue()
+  expect(result.sourceMaps.some(({artifact}) => artifact === ".")).toBeTrue()
+  expect(result.sourceMaps.some(({artifact}) => artifact === "./lazy")).toBeTrue()
+  expect(result.sourceMaps.some(({artifact}) => artifact.startsWith("./.cosmos/chunk/"))).toBeTrue()
+  for (const map of result.sourceMaps) {
+    expect(map).toMatchObject({status: 200, mapStatus: 200, inline: false, version: 3, hasSources: true})
+    expect(map.header).toEndWith("source-map")
+  }
+  expect(result.desiredAfterPublish.some(({artifact}) => artifact?.endsWith(".map"))).toBeFalse()
+  expect(result.outputs.filter(({kind}) => kind === "sourcemap").length).toBeGreaterThan(0)
+})
+
 test("publication materializes aliases, deduplicates bytes and exposes only eager browser identities", async () => {
   const result = await publicationFixture("publish")
   expect(result.success).toBeTrue()
@@ -138,6 +152,7 @@ test("desired projection replacement is atomic and RPC uses it by default", asyn
 
 interface PublicationFixtureResult {
   success: boolean
+  sourceMaps: Array<{artifact: string; status: number; mapStatus: number; inline: boolean; version: number; hasSources: boolean; header: string | null}>
   outputs: Array<{
     env: "main" | "server"
     artifact: string
@@ -174,7 +189,7 @@ async function publicationFixture(scenario: string): Promise<PublicationFixtureR
     "./tests/fixture/publication-artifact-process.ts",
   ], {
     cwd: cosmos,
-    env: {...process.env, NODE_ENV: "production", ARTIFACT_PUBLICATION_SCENARIO: scenario},
+    env: {...process.env, NODE_ENV: scenario === "source-maps" ? "development" : "production", ARTIFACT_PUBLICATION_SCENARIO: scenario},
     stdout: "pipe",
     stderr: "pipe",
   })

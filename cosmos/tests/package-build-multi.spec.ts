@@ -118,14 +118,22 @@ test("dynamic roots in an ordinary dependency stay generated lazy artifacts", as
   expect(result.outputs.every(({path}) => path.startsWith(`${result.outdir}/`))).toBe(true)
 })
 
-test("multi-entry development keeps an inline map for every JavaScript output", async () => {
+test("multi-entry development externalizes maps for roots, public entries and shared chunks", async () => {
   const result = await multiFixture("development")
   expect(result.success).toBeTrue()
   const javascript = result.outputs.filter(({kind, type}) =>
     (kind === "entry-point" || kind === "chunk") && type.startsWith("text/javascript"))
   expect(javascript.length).toBeGreaterThan(0)
-  expect(javascript.every(({inlineMap}) => inlineMap)).toBeTrue()
-  expect(result.outputs.some(({kind}) => kind === "sourcemap")).toBeFalse()
+  expect(javascript.every(({inlineMap}) => !inlineMap)).toBeTrue()
+  const maps = result.outputs.filter(({kind}) => kind === "sourcemap")
+  expect(maps).toHaveLength(javascript.length)
+  for (const output of javascript) {
+    const map = maps.find(({sourceMapFor}) => sourceMapFor === output.artifact)
+    expect(map?.path).toBe(`${output.path}.map`)
+    expect(map?.mapVersion).toBe(3)
+    expect(map?.mapSources?.length).toBeGreaterThan(0)
+    expect(map?.hasSourcesContent).toBeTrue()
+  }
 })
 
 test("dependency export sources use the same code, CSS and binary build paths", async () => {
@@ -242,6 +250,10 @@ interface FixtureOutput {
   type: string
   source: string
   inlineMap: boolean
+  sourceMapFor?: string
+  mapVersion?: number
+  mapSources?: string[]
+  hasSourcesContent?: boolean
 }
 
 interface MultiFixtureResult {

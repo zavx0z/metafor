@@ -35,9 +35,9 @@
       "name": "@metafor/cosmos",
       "version": "0.1.0",
       "dependencies": {
-        "@cosmos/release": "workspace:^0.1.25",
+        "@cosmos/release": "workspace:^0.1.27",
         "@cosmos/startup": "workspace:*",
-        "@internal/visual": "workspace:^0.1.37",
+        "@internal/visual": "workspace:^0.1.41",
         "@zavx0z/immersive-engine": "^0.0.0"
       },
       "devDependencies": {
@@ -50,7 +50,7 @@
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.37",
+      "version": "0.1.41",
       "dependencies": {
         "@zavx0z/immersive-browser": "^0.0.0",
         "@zavx0z/immersive-component": "^0.0.0",
@@ -75,7 +75,7 @@
     },
     "cosmos/release": {
       "name": "@cosmos/release",
-      "version": "0.1.25",
+      "version": "0.1.27",
       "dependencies": {
         "@internal/visual": "workspace:^0.1.10",
         "@zavx0z/immersive-engine": "^0.0.0"

@@ -26,7 +26,6 @@ import {artifactResponse} from "./response"
 import {cosmosRoot} from "../shared/paths"
 import {
   browserPackageSourceMapUrl,
-  canonicalizeInlineSourceMap,
   externalizeSourceMap,
   sourceMapArtifact,
 } from "./source-map"
@@ -376,20 +375,14 @@ async function adapterBuildOutputs(
   await validateBuildReportPaths(execution, report)
   const bindings = await validateBuildReportGraph(name, owner, execution, report)
 
-  if (Bun.env.NODE_ENV === "development" && execution.plan.mode === "single") {
-    for (const {output} of bindings) {
-      if (output.kind !== "entry-point" && output.kind !== "chunk") continue
-      if (!output.path.endsWith(".js")) continue
-      await externalizeSourceMap(output.path)
-    }
-  } else if (Bun.env.NODE_ENV === "development") {
+  if (Bun.env.NODE_ENV === "development") {
     const canonicalized = new Set<string>()
     for (const {output} of bindings) {
       if (canonicalized.has(output.path)) continue
       if (output.kind !== "entry-point" && output.kind !== "chunk") continue
       if (!output.path.endsWith(".js")) continue
       canonicalized.add(output.path)
-      await canonicalizeInlineSourceMap(output.path)
+      await externalizeSourceMap(output.path)
     }
   }
 
@@ -411,7 +404,6 @@ async function adapterBuildOutputs(
     })
     if (
       Bun.env.NODE_ENV === "development"
-      && execution.plan.mode === "single"
       && (binding.output.kind === "entry-point" || binding.output.kind === "chunk")
       && binding.output.path.endsWith(".js")
     ) {
