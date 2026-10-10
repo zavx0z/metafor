@@ -266,8 +266,8 @@ Lockfile формируют штатные `bun install` и `bun update`; вру
 
 Bun при этом проверяет общий workspace graph. Ошибка другой зависимости не
 означает успешную установку Visual и требует проверки её публичного владельца.
-Compiler plugin импортируется из `@zavx0z/immersive-jsx-compiler-bun`,
-а авторский `jsxImportSource` — `@zavx0z/immersive-jsx`. Template остаётся
+Compiler plugin Visual импортируется из `@zavx0z/immersive/compiler`,
+а его авторский `jsxImportSource` — `@zavx0z/immersive/XReact`. Template остаётся
 владельцем HTML parser и compiled template contract.
 
 `plugins` — необязательный ordered массив непустых уникальных module specifiers.
@@ -281,7 +281,7 @@ build.
 функцией `setup`. Plugin-specific factories и options остаются в
 package-owned wrapper module; в TOML не добавляются records, options, schema,
 protocol или entrypoints. Например, wrapper для production TSX сам импортирует
-`createJsxBunPlugin` из `@zavx0z/immersive-jsx-compiler-bun`, задаёт принадлежащие
+`createJsxBunPlugin` из `@zavx0z/immersive/compiler`, задаёт принадлежащие
 package source roots и default-export-ит полученный plugin.
 
 Без `cosmos.package-build` действует прежний direct CLI path. При наличии

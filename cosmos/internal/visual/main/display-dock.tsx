@@ -1,6 +1,6 @@
-import {useState} from "@zavx0z/immersive-component"
-import Button from "@zavx0z/immersive-ui-component-button-basic"
-import uiIcons from "@zavx0z/immersive-ui-theme-icon-set"
+import {useState} from "@zavx0z/immersive/XReact"
+import {Button} from "@zavx0z/immersive/ui"
+import uiIcons from "@zavx0z/immersive/ui/icons/set"
 import type {DisplayMode} from "./view-state.ts"
 
 export type DisplayDockProps = Readonly<{

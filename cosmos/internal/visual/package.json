@@ -10,7 +10,7 @@
       "internal:server": "./server/index.ts"
     },
     "./theme.css": {
-      "internal:main": "@zavx0z/immersive-ui-component/theme/theme.css"
+      "internal:main": "@zavx0z/immersive/ui/theme.css"
     }
   },
   "scripts": {
@@ -19,24 +19,6 @@
     "build:server": "bun build ./server/index.ts --conditions=internal:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
   },
   "dependencies": {
-    "@zavx0z/immersive-browser": "^0.0.0",
-    "@zavx0z/immersive-component": "^0.0.0",
-    "@zavx0z/immersive-dom": "^0.0.0",
-    "@zavx0z/immersive-engine": "^0.0.0",
-    "@zavx0z/immersive-nodes-layout": "^0.0.0",
-    "@zavx0z/immersive-nodes": "^0.0.0",
-    "@zavx0z/immersive-nodes-parameter": "^0.0.0",
-    "@zavx0z/immersive-nodes-socket": "^0.0.0",
-    "@zavx0z/immersive-nodes-tree": "^0.0.0",
-    "@zavx0z/immersive-renderer-html": "^0.0.0",
-    "@zavx0z/immersive-space": "^0.0.0",
-    "@zavx0z/immersive-template": "^0.0.0",
-    "@zavx0z/immersive-webgpu": "^0.0.0",
-    "@zavx0z/immersive-nodes-node": "^0.0.0",
-    "@zavx0z/immersive-ui-component": "^0.0.0",
-    "@zavx0z/immersive-ui-component-button-basic": "^0.0.0",
-    "@zavx0z/immersive-ui-theme-icon-set": "^0.0.0",
-    "@zavx0z/immersive-jsx": "^0.0.0",
-    "@zavx0z/immersive-jsx-compiler-bun": "^0.0.0"
+    "@zavx0z/immersive": "^0.0.0"
   }
 }

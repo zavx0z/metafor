@@ -50,7 +50,8 @@
     "@zavx0z/immersive-template": "^0.0.0",
     "@zavx0z/immersive-jsx": "^0.0.0",
     "@zavx0z/immersive-jsx-compiler-bun": "^0.0.0",
-    "@zavx0z/immersive-ui-component-button-basic": "^0.0.0"
+    "@zavx0z/immersive-ui-component-button-basic": "^0.0.0",
+    "@zavx0z/immersive": "^0.0.0"
   },
   "peerDependencies": {
     "typescript": "^7.0.2"
@@ -87,6 +88,7 @@
     "@zavx0z/immersive-ui-component": "link:@zavx0z/immersive-ui-component",
     "@zavx0z/immersive-ui-component-button-basic": "link:@zavx0z/immersive-ui-component-button-basic",
     "@zavx0z/immersive-ui-theme-icon-set": "link:@zavx0z/immersive-ui-theme-icon-set",
-    "@zavx0z/immersive-webgpu": "link:@zavx0z/immersive-webgpu"
+    "@zavx0z/immersive-webgpu": "link:@zavx0z/immersive-webgpu",
+    "@zavx0z/immersive": "link:@zavx0z/immersive"
   }
 }

@@ -6,6 +6,7 @@
       "name": "metafor",
       "dependencies": {
         "@metafor/types": "workspace:*",
+        "@zavx0z/immersive": "^0.0.0",
         "@zavx0z/immersive-jsx": "^0.0.0",
         "@zavx0z/immersive-jsx-compiler-bun": "^0.0.0",
         "@zavx0z/immersive-template": "^0.0.0",
@@ -34,7 +35,7 @@
         "@internal/visual": "workspace:^0.1.41",
         "@metafor/tech-build": "workspace:*",
         "@metafor/tech-release": "workspace:*",
-        "@zavx0z/immersive-engine": "^0.0.0",
+        "@zavx0z/immersive": "^0.0.0",
       },
       "devDependencies": {
         "devtools-protocol": "0.0.1653615",
@@ -44,25 +45,7 @@
       "name": "@internal/visual",
       "version": "0.1.41",
       "dependencies": {
-        "@zavx0z/immersive-browser": "^0.0.0",
-        "@zavx0z/immersive-component": "^0.0.0",
-        "@zavx0z/immersive-dom": "^0.0.0",
-        "@zavx0z/immersive-engine": "^0.0.0",
-        "@zavx0z/immersive-jsx": "^0.0.0",
-        "@zavx0z/immersive-jsx-compiler-bun": "^0.0.0",
-        "@zavx0z/immersive-nodes": "^0.0.0",
-        "@zavx0z/immersive-nodes-layout": "^0.0.0",
-        "@zavx0z/immersive-nodes-node": "^0.0.0",
-        "@zavx0z/immersive-nodes-parameter": "^0.0.0",
-        "@zavx0z/immersive-nodes-socket": "^0.0.0",
-        "@zavx0z/immersive-nodes-tree": "^0.0.0",
-        "@zavx0z/immersive-renderer-html": "^0.0.0",
-        "@zavx0z/immersive-space": "^0.0.0",
-        "@zavx0z/immersive-template": "^0.0.0",
-        "@zavx0z/immersive-ui-component": "^0.0.0",
-        "@zavx0z/immersive-ui-component-button-basic": "^0.0.0",
-        "@zavx0z/immersive-ui-theme-icon-set": "^0.0.0",
-        "@zavx0z/immersive-webgpu": "^0.0.0",
+        "@zavx0z/immersive": "^0.0.0",
       },
     },
     "cosmos/release": {
@@ -72,7 +55,7 @@
         "@internal/visual": "workspace:^0.1.10",
         "@metafor/tech-build": "workspace:*",
         "@metafor/tech-release": "workspace:*",
-        "@zavx0z/immersive-engine": "^0.0.0",
+        "@zavx0z/immersive": "^0.0.0",
       },
       "devDependencies": {
         "@types/serviceworker": "^0.0.200",
@@ -277,6 +260,7 @@
     },
   },
   "overrides": {
+    "@zavx0z/immersive": "link:@zavx0z/immersive",
     "@zavx0z/immersive-browser": "link:@zavx0z/immersive-browser",
     "@zavx0z/immersive-component": "link:@zavx0z/immersive-component",
     "@zavx0z/immersive-dom": "link:@zavx0z/immersive-dom",
@@ -432,43 +416,17 @@
 
     "@zavx0z/highlighter": ["@zavx0z/highlighter@link:@zavx0z/highlighter", {}],
 
-    "@zavx0z/immersive-browser": ["@zavx0z/immersive-browser@link:@zavx0z/immersive-browser", {}],
-
-    "@zavx0z/immersive-component": ["@zavx0z/immersive-component@link:@zavx0z/immersive-component", {}],
-
-    "@zavx0z/immersive-dom": ["@zavx0z/immersive-dom@link:@zavx0z/immersive-dom", {}],
-
-    "@zavx0z/immersive-engine": ["@zavx0z/immersive-engine@link:@zavx0z/immersive-engine", {}],
+    "@zavx0z/immersive": ["@zavx0z/immersive@link:@zavx0z/immersive", {}],
 
     "@zavx0z/immersive-jsx": ["@zavx0z/immersive-jsx@link:@zavx0z/immersive-jsx", {}],
 
     "@zavx0z/immersive-jsx-compiler-bun": ["@zavx0z/immersive-jsx-compiler-bun@link:@zavx0z/immersive-jsx-compiler-bun", {}],
 
-    "@zavx0z/immersive-nodes": ["@zavx0z/immersive-nodes@link:@zavx0z/immersive-nodes", {}],
-
-    "@zavx0z/immersive-nodes-layout": ["@zavx0z/immersive-nodes-layout@link:@zavx0z/immersive-nodes-layout", {}],
-
-    "@zavx0z/immersive-nodes-node": ["@zavx0z/immersive-nodes-node@link:@zavx0z/immersive-nodes-node", {}],
-
-    "@zavx0z/immersive-nodes-parameter": ["@zavx0z/immersive-nodes-parameter@link:@zavx0z/immersive-nodes-parameter", {}],
-
-    "@zavx0z/immersive-nodes-socket": ["@zavx0z/immersive-nodes-socket@link:@zavx0z/immersive-nodes-socket", {}],
-
     "@zavx0z/immersive-nodes-tree": ["@zavx0z/immersive-nodes-tree@link:@zavx0z/immersive-nodes-tree", {}],
-
-    "@zavx0z/immersive-renderer-html": ["@zavx0z/immersive-renderer-html@link:@zavx0z/immersive-renderer-html", {}],
-
-    "@zavx0z/immersive-space": ["@zavx0z/immersive-space@link:@zavx0z/immersive-space", {}],
 
     "@zavx0z/immersive-template": ["@zavx0z/immersive-template@link:@zavx0z/immersive-template", {}],
 
-    "@zavx0z/immersive-ui-component": ["@zavx0z/immersive-ui-component@link:@zavx0z/immersive-ui-component", {}],
-
     "@zavx0z/immersive-ui-component-button-basic": ["@zavx0z/immersive-ui-component-button-basic@link:@zavx0z/immersive-ui-component-button-basic", {}],
-
-    "@zavx0z/immersive-ui-theme-icon-set": ["@zavx0z/immersive-ui-theme-icon-set@link:@zavx0z/immersive-ui-theme-icon-set", {}],
-
-    "@zavx0z/immersive-webgpu": ["@zavx0z/immersive-webgpu@link:@zavx0z/immersive-webgpu", {}],
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 

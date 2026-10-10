@@ -13,7 +13,8 @@
       "@webgpu/types",
       "bun",
       "serviceworker"
-    ]
+    ],
+    "jsxImportSource": "@zavx0z/immersive/XReact"
   },
   "include": [
     "**/*.ts",

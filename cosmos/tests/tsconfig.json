@@ -12,7 +12,8 @@
       "bun",
       "node",
       "serviceworker"
-    ]
+    ],
+    "jsxImportSource": "@zavx0z/immersive/XReact"
   },
   "include": [
     "**/*.ts"

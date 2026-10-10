@@ -13,7 +13,8 @@
     "types": [
       "@webgpu/types",
       "bun"
-    ]
+    ],
+    "jsxImportSource": "@zavx0z/immersive/XReact"
   },
   "include": [
     "build/template.plugin.ts",

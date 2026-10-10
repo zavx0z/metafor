@@ -2,13 +2,13 @@ import {afterAll, beforeAll, expect, test} from "bun:test"
 import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import {createDocument, Event, HTMLButtonElement, readDocumentCompiledStyleSheets} from "@zavx0z/immersive-dom"
-import {DisplayElement, publishDisplayMetrics} from "@zavx0z/immersive-dom/display"
-import {createRoot, type ComponentRoot} from "@zavx0z/immersive-component"
-import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/immersive-renderer-html"
-import {createSpaceElementFactories, readSpaceTree} from "@zavx0z/immersive-space"
-import {type ViewPointElement} from "@zavx0z/immersive-dom/viewpoint"
-import type {CompiledTemplate} from "@zavx0z/immersive-template/compiled"
+import {createDocument, Event, HTMLButtonElement, readDocumentCompiledStyleSheets} from "@zavx0z/immersive"
+import {DisplayElement, publishDisplayMetrics} from "@zavx0z/immersive"
+import {createRoot, type ComponentRoot} from "@zavx0z/immersive/XReact"
+import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/immersive/renderer/html"
+import {createSpaceElementFactories, readSpaceTree} from "@zavx0z/immersive/space"
+import {type ViewPointElement} from "@zavx0z/immersive"
+import type {CompiledTemplate} from "@zavx0z/immersive/XReact/compiled"
 import visualTemplatePlugin from "../build/template.plugin.ts"
 import {DISPLAY_CENTER_MM} from "./view-state.ts"
 import {setViewport} from "./browser.fixture.ts"
@@ -46,23 +46,8 @@ beforeAll(async () => {
     outdir: directory,
     target: "bun",
     format: "esm",
-    external: ["@zavx0z/immersive-dom", "@zavx0z/immersive-component", "@zavx0z/immersive-engine", "@zavx0z/immersive-template/compiled", join(import.meta.dir, "browser.fixture.ts")],
-    plugins: [
-      {
-        name: "visual-test-space-identity",
-        setup(build) {
-          // Фабрики тестового Document и проверки instanceof используют одни классы.
-          // TSX subpaths Space/Display/HUD при этом компилируются обычным plugin.
-          build.onResolve({filter: /^@zavx0z\/immersive-space$/}, () => ({path: "@zavx0z/immersive-space", external: true}))
-          build.onResolve({filter: /^@zavx0z\/immersive-browser$/}, () => ({path: "viewport", namespace: "visual-test-browser"}))
-          build.onLoad({filter: /.*/, namespace: "visual-test-browser"}, () => ({
-            contents: `export {useSpace} from ${JSON.stringify(join(import.meta.dir, "browser.fixture.ts"))}`,
-            loader: "js",
-          }))
-        },
-      },
-      visualTemplatePlugin,
-    ],
+    external: ["@zavx0z/immersive", "@zavx0z/immersive/*"],
+    plugins: [visualTemplatePlugin],
   })
   if (!result.success) throw new AggregateError(result.logs, "Visual App did not compile")
   const output = result.outputs.find(({kind}) => kind === "entry-point")!

@@ -1,4 +1,4 @@
-import type {RootSize} from "@zavx0z/immersive-browser"
+import type {RootSize} from "@zavx0z/immersive/XReact/browser"
 
 let size: RootSize = {width: 1000, height: 700, left: 0, top: 0, dpr: 1}
 

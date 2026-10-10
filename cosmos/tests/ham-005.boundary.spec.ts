@@ -67,7 +67,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(main).toContain('console.debug("[@cosmos/release:main]", "Visual runtime подключён", {')
   expect(main).toContain("runtime: Object.keys(runtime)")
   expect(mainPackage.dependencies).toEqual({
-    "@zavx0z/immersive-engine": "^0.0.0",
+    "@zavx0z/immersive": "^0.0.0",
     "@internal/visual": "workspace:^0.1.10",
     "@metafor/tech-build": "workspace:*",
     "@metafor/tech-release": "workspace:*",
@@ -78,7 +78,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     "internal:server": "./server/index.ts",
   })
   expect(visualPackage.exports?.["./theme.css"]).toEqual({
-    "internal:main": "@zavx0z/immersive-ui-component/theme/theme.css",
+    "internal:main": "@zavx0z/immersive/ui/theme.css",
   })
   expect(visualPackage.artifact).toBeUndefined()
   expect(visualPackage.scripts?.prebuild).toBeUndefined()
@@ -88,9 +88,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualPackage.dependencies).not.toHaveProperty("@layout/core")
   expect(visualPackage.dependencies).not.toHaveProperty("@ui/elements")
   expect(visualPackage.dependencies).not.toHaveProperty("@ui/hud")
-  for (const name of ["browser", "component", "dom", "engine", "renderer-html", "space", "template", "ui-component", "webgpu", "jsx", "jsx-compiler-bun"]) {
-    expect(visualPackage.dependencies?.[`@zavx0z/immersive-${name}`]).toBe("^0.0.0")
-  }
+  expect(visualPackage.dependencies).toEqual({"@zavx0z/immersive": "^0.0.0"})
   for (const legacy of ["@engine/core", "@ui/components", "@zavx0z/react", "@zavx0z/renderer-browser", "@zavx0z/renderer-webgpu"]) {
     expect(visualPackage.dependencies).not.toHaveProperty(legacy)
   }
@@ -110,8 +108,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   }
   expect(app).not.toContain('id="main"')
   expect(app).not.toContain('id="main-hud"')
-  expect(app).toContain('from "@zavx0z/immersive-space/gizmo/grid"')
-  expect(app).not.toContain("@zavx0z/immersive-engine")
+  expect(app).toContain('from "@zavx0z/immersive/space"')
+  expect(app).not.toContain("@zavx0z/immersive/engine")
   expect(app).not.toContain("factory=")
   expect(app).not.toContain("VisualScene")
   expect(app).toContain("<space>")
@@ -126,15 +124,15 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     expect(source).not.toContain("requestAnimationFrame")
   }
   expect(visual).toContain('console.debug("[@internal/visual:main]", "основное visual-окружение создано", {')
-  expect(displayDock).toContain('from "@zavx0z/immersive-ui-component-button-basic"')
-  expect(displayDock).toContain('from "@zavx0z/immersive-component"')
+  expect(displayDock).toContain('from "@zavx0z/immersive/ui"')
+  expect(displayDock).toContain('from "@zavx0z/immersive/XReact"')
   expect(displayDock.match(/<Button\b/g)).toHaveLength(2)
   expect(displayDock).toContain("align-items: center")
   expect(displayDock).toContain("justify-content: space-between")
   expect(displayDock).not.toContain("position: absolute")
   expect(await Bun.file(join(cosmos, "internal/visual/theme.css")).exists()).toBe(false)
-  expect(templatePlugin).toContain('import.meta.resolve("@zavx0z/immersive-ui-component")')
-  expect(templatePlugin).toContain('import.meta.resolve("@zavx0z/immersive-space")')
+  expect(templatePlugin).toContain('from "@zavx0z/immersive/compiler"')
+  expect(templatePlugin).toContain('sourceRoots: [resolve(visualRoot, "main")]')
   expect(visual).not.toContain("@cosmos/visual")
   expect(visual).not.toContain("browser/orchestration")
   expect(visualBunfig).toContain('".wgsl" = "text"')
@@ -152,7 +150,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(packageBuild).toContain("packageArtifactPath(location.root, build)")
 
   expect(server).toContain('"/assets/fonts/jetbrains-mono-bold.ttf"')
-  expect(server).toContain('import.meta.resolve("@zavx0z/immersive-engine/fonts/jetbrains-mono-bold.ttf")')
+  expect(server).toContain('import.meta.resolve("@zavx0z/immersive/engine/fonts/jetbrains-mono-bold.ttf")')
   expect(startupMain).toContain('import("@cosmos/release")')
   expect(startupMain).not.toContain("UiRuntime")
 })
@@ -197,6 +195,18 @@ test("UPD-002 builds Window release and internal visual as separate artifacts", 
     expect(await Bun.file(mainOutput!.path).text()).toContain('import("@internal/visual")')
     expect(await Bun.file(mainOutput!.path).text()).toContain("@internal/visual")
     const visualSource = await Bun.file(visualOutput!.path).text()
+    const inventory = await Bun.file(new URL(import.meta.resolve("@zavx0z/immersive/browser.json"))).json() as {
+      files: {path: string; digest: string}[]
+    }
+    const readyOutputs = visual.outputs.filter(({artifact}) => artifact?.startsWith("./.cosmos/chunk/"))
+    expect(readyOutputs).toHaveLength(inventory.files.length)
+    const readyDigests = new Map(readyOutputs.map(({artifact, sha256}) => [artifact!.split("/").slice(4).join("/"), sha256]))
+    for (const file of inventory.files) {
+      expect(readyDigests.get(file.path)).toBe(file.digest)
+    }
+    expect(new Bun.Transpiler({loader: "js"}).scan(visualSource).imports.some(({path}) =>
+      path.startsWith(`/@internal/visual/.cosmos/main/${visualVersion}/chunk/`),
+    )).toBeTrue()
     const themeSource = await Bun.file(themeOutput!.path).text()
     expect(visualSource).toContain("visual-canvas")
     expect(visualSource).toContain("main-display-dock")

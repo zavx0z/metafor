@@ -16,7 +16,7 @@
     "@cosmos/release": "workspace:^0.1.27",
     "@cosmos/startup": "workspace:*",
     "@internal/visual": "workspace:^0.1.41",
-    "@zavx0z/immersive-engine": "^0.0.0",
+    "@zavx0z/immersive": "^0.0.0",
     "@metafor/tech-build": "workspace:*",
     "@metafor/tech-release": "workspace:*"
   },

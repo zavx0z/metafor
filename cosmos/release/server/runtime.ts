@@ -36,7 +36,7 @@ export async function startReleaseServer(
         type: "application/manifest+json",
       }),
       "/assets/fonts/jetbrains-mono-bold.ttf": Bun.file(
-        new URL(import.meta.resolve("@zavx0z/immersive-engine/fonts/jetbrains-mono-bold.ttf")),
+        new URL(import.meta.resolve("@zavx0z/immersive/engine/fonts/jetbrains-mono-bold.ttf")),
       ),
       "/assets/*": async (request: Request) => {
         const asset = new URL(request.url).pathname.slice("/assets/".length)
