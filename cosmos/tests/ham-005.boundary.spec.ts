@@ -178,7 +178,7 @@ test("UPD-002 builds Window release and internal visual as separate artifacts", 
     const visualOutput = visual.outputs.find(({artifact}) => artifact === ".")
     const themeOutput = visual.outputs.find(({artifact}) => artifact === "./theme.css")
 
-    expect(main.success).toBeTrue()
+    expect(main.success, `${main.stdout}\n${main.stderr}`).toBeTrue()
     expect(visual.success, `${visual.stdout}\n${visual.stderr}`).toBeTrue()
     expect(mainOutput?.size).toBeGreaterThan(0)
     expect(visualOutput?.size).toBeGreaterThan(0)

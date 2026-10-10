@@ -13,8 +13,8 @@ Visual объявляет свои платформенные части по
 ## Визуальная среда main
 
 Когда release запускает browser-часть visual, visual получает предоставленный
-Canvas и монтирует в него своё декларативное приложение через React-shaped API
-`@zavx0z/immersive/XReact/browser` (далее — Browser). App объявляет stylesheet link рядом со Space во Fragment. Приложение содержит единственные Space
+Canvas и монтирует готовый DOM-конструктор своего приложения через browser API
+`@zavx0z/immersive` (далее — Browser). App объявляет stylesheet link рядом со Space во Fragment. Приложение содержит единственные Space
 и ViewPoint, основную поверхность базового display, сетку пола и навигацию в HUD.
 
 Browser монтирует приложение в один semantic Document, подготавливает общие

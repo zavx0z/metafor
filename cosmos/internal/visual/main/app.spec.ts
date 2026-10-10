@@ -4,19 +4,19 @@ import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
 import {createDocument, Event, HTMLButtonElement, readDocumentCompiledStyleSheets} from "@zavx0z/immersive"
 import {DisplayElement, publishDisplayMetrics} from "@zavx0z/immersive"
-import {createRoot, type ComponentRoot} from "@zavx0z/immersive/XReact"
+import {createDomRoot, type DOMRoot} from "@zavx0z/immersive"
 import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/immersive/renderer/html"
 import {createSpaceElementFactories, readSpaceTree} from "@zavx0z/immersive/space"
 import {type ViewPointElement} from "@zavx0z/immersive"
-import type {CompiledTemplate} from "@zavx0z/immersive/XReact/compiled"
+import type {DOMComponentConstructor} from "@zavx0z/immersive"
 import visualTemplatePlugin from "../build/template.plugin.ts"
 import {DISPLAY_CENTER_MM} from "./view-state.ts"
 import {setViewport} from "./browser.fixture.ts"
 
 let directory = ""
-let app: CompiledTemplate<Record<string, never>>
+let app: DOMComponentConstructor<Record<string, never>>
 
-async function renderApp(root: ComponentRoot, document: ReturnType<typeof createDocument>, width: number, height: number): Promise<void> {
+async function renderApp(root: DOMRoot, document: ReturnType<typeof createDocument>, width: number, height: number): Promise<void> {
   setViewport(width, height)
   root.render(app, {})
   const element = document.querySelector("display")
@@ -65,7 +65,7 @@ test("Visual App owns one Z-up Space, a millimetre Display and the same-document
   const body = document.createElement("body")
   html.append(body)
   document.append(html)
-  const root = createRoot(body)
+  const root = createDomRoot(body)
   await renderApp(root, document, 1000, 700)
   const tree = readSpaceTree(document)
   expect(document.documentElement).toBe(html)
@@ -106,7 +106,7 @@ test("dock retains Button identity, Flex placement and exact far-view restoratio
   const body = document.createElement("body")
   html.append(body)
   document.append(html)
-  const root = createRoot(body)
+  const root = createDomRoot(body)
   await renderApp(root, document, 1000, 700)
   const tree = readSpaceTree(document)
   const gridFactory = tree.objects[0]!.factory

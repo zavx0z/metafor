@@ -1,8 +1,8 @@
-import type {RootSize} from "@zavx0z/immersive/XReact/browser"
+import type {RootSize} from "@zavx0z/immersive"
 
 let size: RootSize = {width: 1000, height: 700, left: 0, top: 0, dpr: 1}
 
-/** Test double только для размера Browser; App и его компоненты исполняются настоящим Component. */
+/** Test double только для размера Browser; App и его компоненты исполняют сгенерированные DOM-конструкторы. */
 export function useSpace<Selection>(selector: (state: {size: RootSize}) => Selection): Selection {
   return selector({size})
 }
