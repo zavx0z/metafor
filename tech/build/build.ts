@@ -21,9 +21,12 @@ import {externalizeSourceMap, sourceMapArtifact} from "./source-map"
 import {packageBuildEntrypoints} from "./source"
 import {isGeneratedPackageArtifactKey, rootPackageArtifact} from "./identity/artifact"
 import {validatePackageBuildOutputs} from "./report"
+import {preparePackageDependencies, type PreparedPackageDependency, type PreparedDependencyGraph} from "./prepared"
 
 export interface PackageBuilderOptions extends PackageReaderOptions {
   profile?: "development" | "production"
+  /** Политика host передаёт готовые прямые зависимости только выбранному environment. */
+  preparedDependencies?(owner: PackageOwner): Promise<readonly PreparedPackageDependency[]>
   /** Instance-owned executor; по умолчанию штатный Bun.spawn. */
   spawn?: typeof Bun.spawn
 }
@@ -53,6 +56,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
   const reader = createPackageReader(options)
   const {packageOwner, packageSourceLocation} = reader
   const optionsProfile = () => options.profile ?? "production"
+  const preparedDependenciesFor = options.preparedDependencies
   const pendingBuilds = new Map<string, Promise<PackageBuildResult>>()
   const pendingTypechecks = new Map<string, Promise<PackageTypecheckResult>>()
 
@@ -76,6 +80,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
         reportDirectory: string
         report: string
         version: string
+        preparedDependencies: readonly PreparedDependencyGraph[]
       }
 
   /** Разрешает внешнее имя как package с полным browser build contract. */
@@ -188,6 +193,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
                   plugins: owner.plugins,
                   report: execution.report,
                   sources: owner.sources,
+                  preparedDependencies: execution.preparedDependencies,
                   output: execution.output,
                 }),
               ]),
@@ -274,9 +280,14 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     if (options.artifact !== undefined && options.outdir !== undefined)
       throw new Error("Package build artifact cannot be combined with outdir")
 
+    const preparedDependencies = await preparePackageDependencies(
+      owner, await preparedDependenciesFor?.(owner) ?? [],
+    )
+
     const onlyLegacyRoot =
       owner.sources.length === 1 &&
       owner.sources[0]?.artifact === rootPackageArtifact &&
+      preparedDependencies.length === 0 &&
       owner.plugins.length === 0
     if (onlyLegacyRoot) {
       if (options.outdir !== undefined)
@@ -340,6 +351,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
       reportDirectory,
       report: join(reportDirectory, "report.json"),
       version,
+      preparedDependencies,
     }
   }
 

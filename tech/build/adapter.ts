@@ -24,6 +24,7 @@ import {
   type PackageEnvironment,
 } from "./identity/environment"
 import {browserPackageArtifactUrl, browserPackageGeneratedPublicPath} from "./identity/artifact-url"
+import {digest, preparedFileRelative, type PreparedDependencyGraph} from "./prepared"
 
 export interface IsolatedPackageBuildRequest {
   readonly name: string
@@ -34,6 +35,7 @@ export interface IsolatedPackageBuildRequest {
   readonly plugins: readonly string[]
   readonly report: string
   readonly sources: readonly PackageBuildSource[]
+  readonly preparedDependencies?: readonly PreparedDependencyGraph[]
   readonly output:
     | {readonly mode: "single"; readonly artifact: string}
     | {readonly mode: "multi"; readonly outdir: string}
@@ -76,6 +78,18 @@ export async function runIsolatedPackageBuild(
       multi && isBrowserPackageEnvironment(request.env)
         ? browserPackageGeneratedPublicPath(request.name, request.env, request.version)
         : undefined
+    const ready = request.preparedDependencies ?? []
+    const readyBase = isBrowserPackageEnvironment(request.env)
+      ? browserPackageGeneratedPublicPath(request.name, request.env, request.version)
+      : undefined
+    if (ready.length > 0 && readyBase === undefined)
+      throw new Error("Prepared dependency linking requires a browser environment")
+    const readyEntries = new Map(ready.flatMap(graph => Object.entries(graph.entries).map(
+      ([specifier, path]) => [specifier, `${readyBase}${preparedFileRelative(graph, path)}`] as const,
+    )))
+    const readyUrls = new Map(ready.flatMap(graph => graph.files.map(file =>
+      [`${readyBase}${preparedFileRelative(graph, file.path)}`, preparedFileRelative(graph, file.path)] as const,
+    )))
     const result = await Bun.build({
       entrypoints: buildSources.map(({source}) => source),
       target: request.plan.target,
@@ -87,7 +101,15 @@ export async function runIsolatedPackageBuild(
       drop: [...request.plan.drop],
       sourcemap: request.plan.sourcemap,
       loader: {...request.loaders},
-      plugins,
+      plugins: [
+        ...(readyEntries.size === 0 ? [] : [{name: "prepared-dependencies", setup(build: Bun.PluginBuilder) {
+          build.onResolve({filter: /.*/}, ({path}) => {
+            const target = readyEntries.get(path)
+            if (target) return {path: target, external: true}
+          })
+        }}]),
+        ...plugins,
+      ],
       metafile: true,
       ...(multi
         ? {
@@ -122,11 +144,23 @@ export async function runIsolatedPackageBuild(
 
     if (!result.metafile) throw new Error("Package build metafile is missing")
     const outputs = await writeBuildOutputs(request, result.outputs, result.metafile)
+    for (const output of outputs) {
+      // Bun metadata пропускает imports, помеченные external через onResolve.
+      // Готовые edges читаются из результата consumer, без исходников зависимости.
+      if (ready.length > 0 && output.path.endsWith(".js")) {
+        const imported = new Bun.Transpiler({loader: "js"}).scan(await Bun.file(output.path).text()).imports
+        output.imports = [...output.imports, ...imported.filter(edge => readyUrls.has(edge.path)).map(edge => ({...edge, external: true}))]
+      }
+      output.imports = output.imports.map(imported => readyUrls.has(imported.path)
+        ? {...imported, path: readyUrls.get(imported.path)!, external: false}
+        : imported)
+    }
+    const prepared = await writePreparedFiles(request, ready)
     const copies = await writeRawCopies(request, copySources)
-    const externalImports = reportExternalImports(result.metafile)
-    const rootProjection = await projectRootClosure(request, outputs, result.outputs)
+    const externalImports = reportExternalImports(result.metafile).filter(imported => !readyUrls.has(imported.path))
+    const rootProjection = await projectRootClosure(request, [...outputs, ...prepared], result.outputs)
     const report: PackageBuildReport = {
-      outputs: [...outputs, ...copies],
+      outputs: [...outputs, ...prepared, ...copies],
       externalImports,
       rootClosure: rootProjection.outputs,
       publicArtifactUrls: rootProjection.publicArtifactUrls,
@@ -208,6 +242,24 @@ async function writeRawCopies(
   )
 }
 
+async function writePreparedFiles(request: IsolatedPackageBuildRequest, graphs: readonly PreparedDependencyGraph[]) {
+  const root = request.output.mode === "multi" ? request.output.outdir : join(dirname(request.output.artifact), ".cosmos")
+  return await Promise.all(graphs.flatMap(graph => graph.files.map(async file => {
+    const bytes = await Bun.file(resolve(graph.root, file.path)).arrayBuffer()
+    if (digest(bytes) !== file.digest) throw new Error(`Prepared dependency changed during build: ${file.path}`)
+    const relative = preparedFileRelative(graph, file.path)
+    const path = join(root, relative)
+    await mkdir(dirname(path), {recursive: true})
+    await Bun.write(path, bytes)
+    const script = /\.[cm]?js$/.test(file.path)
+    return {
+      path, relative, kind: script ? "chunk" as const : "copy" as const,
+      loader: script ? "js" : "file",
+      imports: file.imports.map(imported => ({...imported, path: preparedFileRelative(graph, imported.path)})),
+    }
+  })))
+}
+
 function reportExternalImports(metafile: Bun.BuildMetafile) {
   const imports = new Map<string, PackageBuildReportImport>()
   for (const input of Object.values(metafile.inputs)) {
@@ -245,7 +297,8 @@ async function projectRootClosure(
       if (byRelative.has(imported.path)) pending.push(imported.path)
     }
   }
-  const source = (await Promise.all([...closure].map((path) => blobs.get(path)?.text())))
+  const source = (await Promise.all([...closure].map((path) =>
+    blobs.get(path)?.text() ?? Bun.file(byRelative.get(path)!.path).text())))
     .filter((value): value is string => value !== undefined)
     .join("\n")
   const publicArtifactUrls = isBrowserPackageEnvironment(request.env)

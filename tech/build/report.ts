@@ -9,11 +9,13 @@ import {packageBuildEntrypoints, packageBuildSourceKind} from "./source"
 import {isGeneratedPackageArtifactKey, rootPackageArtifact, type PackageArtifactKey} from "./identity/artifact"
 import {browserPackageArtifactUrl} from "./identity/artifact-url"
 import {isBrowserPackageEnvironment} from "./identity/environment"
+import {preparedFileRelative, type PreparedDependencyGraph} from "./prepared"
 
 /** Проверенная цель дочернего compiler; не является publication state. */
 export interface PackageBuildOutputTarget {
   readonly output: {readonly mode: "single"; readonly artifact: string} | {readonly mode: "multi"; readonly outdir: string}
   readonly version: string
+  readonly preparedDependencies?: readonly PreparedDependencyGraph[]
 }
 
 /**
@@ -33,11 +35,25 @@ export async function validatePackageBuildOutputs(
   validatePackageBuildReport(report)
   await validateBuildReportPaths(execution, report)
   const bindings = await validateBuildReportGraph(name, owner, execution, report)
+  const prepared = new Map((execution.preparedDependencies ?? []).flatMap(graph => graph.files.map(file =>
+    [preparedFileRelative(graph, file.path), {
+      ...file, imports: file.imports.map(edge => ({...edge, path: preparedFileRelative(graph, edge.path)})),
+    }] as const,
+  )))
+  for (const [relative, file] of prepared) {
+    const output = report.outputs.find(output => output.relative === relative)
+    if (!output || (await packageArtifact(output.path))?.sha256 !== file.digest)
+      throw new Error(`Prepared output digest differs: ${relative}`)
+    if (output.entryPoint !== undefined || output.source !== undefined ||
+        JSON.stringify(output.imports) !== JSON.stringify(file.imports))
+      throw new Error(`Prepared output import graph differs: ${relative}`)
+  }
 
   if (profile === "development") {
     const canonicalized = new Set<string>()
     for (const {output} of bindings) {
       if (canonicalized.has(output.path)) continue
+      if (prepared.has(output.relative)) continue
       if (output.kind !== "entry-point" && output.kind !== "chunk") continue
       if (!output.path.endsWith(".js")) continue
       canonicalized.add(output.path)
@@ -63,6 +79,7 @@ export async function validatePackageBuildOutputs(
     })
     if (
       profile === "development" &&
+      !prepared.has(binding.output.relative) &&
       (binding.output.kind === "entry-point" || binding.output.kind === "chunk") &&
       binding.output.path.endsWith(".js")
     ) {

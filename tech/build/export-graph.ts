@@ -322,8 +322,9 @@ async function resolveDependencyExport(
     if (await file.exists()) {
       const owner = (await file.json()) as {name?: unknown}
       if (owner.name === dependency) return source
-      if (owner.name !== undefined)
-        throw new Error(`Dependency export resolves inside another package: ${specifier}`)
+      // Публичный export агрегирующего package может принадлежать вложенному
+      // implementation package. Разрешение exports выполнено до этого обхода;
+      // подтверждаем объявленного dependency owner среди реальных предков.
     }
     const parent = dirname(directory)
     if (parent === directory) throw new Error(`Dependency export owner is missing: ${specifier}`)
