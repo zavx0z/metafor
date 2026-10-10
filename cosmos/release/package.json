@@ -1,7 +1,7 @@
 {
   "name": "@cosmos/release",
   "label": "Релизы Cosmos",
-  "version": "0.1.27",
+  "version": "0.1.28",
   "private": true,
   "type": "module",
   "exports": {

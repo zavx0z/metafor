@@ -43,14 +43,14 @@
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.41",
+      "version": "0.1.42",
       "dependencies": {
         "@zavx0z/immersive": "^0.0.0",
       },
     },
     "cosmos/release": {
       "name": "@cosmos/release",
-      "version": "0.1.27",
+      "version": "0.1.28",
       "dependencies": {
         "@internal/visual": "workspace:^0.1.10",
         "@metafor/tech-build": "workspace:*",
