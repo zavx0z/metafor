@@ -5,6 +5,7 @@ import {Processes} from "./processes"
 import {Reactions} from "./reactions.ts"
 import {Matter} from "./matter.ts"
 import {Bulk} from "./bulk.ts"
+import {normalizeMetaLifecycle, type MetaLifecycle} from "@metafor/types/metafor/lifecycle"
 
 export class Wimp {
   readonly fields: Fields
@@ -15,6 +16,7 @@ export class Wimp {
   readonly bulk: Bulk
   readonly name: Name
   readonly desc: Desc
+  readonly lifecycle: Lifecycle
 
   constructor(
     readonly sql: SQL,
@@ -28,6 +30,7 @@ export class Wimp {
     this.bulk = new Bulk(this)
     this.name = new Name(this)
     this.desc = new Desc(this)
+    this.lifecycle = new Lifecycle(this)
   }
 
 }
@@ -88,5 +91,18 @@ export class Desc extends WimpScalar<string> {
         SET desc = ${value}
         WHERE src = ${this.wimp.src}
     `
+  }
+}
+
+/** Canonical native-input metadata; resource policy remains in declared Meta Processes. */
+export class Lifecycle extends WimpScalar<MetaLifecycle> {
+  async get(): Promise<MetaLifecycle | undefined> {
+    const row = (await this.wimp.sql<Array<{lifecycle: string | null}>>`SELECT lifecycle_json AS lifecycle FROM wimp WHERE src = ${this.wimp.src}`)[0]
+    return row && row.lifecycle !== null ? normalizeMetaLifecycle(JSON.parse(row.lifecycle)) : undefined
+  }
+  async set(value: MetaLifecycle | null): Promise<void> {
+    const fields = await this.wimp.sql<Array<{key: string; type: string; required: number}>>`SELECT key, type, required FROM field WHERE wimp = ${this.wimp.src}`
+    const lifecycle = normalizeMetaLifecycle(value ?? undefined, fields.map(field => ({...field, required: field.required === 1})))
+    await this.wimp.sql`UPDATE wimp SET lifecycle_json = ${lifecycle === undefined ? null : JSON.stringify(lifecycle)} WHERE src = ${this.wimp.src}`
   }
 }

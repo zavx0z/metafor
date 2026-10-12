@@ -1,3 +1,5 @@
+import type {ReleaseHandover} from "../../shared/execution"
+
 /** Минимальный startup API, необходимый env `service` release. */
 export interface ReleaseLoader {
   verify(response: Response): Response
@@ -17,10 +19,7 @@ export interface ReleaseRuntime {
 /** Односторонние зависимости, которые неизменяемый startup передаёт release. */
 export interface ReleaseDependencies {
   readonly loader: Readonly<ReleaseLoader>
-  readonly runtime: Readonly<{
-    prepare(request?: Request): Promise<ReleaseRuntime>
-    activate(candidate: ReleaseRuntime): Promise<void>
-  }>
+  readonly runtime: Readonly<ReleaseHandover<Request, ReleaseRuntime>>
 }
 
 /** Factory release только создаёт inert runtime и не запускает side effects. */

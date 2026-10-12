@@ -1,3 +1,4 @@
+import {Force} from "shared/transport/force"
 import {afterEach, describe, expect, test} from "bun:test"
 import {mkdir, mkdtemp, readFile, rm, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
@@ -304,7 +305,8 @@ describe("one complete trusted agent RPC session", () => {
     const forceFixture = createForceTestFixture()
     forceFixtures.push(forceFixture)
     const waitingForMatrix = forceFixture.nextClient("matrix")
-    await import(`../matrix/matrix.ts?agent-session=${crypto.randomUUID()}`)
+    const runtime = await import(`../matrix/matrix.ts?agent-session=${crypto.randomUUID()}`)
+    await runtime.startMatrixForce(() => new Force("matrix"))
     const matrixClient = await waitingForMatrix
     await Bun.sleep(0)
     await Bun.sleep(0)

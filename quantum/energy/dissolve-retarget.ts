@@ -189,6 +189,9 @@ export const buildEnergyDissolveRetargetRequest = (
     generations.some((generation) => !positive(generation))
   ) return fail("invalid_request", "Energy dissolve request requires one exact admitted five-handle plan")
 
+  if (admission.plan.retainedBindings.some(binding => (binding.format as string) === "directory")) {
+    return fail("invalid_request", "Directory Mass dissolve is temporarily unsupported")
+  }
   const handles = admission.plan.retainedBindings.map((binding, index) => {
     const body = {
       ordinal: index + 1,
@@ -275,6 +278,9 @@ const validateReceipt = (
     !digestPattern.test(value.stateSha256)
   ) return fail("receipt_corrupt", "Energy dissolve receipt shape is invalid")
   const receipt = value as EnergyDissolveRetargetReceiptV1
+  if (receipt.entries.some(entry => (entry.handle?.format as string) === "directory")) {
+    return fail("invalid_request", "Directory Mass dissolve is temporarily unsupported")
+  }
   const {stateSha256, ...body} = receipt
   const statuses = receipt.entries.map(({status}) => status)
   const phaseConsistent =
@@ -400,6 +406,9 @@ export class DurableEnergyDissolveRetarget {
     filename: string,
     request: EnergyDissolveRetargetRequestV1,
   ): DurableEnergyDissolveRetarget {
+    if (request.handles.some(handle => (handle.format as string) === "directory")) {
+      return fail("invalid_request", "Directory Mass dissolve is temporarily unsupported")
+    }
     const target = resolve(filename)
     const expected = initialReceipt(request)
     if (existsSync(target)) {

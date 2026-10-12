@@ -27,7 +27,11 @@ export type BoundaryInitialAtom = {
   state: number | null
 }
 
-/** Unfinished execution from the previous full contour, never a live Energy handle. */
+/**
+Restoration hint for unfinished Process work, never a live execution or Energy
+handle. The latest matching superseded execution may require a replacement
+that had not been registered before shutdown; Matrix always mints a new ID.
+*/
 export type BoundaryInitialPendingProcessExecution = {
   executionId: ProcessExecutionId
   atom: number

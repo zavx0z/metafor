@@ -1,4 +1,4 @@
-import {forceDomains, type ForceDomain} from "../force/store.ts"
+import {forceDomains, forceParticipants, type ForceDomain} from "../force/store.ts"
 
 export type CheckpointBarrierPhase = "open" | "settling" | "held"
 
@@ -121,15 +121,14 @@ export class CheckpointAppliedThroughBarrier {
   #phase: CheckpointBarrierPhase = "open"
   #acceptanceSequence = 0
   #waiter: HoldWaiter | null = null
-  readonly #domains = new Map<ForceDomain, DomainState>(
-    forceDomains.map((domain) => [domain, {
-      receipts: [],
-      appliedOrdinal: 0,
-      appliedAcceptanceSequence: 0,
-    }]),
-  )
+  readonly #participants: readonly ForceDomain[]
+  readonly #domains = new Map<ForceDomain, DomainState>()
 
-  constructor(cutId: string, restored?: CheckpointBarrierStateV1) {
+  constructor(cutId: string, restored?: CheckpointBarrierStateV1, participants: readonly ForceDomain[] = forceDomains) {
+    this.#participants = forceParticipants(participants)
+    for (const domain of this.#participants) this.#domains.set(domain, {
+      receipts: [], appliedOrdinal: 0, appliedAcceptanceSequence: 0,
+    })
     if (!cutIdPattern.test(cutId)) {
       throw new CheckpointBarrierError(
         "invalid_cut_id",
@@ -140,7 +139,7 @@ export class CheckpointAppliedThroughBarrier {
     if (restored) this.#restore(restored)
   }
 
-  static baseline(cutId: string, acceptanceSequence: number): CheckpointAppliedThroughBarrier {
+  static baseline(cutId: string, acceptanceSequence: number, participants: readonly ForceDomain[] = forceDomains): CheckpointAppliedThroughBarrier {
     if (!Number.isSafeInteger(acceptanceSequence) || acceptanceSequence < 0) {
       throw new CheckpointBarrierError(
         "invalid_persisted_state",
@@ -151,13 +150,13 @@ export class CheckpointAppliedThroughBarrier {
       schema: "metafor/checkpoint-barrier-state/v1",
       cutId,
       acceptanceSequence,
-      domains: forceDomains.map((domain) => ({
+      domains: forceParticipants(participants).map((domain) => ({
         domain,
         receipts: [],
         appliedOrdinal: 0,
         appliedAcceptanceSequence: 0,
       })),
-    })
+    }, participants)
   }
 
   get phase(): CheckpointBarrierPhase {
@@ -189,7 +188,7 @@ export class CheckpointAppliedThroughBarrier {
       )
     }
     if (!Array.isArray(destinations)
-      || destinations.some((domain) => !isForceDomain(domain))
+      || destinations.some((domain) => !isForceDomain(domain) || !this.#participants.includes(domain))
       || new Set(destinations).size !== destinations.length) {
       throw new CheckpointBarrierError(
         "invalid_destinations",
@@ -276,6 +275,29 @@ export class CheckpointAppliedThroughBarrier {
         "Checkpoint sequence 0 cannot establish an applied-through live baseline",
       ))
     }
+    return this.#hold(signal)
+  }
+
+  /**
+   * Holds sequence zero only after the owning coordinator has freshly proved
+   * an empty quiescent Boundary and matching empty history. This explicit
+   * local path records no proof flag, receipt or Particle. Release and restore
+   * retain the ordinary unresolved-zero gate and require another owner proof.
+   */
+  holdVerifiedEmptyUnderClosedAdmission(signal?: AbortSignal): Promise<CheckpointBarrierFrontier> {
+    if (this.#acceptanceSequence !== 0 || this.#participants.some((domain) => {
+      const state = this.#domain(domain)
+      return state.receipts.length !== 0 || state.appliedOrdinal !== 0 || state.appliedAcceptanceSequence !== 0
+    })) {
+      return Promise.reject(new CheckpointBarrierError(
+        "sequence_zero_baseline_unresolved",
+        "Verified empty hold requires the exact zero receipt frontier",
+      ))
+    }
+    return this.#hold(signal)
+  }
+
+  #hold(signal?: AbortSignal): Promise<CheckpointBarrierFrontier> {
     if (this.#phase === "settling") {
       return Promise.reject(new CheckpointBarrierError(
         "barrier_in_progress",
@@ -328,7 +350,7 @@ export class CheckpointAppliedThroughBarrier {
       cutId: this.cutId,
       phase: this.#phase,
       acceptanceSequence: this.#acceptanceSequence,
-      domains: forceDomains.map((domain) => {
+      domains: this.#participants.map((domain) => {
         const state = this.#domain(domain)
         return {
           domain,
@@ -345,7 +367,7 @@ export class CheckpointAppliedThroughBarrier {
       schema: "metafor/checkpoint-barrier-state/v1",
       cutId: this.cutId,
       acceptanceSequence: this.#acceptanceSequence,
-      domains: forceDomains.map((domain) => {
+      domains: this.#participants.map((domain) => {
         const state = this.#domain(domain)
         return {
           domain,
@@ -358,7 +380,9 @@ export class CheckpointAppliedThroughBarrier {
   }
 
   #domain(domain: ForceDomain): DomainState {
-    return this.#domains.get(domain)!
+    const state = this.#domains.get(domain)
+    if (!state) throw new CheckpointBarrierError("invalid_destinations", `Checkpoint domain does not participate: ${domain}`)
+    return state
   }
 
   #restore(input: CheckpointBarrierStateV1): void {
@@ -375,7 +399,7 @@ export class CheckpointAppliedThroughBarrier {
       !Number.isSafeInteger(input.acceptanceSequence) ||
       input.acceptanceSequence < 0 ||
       !Array.isArray(input.domains) ||
-      input.domains.length !== forceDomains.length
+      input.domains.length !== this.#participants.length
     ) invalid()
 
     const seen = new Set<ForceDomain>()
@@ -387,7 +411,7 @@ export class CheckpointAppliedThroughBarrier {
           "appliedOrdinal",
           "appliedAcceptanceSequence",
         ]) ||
-        !isForceDomain(value.domain) ||
+        (!isForceDomain(value.domain) || !this.#participants.includes(value.domain)) ||
         seen.has(value.domain) ||
         !Array.isArray(value.receipts) ||
         !Number.isSafeInteger(value.appliedOrdinal) ||
@@ -422,14 +446,14 @@ export class CheckpointAppliedThroughBarrier {
       target.appliedOrdinal = value.appliedOrdinal
       target.appliedAcceptanceSequence = value.appliedAcceptanceSequence
     }
-    if (seen.size !== forceDomains.length) invalid()
+    if (seen.size !== this.#participants.length) invalid()
     this.#acceptanceSequence = input.acceptanceSequence
   }
 
   #acknowledgement(input: unknown): CheckpointAppliedAcknowledgement {
     if (!isClosedDataRecord(input, ["cutId", "domain", "sentOrdinal", "acceptanceSequence"])
       || input.cutId !== this.cutId
-      || !isForceDomain(input.domain)
+      || !isForceDomain(input.domain) || !this.#participants.includes(input.domain)
       || !isPositiveSafeInteger(input.sentOrdinal)
       || !isPositiveSafeInteger(input.acceptanceSequence)) {
       throw new CheckpointBarrierError(
@@ -447,7 +471,7 @@ export class CheckpointAppliedThroughBarrier {
 
   #tryResolveHold(): void {
     if (this.#phase !== "settling" || !this.#waiter) return
-    const settled = forceDomains.every((domain) => {
+    const settled = this.#participants.every((domain) => {
       const state = this.#domain(domain)
       return state.appliedOrdinal === state.receipts.length
     })

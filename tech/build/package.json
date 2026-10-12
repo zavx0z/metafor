@@ -3,6 +3,7 @@
   "label": "Сборка",
   "version": "0.0.0",
   "private": true,
+  "devDependencies": {"@metafor/tech-release": "workspace:*"},
   "type": "module",
   "description": "Подготовка артефактов версии пакета",
   "scripts": {

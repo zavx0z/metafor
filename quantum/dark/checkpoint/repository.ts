@@ -389,6 +389,10 @@ export class CheckpointGitRepository {
   }
 
   write(capture: CheckpointCapture): CheckpointWriteResult {
+    if (capture.mass.some(entry => (entry.format as string) === "directory") ||
+      [capture.projection.base, capture.projection.result].some(graph => Object.values(graph.template).some(meta => meta.mass.some(mass => mass.format === "directory")))) {
+      throw new CheckpointRepositoryError("unsupported_mass_format", "Directory Mass capture is temporarily unsupported")
+    }
     const ref = sequenceRef(capture.identity)
     if (readRef(this.directory, ref)) {
       throw new CheckpointRepositoryError("duplicate_checkpoint", `Checkpoint ${capture.identity.cutId}:${capture.identity.sequence} already exists`)

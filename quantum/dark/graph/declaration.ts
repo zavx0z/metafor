@@ -23,6 +23,7 @@ import {
 import type {MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import {loadMeta} from "../load.ts"
+import {normalizeMetaLifecycle} from "@metafor/types/metafor/lifecycle"
 
 export const DARK_DECLARATION_PROJECTION_METHOD = "dark.declarationProjection.read" as const
 
@@ -325,6 +326,7 @@ export const normalizeMetaTemplate = (
     if (typeof input.desc !== "string") throw new Error(`MetaDSL(${address}).desc must be a string`)
     result.desc = input.desc
   }
+  if (input.lifecycle !== undefined) result.lifecycle = normalizeMetaLifecycle(input.lifecycle, result.fields)!
   if (input.reactions !== undefined) {
     result.reactions = array(input.reactions, `MetaDSL(${address}).reactions`, reaction)
   }

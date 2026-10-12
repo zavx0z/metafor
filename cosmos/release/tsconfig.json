@@ -2,6 +2,8 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "customConditions": [
+      "cosmos:server",
+      "internal:server",
       "internal:main"
     ],
     "lib": [
@@ -18,6 +20,7 @@
   },
   "include": [
     "**/*.ts",
+    "../../scripts/types/module.d.ts",
     "../../scripts/types/hot.d.ts"
   ],
   "exclude": []

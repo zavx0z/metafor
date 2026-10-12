@@ -1,7 +1,7 @@
 import {readdir} from "node:fs/promises"
 import {basename, dirname, extname, join} from "node:path"
 import {
-  generatedPackageArtifactPrefix,
+  packageVersionArtifactPath,
   isGeneratedPackageArtifactKey,
   isPackageArtifactKey,
   rootPackageArtifact,
@@ -46,22 +46,12 @@ export function versionedPackageArtifactPath(
 ) {
   if (!isPackageArtifactKey(artifact))
     throw new Error(`Invalid package artifact path: ${String(artifact)}`)
-  if (artifact === rootPackageArtifact) return canonicalVersionedRootArtifact(owner, version)
-  const graph = versionedPackageGraphDirectory(owner, version)
-  if (isGeneratedPackageArtifactKey(artifact)) {
-    const relative = artifact.slice(generatedPackageArtifactPrefix.length)
-    if (!/^(?:entry|chunk|asset)\//.test(relative))
-      throw new Error(`Generated package artifact is outside derived output roots: ${artifact}`)
-    return join(graph, relative)
-  }
-  if (owner.sources === undefined)
+  if (artifact !== rootPackageArtifact && !isGeneratedPackageArtifactKey(artifact) && owner.sources === undefined)
     throw new Error(`Current sources are unavailable for public artifact ${artifact}`)
-  return join(
-    dirname(dirname(graph)),
-    ".public",
-    owner.env,
-    publicArtifactOutput(owner as PackageOwner, artifact),
-  )
+  const extension = artifact === rootPackageArtifact || isGeneratedPackageArtifactKey(artifact)
+    ? undefined
+    : owner.publicArtifactExtensions?.[artifact] ?? extname(publicArtifactOutput(owner as PackageOwner, artifact))
+  return join(dirname(canonicalVersionedRootArtifact(owner, version)), packageVersionArtifactPath(owner.env, artifact, extension))
 }
 
 /** Returns the physical suffix of one semantic public subpath. */

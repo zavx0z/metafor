@@ -7,8 +7,10 @@ const key = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 
 export type MassFileFormat = "json" | "binary"
 
-export const massExtension = (format: MassFileFormat): "json" | "bin" =>
-  format === "json" ? "json" : "bin"
+export const massExtension = (format: MassFileFormat): "json" | "bin" => {
+  if (format !== "json" && format !== "binary") throw new Error("Directory Mass bytes/copy are temporarily unsupported")
+  return format === "json" ? "json" : "bin"
+}
 
 export const massFileName = (id: string, format: MassFileFormat): string => {
   if (!key.test(id)) throw new Error("Mass key is not a global key ID")

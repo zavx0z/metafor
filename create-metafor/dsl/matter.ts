@@ -4,6 +4,7 @@ import type { MatterDeclaration, MatterFields, MatterSchema, TopologyBasis } fro
 import type { Energy, Mass } from "@metafor/types/metafor/schema"
 import type { MatterBindingValue, MatterChild, MatterParticle } from "@metafor/types/metafor/matter"
 import {resolveMatterFuzzySources, validateMatterSchema} from "shared/metafor/matter"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 
 type NodeCondition = Extract<Node, {type: "cond"}>
 type NodeLogical = Extract<Node, {type: "log"}>
@@ -11,7 +12,6 @@ type NodeMap = Extract<Node, {type: "map"}>
 type NodeMeta = Extract<Node, {type: "meta"}>
 type NodeMetaSource = NonNullable<NodeMeta["src"]>
 
-const HUB_ADDRESS_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/
 const EXECUTABLE_BINDING_RE = /=>|\bfunction\b|\bnew\s+|(?:\b[$A-Z_a-z][$\w]*|\]|\))\s*(?:\?\.)?\s*\(/
 
 const FIELD_PATH_PREFIXES = ["/value/", "/fields/"] as const
@@ -134,10 +134,9 @@ const validateBasisList = (
 }
 
 const validateStaticSrc = (src: string, location: string): void => {
-  if (!HUB_ADDRESS_RE.test(src)) {
+  if (!parseMetaAddress(src)) {
     throw new Error(
-      `Matter violation at "${location}": src "${src}" is not a valid hub address. ` +
-        `Use owner/path form such as "owner/project".`,
+      `Matter violation at "${location}": src "${src}" is not a valid Meta package identity.`,
     )
   }
 }

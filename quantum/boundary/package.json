@@ -3,12 +3,13 @@
   "label": "Boundary",
   "type": "module",
   "exports": {
+    "./backup": "./backup.ts",
     ".": "./index.ts",
     "./sqlite": "./sqlite.ts"
   },
   "private": true,
   "scripts": {
-    "start": "bun server.ts"
+    "start": "bun server-websocket.ts"
   },
   "dependencies": {
     "@boundary/types": "workspace:*",

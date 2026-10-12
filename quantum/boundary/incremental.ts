@@ -10,6 +10,7 @@ import type {Particle} from "shared/protocol/force/particle"
 import type {FieldInit, MatterBindingValue, MatterEdgeSlot, MatterParticleKind} from "@metafor/types/metafor/matter"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import type {MetaFieldDSL, MetaMassDSL} from "@metafor/types/metafor/schema"
+import {normalizeMetaLifecycle} from "@metafor/types/metafor/lifecycle"
 import type {ReactionSourceRelation, ReactionSourceSelector} from "@metafor/types/metafor/reactions"
 import type {ReactionResultCommit} from "shared/protocol/force/reaction"
 import {
@@ -343,7 +344,6 @@ const deleteUnreferencedValue = async (sql: Database, value: number): Promise<vo
 }
 
 const runtimeKey = (kind: "atom" | "topology", id: number): string => `${kind}/${id}`
-const parentKey = (parent: RuntimeRef | null): string => parent ? runtimeKey(parent.kind, parent.id) : "root"
 
 export const parseInflatonAddress = (path: Particle["path"], value?: unknown): InflatonAddress | null => {
   if (!isDeclarationPath(path) || !isRecord(value)) return null
@@ -892,9 +892,9 @@ export class BoundaryIncrementalStore {
     try { for (const request of stale) {
       if (direct && (direct.kind === "whole" || directTargets?.has(request.childKey))) continue
       const identity = {atom: Number(request.atom), declaration: Number(request.declaration), key: request.key}
+      const plan = await this.mass.prepareDetach(this.sql, Number(request.atom), Number(request.declaration))
       await this.massFence?.(identity)
       fenced.push(identity)
-      const plan = await this.mass.prepareDetach(this.sql, Number(request.atom), Number(request.declaration))
       plans.push(plan)
       await this.mass.catalog.copy(plan.sourceKey, plan.nextKey, plan.format)
     } } catch (error) {
@@ -912,9 +912,13 @@ export class BoundaryIncrementalStore {
     const append = (path: DeclarationPath, value: JsonRecord): void => {
       particles.push({part: "graviton", op: "add", path, ts: Date.now(), value})
     }
-    for (const row of await this.sql<Array<{src: string; name: string | null; desc: string | null}>>`
-      SELECT src, name, desc FROM wimp ORDER BY rowid
-    `) append("wimp", row)
+    for (const row of await this.sql<Array<{src: string; name: string | null; desc: string | null; lifecycle: string | null}>>`
+      SELECT src, name, desc, lifecycle_json AS lifecycle FROM wimp ORDER BY rowid
+    `) {
+      const {lifecycle: raw, ...metadata} = row
+      const lifecycle = raw === null ? undefined : normalizeMetaLifecycle(JSON.parse(raw))
+      append("wimp", {...metadata, ...(lifecycle === undefined ? {} : {lifecycle})})
+    }
     for (const row of await this.sql<Array<{
       id: number; wimp: string; localId: number; key: string; type: StoredField["type"]; required: number; label: string | null
     }>>`
@@ -1106,10 +1110,6 @@ export class BoundaryIncrementalStore {
     if (effects.length === 0) return null
     await this.updateIndexes(effects)
     return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
-  }
-
-  private identity(address: InflatonAddress): JsonRecord {
-    return address.path === "wimp" ? {src: address.src} : {wimp: address.src, id: address.localId}
   }
 
   private async declarationAddressByRowId(
@@ -1640,7 +1640,10 @@ export class BoundaryIncrementalStore {
 
     if (source.path === "mass") {
       const format = requiredString(merged.format, "mass.format")
-      if (format !== "json" && format !== "binary") throw new Error(`Unsupported Mass format ${format}`)
+      if (format !== "json" && format !== "binary" && format !== "directory") throw new Error(`Unsupported Mass format ${format}`)
+      if (sourceValue.format !== format && (sourceValue.format === "directory" || format === "directory")) {
+        throw new Error("Directory Mass format conversion is not supported")
+      }
       const id = copy
         ? await insertedId(sql<Array<{id: number}>>`
             INSERT INTO mass_declaration (wimp, local_id, local_key, format, label, description, active)
@@ -2446,15 +2449,27 @@ export class BoundaryIncrementalStore {
     return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
   }
 
+  private async validateLifecycleField(sql: Database, address: InflatonAddress, next?: {key: string; type: string; required: boolean}): Promise<void> {
+    const row = (await sql<Array<{lifecycle: string | null}>>`SELECT lifecycle_json AS lifecycle FROM wimp WHERE src = ${address.src}`)[0]
+    if (!row?.lifecycle) return
+    const lifecycle = normalizeMetaLifecycle(JSON.parse(row.lifecycle))!
+    const previous = (await sql<Array<{key: string}>>`SELECT key FROM field WHERE wimp = ${address.src} AND local_id = ${address.localId}`)[0]
+    if (previous && previous.key !== next?.key && Object.values(lifecycle).some(binding => binding?.field === previous.key)) {
+      throw new Error(`Cannot remove or rename lifecycle Field ${address.src}/${previous.key}`)
+    }
+    if (next) normalizeMetaLifecycle(Object.fromEntries(Object.entries(lifecycle).filter(([, binding]) => binding?.field === next.key)), [next])
+  }
+
   private async persist(sql: Database, address: InflatonAddress, value: JsonRecord): Promise<void> {
     if (address.path === "wimp") {
+      const lifecycle = normalizeMetaLifecycle(value.lifecycle)
       await sql`
-        INSERT INTO wimp (src, name, desc, view_css)
+        INSERT INTO wimp (src, name, desc, view_css, lifecycle_json)
         VALUES (
           ${address.src}, ${nullableString(value.name, "wimp.name")},
-          ${nullableString(value.desc, "wimp.desc")}, NULL
+          ${nullableString(value.desc, "wimp.desc")}, NULL, ${lifecycle === undefined ? null : JSON.stringify(lifecycle)}
         )
-        ON CONFLICT (src) DO UPDATE SET name = excluded.name, desc = excluded.desc
+        ON CONFLICT (src) DO UPDATE SET name = excluded.name, desc = excluded.desc, lifecycle_json = excluded.lifecycle_json
       `
       if (Object.hasOwn(value, "mass")) {
         const declarations = Array.isArray(value.mass) ? value.mass : []
@@ -2467,6 +2482,7 @@ export class BoundaryIncrementalStore {
       if (type !== "string" && type !== "number" && type !== "boolean" && type !== "array" && type !== "enum") {
         throw new Error(`Unsupported field type ${type}`)
       }
+      await this.validateLifecycleField(sql, address, {key: requiredString(value.key, "field.key"), type, required: value.required === true})
       const rowId = await insertedId(sql<Array<{id: number}>>`
         INSERT INTO field (wimp, local_id, key, type, required, label)
         VALUES (
@@ -2514,7 +2530,13 @@ export class BoundaryIncrementalStore {
     }
     if (address.path === "mass") {
       const format = requiredString(value.format, "mass.format")
-      if (format !== "json" && format !== "binary") throw new Error(`Unsupported Mass format ${format}`)
+      if (format !== "json" && format !== "binary" && format !== "directory") throw new Error(`Unsupported Mass format ${format}`)
+      const previous = (await sql<Array<{format: string}>>`
+        SELECT format FROM mass_declaration WHERE wimp = ${address.src} AND local_id = ${address.localId}
+      `)[0]
+      if (previous && previous.format !== format && (previous.format === "directory" || format === "directory")) {
+        throw new Error("Directory Mass format conversion is not supported")
+      }
       await sql`
         INSERT INTO mass_declaration (wimp, local_id, local_key, format, label, description, active)
         VALUES (
@@ -2871,6 +2893,7 @@ export class BoundaryIncrementalStore {
       return
     }
     if (address.path === "field") {
+      await this.validateLifecycleField(sql, address)
       const row = (await sql<Array<{id: number; key: string}>>`
         SELECT id, key FROM field WHERE wimp = ${address.src} AND local_id = ${address.localId}
       `)[0]
@@ -2945,12 +2968,15 @@ export class BoundaryIncrementalStore {
     } else await sql`UPDATE wimp SET view_css = NULL WHERE src = ${address.src}`
   }
 
-  private async canonical(sql: Database, address: InflatonAddress, input: JsonRecord): Promise<JsonRecord | null> {
+  private async canonical(sql: Database, address: InflatonAddress, _input: JsonRecord): Promise<JsonRecord | null> {
     if (address.path === "wimp") {
-      const row = (await sql<Array<{src: string; name: string | null; desc: string | null}>>`
-        SELECT src, name, desc FROM wimp WHERE src = ${address.src}
+      const row = (await sql<Array<{src: string; name: string | null; desc: string | null; lifecycle: string | null}>>`
+        SELECT src, name, desc, lifecycle_json AS lifecycle FROM wimp WHERE src = ${address.src}
       `)[0]
-      return row ? {...row, mass: await this.mass.declarations(address.src, sql)} : null
+      if (!row) return null
+      const {lifecycle: raw, ...metadata} = row
+      const lifecycle = raw === null ? undefined : normalizeMetaLifecycle(JSON.parse(raw))
+      return {...metadata, ...(lifecycle === undefined ? {} : {lifecycle}), mass: await this.mass.declarations(address.src, sql)}
     }
     const base = {wimp: address.src, localId: address.localId}
     if (address.path === "field") {

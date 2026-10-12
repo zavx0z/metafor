@@ -15,16 +15,8 @@ import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
 import type {MetaFieldDSL} from "@metafor/types/metafor/schema"
 import type {ForceMessageInput} from "shared/protocol/force/message"
 import type {SourcedParticle} from "shared/protocol/force/particle"
-import {
-  discardSourceCandidates,
-  planMetaDeclarationPatch,
-  prepareSourceCandidates,
-  recoverAndPublishSourceCandidates,
-  readSourceSnapshot,
-  type DeclarationMetaSnapshot,
-  type PreparedSourceCandidate,
-} from "create-metafor/library"
-import {loadMeta, resolveMetaPath} from "../load.ts"
+import type {DeclarationMetaSnapshot, PreparedSourceCandidate} from "create-metafor/library"
+import {loadMeta, resolveMetaAuthoringPath} from "../load.ts"
 import type {DarkForceHistoryParticle} from "../force/history.ts"
 import type {ForceAuthoringDecision} from "../force/lifecycle.ts"
 import {metaAuthoringRequestDigest} from "./authoring.ts"
@@ -121,7 +113,8 @@ const pendingReceipt = (
 })
 
 export const readDeclarationAuthoringMeta: DeclarationAuthoringMetaReader = async (address) => {
-  const targetPath = resolveMetaPath(address)
+  const targetPath = resolveMetaAuthoringPath(address)
+  const {readSourceSnapshot} = await import("create-metafor/library")
   const before = await readSourceSnapshot(targetPath)
   const dsl = await loadMeta(address)
   const after = await readSourceSnapshot(targetPath)
@@ -135,6 +128,7 @@ export const readDeclarationAuthoringMeta: DeclarationAuthoringMetaReader = asyn
     revision: after.revision,
     name: dsl.name,
     ...(dsl.desc === undefined ? {} : {description: dsl.desc}),
+    ...(dsl.lifecycle === undefined ? {} : {lifecycle: structuredClone(dsl.lifecycle)}),
     fields: structuredClone(dsl.fields as readonly MetaFieldDSL[]),
     states: structuredClone(dsl.superposition),
     mass: structuredClone(dsl.mass ?? []),
@@ -150,7 +144,7 @@ export class DeclarationAuthoringService {
     private readonly force: DeclarationAuthoringForce,
     private readonly capabilities: DeclarationAuthoringCapabilityReader,
     private readonly readMeta: DeclarationAuthoringMetaReader = readDeclarationAuthoringMeta,
-    private readonly sourcePath: DeclarationAuthoringSourcePath = resolveMetaPath,
+    private readonly sourcePath: DeclarationAuthoringSourcePath = resolveMetaAuthoringPath,
     private readonly projection: DeclarationAuthoringProjection = {apply() {}},
   ) {}
 
@@ -195,6 +189,7 @@ export class DeclarationAuthoringService {
     })
     if (!verified.ok) throw validationError(verified.issues)
 
+    const {planMetaDeclarationPatch, prepareSourceCandidates, discardSourceCandidates} = await import("create-metafor/library")
     const plan = planMetaDeclarationPatch(verified.value, metas)
     let prepared: PreparedSourceCandidate[] = []
     let liveAttempted = false
@@ -249,6 +244,7 @@ export class DeclarationAuthoringService {
   ): Promise<MetaDeclarationApplyReceipt> {
     try {
       await this.projection.apply(particle)
+      const {recoverAndPublishSourceCandidates} = await import("create-metafor/library")
       const targetPath = (projection: MetaDeclarationSourceProjectionV1): string => {
         const metaPath = this.sourcePath(projection.address)
         return projection.path === undefined || projection.path === "meta.ts"

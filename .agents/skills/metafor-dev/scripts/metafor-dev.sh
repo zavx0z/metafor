@@ -354,7 +354,7 @@ ensure_target() {
 }
 
 start_contour() {
-  local mode=${1:-normal} port origin processes state command_text listeners window_count
+  local mode=${1:-normal} browser=${2:-managed} port origin processes state command_text listeners window_count
   local parents reuse_error
   port=$(package_port)
   [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Cosmos port from scripts.dev"
@@ -367,11 +367,11 @@ start_contour() {
     parents=$(parent_processes)
     reuse_error=$(require_reusable_parent "$mode" "$parents") \
       || die "$reuse_error"
-    ensure_chrome "$origin/"
+    if [[ $browser == managed ]]; then ensure_chrome "$origin/"; fi
     iterm_query focus >/dev/null
     wait_cosmos "$origin"
     wait_managed_release_mode "$mode"
-    ensure_target "$origin"
+    if [[ $browser == managed ]]; then ensure_target "$origin"; fi
     printf 'iterm: reused %s\n' "$(iterm_tty)"
     return
   fi
@@ -382,7 +382,7 @@ start_contour() {
     listeners=$(lsof -nP -iTCP:"$debug_port" -sTCP:LISTEN -t 2>/dev/null || true)
     [[ -z $listeners ]] || die "Bun Inspector port $debug_port is occupied by process $listeners"
   fi
-  ensure_chrome "$origin/"
+  if [[ $browser == managed ]]; then ensure_chrome "$origin/"; fi
   command_text=$(shell_command "$mode")
   if [[ $state == found$'\t'* ]]; then
     iterm_query write "$command_text" >/dev/null
@@ -407,7 +407,11 @@ start_contour() {
   wait_cosmos "$origin"
   ensure_process_ownership
   wait_managed_release_mode "$mode"
-  ensure_target "$origin"
+  if [[ $browser == managed ]]; then
+    ensure_target "$origin"
+  else
+    printf 'browser: external, preserved; attach separately with user permission\n'
+  fi
 }
 
 stop_contour() {
@@ -549,6 +553,7 @@ done
 
 case "$action" in
   start) start_contour normal ;;
+  start-server) start_contour normal external ;;
   start-debug) start_contour debug ;;
   status) print_status ;;
   focus)
@@ -565,6 +570,10 @@ case "$action" in
     stop_contour
     start_contour normal
     ;;
+  restart-server)
+    stop_contour
+    start_contour normal external
+    ;;
   restart-debug)
     stop_contour
     start_contour debug
@@ -572,5 +581,5 @@ case "$action" in
   clear-site-data) clear_site_data ;;
   sizes) package_sizes ;;
   stop) stop_contour ;;
-  *) die "usage: $0 {start|start-debug|status|focus|logs|restart|restart-debug|clear-site-data|sizes|stop} [checkout]" ;;
+  *) die "usage: $0 {start|start-server|start-debug|status|focus|logs|restart|restart-server|restart-debug|clear-site-data|sizes|stop} [checkout]" ;;
 esac

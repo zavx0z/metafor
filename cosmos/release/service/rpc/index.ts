@@ -1,3 +1,4 @@
+import {parsePeerNetworkObservation, peerObservationRequest} from "../../shared/peer-observation"
 import {
   parseReleaseChangedMessage,
   parseReleaseDeltaMessage,
@@ -5,9 +6,11 @@ import {
   type ReleaseDelta,
 } from "../../shared/protocol"
 import type {ReleasePackage} from "../cache/current"
+import {observeSafely, type ReleaseObservation} from "../observation"
 
 /** Service Worker release operations, запускаемые по свежей server delta. */
 export interface RpcBindings {
+  observation?: Pick<ReleaseObservation, "connection" | "text"> & Partial<Pick<ReleaseObservation, "peers">>
   currentPackages(): Promise<ReleasePackage[]>
   applyDelta(delta: ReleaseDelta): Promise<string[]>
 }
@@ -30,6 +33,7 @@ export function startRpc(bindings: RpcBindings) {
   let reconnecting = false
   const timers = new Set<ReturnType<typeof setTimeout>>()
   const states = new WeakMap<WebSocket, SynchronizationState>()
+  const connectionIds = new WeakMap<WebSocket, string>()
 
   const schedule = (callback: () => void, delay: number) => {
     if (destroyed) return
@@ -65,7 +69,9 @@ export function startRpc(bindings: RpcBindings) {
       if (connection !== socket || connection.readyState !== WebSocket.OPEN) return
       const current = await bindings.currentPackages()
       if (destroyed || connection !== socket || connection.readyState !== WebSocket.OPEN) return
-      connection.send(JSON.stringify(releaseCurrentMessage(current)))
+      const message = JSON.stringify(releaseCurrentMessage(current))
+      connection.send(message)
+      observeSafely(() => bindings.observation?.text(connectionIds.get(connection)!, "send", message))
       console.debug("[@cosmos/release:service:rpc:update]", "фактическое состояние cache отправлено", {
         current,
         to: connection.url,
@@ -95,10 +101,14 @@ export function startRpc(bindings: RpcBindings) {
     const url = new URL("/sw", location.origin)
     url.protocol = location.protocol === "https:" ? "wss:" : "ws:"
     const connection = new WebSocket(url)
+    const connectionId = observeSafely(() => crypto.randomUUID()) ?? ""
+    connectionIds.set(connection, connectionId)
+    observeSafely(() => bindings.observation?.connection(connectionId, connection.url, "connecting"))
     const state: SynchronizationState = {awaitingDelta: false, resynchronize: false}
     socket = connection
     states.set(connection, state)
     connection.addEventListener("open", () => {
+      observeSafely(() => bindings.observation?.connection(connectionId, connection.url, "open"))
       if (destroyed) return
       console.debug("[@cosmos/release:service:rpc]", "соединение с сервером обновлений установлено", {
         recovered: reconnecting,
@@ -106,11 +116,16 @@ export function startRpc(bindings: RpcBindings) {
       })
       reconnecting = false
       requestSynchronization(connection)
+      const observe=()=>{if(destroyed||connection!==socket||connection.readyState!==WebSocket.OPEN)return;const message=JSON.stringify(peerObservationRequest());connection.send(message);observeSafely(()=>bindings.observation?.text(connectionId,"send",message));schedule(observe,3000)}
+      if(bindings.observation?.peers)observe()
     })
 
     connection.addEventListener("message", (event) => {
+      if (typeof event.data === "string") observeSafely(() => bindings.observation?.text(connectionId, "receive", event.data))
       if (destroyed) return
       const message = parseMessage(event.data)
+      const peers=parsePeerNetworkObservation(message)
+      if(peers){observeSafely(()=>bindings.observation?.peers?.(peers));return}
       if (parseReleaseChangedMessage(message) !== null) {
         console.debug("[@cosmos/release:service:rpc:update]", "получен сигнал об обновлении", {
           from: connection.url,
@@ -132,6 +147,7 @@ export function startRpc(bindings: RpcBindings) {
     })
 
     connection.addEventListener("close", (event) => {
+      observeSafely(() => bindings.observation?.connection(connectionId, connection.url, "closed"))
       if (socket === connection) socket = null
       if (destroyed || !reconnecting) {
         console.debug("[@cosmos/release:service:rpc]", "соединение с сервером обновлений закрыто", {
@@ -147,6 +163,7 @@ export function startRpc(bindings: RpcBindings) {
     })
 
     connection.addEventListener("error", (error) => {
+      observeSafely(() => bindings.observation?.connection(connectionId, connection.url, "error"))
       if (reconnecting) return
       reconnecting = true
       console.error("[@cosmos/release:service:rpc]", "соединение с сервером обновлений завершилось с ошибкой", {
@@ -167,8 +184,10 @@ export function startRpc(bindings: RpcBindings) {
       timers.clear()
       const connection = socket
       socket = null
-      if (connection && connection.readyState < WebSocket.CLOSING)
+      if (connection && connection.readyState < WebSocket.CLOSING) {
+        observeSafely(() => bindings.observation?.connection(connectionIds.get(connection)!, connection.url, "closing"))
         connection.close(1000, "release runtime destroyed")
+      }
     },
   }) satisfies RpcRuntime
 }

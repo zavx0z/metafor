@@ -1,3 +1,4 @@
+import {Force} from "shared/transport/force"
 import {afterAll, describe, expect, test} from "bun:test"
 import type {
   ProcessExecutionClaim,
@@ -99,6 +100,7 @@ const runScenario = async (backend: "cpu" | "gpu"): Promise<RuntimeTrace> => {
     let from = fixture.messages.length
     const waiting = fixture.nextClient("matrix", 10_000)
     const runtime = await import(`./matrix.ts?runtime-parity=${backend}-${crypto.randomUUID()}`) as MatrixRuntimeModule
+    await runtime.startMatrixForce(() => new Force("matrix"))
     const client = await waiting
     await settle()
 

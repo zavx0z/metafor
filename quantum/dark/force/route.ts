@@ -21,9 +21,10 @@ const relevantDomains = (message: SourcedForceMessage, origin: ForceOrigin): Set
 export function particleDestinations(
   message: SourcedForceMessage,
   origin: ForceOrigin,
+  participants: readonly ForceDomain[] = forceDomains,
 ): ForceDomain[] {
   const relevant = relevantDomains(message, origin)
-  return forceDomains.filter((domain) =>
+  return participants.filter((domain) =>
     domain !== origin && (relevant === null || relevant.has(domain))
   )
 }
@@ -36,8 +37,8 @@ export function particleDestinations(
  * нужные домены и передаёт Particle в уже существующие каналы Store. Все решения
  * серверного жизненного цикла принимает `ForceLifecycle` до вызова этой функции.
  */
-export function routeParticle(message: SourcedForceMessage, origin: ForceOrigin): ForceDomain[] {
-  const delivered = particleDestinations(message, origin)
+export function routeParticle(message: SourcedForceMessage, origin: ForceOrigin, participants: readonly ForceDomain[] = forceDomains): ForceDomain[] {
+  const delivered = particleDestinations(message, origin, participants)
   for (const domain of delivered) {
     const channel = (force$ as Partial<ForceStore>)[domain]
     if (!channel) throw new Error(`Force Store has no ${domain} channel`)

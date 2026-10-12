@@ -120,7 +120,10 @@ const authorized = async (
   boundary: BoundaryDatabase,
   atom: number,
 ): Promise<Array<{id: number; key: string; keyId: string; format: MassFileFormat}>> =>
-  await boundary.projection.mass.authorized(atom)
+  (await boundary.projection.mass.authorized(atom)).map(item => {
+    if (item.format === "directory") throw new Error("Directory Mass dissolve is temporarily unsupported")
+    return {...item, format: item.format}
+  })
 
 const createFixture = async (): Promise<Fixture> => {
   const directory = await mkdtemp(join(tmpdir(), "metafor-boundary-dissolve-"))
@@ -759,4 +762,21 @@ describe("Boundary recursive remove and offline dissolve", () => {
     expect(await staging.count()).toBe(0)
     expect(await massSnapshot(fixture)).toEqual(filesBefore)
   })
+})
+
+test("directory dissolve rejects before evidence/copy or canonical membership changes", async () => {
+  const fixture = await createFixture()
+  for (const wimp of [SOURCE, TARGET]) await fixture.boundary.materialize({parts: [{
+    part: "inflaton", op: "add", path: "mass", ts: 1,
+    value: {wimp, id: 6, key: "workspace", format: "directory"},
+  }]})
+  const before = await worldFingerprint(fixture)
+  const base = request()
+  const input: BoundaryDissolveRequest = {...base, mass: [
+    {sourceKey: "workspace", targetKey: "workspace"}, base.mass[1], base.mass[2], base.mass[3], base.mass[4],
+  ]}
+  let reads = 0
+  await expect(planBoundaryDissolve(fixture.boundary, input, async () => {reads++; throw new Error("Directory evidence must not be read")})).rejects.toThrow("Directory Mass dissolve")
+  expect(reads).toBe(0)
+  expect(await worldFingerprint(fixture)).toEqual(before)
 })

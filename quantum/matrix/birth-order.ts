@@ -9,6 +9,8 @@ type ForceBirthStatus = {
 export type MatrixBirthGateOptions = {
   waitMs?: number
   retryMs?: number
+  /** Состав того же запуска Force; отсутствие сохраняет архивный пятидоменный contour. */
+  requiredDomains?: readonly (typeof prerequisiteDomains[number])[]
 }
 
 const sleep = (milliseconds: number): Promise<void> =>
@@ -29,6 +31,11 @@ export const waitForMatrixBirthGate = async (
   options: MatrixBirthGateOptions = {},
 ): Promise<void> => {
   const waitMs = options.waitMs ?? 30_000
+  const required = options.requiredDomains ?? prerequisiteDomains
+  if (new Set(required).size !== required.length || required.some(domain => !prerequisiteDomains.includes(domain))
+    || ["dark", "boundary", "energy"].some(domain => !required.includes(domain as typeof prerequisiteDomains[number]))) {
+    throw new Error("Matrix birth requires Dark, Boundary and Energy, with optional Bulk")
+  }
   const retryMs = options.retryMs ?? 50
   const deadline = Date.now() + waitMs
   let lastReason = "Force status is unavailable"
@@ -56,12 +63,12 @@ export const waitForMatrixBirthGate = async (
       }
       if (
         status.state === "starting"
-        && prerequisiteDomains.every((domain) => connected.includes(domain))
+        && required.every((domain) => connected.includes(domain))
       ) {
         return
       }
 
-      const missing = prerequisiteDomains.filter((domain) => !connected.includes(domain))
+      const missing = required.filter((domain) => !connected.includes(domain))
       lastReason = missing.length > 0
         ? `waiting for ForceChannels: ${missing.join(", ")}`
         : `Force is not starting: ${String(status.state)}`

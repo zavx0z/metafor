@@ -1,0 +1,10 @@
+{
+  "name": "@cosmos/peer-lifecycle",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Запрос отдельной фазы жизненного цикла ресурса пира с новой identity",
+  "exports": {".": {"cosmos:server": "./index.ts"}},
+  "dependencies": {"@metafor/types": "workspace:*"},
+  "scripts": {"test": "bun --conditions=cosmos:server test spec"}
+}

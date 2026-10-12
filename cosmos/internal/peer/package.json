@@ -1,0 +1,33 @@
+{
+  "name": "@internal/peer",
+  "label": "Участник сети",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Участник доверенной сети с устойчивой identity и разрешёнными связями",
+  "exports": {
+    ".": {
+      "internal:server": "./meta.ts"
+    },
+    "./meta": {
+      "internal:server": "./meta.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*",
+    "@internal/network-start": "workspace:*",
+    "@internal/network-provision": "workspace:*",
+    "@internal/network-stop": "workspace:*"
+  },
+  "devDependencies": {
+    "@metafor/dsl": "workspace:*",
+    "@cosmos/release": "workspace:*",
+    "@metafor/tech-build": "workspace:*",
+    "@metafor/tech-release": "workspace:*",
+    "@metafor/tech-peer": "workspace:*"
+  }
+}

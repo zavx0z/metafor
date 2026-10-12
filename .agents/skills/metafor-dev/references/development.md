@@ -420,6 +420,79 @@ Package не реэкспортирует тип, объявленный дру�
 static/dynamic import edges. Удалённые в текущих исходниках exports не меняют
 прежние адреса опубликованной версии.
 
+## Установленный сервер без source checkout
+
+Обычный source-контур сохраняет прежний запуск и публикацию. Дополнительный
+installed-контур выбирается через `COSMOS_RELEASE_STORE`: общий launcher читает
+проверенный installed candidate и запускает отдельный release process. Первый
+запуск получает явно назначенный `COSMOS_RELEASE_DIGEST`; последующие читают
+единственный сохранённый active. `PORT` задаёт рабочий вход.
+
+Начальная установка использует публичные операции `createPublishedReleaseSource`
+из `@metafor/tech-release` и `createInstalledReleaseStore` из
+`@metafor/tech-release/installed`. Источник создаётся для уже опубликованного
+состава. `store.prepare(source.graph, source.artifacts, source.digest)` получает
+проверенные bytes и сохраняет кандидата, не назначая его active. Во время
+обычного обновления эти же операции получают граф и bytes от RTC peer.
+
+Source publisher должен сначала опубликовать новый полный выпуск с переносимой
+server-частью. Старые exact artifacts не заменяются. Receiver ничего не
+компилирует и не требует исходных manifests или `node_modules`; обычные
+исполняемые зависимости входят в server artifact. Начальный launcher и
+устойчивая WEB-оболочка устанавливаются отдельно от сменяемого выпуска.
+Не считать передачу одного старого external-dependency bundle достаточной
+установкой.
+
+`cosmos/server.ts` сохраняет единственный вход. Для отдельной установленной
+среды он может быть собран Bun в один server bundle с условиями `cosmos:server`
+и `internal:server`. `cosmos/release/spec/installed-runtime.spec.ts` проверяет
+именно этот bundle и настоящий server entry в независимых временных каталогах.
+Постоянный development contour по-прежнему запускается только dispatcher skill.
+
+`COSMOS_STATIC_ROOT`, если задан, предоставляет уже установленную устойчивую
+статику. Установленный release сам раздаёт готовые browser parts, eager/lazy
+artifacts и source maps через прежние canonical URLs и `/sw`. Создание новой PWA
+из пустого браузера требует также установленного startup; optional static root
+не является его заменой.
+
+Контрольный API installed runtime доступен только при заданном
+`COSMOS_CONTROL_TOKEN` длиной не менее 24 символов. Запросы передают его как
+Bearer token. Токен не входит в artifact graph, логи или ответы:
+
+* `GET /release/state` возвращает действующий digest, server version и исход
+  текущего запроса обновления;
+* `POST /release/peer` принимает RTC offer и возвращает answer. Это только
+  первичное знакомство; graph и artifact bytes передаются через DataChannel;
+* `POST /release/update` принимает `{target, source, token}`: точный назначенный
+  digest, URL signaling источника и capability для этого источника. `202`
+  подтверждает приём, а не активацию. Успех проверяется новым digest и version
+  ответа работающего server. Ошибка до handover сохраняет текущий runtime.
+
+Само переключение принадлежит startup: prepare → quiesce прежнего → unbind →
+bind кандидата → durable active → admission. Уже принятая работа завершается,
+между listeners допускается короткая пауза. До unbind возможна отмена перехода;
+после него ошибка не запускает автоматический rollback. Receiver просит
+handover после завершения HTTP acceptance, иначе запрос обновления ожидал бы
+собственный drain.
+
+Для одного installed root launcher удерживает системную блокировку через
+пустую SQLite connection. Она не хранит предметные данные или release state и
+освобождается ОС после падения launcher. Завершение принадлежащих child processes
+подтверждается до освобождения владения; превышение срока graceful shutdown
+завершается явной ошибкой, даже если owned child пришлось остановить принудительно.
+
+Новые server-проверки запускаются с условиями `cosmos:server` и `internal:server`;
+обычные `test` scripts Repo и Cosmos задают их явно. Изолированный прогон:
+
+```bash
+bun --conditions=cosmos:server --conditions=internal:server test cosmos/release/spec cosmos/startup/server/spec
+```
+
+Loopback RTC, independent roots и отдельные Bun processes не доказывают
+доступность между произвольными NAT. Распределённое знакомство через третьего
+участника и перенос RTC-связности на кандидата являются отдельным сетевым срезом;
+их готовность не выводится из server self-update.
+
 ## Получить пакет release
 
 ```http
@@ -428,8 +501,8 @@ GET /<package-name>?env=<env>
 
 Endpoint возвращает artifact выбранного package и browser env. Path остаётся
 каноническим package name; env передаётся только query parameter. Endpoint не
-определяет весь состав package и не заменяет его server-entrypoints. Если
-готового artifact ещё нет, он собирается автоматически.
+определяет весь состав package и не заменяет его server-entrypoints. Отсутствующий
+опубликованный artifact не запускает сборку в HTTP-запросе.
 
 Exact version использует тот же pathname:
 
@@ -563,6 +636,6 @@ startup до открытия listener доводит видимый root intent
 * `415` — не указан `Content-Type: application/json`.
 
 После `200` проверить, что страница снова загрузилась и работает с ожидаемым
-изменением. Если Worker спал или пропустил RPC, он сверится через `GET /code`
-после подключения и применит то же обновление. Cosmos не перезапускать и
+изменением. Если Worker спал или пропустил RPC, после подключения он отправит
+фактический current и применит полученную delta. Cosmos не перезапускать и
 страницу вручную не перезагружать.

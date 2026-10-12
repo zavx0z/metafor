@@ -5,13 +5,14 @@
   "type": "module",
   "private": false,
   "exports": {
+    "./mass-location": "./mass-location.ts",
     ".": {
       "import": "./index.ts",
       "types": "./index.ts"
     }
   },
   "scripts": {
-    "start": "bun server.ts"
+    "start": "bun server-websocket.ts"
   },
   "dependencies": {
     "@metafor/types": "workspace:*",

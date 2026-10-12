@@ -9,7 +9,7 @@
   },
   "private": true,
   "scripts": {
-    "start": "bun server.ts"
+    "start": "bun server-websocket.ts"
   },
   "dependencies": {
     "@metafor/types": "workspace:*",

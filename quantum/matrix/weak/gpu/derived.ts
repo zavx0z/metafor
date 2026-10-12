@@ -9,7 +9,7 @@ import type { DerivedWeakData, GpuEncodedField, GpuFlattenedTransition } from "@
 import type { MatrixConditionRecord } from "@matrix/types/condition"
 import type { MatrixFieldValueRecord, MatrixStore } from "@matrix/types/store"
 import type { MatrixFieldRecord } from "@matrix/types/data"
-import { FIELD_TYPE, OP, VALUE_TYPE } from "../constants"
+import { FIELD_TYPE, OP } from "../constants"
 import { buildHeap } from "./layout-heap"
 import { compileFlattenedEnsemble, compileFlattenedSuperposition } from "./bytecode"
 import { createPackContext, encodeValue, fieldTypeToBytecodeType } from "./pack"

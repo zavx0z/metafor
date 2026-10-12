@@ -1,4 +1,5 @@
 import type {SQL, ReservedSQL} from "bun"
+import type {MassFormat} from "@metafor/types/metafor/mass"
 import type {MetaMassDSL} from "@metafor/types/metafor/schema"
 import {MassCatalog, type MassFileFormat} from "../../shared/mass.ts"
 
@@ -33,7 +34,7 @@ export class BoundaryMassStore {
         wimp TEXT NOT NULL,
         local_id INTEGER NOT NULL,
         local_key TEXT NOT NULL,
-        format TEXT NOT NULL CHECK (format IN ('json', 'binary')),
+        format TEXT NOT NULL CHECK (format IN ('json', 'binary', 'directory')),
         label TEXT,
         description TEXT,
         active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
@@ -79,21 +80,70 @@ export class BoundaryMassStore {
     if (columns.some((column) => column.name === "mime")) {
       await this.sql.unsafe("ALTER TABLE mass_declaration DROP COLUMN mime")
     }
-    const formats = new Map<string, MassFileFormat>()
+    await this.migrateDirectoryFormat()
+    const formats = new Map<string, MassFormat>()
     for (const row of await this.sql<Array<{key: string; format: string}>>`
       SELECT membership.key, declaration.format
         FROM mass_membership AS membership
         JOIN mass_declaration AS declaration ON declaration.id = membership.declaration
        GROUP BY membership.key, declaration.format
     `) {
-      if (row.format !== "json" && row.format !== "binary") throw new Error(`Unknown Mass format: ${row.format}`)
+      if (row.format !== "json" && row.format !== "binary" && row.format !== "directory") throw new Error(`Unknown Mass format: ${row.format}`)
       const previous = formats.get(row.key)
       if (previous !== undefined && previous !== row.format) {
         throw new Error(`Mass key ${row.key} is associated with incompatible formats`)
       }
       formats.set(row.key, row.format)
     }
-    for (const [id, format] of formats) await this.catalog.migrateLegacy(id, format)
+    for (const [id, format] of formats) if (format !== "directory") await this.catalog.migrateLegacy(id, format)
+  }
+
+  /** Rebuilds only the CHECK-constrained table on one connection, preserving every identity. */
+  private async migrateDirectoryFormat(): Promise<void> {
+    const definition = (await this.sql<Array<{sql: string}>>`
+      SELECT sql FROM sqlite_master WHERE type = ${"table"} AND name = ${"mass_declaration"}
+    `)[0]?.sql
+    if (!definition || definition.includes("'directory'")) return
+    // Bun SQLite owns one connection and does not implement reserve(). Init is serialized before Force admission.
+    const connection = this.sql
+    const foreignKeys = Number((await connection.unsafe<Array<{foreign_keys: number}>>("PRAGMA foreign_keys"))[0]?.foreign_keys ?? 0)
+    try {
+      await connection.unsafe("PRAGMA foreign_keys = OFF")
+      if (Number((await connection.unsafe<Array<{foreign_keys: number}>>("PRAGMA foreign_keys"))[0]?.foreign_keys) !== 0) {
+        throw new Error("Mass migration could not disable foreign keys outside a transaction")
+      }
+      await connection.begin(async tx => {
+        const triggers = await tx<Array<{name: string}>>`
+          SELECT name FROM sqlite_master WHERE type = ${"trigger"} AND tbl_name = ${"mass_declaration"}
+        `
+        if (triggers.length) throw new Error("Mass declaration migration does not support unexpected triggers")
+        const indexes = await tx<Array<{sql: string}>>`
+          SELECT sql FROM sqlite_master WHERE type = ${"index"} AND tbl_name = ${"mass_declaration"} AND sql IS NOT NULL
+        `
+        const sequence = Number((await tx<Array<{seq: number}>>`SELECT seq FROM sqlite_sequence WHERE name = ${"mass_declaration"}`)[0]?.seq ?? 0)
+        await tx.unsafe(`CREATE TABLE mass_declaration_next (
+          id INTEGER PRIMARY KEY AUTOINCREMENT, wimp TEXT NOT NULL, local_id INTEGER NOT NULL,
+          local_key TEXT NOT NULL, format TEXT NOT NULL CHECK (format IN ('json', 'binary', 'directory')),
+          label TEXT, description TEXT, active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+          UNIQUE (wimp, local_key), UNIQUE (wimp, local_id)
+        )`)
+        await tx.unsafe(`INSERT INTO mass_declaration_next (id,wimp,local_id,local_key,format,label,description,active)
+          SELECT id,wimp,local_id,local_key,format,label,description,active FROM mass_declaration`)
+        await tx.unsafe("DROP TABLE mass_declaration")
+        await tx.unsafe("ALTER TABLE mass_declaration_next RENAME TO mass_declaration")
+        for (const index of indexes) await tx.unsafe(index.sql)
+        await tx`INSERT INTO sqlite_sequence (name,seq)
+          SELECT ${"mass_declaration"}, ${sequence}
+           WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = ${"mass_declaration"})`
+        await tx`UPDATE sqlite_sequence SET seq = MAX(seq, ${sequence}) WHERE name = ${"mass_declaration"}`
+        if ((await tx.unsafe("PRAGMA foreign_key_check")).length) throw new Error("Mass declaration migration violates foreign keys")
+      })
+    } finally {
+      await connection.unsafe(`PRAGMA foreign_keys = ${foreignKeys ? "ON" : "OFF"}`)
+      const restored = Number((await connection.unsafe<Array<{foreign_keys: number}>>("PRAGMA foreign_keys"))[0]?.foreign_keys)
+      if (restored !== foreignKeys) throw new Error("Mass migration could not restore foreign key checks")
+      if ((await connection.unsafe("PRAGMA foreign_key_check")).length) throw new Error("Mass migration left invalid foreign keys")
+    }
   }
 
   async synchronizeDeclarations(sql: Database, wimp: string, declarations: readonly MetaMassDSL[]): Promise<void> {
@@ -101,6 +151,12 @@ export class BoundaryMassStore {
     for (const [position, declaration] of declarations.entries()) {
       if (!declaration || typeof declaration.key !== "string" || declaration.key.trim() === "") {
         throw new Error("Mass declaration key must be a non-empty string")
+      }
+      const previous = (await sql<Array<{format: string}>>`
+        SELECT format FROM mass_declaration WHERE wimp = ${wimp} AND local_key = ${declaration.key}
+      `)[0]
+      if (previous && previous.format !== declaration.format && (previous.format === "directory" || declaration.format === "directory")) {
+        throw new Error("Directory Mass format conversion is not supported")
       }
       if (seen.has(declaration.key)) throw new Error(`Mass declaration key is duplicated: ${declaration.key}`)
       seen.add(declaration.key)
@@ -232,7 +288,7 @@ export class BoundaryMassStore {
   }
 
   async prepareDetach(sql: Database, childAtom: number, childDeclaration: number): Promise<BoundaryMassDetachPlan> {
-    const source = (await sql<Array<{sourceAtom: number; sourceDeclaration: number; sourceKey: string; format: MassFileFormat}>>`
+    const source = (await sql<Array<{sourceAtom: number; sourceDeclaration: number; sourceKey: string; format: MassFormat}>>`
       SELECT relation.parent_atom AS sourceAtom, relation.parent_declaration AS sourceDeclaration,
              parent.key AS sourceKey, declaration.format
         FROM mass_key_source AS relation JOIN mass_membership AS parent
@@ -241,6 +297,7 @@ export class BoundaryMassStore {
        WHERE relation.child_atom = ${childAtom} AND relation.child_declaration = ${childDeclaration}
     `)[0]
     if (!source) throw new Error("Mass membership has no direct source to detach")
+    if (source.format === "directory") throw new Error("Directory Mass detach is temporarily unsupported")
     return Object.freeze({
       childAtom,
       childDeclaration,

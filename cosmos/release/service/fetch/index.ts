@@ -1,6 +1,7 @@
 import {browserPackageCache} from "../../../shared/package/cache"
 import {parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
 import type {ReleaseLoader} from "../runtime"
+import {observeSafely, type ReleaseObservation} from "../observation"
 import {
   cacheReleaseArtifact,
   readReleaseArtifact,
@@ -22,14 +23,28 @@ const retiredRuntimeAssets = [
 ]
 
 /** Создаёт принадлежащую release browser cache policy поверх startup primitives. */
-export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
+export function createReleaseCache(
+  loader: Readonly<ReleaseLoader>,
+  observation?: Pick<ReleaseObservation, "cacheHit" | "network" | "response">,
+) {
+  const networkFetch = async (request: Request) => {
+    const operation = observeSafely(() => observation?.network(request.url))
+    try {
+      const response = await fetch(request)
+      if (operation !== undefined) observeSafely(() => observation?.response(operation, response.status))
+      return response
+    } catch (error) {
+      if (operation !== undefined) observeSafely(() => observation?.response(operation))
+      throw error
+    }
+  }
   /** Возвращает cached response либо network fallback для browser request. */
   const cacheFirst = async (request: Request) => {
     const url = new URL(request.url)
-    if (url.origin !== location.origin) return await fetch(request)
+    if (url.origin !== location.origin) return await networkFetch(request)
     const browserArtifact = parseBrowserPackageArtifactUrl(url)
     if (url.searchParams.has("source-map") || browserArtifact?.artifact?.endsWith(".js.map"))
-      return await fetch(request)
+      return await networkFetch(request)
     const packageOwner = browserPackageCache(browserArtifact?.name ?? null)
     const owner = packageOwner === "startup" ? null : packageOwner
     const cacheName = owner ?? "startup"
@@ -41,13 +56,16 @@ export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
         : owner === null
           ? undefined
           : await readReleaseArtifact(owner, browserArtifact)
-    if (response) return response
+    if (response) {
+      observeSafely(() => observation?.cacheHit(request.url, response.status))
+      return response
+    }
 
     try {
       const networkRequest = browserArtifact?.artifact !== undefined && owner !== null
         ? await releaseArtifactNetworkRequest(owner, browserArtifact, request)
         : request
-      const network = await fetch(networkRequest)
+      const network = await networkFetch(networkRequest)
       if (network.ok && browserArtifact?.artifact !== undefined && owner !== null)
         await cacheReleaseArtifact(owner, browserArtifact, network.clone())
       else if (network.ok && (owner !== null || runtimeAssets.has(url.pathname)))
@@ -64,8 +82,12 @@ export function createReleaseCache(loader: Readonly<ReleaseLoader>) {
     const cache = await caches.open("startup")
     await Promise.all(startupResources.map(async (resource) => {
       const request = new Request(resource)
-      if (await cache.match(request, {ignoreVary: true})) return
-      const response = await fetch(request)
+      const cached = await cache.match(request, {ignoreVary: true})
+      if (cached) {
+        observeSafely(() => observation?.cacheHit(request.url, cached.status))
+        return
+      }
+      const response = await networkFetch(request)
       if (!response.ok) throw new Error(`Startup ${request.url} returned ${response.status}`)
       await cache.put(request, response)
     }))

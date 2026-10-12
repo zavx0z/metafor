@@ -188,29 +188,38 @@ Dark Oracle уже публикует `dark.force.pause`, `dark.force.step`,
 
 Dark Force владеет:
 
-- единственным слушающим server всей Вселенной и внешним Particle ingress;
-- внешним REST и двумя постоянными исходящими WebSocket-каналами каждого
-  домена: Oracle и Force;
+- обработкой внешнего Particle ingress на общем listener действующего release;
+- Oracle и Force каналами каждого участвующего домена;
 - particle relay и routing laws;
 - `ForceLifecycle` и общим causal gate;
 - domain channel Store;
 - fixtures, health и `/force`.
 
-Boundary, Matrix, Energy и Bulk не открывают HTTP/TCP listeners. После запуска
-каждый из них сам подключает Oracle и Force к одному адресу Dark. Внешние RPC,
-health и browser ingress Bulk используют тот же listener Dark; Dark только
-маршрутизирует Bulk browser traffic и не читает либо строит Bulk Store.
+Boundary, Matrix и Energy не открывают HTTP/TCP listeners. После запуска
+каждый из них получает от Cosmos явный transport context и подключает Oracle
+и Force к Dark через две ordered DataChannel одной WebRTC-связи. Dark владеет
+обработчиками этого входа, причинностью и health;
+Cosmos владеет физическим listener и жизненным циклом исполнения. Bulk не
+входит в текущий серверный состав и не получает фиктивный канал.
 
-Текущие `/force`, `/ws` и `/oracle/*` задают передачу, но не задают проверку полномочий
-внешнего клиента. До отдельного решения доверительной границы они допустимы
-только внутри доверенного контура и не являются безопасным публичным сетевым
-интерфейсом.
+Именованный development adapter сохраняет `/force`, `/ws` и `/oracle/*` только
+для доверенных fixtures. Эти routes сами не проверяют полномочия внешнего
+клиента и не являются безопасным публичным сетевым интерфейсом.
 
 Dark Oracle владеет `OracleRouter`, service RPC и `/oracle/*`. Оба слоя находятся
 в одном Dark process и используют локальную границу вместо self-WebSocket.
-REST Oracle сохраняется для loopback-клиентов и агентов; доменные Oracle открывают
-отдельный постоянный WebSocket к тому же Dark listener и больше не требуют
-callback server.
+Установленный release создаёт отдельное частное знакомство только своих
+доменных воплощений на том же listener, передаёт им credential и явное
+соответствие peer identity домену. Credential допускает группу принадлежащих
+release процессов и не удостоверяет отдельное устройство. Oracle открывается
+до гидратации; Force объявляет причинную готовность только после неё.
+Каждый процесс владеет одной сетью; закрывает adapters перед собственной сетью.
+Старые `/force`, `/ws`, `/oracle/ws`, `/oracle/channels`, `/oracle/rpc` и
+`/oracle/channel` в этом режиме запрещены для всех HTTP методов, включая
+запросы через proxy с loopback IP. Health сообщает только готовность и
+transport status, не Graph или Mass bytes. Отдельный именованный WebSocket
+adapter остаётся для локальных development fixtures. Допуск внешних user-peer
+к Graph или Mass этим частным доменным знакомством не предоставляется.
 Потеря обязательного domain channel сохраняет fail-stop law; перенос не
 разрешает hot reload или частичный restart contour.
 
@@ -243,8 +252,11 @@ Readiness, health, snapshot, replay, pause, error и service RPC не добав
 
 ### Lifecycle compatibility
 
-Dark Force lifecycle ждёт готовности локального Dark adapter и четырёх
-обязательных remote domain channels: Boundary, Matrix, Energy и Bulk. Только
+Dark Force lifecycle ждёт готовности локального Dark adapter и обязательных
+remote domain channels объявленного состава. В текущем серверном составе это
+Boundary, Matrix и Energy. Readiness, маршрутизация и checkpoint barrier
+используют один и тот же состав; сохранённые подтверждения другого состава
+не считаются подтверждением нового запуска. Только
 после их готовности общий causal gate принимает Particles. Потеря последнего
 обязательного channel переводит lifecycle в `error`; физический reconnect не
 оживляет Universe и не снимает fail-stop.
@@ -266,22 +278,27 @@ Behavior-preserving migration сохраняет действующие routing 
 - uncommitted Gluon/Higgs mutation без `from` доставляется Boundary;
 - остальные Particles доставляются всем релевантным доменам, кроме source.
 
+Получателями могут быть только домены объявленного состава. Сохранённые
+правила доставки Bulk действуют при его явном включении; в текущем серверном
+составе доставка и ожидание подтверждений Bulk отсутствуют.
+
 Каждый из этих случаев сначала проходит единый Dark Force ingress и history.
 Изменение routing semantics требует отдельного owner decision и не маскируется
 под перенос package/process ownership.
 
 ## Реализация и cold-cut boundary
 
-Canonical source содержит единственный server, ingress, `OracleRouter`,
-`ForceLifecycle`, relay/routing, channel Store, fixtures, health, `/force`,
-`/oracle/*` и browser gateway внутри Dark. `../quantum/dark/server.ts` слушает один
-настраиваемый порт, локальный Dark adapter заменяет self-WebSocket, а Boundary,
-Matrix, Energy и Bulk подключают к Dark отдельные исходящие Oracle и Force
-WebSocket без собственных listeners.
+Canonical source сохраняет `OracleRouter`, `ForceLifecycle`, routing,
+channel Store, history и causal checkpoint в Dark. Единственный HTTP listener
+принадлежит действующему release. Локальный Dark adapter заменяет self-соединение;
+Boundary, Matrix и Energy используют инъецированную Peer сеть без своих
+listeners. Bulk не входит в этот состав.
 
-WebSocket является текущим физическим carrier доверенного локального contour.
-Будущая замена пары WebSocket на два надёжных ordered WebRTC DataChannel не
-меняет Oracle RPC envelopes, Force messages, routing или доменные проекции.
+WebRTC является первичным carrier доменного contour; отдельный WebSocket
+carrier каждой физической линии предоставляет резерв после ограниченной
+попытки прямой связи. Oracle RPC envelopes, Force messages, routing и доменные
+проекции сохраняются. Transport acknowledgement не заменяет Boundary commit
+или applied-through checkpoint receipt.
 
 Standalone `force` workspace, entry и process в canonical source отсутствуют.
 Live contour становится post-cut только после полного cold restart на точной

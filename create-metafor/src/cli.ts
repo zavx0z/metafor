@@ -2,14 +2,14 @@
 
 import {spawnSync} from "node:child_process"
 import {existsSync, mkdirSync, statSync, writeFileSync} from "node:fs"
-import {basename, dirname, resolve} from "node:path"
+import {dirname, resolve} from "node:path"
 import {detectLanguage, getI18n, type Lang} from "./i18n.ts"
 import type {MetaIdentity} from "./generators.ts"
 import {getGitUserName, gitAddAll, gitCommit, initGitRepo, isGitInstalled} from "./git.ts"
 import {buildMetaPackageTemplate} from "./template.ts"
 
 const PACKAGE_SEGMENT = /^[a-z0-9][a-z0-9._-]*$/
-const OPTIONS_WITH_VALUE = new Set(["--name", "-n", "--desc", "-d", "--dir", "--lang", "-l"])
+const OPTIONS_WITH_VALUE = new Set(["--name", "-n", "--desc", "-d", "--dir", "--owner", "--lang", "-l"])
 
 const fail = (message: string): never => {
   console.error(`\n❌ ${message}\n`)
@@ -102,13 +102,14 @@ ${t.helpUsage}
 ${t.helpOptions}
   -n, --name <name>    ${t.optionName}
   -d, --desc <desc>    ${t.optionDesc}
+  --owner <owner>      ${t.optionOwner}
   --dir <dir>          ${t.optionDir} (${t.defaultDesc}: .)
   -l, --lang <lang>    ${t.optionLang}
 
 ${t.helpExamples}
-  ${runner} create metafor capsule --dir cluster/zavx0z
-  ${runner} create metafor capsule-profile --dir cluster/zavx0z
-  ${runner} create metafor capsule-container -d "${t.exampleWithDesc}" --dir cluster/zavx0z
+  ${runner} create metafor capsule --owner zavx0z --dir ..
+  ${runner} create metafor capsule-profile --owner zavx0z --dir ..
+  ${runner} create metafor capsule-container -d "${t.exampleWithDesc}" --owner zavx0z --dir ..
 
 ${t.helpNoteName}
 ${t.helpNoteOptions}
@@ -130,7 +131,7 @@ ${t.helpNoteOptions}
   const parentDirectory = resolve(option(args, "--dir") ?? ".")
   if (!directoryExists(parentDirectory)) fail(t.errorParent)
 
-  const owner = basename(parentDirectory)
+  const owner = option(args, "--owner") ?? ""
   if (!PACKAGE_SEGMENT.test(owner)) fail(t.errorOwner)
 
   const nestedIn = containingMetaRepository(parentDirectory)

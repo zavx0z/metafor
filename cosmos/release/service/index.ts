@@ -10,5 +10,6 @@ export type {
   ActivePackage,
   PackageExecutor,
   PackageExit,
+  ReleaseHandover,
   VerifiedArtifact,
 } from "../shared/execution"

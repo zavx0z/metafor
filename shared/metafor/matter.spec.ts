@@ -64,9 +64,10 @@ describe("shared normalized Matter semantics", () => {
     expect(() => validateMatterSchema(schema, fields)).not.toThrow()
   })
 
-  test("requires exact owner/repository addresses", () => {
+  test("accepts package identities and rejects filesystem paths as identities", () => {
+    expect(() => validateMatterSchema([wimp("@example/child"), wimp("child-package")], fields)).not.toThrow()
     expect(() => validateMatterSchema([wimp("demo/base/child")], fields)).toThrow(
-      'Matter violation at "matter[0].src": src "demo/base/child" is not a valid Meta address.',
+      'Matter violation at "matter[0].src": src "demo/base/child" is not a valid Meta package identity.',
     )
   })
 

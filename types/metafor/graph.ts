@@ -8,6 +8,8 @@
 @packageDocumentation
 */
 
+import {normalizeMetaLifecycle, type MetaLifecycle} from "./lifecycle"
+
 /** Schema marker единственного публичного Graph-контракта. */
 export const GRAPH_SCHEMA = "metafor/graph" as const
 /** Schema marker одной ref-based разницы между двумя валидными Graph. */
@@ -37,7 +39,7 @@ export type ReactionRelationRef = `reaction:${string}`
 
 declare const MetaAddressBrand: unique symbol
 
-/** Canonical safe two-segment `<owner>/<repository>` address. */
+/** Package identity of a Meta; existing persisted identities remain opaque on read. */
 export type MetaAddress = string & {readonly [MetaAddressBrand]: "MetaAddress"}
 
 /**
@@ -223,7 +225,7 @@ export interface MetaState {
 /** Metadata одного Mass key без bytes и filesystem path. */
 export interface MetaMass {
   key: string
-  format: "json" | "binary"
+  format: "json" | "binary" | "directory"
   label?: string
   description?: string
 }
@@ -386,6 +388,7 @@ export type MetaMatterParticle =
 где он участвует в identity, materialization или причинном выборе.
 */
 export interface MetaTemplate {
+  lifecycle?: MetaLifecycle
   name: string
   desc?: string
   fields: MetaField[]
@@ -431,7 +434,7 @@ export type RuntimeNode = RuntimeAtom | RuntimeTopology
 export interface RuntimeMass {
   ref: MassRef
   key: string
-  format: "json" | "binary"
+  format: "json" | "binary" | "directory"
   label: string | null
   description: string | null
   content: "lazy"
@@ -614,6 +617,11 @@ type TemplateTargets = {
 }
 
 const ADDRESS_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/
+
+/** Identity for newly read Meta is its exact package.json name, independent of Git and placement. */
+export const isMetaPackageName = (value: unknown): boolean =>
+  typeof value === "string" && value.length <= 214 && PACKAGE_NAME.test(value)
 const EXECUTION_ENVS = new Set<MetaExecutionEnv>([
   "browser",
   "node",
@@ -643,6 +651,8 @@ const childPath = (path: JsonPointer, key: string | number): JsonPointer =>
 
 const isMetaAddress = (value: unknown): value is MetaAddress => {
   if (typeof value !== "string") return false
+  if (isMetaPackageName(value)) return true
+  // Existing worlds retain their stored identities until an explicit migration.
   const segments = value.split("/")
   return segments.length === 2 && segments.every((segment) => ADDRESS_SEGMENT.test(segment))
 }
@@ -650,7 +660,7 @@ const isMetaAddress = (value: unknown): value is MetaAddress => {
 /**
 Проверяет и брендирует безопасный публичный Meta address.
 
-@param value - Ожидаемый адрес `<owner>/<repository>` без дополнительных сегментов.
+@param value - Имя пакета Meta либо сохранённый адрес прежнего мира.
 @returns Брендированный адрес либо `null` без нормализации входа.
 */
 export const parseMetaAddress = (value: string): MetaAddress | null =>
@@ -660,7 +670,7 @@ class Validator {
   readonly issues: ValidationIssue[] = []
   readonly runtimeAtoms = new Map<string, {meta: MetaAddress; state: string | null}>()
   readonly runtimeParents = new Map<string, string | null>()
-  readonly runtimeMassFormats = new Map<string, "json" | "binary">()
+  readonly runtimeMassFormats = new Map<string, "json" | "binary" | "directory">()
   readonly runtimeTopologies = new Set<string>()
 
   issue(path: JsonPointer, code: string, message: string): void {
@@ -734,7 +744,7 @@ class Validator {
 
   address(value: unknown, path: JsonPointer): value is MetaAddress {
     if (isMetaAddress(value)) return true
-    this.issue(path, "invalid_meta_address", "Expected canonical <owner>/<repository> address")
+    this.issue(path, "invalid_meta_address", "Expected Meta package identity")
     return false
   }
 
@@ -1387,7 +1397,7 @@ class Validator {
   template(value: unknown, path: JsonPointer): TemplateTargets {
     const targets: TemplateTargets = {matter: new Set(), reactions: new Set()}
     if (!this.record(value, path, "Meta template")) return targets
-    this.closed(value, path, ["name", "desc", "fields", "superposition", "mass", "processes", "reactions", "matter", "bulk"])
+    this.closed(value, path, ["name", "desc", "fields", "lifecycle", "superposition", "mass", "processes", "reactions", "matter", "bulk"])
     this.required(value, path, ["name", "fields", "superposition", "mass", "processes"])
     this.string(value.name, childPath(path, "name"), "Meta name")
     if (value.desc !== undefined) this.string(value.desc, childPath(path, "desc"), "Meta description")
@@ -1405,6 +1415,13 @@ class Validator {
       this.unique(fieldKeys, childPath(path, "fields"), "Field key")
     }
     const fieldSet = new Set(fieldKeys)
+    if (value.lifecycle !== undefined) {
+      try {
+        normalizeMetaLifecycle(value.lifecycle, [...fields.values()].map(field => ({key: String(field.key), type: String(field.type), required: field.required === true})))
+      } catch (error) {
+        this.issue(childPath(path, "lifecycle"), "invalid_lifecycle", error instanceof Error ? error.message : String(error))
+      }
+    }
     const states = this.states(value.superposition, childPath(path, "superposition"), fields)
 
     const massKeys: string[] = []
@@ -1415,8 +1432,8 @@ class Validator {
         this.closed(mass, massPath, ["key", "format", "label", "description"])
         this.required(mass, massPath, ["key", "format"])
         if (this.string(mass.key, childPath(massPath, "key"), "Mass key")) massKeys.push(mass.key)
-        if (mass.format !== "json" && mass.format !== "binary") {
-          this.issue(childPath(massPath, "format"), "invalid_mass_format", "Mass format must be json or binary")
+        if (mass.format !== "json" && mass.format !== "binary" && mass.format !== "directory") {
+          this.issue(childPath(massPath, "format"), "invalid_mass_format", "Mass format must be json, binary or directory")
         }
         if (mass.label !== undefined) this.string(mass.label, childPath(massPath, "label"), "Mass label")
         if (mass.description !== undefined) this.string(mass.description, childPath(massPath, "description"), "Mass description")
@@ -1556,8 +1573,8 @@ class Validator {
       const refOk = this.typedRef(rawRef, childPath(itemPath, "ref"), "Mass ref", MASS_REF)
       const keyOk = this.nonEmptyString(rawKey, childPath(itemPath, "key"), "Runtime Mass key")
       if (keyOk) keys.push(rawKey)
-      if (format !== "json" && format !== "binary") {
-        this.issue(childPath(itemPath, "format"), "invalid_mass_format", "Runtime Mass format must be json or binary")
+      if (format !== "json" && format !== "binary" && format !== "directory") {
+        this.issue(childPath(itemPath, "format"), "invalid_mass_format", "Runtime Mass format must be json, binary or directory")
       }
       if (item.label !== null) this.string(item.label, childPath(itemPath, "label"), "Runtime Mass label")
       if (item.description !== null) {
@@ -1572,7 +1589,7 @@ class Validator {
       } else if (declaration && declaration.format !== format) {
         this.issue(childPath(itemPath, "format"), "mass_format_mismatch", "Runtime Mass format must match its declaration")
       }
-      if (refOk && (format === "json" || format === "binary")) {
+      if (refOk && (format === "json" || format === "binary" || format === "directory")) {
         const previous = this.runtimeMassFormats.get(rawRef)
         if (previous !== undefined && previous !== format) {
           this.issue(childPath(itemPath, "ref"), "mass_ref_mismatch", "One Mass ref cannot use multiple formats")

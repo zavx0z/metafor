@@ -14,7 +14,6 @@ import {
   type JsonValue,
   type MassRef,
   type MetaAddress,
-  type Graph,
   type ReactionRelationRef,
   type RuntimeAtom,
   type RuntimeMass,
@@ -354,7 +353,7 @@ const runtimeMass = (value: unknown, atomId: number): RuntimeMass[] => {
     keys.add(key)
     const keyId = text(item.keyId, `Boundary Atom ${atomId} Mass ${key} key identity`)
     const format = text(item.format, `Boundary Atom ${atomId} Mass ${key} format`)
-    if (format !== "json" && format !== "binary") {
+    if (format !== "json" && format !== "binary" && format !== "directory") {
       throw new Error(`Boundary Atom ${atomId} Mass ${key} format is unsupported: ${format}`)
     }
     const label = item.label === null ? null : text(item.label, `Boundary Atom ${atomId} Mass ${key} label`)

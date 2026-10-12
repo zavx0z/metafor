@@ -60,6 +60,7 @@ export class EnergyMassResultReadService {
     if (!atom) throw new Error("Energy Mass Atom locator is stale or does not select an Atom")
     const artifact = this.catalog.mass(atom.id).find((item) => item.key === request.key)
     if (!artifact) throw new Error(`Energy Mass key is not declared for selected Atom: ${request.key}`)
+    if (artifact.format === "directory") throw new Error("Directory Mass byte-result read is temporarily unsupported")
     if (this.gate.fenced(atom.id, artifact.id, artifact.keyId)) {
       throw new Error("Energy Mass result is temporarily fenced")
     }

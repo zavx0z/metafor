@@ -26,7 +26,7 @@ describe("atomic Create Meta source patch", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "metafor-create-patch-"))
     cluster = join(root, "cluster")
-    owner = join(cluster, "zavx0z")
+    owner = cluster
     await mkdir(owner, {recursive: true})
   })
 
@@ -37,12 +37,12 @@ describe("atomic Create Meta source patch", () => {
   test("publishes one complete unstaged peer repository and recognizes the repeat", async () => {
     const patch = template("lada-test")
     const first = await materializeMetaCreatePatch({
-      clusterRoot: cluster,
+      repositoriesRoot: cluster,
       operationId: "create-lada-test",
       template: patch,
     })
     const repeated = await materializeMetaCreatePatch({
-      clusterRoot: cluster,
+      repositoriesRoot: cluster,
       operationId: "create-lada-test",
       template: patch,
     })
@@ -67,7 +67,7 @@ describe("atomic Create Meta source patch", () => {
     await writeFile(join(candidate, existing.path), existing.source)
 
     const result = await materializeMetaCreatePatch({
-      clusterRoot: cluster,
+      repositoriesRoot: cluster,
       operationId: "partial-create",
       template: patch,
     })
@@ -83,7 +83,7 @@ describe("atomic Create Meta source patch", () => {
     await writeFile(join(target, "meta.ts"), "owner bytes\n")
 
     await expect(materializeMetaCreatePatch({
-      clusterRoot: cluster,
+      repositoriesRoot: cluster,
       operationId: "target-conflict",
       template: patch,
     })).rejects.toMatchObject({code: "target_conflict"} satisfies Partial<MetaCreatePatchError>)
@@ -97,7 +97,7 @@ describe("atomic Create Meta source patch", () => {
     await writeFile(join(candidate, "meta.ts"), "other patch\n")
 
     await expect(materializeMetaCreatePatch({
-      clusterRoot: cluster,
+      repositoriesRoot: cluster,
       operationId: "create-conflict",
       template: patch,
     })).rejects.toMatchObject({code: "candidate_conflict"} satisfies Partial<MetaCreatePatchError>)

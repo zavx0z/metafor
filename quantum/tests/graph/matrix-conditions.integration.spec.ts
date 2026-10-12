@@ -1,3 +1,4 @@
+import {Force} from "shared/transport/force"
 import {afterEach, describe, expect, test} from "bun:test"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
 import type {Particle} from "shared/protocol/force/particle"
@@ -204,6 +205,7 @@ describe("Graph → Boundary → Matrix Conditions", () => {
       await prepareMatrixBirthFixture(initial)
       const waiting = force.nextClient("matrix")
       const runtime = await import(`../../matrix/matrix.ts?conditions-path=${crypto.randomUUID()}`)
+      await runtime.startMatrixForce(() => new Force("matrix"))
       const client = await waiting
       expect(runtime.matrix$.getStateName(0, runtime.matrix$.states[0]!)).toBe("idle")
 

@@ -12,6 +12,8 @@ authoritative; fallback нужен только Window с ранее cached root
 @packageDocumentation
 */
 
+import {observeBrowserNetwork} from "./network"
+
 const DEFAULT_FONT_META_NAME = "engine-default-font"
 if (document.querySelector(`meta[name="${DEFAULT_FONT_META_NAME}"]`) === null) {
   const declaration = document.createElement("meta")
@@ -20,7 +22,12 @@ if (document.querySelector(`meta[name="${DEFAULT_FONT_META_NAME}"]`) === null) {
   document.head.append(declaration)
 }
 
-const {runtime} = await import("@internal/visual")
+const {runtime, presentInfrastructure} = await import("@internal/visual")
+let stopObserving = observeBrowserNetwork(presentInfrastructure)
+addEventListener("pagehide", () => stopObserving())
+window.addEventListener("pageshow", event => {
+  if (event.persisted) stopObserving = observeBrowserNetwork(presentInfrastructure)
+})
 console.debug("[@cosmos/release:main]", "Visual runtime подключён", {
   runtime: Object.keys(runtime),
 })

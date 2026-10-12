@@ -187,16 +187,31 @@ export async function readBoundaryInitialState(sql: SQL): Promise<BoundaryInitia
   const atomStates = await sql<AtomStateRow[]>`
     SELECT atom, metaState FROM atom_state ORDER BY atom
   `
+  // Restoration hints describe unfinished Process work, not permission to
+  // resume an old execution. rowid is private SQLite insertion order only;
+  // Matrix always replaces the hint with a fresh execution identity.
   const pendingProcessExecutions = await sql<Array<{
     executionId: string
     atom: number
     process: number
     state: string
   }>>`
-    SELECT execution_id AS executionId, atom, process, state
-      FROM boundary_process_execution
-     WHERE status = ${"pending"}
-     ORDER BY atom, created_at, execution_id
+    SELECT execution.execution_id AS executionId, execution.atom, execution.process, execution.state
+      FROM boundary_process_execution AS execution
+      LEFT JOIN (
+        SELECT atom, MAX(rowid) AS latestRow FROM boundary_process_execution GROUP BY atom
+      ) AS latest ON latest.atom = execution.atom
+     WHERE execution.status = ${"pending"}
+        OR (execution.status = ${"superseded"} AND execution.result_json IS NULL
+          AND execution.rowid = latest.latestRow
+          AND EXISTS (
+            SELECT 1 FROM atom
+              JOIN atom_state ON atom_state.atom = atom.id
+              JOIN state ON state.id = atom_state.metaState AND state.wimp = atom.wimp
+              JOIN process ON process.id = execution.process AND process.wimp = atom.wimp
+             WHERE atom.id = execution.atom AND state.name = execution.state AND process.key = state.name
+          ))
+     ORDER BY execution.atom, execution.created_at, execution.execution_id
   `
   const unfinishedReactionExecutions: BoundaryInitialReactionExecution[] = []
   for (const execution of await sql<Array<{

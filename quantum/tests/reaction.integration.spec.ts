@@ -56,7 +56,7 @@ describe("Reaction multi-Field result", () => {
 
     expect(target.reactions?.[0]).toMatchObject({read: ["a", "b"], write: ["a", "b"]})
 
-    const declarations = new Map([[TARGET, target], [SOURCE, source]])
+    const declarations = new Map<string, typeof source | typeof target>([[TARGET, target], [SOURCE, source]])
     const boundary = await open(":memory:")
     try {
       for await (const part of matterParticles(TARGET, async (src: string) => {

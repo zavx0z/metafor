@@ -89,6 +89,9 @@ export const validateMetaPackageTemplate = (
   }
   if (
     packageJson.name !== npmPackageName(template.identity) ||
+    !isRecord(packageJson.repository) ||
+    packageJson.repository.type !== "git" ||
+    packageJson.repository.url !== `https://github.com/${template.identity.owner}/${template.identity.repository}.git` ||
     !isRecord(packageJson.exports) ||
     packageJson.exports["."] !== "./meta.ts"
   ) {

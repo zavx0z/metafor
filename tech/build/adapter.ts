@@ -17,6 +17,7 @@ import type {
   PackageBuildReportOutput,
   PackageBuildSource,
 } from "./contracts"
+import {serverConditionPlugin} from "./server-resolution"
 import {packageBuildSourceKind} from "./source"
 import {
   isBrowserPackageEnvironment,
@@ -35,6 +36,8 @@ export interface IsolatedPackageBuildRequest {
   readonly plugins: readonly string[]
   readonly report: string
   readonly sources: readonly PackageBuildSource[]
+  /** Extra compiled roots without public export aliases; outputs retain generated identities. */
+  readonly privateEntrypoints?: readonly string[]
   readonly preparedDependencies?: readonly PreparedDependencyGraph[]
   readonly output:
     | {readonly mode: "single"; readonly artifact: string}
@@ -70,7 +73,7 @@ export async function runIsolatedPackageBuild(
     const copySources = request.sources.filter(
       ({source}) => packageBuildSourceKind(source) === "copy",
     )
-    if (buildSources.length !== (request.plan.mode === "single" ? 1 : buildSources.length))
+    if (request.plan.mode === "single" && buildSources.length + (request.privateEntrypoints?.length ?? 0) !== 1)
       throw new Error("Package single-entry build must receive one Bun source")
 
     const multi = request.plan.mode === "multi"
@@ -91,7 +94,7 @@ export async function runIsolatedPackageBuild(
       [`${readyBase}${preparedFileRelative(graph, file.path)}`, preparedFileRelative(graph, file.path)] as const,
     )))
     const result = await Bun.build({
-      entrypoints: buildSources.map(({source}) => source),
+      entrypoints: [...new Set([...buildSources.map(({source}) => source), ...(request.privateEntrypoints ?? [])])],
       target: request.plan.target,
       conditions: [...request.plan.conditions],
       ...(request.plan.format === undefined ? {} : {format: request.plan.format}),
@@ -109,6 +112,7 @@ export async function runIsolatedPackageBuild(
           })
         }}]),
         ...plugins,
+        ...(isBrowserPackageEnvironment(request.env) || request.plan.packages === "external" ? [] : [serverConditionPlugin(request.env, request.plan.external)]),
       ],
       metafile: true,
       ...(multi
@@ -194,10 +198,12 @@ async function writeBuildOutputs(
     if (artifact.kind === "sourcemap" || artifact.kind === "bytecode")
       throw new Error(`Package build output kind is unsupported: ${artifact.kind}`)
     const relativePath = outputRelative(artifact.path)
-    const outputMetadata = metadata.get(relativePath)
+    // Bun 1.4 file-loader assets have no metafile output row. They are opaque
+    // bytes with no executable imports; all code outputs still require metadata.
+    const outputMetadata = metadata.get(relativePath) ?? (artifact.kind === "asset" && artifact.loader === "file" ? {imports: [], entryPoint: undefined} : undefined)
     if (!outputMetadata)
       throw new Error(`Package build output metadata is missing: ${relativePath}`)
-    const entryPoint = normalizeEntryPoint(outputMetadata.entryPoint, buildSources)
+    const entryPoint = normalizeEntryPoint(outputMetadata.entryPoint, buildSources, request.privateEntrypoints)
     const target =
       request.output.mode === "multi"
         ? join(request.output.outdir, relativePath)
@@ -327,14 +333,14 @@ function reportImport(value: Bun.BuildMetafile["outputs"][string]["imports"][num
   }
 }
 
-function normalizeEntryPoint(value: string | undefined, sources: readonly PackageBuildSource[]) {
+function normalizeEntryPoint(value: string | undefined, sources: readonly PackageBuildSource[], privateEntrypoints: readonly string[] = []) {
   if (value === undefined) return undefined
   const path = isAbsolute(value) ? value : resolve(value)
   // Bun also labels dynamic dependency roots as entrypoints. Only package
   // exports are public entries; every other output belongs to the derived
   // dependency graph, including ordinary libraries outside this package.
   const declared = sources.find(({source}) => resolve(source) === path)
-  if (declared === undefined) return undefined
+  if (declared === undefined) return privateEntrypoints.includes(path) ? path : undefined
   // Only a source resolved from the declared export graph may cross the package root.
   if (isAbsolute(declared.source)) return declared.source
   const fromRoot = relative(process.cwd(), path)

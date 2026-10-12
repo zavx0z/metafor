@@ -3,6 +3,10 @@ import { MetaFor } from "./metafor.ts"
 import {parseMatter} from "./matter.ts"
 
 describe("matter validation", () => {
+  test("Meta package names identify scoped and unscoped structural units", () => {
+    expect(parseMatter(({html}) => html`<meta-for src="@fixture/child" /><meta-for src="child-package" />`, {}))
+      .toEqual([{kind: "wimp", src: "@fixture/child"}, {kind: "wimp", src: "child-package"}])
+  })
   test("parseMatter сохраняет пустые ветви условия", () => {
     const emptyThen = parseMatter(
       ({state, html}) => html`${state === "ready"
@@ -300,7 +304,7 @@ describe("matter validation", () => {
       ({value, html}) => html`<meta-for src="demo/${value.mode}" />`,
       {mode: {type: "enum", values: ["one", "base/two"]}},
     )).toThrow(
-      'Matter violation at "matter[0].src[1]": src "demo/base/two" is not a valid hub address.',
+      'Matter violation at "matter[0].src[1]": src "demo/base/two" is not a valid Meta package identity.',
     )
   })
 

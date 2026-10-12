@@ -98,6 +98,18 @@ frontiers и достигает fixed point только когда для ка�
 `appliedOrdinal == sentOrdinal`. После этого frontier удерживается неизменным
 до окончания coherent capture.
 
+Applied receipts сами по себе не доказывают завершение асинхронного Process:
+применение delivery может только начать его выполнение в Energy. Поэтому Dark
+повторяет quiescence и applied-through проверку до причинного fixed point:
+перед последней quiescence все прежние deliveries уже применены, а за эту
+quiescence и следующую applied-through проверку accepted frontier не меняется.
+Между такими проходами Force hold отпускается при всё ещё закрытом external
+admission, чтобы Process мог вернуть причинный результат. Energy нельзя
+ожидать за удержанным Force barrier. Live Energy objects и directory Mass
+leases сами по себе не являются незавершёнными Process и Graph read не блокируют.
+Отмена или отказ участника не оставляет новый held frontier; deadline запуска
+остаётся отдельным ограничением владельца runtime.
+
 Dark персистит barrier state после durable Particle acceptance до routing.
 Domain получает receipt отдельным Oracle RPC до неизменённого ForceMessage,
 применяет вход через свой последовательный Force handler и подтверждает его

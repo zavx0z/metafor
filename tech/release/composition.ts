@@ -83,7 +83,6 @@ export function createReleaseComposition(
       prepared.length > 0 &&
       prepared[0]!.environments.every((env) => prepared.some((record) => record.env === env))
     const owners = complete ? prepared.map(({owner}) => owner) : await packageOwners(name)
-    validateBrowserReleaseEnvironments(name, owners)
     const manifestPath = owners[0]?.manifest
     if (manifestPath === undefined) throw new Error(`Released package ${name} has no environments`)
     const manifest = await packageManifest(manifestPath)
@@ -132,7 +131,7 @@ export function validateReleaseDependencyGraph(
   }
 }
 
-/** Запрещает включать server-only package в browser release membership. */
+/** Явная browser policy потребителя; общий состав сохраняет все объявленные environments. */
 export function validateBrowserReleaseEnvironments(name: string, owners: PackageOwner[]) {
   if (!owners.some(({env}) => isBrowserPackageEnvironment(env)))
     throw new Error(`Released package ${name} has no browser environment`)

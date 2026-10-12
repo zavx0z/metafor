@@ -1,3 +1,4 @@
+import {Force} from "shared/transport/force"
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import type {BoundaryInitialState} from "shared/protocol/boundary/initial"
 import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
@@ -113,6 +114,7 @@ describe("Matrix cold execution replacement", () => {
       const from = fixture.messages.length
       const waiting = fixture.nextClient("matrix")
       const runtime = await import(`./matrix.ts?cold-restart=${crypto.randomUUID()}`)
+      await runtime.startMatrixForce(() => new Force("matrix"))
       const client = await waiting
       const ready = (await fixture.waitForMessage((entry) => {
         const part = entry.message.parts[0]
@@ -160,7 +162,8 @@ describe("Matrix cold execution replacement", () => {
       await prepareMatrixBirth(reactionInitial())
       const from = fixture.messages.length
       const waiting = fixture.nextClient("matrix")
-      await import(`./matrix.ts?reaction-cold-restart=${crypto.randomUUID()}`)
+      const runtime = await import(`./matrix.ts?reaction-cold-restart=${crypto.randomUUID()}`)
+      await runtime.startMatrixForce(() => new Force("matrix"))
       const client = await waiting
       const recoveryPart = (await fixture.waitForMessage((entry) => {
         const part = entry.message.parts[0]

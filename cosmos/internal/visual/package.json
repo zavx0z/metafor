@@ -1,7 +1,7 @@
 {
   "name": "@internal/visual",
   "label": "Визуальная среда Cosmos",
-  "version": "0.1.42",
+  "version": "0.1.51",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,6 +11,9 @@
     },
     "./theme.css": {
       "internal:main": "@zavx0z/immersive/ui/theme.css"
+    },
+    "./bots.glb": {
+      "internal:main": "./main/bots.glb"
     }
   },
   "scripts": {
@@ -19,6 +22,10 @@
     "build:server": "bun build ./server/index.ts --conditions=internal:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
   },
   "dependencies": {
-    "@zavx0z/immersive": "^0.0.0"
+    "@zavx0z/immersive": "^0.0.0",
+    "@zavx0z/immersive-nodes": "^0.0.0"
+  },
+  "devDependencies": {
+    "@metafor/tech-build": "workspace:*"
   }
 }

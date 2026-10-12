@@ -191,6 +191,28 @@ describe("isolated checkpoint applied-through barrier", () => {
     })
   })
 
+  test("explicit verified empty hold freezes zero without persisting evidence across release or restore", async () => {
+    const barrier = new CheckpointAppliedThroughBarrier("cut-empty")
+    const before = barrier.state()
+    await expect(barrier.holdVerifiedEmptyUnderClosedAdmission()).resolves.toMatchObject({phase: "held", acceptanceSequence: 0})
+    expect(barrier.state()).toEqual(before)
+    expect(errorCode(() => barrier.recordAccepted(1, []))).toBe("barrier_held")
+    barrier.release()
+    expect(await rejectionCode(barrier.holdUnderClosedAdmission())).toBe("sequence_zero_baseline_unresolved")
+    const restored = new CheckpointAppliedThroughBarrier("cut-empty", barrier.state())
+    expect(await rejectionCode(restored.holdUnderClosedAdmission())).toBe("sequence_zero_baseline_unresolved")
+  })
+
+  test("verified empty path refuses nonzero progress and honors cancellation", async () => {
+    const progressed = new CheckpointAppliedThroughBarrier("cut-progressed")
+    progressed.recordAccepted(1, ["boundary"])
+    expect(await rejectionCode(progressed.holdVerifiedEmptyUnderClosedAdmission())).toBe("sequence_zero_baseline_unresolved")
+    const empty = new CheckpointAppliedThroughBarrier("cut-cancelled-empty")
+    const signal = AbortSignal.abort()
+    expect(await rejectionCode(empty.holdVerifiedEmptyUnderClosedAdmission(signal))).toBe("barrier_aborted")
+    expect(empty.frontier()).toMatchObject({phase: "open", acceptanceSequence: 0})
+  })
+
   test("aborts a pending hold without changing delivery or applied frontiers", async () => {
     const barrier = new CheckpointAppliedThroughBarrier("cut-abort")
     const [receipt] = barrier.recordAccepted(1, ["energy"])

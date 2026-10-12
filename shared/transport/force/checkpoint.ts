@@ -98,7 +98,6 @@ export class ForceCheckpointDomainSideband {
   readonly domain: CheckpointForceDomain
   #cutId: string | null = null
   #preparedOrdinal = 0
-  #deliveredOrdinal = 0
   #outgoingOrdinal = 0
   #appliedOrdinal = 0
   #appliedAcceptanceSequence = 0
@@ -136,7 +135,6 @@ export class ForceCheckpointDomainSideband {
     ) throw new Error(`Dark returned an invalid checkpoint session for ${this.domain}`)
     this.#cutId = input.cutId
     this.#preparedOrdinal = input.deliveredOrdinal
-    this.#deliveredOrdinal = input.deliveredOrdinal
     this.#outgoingOrdinal = input.acceptedOutgoingOrdinal
     this.#appliedOrdinal = input.deliveredOrdinal
     return {
@@ -217,7 +215,6 @@ export class ForceCheckpointDomainSideband {
     }
     await pending.applied
     this.#deliveries.delete(receipt.sentOrdinal)
-    this.#deliveredOrdinal = receipt.sentOrdinal
     return structuredClone(receipt)
   }
 

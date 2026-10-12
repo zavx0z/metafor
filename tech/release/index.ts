@@ -7,6 +7,7 @@ import {createArtifactProjection} from "./desired"
 import {createReleaseState} from "./state"
 import {createReleaseStorage} from "./storage"
 import {createPublication} from "./publication"
+import {createPublishedGraphReader} from "./published-graph"
 
 export interface ReleaseOptions {
   root: string
@@ -49,7 +50,8 @@ export function createRelease(options: ReleaseOptions) {
   const projection = createArtifactProjection()
   const state = createReleaseState(composition, queue)
   const publication = createPublication(context, composition, queue, projection, state, storage)
-  return {...composition, ...queue, ...projection, ...state, ...publication}
+  const publishedGraph = createPublishedGraphReader(composition, storage, queue)
+  return {...composition, ...queue, ...projection, ...state, ...publication, ...publishedGraph}
 }
 
 export * from "./contracts"
@@ -64,3 +66,13 @@ export {publishImmutableArtifact, writeRootVersions, restoreManifest} from "./pu
 export type {RecoveryResult} from "./publication"
 export * from "./artifact-path"
 export * from "./version"
+export {readPublishedReleaseGraph, readPublishedReleaseArtifact, createPublishedReleaseSource} from "./published-graph"
+export type {PublishedReleaseGraphReader} from "./published-graph"
+export type {
+  PublishedReleaseGraph,
+  PublishedReleasePackage,
+  PublishedReleaseEnvironment,
+  PublishedReleaseOutput,
+  InstalledArtifactIdentity,
+  ReleaseArtifactSource,
+} from "./graph"

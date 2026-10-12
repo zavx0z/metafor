@@ -11,7 +11,6 @@
 import { OP } from "../weak"
 import { FieldType } from "./schema"
 import type {
-  MatrixConditionOperand,
   MatrixConditionOperators,
   MatrixConditionScalarValue,
   MatrixConditionValue,

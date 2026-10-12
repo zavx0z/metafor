@@ -60,7 +60,7 @@ describe("Reaction confirmed State lifecycle", () => {
       .matter(({html}) => html`<meta-for src="audit/state-source" />`)
       .bulk()
 
-    const declarations = new Map([[TARGET, target], [SOURCE, source]])
+    const declarations = new Map<string, typeof source | typeof target>([[TARGET, target], [SOURCE, source]])
     const boundary = await open(":memory:")
     try {
       for await (const part of matterParticles(TARGET, async (src: string) => {

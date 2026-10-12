@@ -32,3 +32,5 @@ pkg/visual/playground/.edge-examples/
 
 # Локальные доказательства подготовки и сохранённые immutable bytes выпуска
 cosmos/.release/
+.local/
+cosmos/.env.local

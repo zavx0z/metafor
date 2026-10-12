@@ -1,3 +1,4 @@
+import {Force} from "shared/transport/force"
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import type {BoundaryInitialState} from "shared/protocol/boundary/initial"
 import {weak$} from "@matrix/weak"
@@ -64,6 +65,7 @@ describe("Matrix update order after cold birth", () => {
   test("serializes simultaneous Field changes without a full Store replacement", async () => {
     await prepareMatrixBirthFixture(initialState())
     const runtime = await import(`./matrix.ts?update-order=${crypto.randomUUID()}`)
+    await runtime.startMatrixForce(() => new Force("matrix"))
 
     const first = runtime.update([[0, [[0, 100]]]])
     const second = runtime.update([[0, [[0, 200]]]])
@@ -79,6 +81,7 @@ describe("Matrix update order after cold birth", () => {
   test("keeps a locked Atom in its State while retaining Field changes", async () => {
     await prepareMatrixBirthFixture(initialState())
     const runtime = await import(`./matrix.ts?locked-update=${crypto.randomUUID()}`)
+    await runtime.startMatrixForce(() => new Force("matrix"))
 
     expect(await runtime.update([[0, [[0, 100]], true]])).toEqual([])
     expect(await runtime.update([[0, [[0, 200]]]])).toEqual([])

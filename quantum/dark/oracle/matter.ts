@@ -15,16 +15,8 @@ import type {ForceMessageInput} from "shared/protocol/force/message"
 import type {MatterFields, MatterParticle} from "@metafor/types/metafor/matter"
 import type {SourcedParticle} from "shared/protocol/force/particle"
 import type {AuthoredMatterProjectionChange} from "../dark.ts"
-import {
-  discardSourceCandidates,
-  planMetaMatterPatch,
-  prepareSourceCandidates,
-  recoverAndPublishSourceCandidates,
-  readSourceSnapshot,
-  type MatterParentSnapshot,
-  type PreparedSourceCandidate,
-} from "create-metafor/library"
-import {loadMeta, resolveMetaPath} from "../load.ts"
+import type {MatterParentSnapshot, PreparedSourceCandidate} from "create-metafor/library"
+import {loadMeta, resolveMetaAuthoringPath} from "../load.ts"
 import type {DarkForceHistoryParticle} from "../force/history.ts"
 import type {ForceAuthoringDecision} from "../force/lifecycle.ts"
 import {metaAuthoringRequestDigest} from "./authoring.ts"
@@ -121,7 +113,8 @@ const pendingReceipt = (
 })
 
 export const readMatterAuthoringParent: MatterAuthoringParentReader = async (address) => {
-  const targetPath = resolveMetaPath(address)
+  const targetPath = resolveMetaAuthoringPath(address)
+  const {readSourceSnapshot} = await import("create-metafor/library")
   const before = await readSourceSnapshot(targetPath)
   const dsl = await loadMeta(address)
   const after = await readSourceSnapshot(targetPath)
@@ -150,7 +143,7 @@ export class MatterAuthoringService {
     private readonly force: MatterAuthoringForce,
     private readonly capabilities: MatterAuthoringCapabilityReader,
     private readonly readParent: MatterAuthoringParentReader = readMatterAuthoringParent,
-    private readonly sourcePath: MatterAuthoringSourcePath = resolveMetaPath,
+    private readonly sourcePath: MatterAuthoringSourcePath = resolveMetaAuthoringPath,
     private readonly projection: MatterAuthoringProjection = {
       apply: () => null,
       async reconcile() {},
@@ -200,6 +193,7 @@ export class MatterAuthoringService {
     })
     if (!verified.ok) throw validationError(verified.issues)
 
+    const {planMetaMatterPatch, prepareSourceCandidates, discardSourceCandidates} = await import("create-metafor/library")
     const plan = planMetaMatterPatch(verified.value, parents)
     let prepared: PreparedSourceCandidate[] = []
     let liveAttempted = false
@@ -259,6 +253,7 @@ export class MatterAuthoringService {
       return pendingReceipt(operationId, requestDigest, acceptance, sourceProjections, error)
     }
     try {
+      const {recoverAndPublishSourceCandidates} = await import("create-metafor/library")
       const projectionByPath = new Map(sourceProjections.map((projection) => [
         this.sourcePath(projection.address),
         projection,

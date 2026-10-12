@@ -7,7 +7,7 @@
 import type { GpuFlattenedTransition, GpuPackContext } from "@matrix/types/gpu"
 import type { MatrixCompiledConditionsResult, MatrixConditionInstruction } from "@matrix/types/condition"
 import type { MatrixFieldRecord } from "@matrix/types/data"
-import type { MatrixConditionOperand, MatrixParsedCheck, MatrixQuantifierValue } from "@matrix/types/condition"
+import type { MatrixQuantifierValue } from "@matrix/types/condition"
 import type { MatrixValue } from "@matrix/types/store"
 import { OP, VALUE_TYPE } from "../constants"
 import {compileTransitionLayout} from "../transition-layout"

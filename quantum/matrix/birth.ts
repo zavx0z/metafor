@@ -112,7 +112,7 @@ const inferArrayElementType = (field: JsonRecord): "number" | "string" | "boolea
 
 const fallbackFieldValue = (
   field: JsonRecord,
-  enumValues: readonly unknown[],
+  _enumValues: readonly unknown[],
   variants: Map<number, unknown>,
 ): MatrixBraneValue => {
   if (Object.prototype.hasOwnProperty.call(field, "default")) {

@@ -34,7 +34,7 @@ export class Processes {
     )[0]
     if (existing) return new Process(this, input.key)
 
-    const row = (await sql<Array<{id: number}>>`
+    void (await sql<Array<{id: number}>>`
       INSERT INTO process (wimp, key, type, label, desc)
       VALUES (${src}, ${input.key}, ${input.type}, ${input.label ?? null}, ${input.desc ?? null})
       RETURNING id

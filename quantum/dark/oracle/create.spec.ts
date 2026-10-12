@@ -22,7 +22,7 @@ describe("Meta Create service", () => {
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "metafor-create-service-"))
     cluster = join(root, "cluster")
-    await mkdir(join(cluster, "zavx0z"), {recursive: true})
+    await mkdir(cluster, {recursive: true})
   })
 
   afterEach(async () => {
@@ -66,7 +66,7 @@ describe("Meta Create service", () => {
     expect(first.requestDigest).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(first.sourceRevision).toMatch(/^sha256:[a-f0-9]{64}$/)
     expect(repeated).toEqual({...first, outcome: "already_created"})
-    const metaPath = join(cluster, ADDRESS, "meta.ts")
+    const metaPath = join(cluster, "lada-test", "meta.ts")
     const meta = await readFile(metaPath, "utf8")
     expect(meta).toContain(".fields((field) => ({}))")
     expect(meta).toContain(".matter(({ html }) => html``)")
@@ -79,6 +79,6 @@ describe("Meta Create service", () => {
     const service = new MetaCreateService(() => [], cluster)
 
     await expect(service.create(request(), RPC_SOURCE)).rejects.toThrow("capability_denied")
-    await expect(readFile(join(cluster, ADDRESS, "meta.ts"), "utf8")).rejects.toMatchObject({code: "ENOENT"})
+    await expect(readFile(join(cluster, "lada-test", "meta.ts"), "utf8")).rejects.toMatchObject({code: "ENOENT"})
   })
 })

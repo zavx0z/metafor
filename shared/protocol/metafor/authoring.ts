@@ -375,7 +375,7 @@ export interface MetaStateDeclarationMoveRequest extends MetaDeclarationRequestB
 
 export interface MetaMassDeclaration {
   key: string
-  format: "json" | "binary"
+  format: "json" | "binary" | "directory"
   label?: string
   description?: string
 }
@@ -1154,8 +1154,8 @@ const massDeclaration = (
   validator.required(value, path, ["key", "format"])
   const key = validator.text(value.key, childPath(path, "key"), "Mass key")
   if (key?.includes("\0")) validator.issue(childPath(path, "key"), "invalid_mass_key", "Mass key must not contain NUL")
-  if (value.format !== "json" && value.format !== "binary") {
-    validator.issue(childPath(path, "format"), "invalid_mass_format", "Mass format must be json or binary")
+  if (value.format !== "json" && value.format !== "binary" && value.format !== "directory") {
+    validator.issue(childPath(path, "format"), "invalid_mass_format", "Mass format must be json, binary or directory")
   }
   const label = value.label === undefined
     ? undefined
@@ -1163,7 +1163,7 @@ const massDeclaration = (
   const description = value.description === undefined
     ? undefined
     : validator.text(value.description, childPath(path, "description"), "Mass description", true)
-  if (key === null || (value.format !== "json" && value.format !== "binary") || label === null || description === null) return null
+  if (key === null || (value.format !== "json" && value.format !== "binary" && value.format !== "directory") || label === null || description === null) return null
   return {
     key,
     format: value.format,

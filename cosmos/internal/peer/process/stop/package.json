@@ -1,0 +1,22 @@
+{
+  "name": "@internal/network-stop",
+  "label": "Завершение участия в сети",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "internal:server": "./index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@internal/peer": "workspace:*"
+  },
+  "description": "Завершение участия в сети после окончания принятых передач"
+}

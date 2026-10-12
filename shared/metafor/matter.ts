@@ -16,12 +16,12 @@ import type {
   MatterSchema,
   TopologyBasis,
 } from "@metafor/types/metafor/matter"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 
 const DEFAULT_MAX_DEPTH = 32
 const DEFAULT_MAX_CHILDREN = 512
 const DEFAULT_MAX_PARTICLES = 4_096
 
-const HUB_ADDRESS_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*$/
 const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/
 const MASS_KEY_PATH_RE = /^\/mass\/([^/]+)$/
 const EXECUTABLE_BINDING_RE = /=>|\bfunction\b|\bnew\s+|(?:\b[$A-Z_a-z][$\w]*|\]|\))\s*(?:\?\.)?\s*\(/
@@ -121,10 +121,10 @@ const validateTopologyBasis = (
 }
 
 const validateAddress = (src: string, location: string): void => {
-  if (!HUB_ADDRESS_RE.test(src)) {
+  if (!parseMetaAddress(src)) {
     violation(
       location,
-      `src "${src}" is not a valid Meta address. Use exactly owner/repository, such as "owner/project".`,
+      `src "${src}" is not a valid Meta package identity.`,
     )
   }
 }

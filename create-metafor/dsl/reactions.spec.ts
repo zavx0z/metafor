@@ -97,7 +97,7 @@ describe("Reaction declaration", () => {
       reaction({key: "bad-meta"})
         .filter([{meta: "three/segment/address", states: ["ready"]}])
         .equal(() => {}),
-    ]])).toThrow("<owner>/<repository>")
+    ]])).toThrow("Meta package identity")
   })
 
   test("requires a stable semantic key", () => {

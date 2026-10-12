@@ -17,7 +17,6 @@
 import {gravity$} from "@matrix/gravity/store.ts"
 import {matrix$} from "./store"
 import type {MatrixFieldValueRecord, MatrixStore, MatrixValue} from "@matrix/types/store"
-import type {MatrixFieldRecord} from "@matrix/types/data"
 import type {AsyncGate, MatrixPendingProcessExecution, MatrixUpdateOptions} from "@matrix/types/runtime"
 import type {
   ProcessExecutionClaim,
@@ -39,7 +38,7 @@ import {createStoredStringInterner, normalizeFieldValue, strong$} from "@matrix/
 import {StepMode, weakHeapUpdate, weakRunStep, weakStructuralUpdate, weak$} from "@matrix/weak"
 import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
-import {Force} from "shared/transport/force"
+import type {Force} from "shared/transport/force"
 import {
   consumePreparedMatrixBirth,
   consumePreparedMatrixProcessRestarts,
@@ -47,14 +46,15 @@ import {
   consumePreparedMatrixReactionRelations,
   consumePreparedMatrixReactionStates,
 } from "./birth.ts"
-import {applyMatrixProjectionParticle, recordMatrixProjectionState} from "./graph/projection.ts"
+import {applyMatrixProjectionParticle, recordMatrixProjectionState, readMatrixProcessFields} from "./graph/projection.ts"
 import {
   applyIncrementalMatrixProjection,
   initializeIncrementalMatrixIndexes,
 } from "./incremental.ts"
 import {MatrixReactionRouter} from "./reaction.ts"
 
-let force: Force
+type MatrixForce = Pick<Force, "onImpulse" | "onImpulseError" | "impulse">
+let force: MatrixForce
 const matrixGate: AsyncGate = {pending: null}
 const pendingProcessExecutionsByAtomId = new Map<number, MatrixPendingProcessExecution>()
 
@@ -169,21 +169,32 @@ const applyRuntimeFieldParts = async (
   kind: "gluon" | "higgs",
 ): Promise<[number, number][]> => {
   if (!weak$.initialized) return []
-  if (kind === "higgs") markHiggsClassScopeDirty(parts)
 
   const committedExecutionId = parts.length === 1 && isProcessExecutionId(parts[0]?.from)
     ? parts[0]!.from
     : null
+  let originBraneIndex: number | undefined
   if (committedExecutionId) {
-    const atomId = parseAtomIdPath(parts[0]!.path)
-    const pending = atomId === null ? undefined : pendingProcessExecutionsByAtomId.get(atomId)
-    if (!pending || pending.processExecutionId !== committedExecutionId) return []
+    // Boundary aliases retain the originating execution, but name the alias
+    // Atom in path. Only that execution's own brane skips its self-retrigger.
+    for (const pending of pendingProcessExecutionsByAtomId.values()) {
+      if (pending.processExecutionId !== committedExecutionId) continue
+      originBraneIndex = pending.braneIndex
+      break
+    }
+    if (originBraneIndex === undefined) return []
   }
 
+  if (kind === "higgs") markHiggsClassScopeDirty(parts)
+  const canonicalChangedAtomIds = parts.flatMap(part => applyMatrixProjectionParticle(part).affectedAtomIds)
   const updates = collectAtomFieldUpdates(parts, kind)
   if (updates.length === 0) return []
   return await update(updates, {
-    retriggerProcessStates: committedExecutionId === null,
+    processInputChangedBraneIndexes: canonicalChangedAtomIds.flatMap(atomId => {
+      const index = gravity$.getBraneIndexByAtomId(atomId)
+      return index === undefined ? [] : [index]
+    }),
+    ...(originBraneIndex === undefined ? {} : {skipProcessRetriggerBraneIndexes: [originBraneIndex]}),
   })
 }
 
@@ -243,30 +254,6 @@ const applyStructuralProjection = async (
   })
 }
 
-const collectProcessExecutionFields = (atomId: number, braneIndex: number): Record<string, unknown> => {
-  const fields: Record<string, unknown> = {}
-
-  for (let runtimeFieldIndex = 0; runtimeFieldIndex < strong$.atomFieldIdsByRuntimeFieldIndex.length; runtimeFieldIndex++) {
-    for (const [fieldAtomId, fieldId] of strong$.atomFieldIdsByRuntimeFieldIndex[runtimeFieldIndex] ?? []) {
-      if (fieldAtomId !== atomId) continue
-      const value = matrix$.getFieldValue(braneIndex, runtimeFieldIndex)
-      if (value === undefined) continue
-      const field = matrix$.fields[runtimeFieldIndex]
-      if (field?.enum !== undefined && typeof value === "number") {
-        fields[String(fieldId)] = structuredClone(field.enum[value])
-      } else if (field?.type === FieldType.STRING_PTR && typeof value === "number") {
-        fields[String(fieldId)] = matrix$.stringTable[value] ?? ""
-      } else if (field?.type === FieldType.ARRAY_PTR && field.elementType === "string" && Array.isArray(value)) {
-        fields[String(fieldId)] = value.map((item) => typeof item === "number" ? matrix$.stringTable[item] ?? "" : "")
-      } else {
-        fields[String(fieldId)] = structuredClone(value satisfies MatrixValue)
-      }
-    }
-  }
-
-  return fields
-}
-
 const cloneProcessExecutionFields = (fields: Record<string, unknown>): Record<string, unknown> =>
   structuredClone(fields) as Record<string, unknown>
 
@@ -277,7 +264,7 @@ const rememberPendingProcessExecution = (braneIndex: number, stateIndex: number)
     braneIndex,
     stateIndex,
     processExecutionId: crypto.randomUUID(),
-    fields: cloneProcessExecutionFields(collectProcessExecutionFields(atomId, braneIndex)),
+    fields: readMatrixProcessFields(atomId),
   })
 }
 
@@ -299,12 +286,12 @@ const syncProcessLocksForChanges = (changes: [number, number][], stateChanges: [
     if (isStateChange) {
       brane.lock = shouldLock
       weakUpdates.push({kind: "lock", braneIndex, value: shouldLock})
-    } else {
-      if (brane.lock === shouldLock) continue
+    } else if (brane.lock !== shouldLock) {
       brane.lock = shouldLock
       weakUpdates.push({kind: "lock", braneIndex, value: shouldLock})
     }
 
+    // A same-State retrigger replaces its snapshot/identity even while locked.
     if (shouldLock) rememberPendingProcessExecution(braneIndex, stateIndex)
     else clearPendingProcessExecution(braneIndex)
   }
@@ -459,7 +446,7 @@ export async function update(
       {kind: "field"; braneIndex: number; fieldIndex: number} |
       {kind: "lock"; braneIndex: number; value: boolean}
     > = []
-    const affectedBraneIndexes = new Set<number>()
+    const affectedBraneIndexes = new Set<number>(options.processInputChangedBraneIndexes)
     let explicitTick = false
 
     for (const [braneIndex, fieldUpdates, lock] of updates) {
@@ -496,7 +483,7 @@ export async function update(
       }
     }
 
-    if (weakUpdates.length === 0 && !explicitTick) return []
+    if (weakUpdates.length === 0 && !explicitTick && affectedBraneIndexes.size === 0) return []
     weakHeapUpdate(weakUpdates)
     const changes = await weakRunStep()
     const photonTargets = options.retriggerProcessStates === false
@@ -516,86 +503,91 @@ export async function update(
   })
 }
 
-const preparedBirth = consumePreparedMatrixBirth()
-const restartProcessAtomIds = preparedBirth ? consumePreparedMatrixProcessRestarts() : []
-const initialReactionRelations = preparedBirth ? consumePreparedMatrixReactionRelations() : []
-const initialReactionStates = preparedBirth ? consumePreparedMatrixReactionStates() : []
-const initialReactionExecutions = preparedBirth ? consumePreparedMatrixReactionExecutions() : []
-reactionRouter.hydrate(initialReactionRelations, initialReactionStates, initialReactionExecutions)
-if (preparedBirth) initializeIncrementalMatrixIndexes()
-const birthChanges = preparedBirth ? await weakRunStep(StepMode.UndefinedOnly) : []
-const restartedProcessStates: [number, number][] = []
-for (const atomId of restartProcessAtomIds) {
-  const braneIndex = gravity$.getBraneIndexByAtomId(atomId)
-  const stateIndex = braneIndex === undefined ? undefined : matrix$.states[braneIndex]
-  if (
-    braneIndex === undefined || stateIndex === undefined ||
-    weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] !== true
-  ) throw new Error(`Cold Process restart target is invalid for Atom ${atomId}`)
-  restartedProcessStates.push([braneIndex, stateIndex])
-}
-const birthPhotonTargets = [...birthChanges, ...restartedProcessStates]
-if (birthPhotonTargets.length > 0) syncProcessLocksForChanges(birthPhotonTargets, birthChanges)
-
-force = new Force("matrix")
-force.onImpulseError = () => {
-  process.exit(1)
-}
-force.onImpulse = async (impulse) => {
-  const part = impulse.parts[0]
-
-  if (part.part === "graviton" && part.path === REACTION_RELATION_PATH) {
-    if (!isReactionRelation(part.value)) throw new Error("Matrix received an invalid Reaction relation")
-    applyMatrixProjectionParticle(part)
-    if (part.op === "remove") reactionRouter.remove(part.value.key)
-    else if (part.op === "add" || part.op === "replace") reactionRouter.upsert(part.value)
-    return
+/** Begins causal work only after the caller has hydrated the Matrix projection. */
+export async function startMatrixForce(createForce: () => MatrixForce): Promise<void> {
+  if (force) throw new Error("Matrix Force is already started")
+  const preparedBirth = consumePreparedMatrixBirth()
+  const restartProcessAtomIds = preparedBirth ? consumePreparedMatrixProcessRestarts() : []
+  const initialReactionRelations = preparedBirth ? consumePreparedMatrixReactionRelations() : []
+  const initialReactionStates = preparedBirth ? consumePreparedMatrixReactionStates() : []
+  const initialReactionExecutions = preparedBirth ? consumePreparedMatrixReactionExecutions() : []
+  reactionRouter.hydrate(initialReactionRelations, initialReactionStates, initialReactionExecutions)
+  if (preparedBirth) initializeIncrementalMatrixIndexes()
+  const birthChanges = preparedBirth ? await weakRunStep(StepMode.UndefinedOnly) : []
+  const restartedProcessStates: [number, number][] = []
+  for (const atomId of restartProcessAtomIds) {
+    const braneIndex = gravity$.getBraneIndexByAtomId(atomId)
+    const stateIndex = braneIndex === undefined ? undefined : matrix$.states[braneIndex]
+    if (
+      braneIndex === undefined || stateIndex === undefined ||
+      weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] !== true
+    ) throw new Error(`Cold Process restart target is invalid for Atom ${atomId}`)
+    restartedProcessStates.push([braneIndex, stateIndex])
   }
+  const birthPhotonTargets = [...birthChanges, ...restartedProcessStates]
+  if (birthPhotonTargets.length > 0) syncProcessLocksForChanges(birthPhotonTargets, birthChanges)
 
-  const projection = applyMatrixProjectionParticle(part)
+  force = createForce()
+  force.onImpulseError = () => {
+    process.exit(1)
+  }
+  force.onImpulse = async (impulse) => {
+    const part = impulse.parts[0]
 
-  if (part.part === "photon" && part.op === "copy" && isRecord(part.value) && part.value.kind === REACTION_QUEUE_COMMIT_KIND) {
-    if (!isReactionQueueCommit(part.value) || part.path !== part.value.request.targetAtomId ||
-        part.from !== part.value.request.reactionExecutionId) {
-      throw new Error("Matrix received an invalid Reaction queue commit")
+    if (part.part === "graviton" && part.path === REACTION_RELATION_PATH) {
+      if (!isReactionRelation(part.value)) throw new Error("Matrix received an invalid Reaction relation")
+      applyMatrixProjectionParticle(part)
+      if (part.op === "remove") reactionRouter.remove(part.value.key)
+      else if (part.op === "add" || part.op === "replace") reactionRouter.upsert(part.value)
+      return
     }
-    reactionRouter.confirmQueue(part.value)
-    return
+
+    if (part.part === "gluon" || part.part === "higgs") {
+      await applyRuntimeFieldParts([part], part.part)
+      return
+    }
+    const projection = applyMatrixProjectionParticle(part)
+
+    if (part.part === "photon" && part.op === "copy" && isRecord(part.value) && part.value.kind === REACTION_QUEUE_COMMIT_KIND) {
+      if (!isReactionQueueCommit(part.value) || part.path !== part.value.request.targetAtomId ||
+          part.from !== part.value.request.reactionExecutionId) {
+        throw new Error("Matrix received an invalid Reaction queue commit")
+      }
+      reactionRouter.confirmQueue(part.value)
+      return
+    }
+
+    if (part.part === "photon" && part.op === "copy" && isRecord(part.value) && part.value.kind === REACTION_STATE_COMMIT_KIND) {
+      if (!isReactionStateCommit(part.value)) throw new Error("Matrix received an invalid confirmed Reaction State")
+      reactionRouter.confirmState(part.value, part.ts)
+      return
+    }
+
+    if ((part.part === "w+" || part.part === "w-") && part.op === "copy" &&
+        isRecord(part.value) && Object.hasOwn(part.value, "reactionExecutionId")) {
+      if (!isReactionResultCommit(part.value)) throw new Error("Matrix received an invalid Reaction result commit")
+      reactionRouter.settle(part.value)
+      return
+    }
+
+    if (projection.structural) {
+      await applyStructuralProjection(projection)
+      return
+    }
+
+    if (part.part === "z") {
+      applyEnergyExecutionRequest(part)
+      return
+    }
+    if (part.part === "w+" || part.part === "w-") {
+      await applyCommittedWeakResult(part)
+    }
   }
 
-  if (part.part === "photon" && part.op === "copy" && isRecord(part.value) && part.value.kind === REACTION_STATE_COMMIT_KIND) {
-    if (!isReactionStateCommit(part.value)) throw new Error("Matrix received an invalid confirmed Reaction State")
-    reactionRouter.confirmState(part.value, part.ts)
-    return
-  }
+  if (birthPhotonTargets.length > 0) publishPhotonChanges(birthPhotonTargets)
+  reactionRouter.resumeColdStart()
 
-  if ((part.part === "w+" || part.part === "w-") && part.op === "copy" &&
-      isRecord(part.value) && Object.hasOwn(part.value, "reactionExecutionId")) {
-    if (!isReactionResultCommit(part.value)) throw new Error("Matrix received an invalid Reaction result commit")
-    reactionRouter.settle(part.value)
-    return
-  }
-
-  if (projection.structural) {
-    await applyStructuralProjection(projection)
-    return
-  }
-
-  if (part.part === "gluon" || part.part === "higgs") {
-    await applyRuntimeFieldParts([part], part.part)
-    return
-  }
-  if (part.part === "z") {
-    applyEnergyExecutionRequest(part)
-    return
-  }
-  if (part.part === "w+" || part.part === "w-") {
-    await applyCommittedWeakResult(part)
-  }
 }
-
-if (birthPhotonTargets.length > 0) publishPhotonChanges(birthPhotonTargets)
-reactionRouter.resumeColdStart()
 
 export {FieldType} from "./gravity"
 export {gravity$}

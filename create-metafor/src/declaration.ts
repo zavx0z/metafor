@@ -1,25 +1,19 @@
 import {parseSync, Visitor, type OxcError} from "oxc-parser"
+import {normalizeMetaLifecycle, type MetaLifecycle} from "@metafor/types/metafor/lifecycle"
 import type {
   ArrayExpression,
-  ArrowFunctionExpression,
   CallExpression,
   Expression,
-  Function as FunctionNode,
-  Node,
   ObjectExpression,
-  ObjectProperty,
   Program,
 } from "@oxc-project/types"
 import {dirname, resolve} from "node:path"
 import type {
-  MetaBulkDeclaration,
   MetaDeclarationRequest,
-  MetaMassDeclaration,
   MetaOptionalFieldDeclaration,
   MetaProcessDeclaration,
   MetaReactionDeclaration,
   MetaSourcePrecondition,
-  MetaStateDeclaration,
 } from "shared/protocol/metafor/authoring"
 import type {MetaAddress} from "@metafor/types/metafor/graph"
 import type {
@@ -61,6 +55,7 @@ export interface DeclarationMetaSnapshot {
   source: string
   name?: string
   description?: string
+  lifecycle?: MetaLifecycle
   fields: readonly MetaFieldDSL[]
   states?: readonly MetaSuperpositionDSL[]
   mass?: readonly MetaMassDSL[]
@@ -177,6 +172,8 @@ const propertyKey = (key: string): string =>
   /^[$A-Z_a-z][$\w]*$/u.test(key) ? key : json(key)
 
 const replaceFieldsObject = (snapshot: DeclarationMetaSnapshot, fields: readonly MetaFieldDSL[]): string => {
+  try {normalizeMetaLifecycle(snapshot.lifecycle, fields)}
+  catch (error) {throw new DeclarationPatchError("invalid_declaration", error instanceof Error ? error.message : String(error))}
   const range = fieldsObjectRange(snapshot.source)
   const childIndent = `${range.callIndent}  `
   const object = fields.length === 0
@@ -934,7 +931,8 @@ const planOtherDeclarationPatch = (
     return {
       particle: {parts: [{
         part: "inflaton", op: "replace", path: "wimp", ts: timestamp,
-        value: {src: current.address, name: request.metadata.name, desc: request.metadata.description ?? null},
+        value: {src: current.address, name: request.metadata.name, desc: request.metadata.description ?? null,
+          ...(current.lifecycle === undefined ? {} : {lifecycle: structuredClone(current.lifecycle)})},
       }]},
       sourceEdits: [genericEdit(current, metadataSource(current, request.metadata))],
     }

@@ -8,6 +8,16 @@ export type RemoteForceDomain = Exclude<ForceDomain, "dark">
 
 export const remoteForceDomains = ["boundary", "matrix", "energy", "bulk"] as const satisfies readonly RemoteForceDomain[]
 
+/** Проверяет полный причинный состав; архивная Bulk projection может отсутствовать. */
+export function forceParticipants(domains: readonly ForceDomain[] = forceDomains): ForceDomain[] {
+  if (!Array.isArray(domains) || new Set(domains).size !== domains.length
+    || domains.some(domain => !forceDomains.includes(domain))
+    || ["dark", "boundary", "matrix", "energy"].some(domain => !domains.includes(domain as ForceDomain))) {
+    throw new Error("Force participants must contain Dark, Boundary, Matrix and Energy, with optional Bulk")
+  }
+  return forceDomains.filter(domain => domains.includes(domain))
+}
+
 /**
  * Типизированный канал одного обязательного runtime-домена.
  *

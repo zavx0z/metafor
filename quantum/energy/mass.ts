@@ -1,5 +1,6 @@
 import {mkdir, open, readFile, lstat, rename, unlink} from "node:fs/promises"
 import {dirname, join, resolve} from "node:path"
+import type {MassDirectoryHandle, MassDirectoryLease} from "@metafor/types/metafor/mass"
 import type {EnergyMassArtifact} from "@energy/types/catalog"
 import type {EnergyMassContext, EnergyMassStore} from "@energy/types/mass"
 import {massFileName, type MassFileFormat} from "../../shared/mass.ts"
@@ -21,6 +22,7 @@ export class EnergyMassGate {
   #generation = new Map<string, number>()
   #live = new Set<string>()
   #fenced = new Set<string>()
+  #signals = new Map<string, Set<AbortController>>()
   #retargeted = new Map<string, {
     entryId: string
     generation: number
@@ -39,14 +41,31 @@ export class EnergyMassGate {
       return retargeted.generation
     }
     const previous = this.#generation.get(identity)
-    if (previous !== undefined) this.#live.delete(`${identity}\0${previous}`)
+    if (previous !== undefined) this.retire(identity, previous)
     const generation = (previous ?? 0) + 1
     this.#generation.set(identity, generation)
     this.#live.add(`${identity}\0${generation}`)
     return generation
   }
   revoke(atom: number, declaration: number, key: string, generation: number): void {
-    this.#live.delete(`${this.identity(atom, declaration, key)}\0${generation}`)
+    this.retire(this.identity(atom, declaration, key), generation)
+  }
+  private retire(identity: string, generation: number): void {
+    const key = `${identity}\0${generation}`
+    this.#live.delete(key)
+    for (const controller of this.#signals.get(key) ?? []) controller.abort(new Error("Directory Mass lease generation retired"))
+    this.#signals.delete(key)
+  }
+  watch(atom: number, declaration: number, key: string, generation: number, controller: AbortController): () => void {
+    this.assert(atom, declaration, key, generation)
+    const identity = `${this.identity(atom, declaration, key)}\0${generation}`
+    const controllers = this.#signals.get(identity) ?? new Set<AbortController>()
+    controllers.add(controller)
+    this.#signals.set(identity, controllers)
+    return () => {
+      controllers.delete(controller)
+      if (!controllers.size) this.#signals.delete(identity)
+    }
   }
   fence(atom: number, declaration: number, key: string): void {
     this.#fenced.add(this.identity(atom, declaration, key))
@@ -106,7 +125,12 @@ export class EnergyMassGate {
   }
 }
 
-/** Flat worktree-local file catalog. No caller-provided filesystem path exists. */
+type DirectoryWriter = {controller: AbortController}
+// Exclusivity is by persisted key within this process, across Atom bindings and catalogs.
+const directoryWriters = new Map<string, DirectoryWriter>()
+type Guard = {gate: EnergyMassGate; atom: number; generation: number}
+
+/** Energy-owned file/directory materialization. Key identity, not caller input, determines its path. */
 export class EnergyMassCatalog {
   readonly root: string
 
@@ -202,53 +226,131 @@ export class EnergyMassCatalog {
     await this.write(to, format, await this.read(from, format))
   }
 
-  handle(artifact: Pick<EnergyMassArtifact, "id" | "keyId" | "format">, guard?: {gate: EnergyMassGate; atom: number; generation: number}): EnergyMassHandle {
+  private async directoryPath(keyId: string, create = true): Promise<string> {
+    if (!keyPattern.test(keyId)) throw new Error("Energy Mass key is not a Boundary-issued key ID")
+    const target = join(this.root, `${keyId}.dir`)
+    const parts: string[] = []
+    let current = this.root
+    while (current !== dirname(current)) {parts.unshift(current); current = dirname(current)}
+    const verify = async () => {
+      for (const path of [...parts, target]) {
+        try {
+          const info = await lstat(path)
+          if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("Directory Mass path must contain real directories only")
+        } catch (error) {
+          if (!create || (error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+        }
+      }
+    }
+    await verify()
+    if (!create) return target
+    await mkdir(this.root, {recursive: true, mode: 0o700})
+    await mkdir(target, {mode: 0o700}).catch(error => {if (error.code !== "EEXIST") throw error})
+    await verify()
+    return target
+  }
+
+  /** Owner-internal readonly location; caller resolves the key from a canonical declaration first. */
+  async locateDirectory(keyId: string): Promise<string> {return await this.directoryPath(keyId, false)}
+
+  private directoryHandle(artifact: Pick<EnergyMassArtifact, "id" | "keyId" | "format">, guard?: Guard): MassDirectoryHandle {
+    return {
+      acquire: async (): Promise<MassDirectoryLease> => {
+        if (!guard) throw new Error("Directory Mass requires Boundary-authorized generation")
+        guard.gate.assert(guard.atom, artifact.id, artifact.keyId, guard.generation)
+        const key = `${this.root}\0${artifact.keyId}`
+        if (directoryWriters.has(key)) throw new Error("Directory Mass writer lease is busy, including retired generations")
+        const writer: DirectoryWriter = {controller: new AbortController()}
+        directoryWriters.set(key, writer)
+        let unwatch = () => {}
+        try {
+          unwatch = guard.gate.watch(guard.atom, artifact.id, artifact.keyId, guard.generation, writer.controller)
+          const path = await this.directoryPath(artifact.keyId)
+          guard.gate.assert(guard.atom, artifact.id, artifact.keyId, guard.generation)
+          let released = false
+          return Object.freeze({path, signal: writer.controller.signal, release: async () => {
+            if (released) return
+            released = true
+            unwatch()
+            writer.controller.abort(new Error("Directory Mass lease released"))
+            if (directoryWriters.get(key) === writer) directoryWriters.delete(key)
+          }})
+        } catch (error) {
+          unwatch()
+          if (directoryWriters.get(key) === writer) directoryWriters.delete(key)
+          // Filesystem diagnostics may contain host paths; keep them out of Process result Fields.
+          throw new Error(error instanceof Error && error.message.startsWith("Directory Mass") ? error.message : "Directory Mass path preparation failed")
+        }
+      },
+    }
+  }
+
+  handle(artifact: {id: number; keyId: string; format: "directory"}, guard?: Guard): MassDirectoryHandle
+  handle(artifact: {id: number; keyId: string; format: MassFileFormat}, guard?: Guard): EnergyMassHandle
+  handle(artifact: Pick<EnergyMassArtifact, "id" | "keyId" | "format">, guard?: Guard): EnergyMassHandle | MassDirectoryHandle
+  handle(artifact: Pick<EnergyMassArtifact, "id" | "keyId" | "format">, guard?: Guard): EnergyMassHandle | MassDirectoryHandle {
+    if (artifact.format === "directory") return this.directoryHandle(artifact, guard)
+    const format = artifact.format
     const live = (): void => guard?.gate.assert(guard.atom, artifact.id, artifact.keyId, guard.generation)
     return {
       keyId: artifact.keyId,
-      format: artifact.format,
-      readBytes: async () => { live(); return await this.read(artifact.keyId, artifact.format) },
-      readText: async () => {
+      format,
+      readBytes: async () => { live(); return await this.read(artifact.keyId, format) },
+      readText: async () => {live(); return new TextDecoder().decode(await this.read(artifact.keyId, format))},
+      readJson: async <Value>() => {live(); return JSON.parse(new TextDecoder().decode(await this.read(artifact.keyId, format))) as Value},
+      write: async value => {
         live()
-        return new TextDecoder().decode(await this.read(artifact.keyId, artifact.format))
-      },
-      readJson: async <Value>() => {
-        live()
-        return JSON.parse(new TextDecoder().decode(await this.read(artifact.keyId, artifact.format))) as Value
-      },
-      write: async (value) => {
-        live()
-        if (artifact.format === "json") await this.write(artifact.keyId, artifact.format, JSON.stringify(value))
-        else if (value instanceof Uint8Array) await this.write(artifact.keyId, artifact.format, value)
+        if (format === "json") await this.write(artifact.keyId, format, JSON.stringify(value))
+        else if (value instanceof Uint8Array) await this.write(artifact.keyId, format, value)
         else throw new Error("Binary Mass accepts Uint8Array only")
       },
     }
   }
 }
 
-/** Energy-local handle projection. It contains no membership or source registry. */
+/** Energy-local handle projection; leases are not causal work and do not delay quiescence. */
 export const createFilesystemEnergyMassStore = (
   gate = new EnergyMassGate(),
   catalog = new EnergyMassCatalog(),
 ): EnergyMassStore => {
   const values = new Map<string, Record<string, unknown>>()
+  const grants = new Map<string, Array<{atom: number; artifact: EnergyMassArtifact; generation: number}>>()
   const keyOf = (ctx: EnergyMassContext): string => `${ctx.wimp}\0${ctx.atomId}`
+  const retire = (entry: {atom: number; artifact: EnergyMassArtifact; generation: number}) => {
+    // Retired destroy keeps the existing file-handle contract; directory acquire must cease immediately.
+    if (entry.artifact.format === "directory") gate.revoke(entry.atom, entry.artifact.id, entry.artifact.keyId, entry.generation)
+  }
   return {
     get(ctx) {
       const key = keyOf(ctx)
       let value = values.get(key)
-      if (!value) {
-        value = {}
-        values.set(key, value)
-      }
+      if (!value) {value = {}; values.set(key, value)}
       return value
     },
-    bind(ctx, value) { values.set(keyOf(ctx), value) },
+    bind(ctx, value) {values.set(keyOf(ctx), value)},
     authorize(ctx, artifacts) {
-      values.set(keyOf(ctx), Object.fromEntries(artifacts.map((artifact) => [artifact.key, catalog.handle(artifact, {
-        gate, atom: ctx.atomId, generation: gate.authorize(ctx.atomId, artifact.id, artifact.keyId),
-      })])))
+      const key = keyOf(ctx)
+      const previous = grants.get(key) ?? []
+      for (const entry of previous) if (!artifacts.some(artifact => artifact.id === entry.artifact.id && artifact.keyId === entry.artifact.keyId)) retire(entry)
+      const next = artifacts.map(artifact => {
+        const current = artifact.format === "directory" ? previous.find(entry =>
+          entry.artifact.id === artifact.id && entry.artifact.keyId === artifact.keyId && entry.artifact.format === artifact.format,
+        ) : undefined
+        // File handles retain their existing generation refresh contract. A live directory grant survives metadata republishing.
+        let generation: number | undefined
+        if (current) {
+          try {if (gate.generation(ctx.atomId, artifact.id, artifact.keyId) === current.generation) generation = current.generation} catch {}
+        }
+        generation ??= gate.authorize(ctx.atomId, artifact.id, artifact.keyId)
+        return {atom: ctx.atomId, artifact, generation}
+      })
+      grants.set(key, next)
+      values.set(key, Object.fromEntries(next.map(entry => [entry.artifact.key, catalog.handle(entry.artifact, {gate, atom: entry.atom, generation: entry.generation})])))
     },
-    clear() { values.clear() },
+    clear() {
+      for (const entries of grants.values()) for (const entry of entries) retire(entry)
+      grants.clear()
+      values.clear()
+    },
   }
 }

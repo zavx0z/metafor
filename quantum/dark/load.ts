@@ -1,29 +1,18 @@
 import "@metafor/dsl"
+import {pathToFileURL} from "node:url"
 import {readFile} from "node:fs/promises"
-import {resolve} from "node:path"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
-import settings from "./settings.yml"
+import {defaultMetaSourceResolver, type MetaSourceResolver} from "shared/metafor/source"
+export {canonicalMetaSource} from "shared/metafor/source"
 
-const {CLUSTER, MODULE} = settings
-const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
+/** Dark разрешает canonical src через выбранный source либо installed adapter. */
+export const resolveMetaPath = (address: string, resolver: MetaSourceResolver = defaultMetaSourceResolver()): string =>
+  resolver.resolveMetaPath(address)
 
-export const canonicalMetaSource = (address: string): boolean => {
-  const segments = address.split("/")
-  return segments.length === 2 &&
-    segments.every((segment) => SEGMENT.test(segment))
-}
-
-const assertMetaSource = (address: string): void => {
-  if (!canonicalMetaSource(address)) {
-    throw new Error(
-      `Неканонический WIMP src: ${address}. Ожидается <owner>/<repository>`,
-    )
-  }
-}
-
-export const resolveMetaPath = (address: string): string => {
-  assertMetaSource(address)
-  return resolve(import.meta.dir, "..", CLUSTER, address, MODULE)
+/** Authoring требует source preparation; установленный код остаётся read-only. */
+export const resolveMetaAuthoringPath = (address: string, resolver: MetaSourceResolver = defaultMetaSourceResolver()): string => {
+  if (resolver.installed) throw new Error("Meta authoring requires a source preparation root")
+  return resolver.resolveMetaPath(address)
 }
 
 const transpiler = new Bun.Transpiler({loader: "ts", target: "bun"})
@@ -42,9 +31,22 @@ export const evaluateMetaSource = async (source: string): Promise<MetaDSL> => {
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
-export const loadMeta = async (address: string): Promise<MetaDSL> => {
-  const sourcePath = resolveMetaPath(address)
+/**
+Dark читает декларацию из выбранного [источника Meta](../../docs/META_PACKAGES.md).
+Source mode повторно оценивает текущие bytes; installed mode импортирует exact
+entry file URL, сохраняя относительные compiled chunks и module cache immutable
+артефакта. Проверку принадлежности и bytes installed mapping выполняет storage
+owner до передачи adapter. Missing entry отклоняется без source fallback.
+Проверки обоих режимов: [load](./load.spec.ts).
+*/
+export const loadMeta = async (address: string, resolver?: MetaSourceResolver): Promise<MetaDSL> => {
+  const selected = resolver ?? defaultMetaSourceResolver()
+  const sourcePath = resolveMetaPath(address, selected)
   try {
+    if (selected.installed) {
+      const module = await import(pathToFileURL(sourcePath).href)
+      return (module.default ?? module) as MetaDSL
+    }
     return await evaluateMetaSource(await readFile(sourcePath, "utf8"))
   } catch (error) {
     throw new Error(`Не удалось загрузить DSL: ${sourcePath} — ${errorMessage(error)}`)

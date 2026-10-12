@@ -1,5 +1,5 @@
-import {existsSync} from "node:fs"
-import {dirname, isAbsolute, resolve} from "node:path"
+import {defaultMetaSourceResolver, type MetaSourceResolver} from "shared/metafor/source"
+import {isAbsolute, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
 import type {EnergyAtomEntity} from "@energy/types/catalog"
 import type {
@@ -108,25 +108,24 @@ const canExecuteInRuntime = (descriptor: EnergyProcessDescriptor, runtimeKind: s
 
 const isUrlSpecifier = (specifier: string): boolean => /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(specifier)
 
-const resolveWimpSourceDir = (wimp: string): string => {
-  const root = resolve(import.meta.dir, "..")
-  const directMeta = resolve(root, "cluster", wimp, "meta.ts")
-  const srcMeta = resolve(root, "cluster", wimp, "src", "meta.ts")
-  if (existsSync(directMeta)) return dirname(directMeta)
-  if (existsSync(srcMeta)) return dirname(srcMeta)
-  return resolve(root, "cluster", wimp)
-}
-
-export const resolveActionImportSpecifier = (specifier: string, wimp: string): string => {
+/**
+Energy разрешает относительный action import от directory выбранного Meta
+adapter; installed adapter указывает на доставленный код, source adapter — на
+подготовленный sibling checkout. Explicit URL, absolute и package specifiers
+сохраняют прежнюю семантику. Protocol фиксирует adapter на весь свой lifecycle,
+включая handlers и retired finalizers. [Проверки](./energy.spec.ts) исполняют
+cached wrapper и success imports без source checkout.
+*/
+export const resolveActionImportSpecifier = (specifier: string, wimp: string, resolver: MetaSourceResolver = defaultMetaSourceResolver()): string => {
   if (isUrlSpecifier(specifier)) return specifier
   if (isAbsolute(specifier)) return pathToFileURL(specifier).href
   if (!specifier.startsWith(".")) return specifier
-  return pathToFileURL(resolve(resolveWimpSourceDir(wimp), specifier)).href
+  return pathToFileURL(resolve(resolver.resolveDirectory(wimp), specifier)).href
 }
 
-const rewriteWrapperDynamicImports = (source: string, wimp: string): string =>
+const rewriteWrapperDynamicImports = (source: string, wimp: string, resolver?: MetaSourceResolver): string =>
   source.replace(/\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g, (_match, _quote, specifier: string) =>
-    `import(${JSON.stringify(resolveActionImportSpecifier(specifier, wimp))})`,
+    `import(${JSON.stringify(resolveActionImportSpecifier(specifier, wimp, resolver))})`,
   )
 
 const buildActionValue = (
@@ -322,11 +321,12 @@ const executeProcessHandler = async (
   handler: EnergyHandlerDescriptor | undefined,
   fields: Record<string, unknown>,
   params: Record<string, unknown>,
+  resolver?: MetaSourceResolver,
 ): Promise<Record<string, unknown>> => {
   if (!handler) return {}
 
   const collector = collectHandlerFields(handler.writeFields)
-  const fn = (0, eval)(`(${rewriteWrapperDynamicImports(handler.src, pending.wimp)})`)
+  const fn = (0, eval)(`(${rewriteWrapperDynamicImports(handler.src, pending.wimp, resolver)})`)
   if (typeof fn !== "function") throw new Error("Energy process handler did not evaluate to a function")
   await fn({...params, update: collector.update, value: buildActionValue(fields, handler.readFields)})
   return collector.fields
@@ -339,9 +339,10 @@ const executeProcess = async (
   signal: AbortSignal,
   mass: Record<string, unknown>,
   energy: Record<string, unknown>,
+  resolver?: MetaSourceResolver,
 ): Promise<unknown> => {
   if (pending.descriptor.type === "finally") {
-    return await executeFinally(pending.wimp, pending.descriptor, mass, energy, signal)
+    return await executeFinally(pending.wimp, pending.descriptor, mass, energy, signal, resolver)
   }
 
   const params: EnergyActionParams = {
@@ -358,12 +359,12 @@ const executeProcess = async (
   }
 
   if (pending.descriptor.action.wrapperSrc) {
-    const fn = (0, eval)(`(${rewriteWrapperDynamicImports(pending.descriptor.action.wrapperSrc, pending.wimp)})`)
+    const fn = (0, eval)(`(${rewriteWrapperDynamicImports(pending.descriptor.action.wrapperSrc, pending.wimp, resolver)})`)
     if (typeof fn !== "function") throw new Error("Energy wrapperSrc did not evaluate to a function")
     return await fn(params)
   }
 
-  const module = await import(resolveActionImportSpecifier(pending.descriptor.action.src, pending.wimp))
+  const module = await import(resolveActionImportSpecifier(pending.descriptor.action.src, pending.wimp, resolver))
   const fn = pending.descriptor.action.importSpecifier
     ? module[pending.descriptor.action.importSpecifier]
     : module.default
@@ -379,8 +380,9 @@ const executeFinally = async (
   mass: Record<string, unknown>,
   energy: Record<string, unknown>,
   signal: AbortSignal,
+  resolver?: MetaSourceResolver,
 ): Promise<unknown> => {
-  const fn = (0, eval)(`(${rewriteWrapperDynamicImports(descriptor.before.src, wimp)})`)
+  const fn = (0, eval)(`(${rewriteWrapperDynamicImports(descriptor.before.src, wimp, resolver)})`)
   if (typeof fn !== "function") throw new Error("Energy finally before did not evaluate to a function")
   return await fn({energy, mass, signal})
 }
@@ -395,6 +397,7 @@ type RetiredAtomDestroy = {
 
 export function startEnergyProtocol(options: StartEnergyProtocolOptions): EnergyProtocol {
   const force = options.force
+  const sourceResolver = options.sourceResolver ?? defaultMetaSourceResolver()
   const energyId = options.energyId ?? readEnergyId()
   const runtimeKind = options.runtimeKind ?? readRuntimeKind()
   const ownsMassStore = options.massStore === undefined
@@ -439,7 +442,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
       for (const process of retired.processes) {
         if (controller.signal.aborted) break
         try {
-          await executeFinally(retired.wimp, process.descriptor, retired.mass, retired.energy, controller.signal)
+          await executeFinally(retired.wimp, process.descriptor, retired.mass, retired.energy, controller.signal, sourceResolver)
         } catch (error) {
           console.error(
             `[energy] destroy failed atom=${retired.atomId} wimp=${retired.wimp} state=${process.state}: ${toError(error).message}`,
@@ -516,6 +519,10 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
       for (const atomId of change.affectedAtomIds) {
         const atom = catalog.atoms.get(atomId)
         if (atom) massStore.authorize?.(runtimeContext(energyId, atom, ""), catalog.mass(atomId))
+        else {
+          const previous = previousBindings.get(atomId)
+          if (previous) massStore.authorize?.(runtimeContext(energyId, previous.atom, previous.state), [])
+        }
       }
       if (!change.changed) return
       const affectedAtomIds = [...new Set([...affectedBefore, ...change.affectedAtomIds])]
@@ -711,7 +718,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           const running = runningByAtomId.get(atomId)
           return running?.pending.processExecutionId === pending.processExecutionId && !controller.signal.aborted
         }
-        trackTask(executeProcess(pending, grant.fields, catalog, controller.signal, mass, energy)
+        trackTask(executeProcess(pending, grant.fields, catalog, controller.signal, mass, energy, sourceResolver)
           .then(async (data) => {
             if (!isCurrent()) return
             if (pending.descriptor.type === "finally") {
@@ -726,7 +733,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
             }
             let fields: Record<string, unknown>
             try {
-              fields = await executeProcessHandler(pending, pending.descriptor.success, grant.fields, {data})
+              fields = await executeProcessHandler(pending, pending.descriptor.success, grant.fields, {data}, sourceResolver)
             } catch (error) {
               if (!isCurrent()) return
               const proposal: ProcessResultProposal = {
@@ -761,7 +768,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
               return
             }
             try {
-              const fields = await executeProcessHandler(pending, pending.descriptor.error, grant.fields, {error: actionError})
+              const fields = await executeProcessHandler(pending, pending.descriptor.error, grant.fields, {error: actionError}, sourceResolver)
               const proposal: ProcessResultProposal = {
                 processExecutionId: pending.processExecutionId,
                 processId: pending.processId,

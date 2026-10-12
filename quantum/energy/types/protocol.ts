@@ -1,3 +1,4 @@
+import type {MetaSourceResolver} from "shared/metafor/source"
 import type { EnergyMassStore } from "./mass.ts"
 import type {EnergyRuntimeStore} from "./energy.ts"
 import type {ForceMessage} from "shared/protocol/force/message"
@@ -19,6 +20,8 @@ export type EnergyProtocolOptions = {
   runtimeKind?: string
   massStore?: EnergyMassStore
   energyStore?: EnergyRuntimeStore
+  /** Source preparation or explicitly supplied installed artifacts; no automatic source fallback. */
+  sourceResolver?: MetaSourceResolver
   /** Fatal domain invariant failure, distinct from a failed user Process/Reaction. */
   onFatal?(error: Error): void | Promise<void>
 }

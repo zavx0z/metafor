@@ -1,3 +1,4 @@
+import {createMetaSourceResolver, type MetaSourceResolver} from "shared/metafor/source"
 import {Buffer} from "node:buffer"
 import {describe, expect, spyOn, test} from "bun:test"
 import {mkdtemp, rm, writeFile} from "node:fs/promises"
@@ -94,6 +95,7 @@ const createHarness = (
   runtimeKind = "server",
   massStore?: EnergyMassStore,
   energyStore?: EnergyRuntimeStore,
+  sourceResolver?: MetaSourceResolver,
 ) => {
   const messages: ForceMessage[] = []
   const processByState = new Map<string, EnergyProcessEntity>()
@@ -110,6 +112,7 @@ const createHarness = (
     runtimeKind,
     ...(massStore ? {massStore} : {}),
     ...(energyStore ? {energyStore} : {}),
+    ...(sourceResolver ? {sourceResolver} : {}),
   })
 
   const seed = (next: TestCatalog): void => {
@@ -239,10 +242,35 @@ const dataUrlAction = (source: string): string =>
   `data:application/javascript;base64,${Buffer.from(source).toString("base64")}`
 
 describe("Energy process protocol", () => {
-  test("resolves WIMP action modules from the physical Cluster", () => {
-    expect(fileURLToPath(resolveActionImportSpecifier("./actions/start.ts", "zavx0z/capsule"))).toBe(
-      resolve(import.meta.dir, "../cluster/zavx0z/capsule/actions/start.ts"),
+  test("resolves action modules from the supplied installed artifact directory without checkout discovery", () => {
+    const root = resolve(import.meta.dir, "fixtures", "installed")
+    const resolver = createMetaSourceResolver({root, artifacts: {"zavx0z/capsule": {directory: "objects/capsule", entry: "server.js"}}})
+    expect(fileURLToPath(resolveActionImportSpecifier("./actions/start.js", "zavx0z/capsule", resolver))).toBe(
+      resolve(root, "objects/capsule/actions/start.js"),
     )
+  })
+
+  test("executes cached wrapper actions and success imports through the injected installed resolver", async () => {
+    const root = await mkdtemp(join(tmpdir(), "energy-installed-actions-"))
+    const resolver = createMetaSourceResolver({root, artifacts: {"owner/process": {directory: "."}}})
+    await writeFile(join(root, "ready.js"), "export default () => 'cached-action'\n")
+    await writeFile(join(root, "success.js"), "export default data => ({result:data})\n")
+    const process = processEntry("ready", {
+      src: "./ready.js",
+      wrapperSrc: "async params => (await import('./ready.js')).default(params)",
+      readFields: [],
+    }, ["server"], {
+      success: {src: "async ({update,data}) => update((await import('./success.js')).default(data))", readFields: [], writeFields: [[3, "result"]]},
+    })
+    const harness = createHarness("energy-cached", {atoms: [[17, "owner/process"]], processes: [process]}, "server", undefined, undefined, resolver)
+    try {
+      const execution = await claimAndCopy(harness, "ready", {})
+      await waitFor(() => collectParts(harness.messages, "w+", "replace").length > 0)
+      expectProposal(collectParts(harness.messages, "w+", "replace")[0], "w+", harness, execution, {"3": "cached-action"})
+    } finally {
+      harness.close()
+      await rm(root, {recursive: true, force: true})
+    }
   })
 
   test("ignores photon/replace", async () => {

@@ -216,6 +216,7 @@ const mass = (directory: string): CheckpointMassCapture[] => {
   return readdirSync(root).toSorted().map((name) => {
     const filename = join(root, name)
     const stat = lstatSync(filename)
+    if (name.endsWith(".dir") || stat.isDirectory()) throw new Error("Directory Mass capture is temporarily unsupported")
     if (!stat.isFile() || stat.isSymbolicLink()) {
       throw new Error(`Checkpoint Mass entry is not a regular file: ${filename}`)
     }
@@ -347,6 +348,9 @@ const samePublishedCurrentCapture = (
 export const publishCurrentOfflineCheckpoint = (
   publication: CurrentOfflineCheckpointPublication,
 ): CheckpointWriteResult => {
+  if ([publication.base, publication.result].some(graph => Object.values(graph.template).some(meta => meta.mass.some(mass => mass.format === "directory")))) {
+    throw new Error("Directory Mass capture is temporarily unsupported")
+  }
   const fromSequence = (publication.previousSnapshotSequence ?? 0) + 1
   if (
     !Number.isSafeInteger(publication.sequence) ||
@@ -456,6 +460,11 @@ export const captureOfflineCheckpoint = async (
 ): Promise<OfflineCheckpointCaptureResult> => {
   const root = parseMetaAddress(options.root)
   if (!root) throw new Error("Checkpoint root must be a canonical two-segment Meta address")
+  for (const name of readdirSync(options.massDirectory)) {
+    if (name.endsWith(".dir") || lstatSync(join(options.massDirectory, name)).isDirectory()) {
+      throw new Error("Directory Mass capture is temporarily unsupported")
+    }
+  }
   const historyCopyRoot = mkdtempSync(join(tmpdir(), "metafor-checkpoint-history-"))
   let status: ReturnType<DarkForceHistory["status"]>
   let accepted: ReturnType<DarkForceHistory["read"]>

@@ -38,6 +38,7 @@ const snapshot = async (address: MetaAddress, input: string): Promise<Declaratio
     source: input,
     name: declaration.name,
     ...(declaration.desc === undefined ? {} : {description: declaration.desc}),
+    ...(declaration.lifecycle === undefined ? {} : {lifecycle: declaration.lifecycle}),
     fields: declaration.fields,
     states: declaration.superposition,
     ...(declaration.mass === undefined ? {} : {mass: declaration.mass}),
@@ -545,4 +546,24 @@ describe("Meta declaration entity patch planner", () => {
     }, [changed], 46)
     expect(removed.sourceEdits[0]!.afterSource).toBe(before)
   })
+})
+
+test("metadata authoring preserves lifecycle and bound Field edits fail before source mutation", async () => {
+  const input = source("{request: field.string.optional()}").replace(".superposition({})", '.lifecycle({started: {field: "request", value: "recover"}}).superposition({})')
+  const current = await snapshot(ROOT, input)
+  const plan = planMetaDeclarationPatch({
+    contractVersion: META_AUTHORING_CONTRACT_VERSION, capability: META_DECLARATION_WRITE_CAPABILITY,
+    operationId: "lifecycle-metadata", entity: "metadata", operation: "replace", address: ROOT,
+    metadata: {name: "Renamed"}, revisions: [{address: ROOT, revision: REVISION}],
+  }, [current], 1)
+  expect(plan.particle.parts[0]?.value).toMatchObject({lifecycle: current.lifecycle})
+  expect((await evaluateMetaSource(plan.sourceEdits[0]!.afterSource)).lifecycle).toEqual(current.lifecycle)
+  expect(() => planMetaDeclarationPatch({
+    ...base, operationId: "remove-lifecycle-field", operation: "remove", address: ROOT, key: "request",
+    revisions: [{address: ROOT, revision: REVISION}],
+  }, [current], 2)).toThrow("lifecycle")
+  expect(() => planMetaDeclarationPatch({
+    ...base, operationId: "change-lifecycle-type", operation: "replace", address: ROOT, key: "request",
+    field: {key: "request", type: "number", required: false}, revisions: [{address: ROOT, revision: REVISION}],
+  }, [current], 3)).toThrow("lifecycle")
 })

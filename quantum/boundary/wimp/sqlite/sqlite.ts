@@ -124,6 +124,10 @@ export class BoundaryWimpSqlite {
     await migrateConditionPredicates(sql)
     await migrateMatterBranchSlots(sql)
     await migrateReactionSources(sql)
+    const wimpColumns = await sql.unsafe<Array<{name: string}>>("PRAGMA table_info(wimp)")
+    if (!wimpColumns.some(column => column.name === "lifecycle_json")) {
+      await sql.unsafe("ALTER TABLE wimp ADD COLUMN lifecycle_json TEXT")
+    }
     const matterWimpColumns = await sql.unsafe<Array<{name: string}>>(
       "PRAGMA table_info(matter_particle_wimp)",
     )

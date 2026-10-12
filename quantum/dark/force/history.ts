@@ -8,7 +8,6 @@ import {
   readdirSync,
   renameSync,
   rmSync,
-  writeFileSync,
   writeSync,
 } from "node:fs"
 import {join} from "node:path"

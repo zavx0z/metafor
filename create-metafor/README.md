@@ -10,21 +10,21 @@
 ## Быстрый старт
 
 ```bash
-mkdir -p cluster/zavx0z
+mkdir -p ../repositories
 
-# Независимые peer Meta-репозитории внутри Galaxy-владельца zavx0z
-bun create metafor capsule --dir cluster/zavx0z
-bun create metafor capsule-profile --dir cluster/zavx0z
+# Физический parent и логический owner задаются независимо
+bun create metafor capsule --owner zavx0z --dir ../repositories
+bun create metafor capsule-profile --owner zavx0z --dir ../repositories
 ```
 
 ## Контракт создания
 
 `create-metafor` создаёт каждую Meta как независимый peer Git-репозиторий:
 
-- `--dir <parent>/<owner>` задаёт существующий родительский каталог, basename
-  которого является owner (`cluster/<owner>` в canonical Cluster);
+- `--dir <parent>` задаёт существующий физический корень sibling checkout;
+- `--owner <owner>` явно задаёт логического GitHub-владельца;
 - `<name>` задаёт новый уникальный repository;
-- target всегда равен `<parent>/<owner>/<repository>`;
+- target всегда равен `<parent>/<repository>`;
 - canonical `src` всегда равен `<owner>/<repository>`;
 - каждый target получает полный актуальный template, `bun install` с lockfile,
   собственный Git и единственный `Initial commit`.
@@ -45,39 +45,39 @@ references, а не вложенностью каталогов.
 | ------------------- | ----------------------------------- | ------------------- |
 | `-n, --name <name>` | Имя peer Meta-репозитория           | positional argument |
 | `-d, --desc <desc>` | Описание Meta                       | `"MetaFor {name}"`  |
-| `--dir <dir>`       | Родительский каталог с basename owner | `.`                 |
+| `--dir <dir>`       | Физический родитель checkout | `.`                 |
+| `--owner <owner>`   | Логический GitHub owner | обязательно |
 | `-l, --lang <lang>` | Язык вывода (`ru` или `en`)         | автодетект          |
 
 ## Примеры
 
 ```bash
 # Создать независимые peer Meta-репозитории
-bun create metafor capsule --dir cluster/zavx0z
-bun create metafor capsule-profile --dir cluster/zavx0z
-bun create metafor capsule-container -d "Контейнер рабочего стола" --dir cluster/zavx0z
+bun create metafor capsule --owner zavx0z --dir ../repositories
+bun create metafor capsule-profile --owner zavx0z --dir ../repositories
+bun create metafor capsule-container -d "Контейнер рабочего стола" --owner zavx0z --dir ../repositories
 
 # Принудительно использовать английский язык
-bun create metafor capsule-session --dir cluster/zavx0z -l en
+bun create metafor capsule-session --owner zavx0z --dir ../repositories -l en
 ```
 
 ## Структура
 
 ```text
-cluster/                              # Cluster; в WIMP src не входит
-└── zavx0z/                           # Galaxy: GitHub-владелец
-    ├── capsule/                      # peer Meta-репозиторий
-    │   ├── .git/
-    │   ├── meta.ts                   # src: zavx0z/capsule
-    │   ├── package.json              # @zavx0z/capsule
-    │   └── src/metafor.d.ts
-    └── capsule-profile/              # независимый peer Meta-репозиторий
-        ├── .git/
-        ├── meta.ts                   # src: zavx0z/capsule-profile
-        ├── package.json              # @zavx0z/capsule-profile
-        └── src/metafor.d.ts
+repositories-root/
+├── metafor/
+├── capsule/                          # peer Meta-репозиторий
+│   ├── .git/
+│   ├── meta.ts                       # src: zavx0z/capsule
+│   ├── package.json                  # repository: zavx0z/capsule
+│   └── src/metafor.d.ts
+└── capsule-profile/                  # независимый peer Meta-репозиторий
+    ├── .git/
+    ├── meta.ts                       # src: zavx0z/capsule-profile
+    └── src/metafor.d.ts
 ```
 
-Dark адресует Meta без физического префикса `cluster/`:
+Dark сохраняет логический адрес Meta независимо от физического корня:
 
 ```text
 zavx0z/capsule
@@ -88,9 +88,12 @@ WIMP `src` и npm-имя — разные адресные пространст�
 owner и repository. Например, `zavx0z/capsule-profile` соответствует npm-имени
 `@zavx0z/capsule-profile`.
 
+[Работа с Meta-пакетами](../docs/META_PACKAGES.md) разделяет source discovery
+для подготовки и исполнение выбранных runtime артефактов из storage.
+
 ## Требования
 
-- существующий родительский каталог с валидным owner basename;
+- существующий физический родительский каталог и явно заданный owner;
 - уникальное имя нового peer repository;
 - Bun для установки зависимостей и создания lockfile;
 - Git для создания независимого Meta-репозитория;

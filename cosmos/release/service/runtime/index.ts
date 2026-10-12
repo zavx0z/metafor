@@ -15,12 +15,14 @@ import type {
 import {currentReleasePackages} from "../cache/current"
 import {updateRelease} from "../update"
 import {startRpc, type RpcRuntime} from "../rpc"
+import {createReleaseObservation, observeSafely} from "../observation"
 
 /** Создаёт release без постоянных side effects до явного start(). */
 export default function releaseService(
   dependencies: ReleaseDependencies,
 ): ReleaseRuntime {
-  const cache = createReleaseCache(dependencies.loader)
+  const observation = observeSafely(() => createReleaseObservation(import.meta.env.COSMOS_PACKAGE_VERSION ?? null))
+  const cache = createReleaseCache(dependencies.loader, observation)
   const cleanups: Array<() => void | Promise<void>> = []
   let starting: Promise<void> | null = null
   let destroying: Promise<void> | null = null
@@ -32,12 +34,14 @@ export default function releaseService(
   }
 
   const startRuntime = async () => {
+    observeSafely(() => observation?.start())
     const abort = new AbortController()
     cleanups.push(() => abort.abort())
     let rpc: RpcRuntime | null = null
 
     try {
       rpc = startRpc({
+        ...(observation ? {observation} : {}),
         currentPackages: currentReleasePackages,
         applyDelta: async (delta) => {
           return await updateRelease(dependencies.loader, delta, {
@@ -45,25 +49,30 @@ export default function releaseService(
             activate: dependencies.runtime.activate,
             restartBrowser: navigateWindows,
             signal: abort.signal,
+            ...(observation ? {observation} : {}),
           })
         },
       })
       cleanups.push(() => rpc?.destroy())
       await cache.cacheStartup()
+      observeSafely(() => observation?.state("running"))
       console.debug("[@cosmos/release:service]", "release service запущен", {
         rpc: "/sw",
       })
     } catch (error) {
       await rpc?.destroy()
+      observeSafely(() => observation?.destroy())
       throw error
     }
   }
 
   const destroy = async () => {
     destroying ??= (async () => {
+      observeSafely(() => observation?.state("destroying"))
       const resources = cleanups.length
       for (const cleanup of [...cleanups].reverse()) await cleanup()
       cleanups.length = 0
+      observeSafely(() => observation?.destroy())
       console.debug("[@cosmos/release:service]", "release service очищен", {
         resources,
       })
@@ -74,10 +83,20 @@ export default function releaseService(
   return Object.freeze({
     start,
     async fetch(event: FetchEvent) {
-      if (event.request.method !== "GET") return await fetch(event.request)
+      if (event.request.method !== "GET") {
+        const operation = observeSafely(() => observation?.network(event.request.url))
+        try {
+          const response = await fetch(event.request)
+          if (operation !== undefined) observeSafely(() => observation?.response(operation, response.status))
+          return response
+        } catch (error) {
+          if (operation !== undefined) observeSafely(() => observation?.response(operation))
+          throw error
+        }
+      }
       return await cache.cacheFirst(event.request)
     },
-    async message(_event: ExtendableMessageEvent) {},
+    async message(event: ExtendableMessageEvent) { observeSafely(() => observation?.message(event)) },
     destroy,
   })
 }

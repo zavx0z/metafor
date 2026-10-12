@@ -82,7 +82,7 @@ const massFromValue = (value: unknown): EnergyMassArtifact[] => {
   if (!isRecord(value) || !Array.isArray(value.mass)) return []
   return value.mass.filter((item): item is EnergyMassArtifact => isRecord(item) &&
     Number.isSafeInteger(item.id) && typeof item.key === "string" && typeof item.keyId === "string" &&
-    (item.format === "json" || item.format === "binary") &&
+    (item.format === "json" || item.format === "binary" || item.format === "directory") &&
     (typeof item.label === "string" || item.label === null) && (typeof item.description === "string" || item.description === null),
   ).map((item) => structuredClone(item))
 }
@@ -312,22 +312,6 @@ export class EnergyCatalogStore {
     return typeof value.src === "string" ? value.src : undefined
   }
 
-  private orderedChildren(parent: string): Array<{kind: "atom" | "topology"; id: number}> {
-    return [...(this.childrenByParent.get(parent) ?? [])]
-      .map((key) => {
-        const [kind, rawId] = key.split(":") as ["atom" | "topology", string]
-        const id = Number(rawId)
-        const entity = kind === "atom" ? this.atoms.get(id) : this.topologies.get(id)
-        const position = entity?.position
-        return entity && typeof position === "number" && Number.isSafeInteger(position)
-          ? {kind, id, position}
-          : null
-      })
-      .filter((value): value is {kind: "atom" | "topology"; id: number; position: number} => value !== null)
-      .sort((left, right) => left.position - right.position)
-      .map(({kind, id}) => ({kind, id}))
-  }
-
   private read(target: Address): unknown {
     if (target.kind === "atom") return this.atoms.get(target.id)
     if (target.kind === "topology") return this.topologies.get(target.id)
@@ -349,6 +333,7 @@ export class EnergyCatalogStore {
           : nextContinuation !== undefined && !same(this.continuations.get(target.id), nextContinuation)
         if (!isRecord(delta)) return {changed: false, affectedAtomIds: []}
         if (same(current, delta) && !continuationChanged) {
+          if (canonicalEnvelope) this.massArtifacts.set(target.id, massFromValue(value))
           return canonicalEnvelope
             ? {changed: true, affectedAtomIds: [target.id]}
             : {changed: false, affectedAtomIds: []}

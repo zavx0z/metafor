@@ -9,13 +9,13 @@
     "dev": "env -u COSMOS_RELEASE_INSPECT NODE_ENV=development bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
     "dev:debug": "test -n \"$COSMOS_RELEASE_INSPECT\" && NODE_ENV=development bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
     "start": "env -u COSMOS_RELEASE_INSPECT bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
-    "test": "bun test",
+    "test": "bun --conditions=cosmos:server --conditions=internal:server test",
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"
   },
   "dependencies": {
-    "@cosmos/release": "workspace:^0.1.28",
+    "@cosmos/release": "workspace:^0.1.31",
     "@cosmos/startup": "workspace:*",
-    "@internal/visual": "workspace:^0.1.42",
+    "@internal/visual": "workspace:^0.1.51",
     "@zavx0z/immersive": "^0.0.0",
     "@metafor/tech-build": "workspace:*",
     "@metafor/tech-release": "workspace:*"

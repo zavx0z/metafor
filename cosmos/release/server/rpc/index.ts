@@ -6,18 +6,25 @@ import {
 } from "../../shared/protocol"
 import type {BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
 import {releaseDelta} from "../release/delta"
+import type {RendezvousSession} from "@metafor/tech-peer/rendezvous"
+import type {DarkRuntimeSocketData} from "../../../../quantum/dark/types/runtime"
 
 
 /** Данные одного подключённого release env `service`. */
 export interface RpcSocketData {
   source: "release/service"
+  /** Assigned only by the native listener; absent denies telemetry reads. */
+  observation?: "viewer" | "publisher"
 }
+
+/** Раздельные RPC и выданные signaling handler сессии одного release-owned listener. */
+export type ReleaseServerSocketData = RpcSocketData | RendezvousSession | DarkRuntimeSocketData
 
 /** Общая тема серверных сообщений для release services. */
 export const rpcServiceTopic = "release/service"
 
 /** Переводит HTTP request `/sw` в RPC WebSocket. */
-export function upgradeRpc(request: Request, server: Bun.Server<RpcSocketData>) {
+export function upgradeRpc(request: Request, server: Pick<Bun.Server<RpcSocketData>, "upgrade">) {
   if (server.upgrade(request, {data: {source: "release/service"}})) return
   return new Response("WebSocket upgrade required", {status: 426})
 }

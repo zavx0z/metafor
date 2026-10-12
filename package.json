@@ -11,6 +11,7 @@
     "shared",
     "tech/build",
     "tech/release",
+    "tech/peer",
     "quantum/dark/types",
     "quantum/boundary",
     "quantum/boundary/types",
@@ -26,6 +27,8 @@
     "quantum/energy/types",
     "quantum/dark/gravity",
     "cosmos",
+    "cosmos/internal/peer",
+    "cosmos/internal/network",
     "cosmos/internal/visual",
     "cosmos/release",
     "cosmos/startup",
@@ -33,9 +36,24 @@
     "pkg/node-tree",
     "fixture",
     "create-metafor",
-    "create-metafor/dsl"
+    "create-metafor/dsl",
+    "cosmos/peer/lifecycle",
+    "cosmos/internal/peer/process/start",
+    "cosmos/internal/peer/process/stop",
+    "cosmos/internal/peer/process/provision"
   ],
   "devDependencies": {
+    "boundary": "workspace:*",
+    "@dark/types": "workspace:*",
+    "@energy/types": "workspace:*",
+    "@matrix/weak": "workspace:*",
+    "@matrix/strong": "workspace:*",
+    "@matrix/gravity": "workspace:*",
+    "@metafor/dsl": "workspace:*",
+    "@metafor/tech-peer": "workspace:*",
+    "@oxc-project/types": "^0.146.0",
+    "create-metafor": "workspace:*",
+    "@types/serviceworker": "^0.0.200",
     "@zavx0z/highlighter": "link:@zavx0z/highlighter",
     "@types/bun": "^1.4.0",
     "@types/node": "^25.5.0",
@@ -51,15 +69,17 @@
     "@zavx0z/immersive-jsx": "^0.0.0",
     "@zavx0z/immersive-jsx-compiler-bun": "^0.0.0",
     "@zavx0z/immersive-ui-component-button-basic": "^0.0.0",
-    "@zavx0z/immersive": "^0.0.0"
+    "@zavx0z/immersive": "^0.0.0",
+    "@cosmos/peer-lifecycle": "workspace:*"
   },
   "peerDependencies": {
     "typescript": "^7.0.2"
   },
   "scripts": {
+    "metafor": "bun --conditions=cosmos:server --conditions=internal:server cosmos/cli.ts",
     "boundary:backup": "bun quantum/boundary/backup.ts",
     "checkpoint:capture": "bun quantum/dark/checkpoint/cli.ts",
-    "test": "FORCE_ADDRESS=ws://127.0.0.1:1 FORCE_RECONNECT=0 bun test --path-ignore-patterns='cluster/**' --path-ignore-patterns='quantum/bulk/**' --path-ignore-patterns='pkg/visual/**' --path-ignore-patterns='cosmos/internal/supervisor/**' --path-ignore-patterns='quantum/dark/server.spec.ts' --path-ignore-patterns='quantum/boundary/incremental.spec.ts' --path-ignore-patterns='quantum/dark/checkpoint/dissolve-candidate.spec.ts' --path-ignore-patterns='quantum/tests/agent-session.integration.spec.ts' --path-ignore-patterns='quantum/tests/graph/bulk-projection.spec.ts' --path-ignore-patterns='quantum/tests/graph/laboratory.spec.ts'",
+    "test": "FORCE_ADDRESS=ws://127.0.0.1:1 FORCE_RECONNECT=0 bun --conditions=cosmos:server --conditions=internal:server test --path-ignore-patterns='cluster/**' --path-ignore-patterns='quantum/bulk/**' --path-ignore-patterns='pkg/visual/**' --path-ignore-patterns='cosmos/internal/supervisor/**' --path-ignore-patterns='quantum/dark/server.spec.ts' --path-ignore-patterns='quantum/boundary/incremental.spec.ts' --path-ignore-patterns='quantum/dark/checkpoint/dissolve-candidate.spec.ts' --path-ignore-patterns='quantum/tests/agent-session.integration.spec.ts' --path-ignore-patterns='quantum/tests/graph/bulk-projection.spec.ts' --path-ignore-patterns='quantum/tests/graph/laboratory.spec.ts'",
     "typecheck": "bun run --filter @metafor/dsl typecheck && bun run --filter @cosmos/startup typecheck && bun run --filter @cosmos/release typecheck && bun run --filter @internal/visual typecheck && tsc --project cosmos/tests/tsconfig.json --pretty false && tsc --project tsconfig.json --pretty false",
     "typecheck:expect-errors": "bun run --filter @metafor/dsl typecheck:expect-errors",
     "check": "bun run typecheck && bun run typecheck:expect-errors && bun run test",
@@ -90,5 +110,9 @@
     "@zavx0z/immersive-ui-theme-icon-set": "link:@zavx0z/immersive-ui-theme-icon-set",
     "@zavx0z/immersive-webgpu": "link:@zavx0z/immersive-webgpu",
     "@zavx0z/immersive": "link:@zavx0z/immersive"
+  },
+  "exports": {
+    ".": "./cosmos/cli.ts",
+    "./meta": "./meta.ts"
   }
 }

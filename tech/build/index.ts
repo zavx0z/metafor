@@ -8,3 +8,5 @@ export * from "./source"
 export * from "./source-map"
 export * from "./report"
 export type {PreparedPackageDependency} from "./prepared"
+
+export * from "./meta"

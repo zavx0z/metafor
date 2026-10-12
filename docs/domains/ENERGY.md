@@ -31,28 +31,47 @@ TypeScript:
 
 ## Закон хранения Mass
 
-Mass — persisted filesystem data, а не отдельный Artifact domain/entity. Фабрика
-`.mass((mass) => ({profile: mass.json()}))` объявляет только ключ, codec и
-описательную metadata. Process, destroy и Matter получают разрешённые
-`MassHandle` с `readBytes`, `readText`, `readJson` и `write`. Reaction получает
-только явно объявленные собственные ключи и только объявленные для каждого ключа
-операции чтения или записи. Содержимое не становится свойством runtime-объекта
-Mass.
-Boundary выдаёт независимый ID декларации и глобальный ID key-file; Atom хранит
-membership прямо в key ID, без aggregate Mass ID. Energy открывает только key,
-разрешённые в canonical Atom projection, по плоскому пути
-`<worktree>/mass/<key-id>.<extension>`.
+Mass — persisted filesystem data, а не отдельный Artifact domain/entity.
+Декларация ключа выбирает JSON, binary или directory и описательную metadata.
+Boundary владеет декларацией, membership и глобальной identity ключа. Energy
+предоставляет только возможности, разрешённые canonical Atom projection;
+содержимое и локальные пути не проходят через Fields, Graph, Force или Matrix.
 
-Codec однозначно владеет расширением: `json → .json`, `binary → .bin`. MIME не
-является частью Mass declaration, projection или handle. Один key ID владеет
-одним файлом. Whole и partial Matter binding переиспользуют эти ID только между
-совпадающими codec; совпадающие bytes никогда не создают sharing. Detach создаёт
-новый key ID, файловый контур атомарно копирует файл с тем же расширением, а
-Boundary меняет membership и удаляет source.
-Обычная запись также атомарно заменяет key-file через temporary в том же
-каталоге. JSON codec сериализует значение, binary принимает только `Uint8Array`.
-Mass bytes, manifests и binding registries не проходят через Boundary, Force или
-Matrix. Runtime не создаёт и не удаляет key IDs.
+JSON и binary предоставляют файловые handles. JSON сериализует значение,
+binary принимает `Uint8Array`; запись атомарно заменяет файл. Прежние файлы
+сохраняют свои identity и bytes. Reaction получает только явно объявленные
+собственные ключи и разрешённые для них операции.
+
+Directory предоставляет локальную writer lease. Один глобальный key допускает
+одного writer в текущем Energy runtime, включая sharing через Matter. Отзыв
+поколения отменяет lease signal и запрещает новые acquire старого handle;
+занятость сохраняется до release именно этой lease. Release идемпотентен и не
+удаляет persisted bytes, не освобождает lease другого поколения и сам по себе
+не подтверждает остановку внешнего writer.
+
+Meta управляет ресурсом через States и Process в Energy: восстанавливает точную
+собственную identity, получает lease, запускает ресурс, затем останавливает и
+подтверждает остановку writer перед release. После crash Meta согласует
+оставшийся ресурс; технический lease не доказывает отсутствие orphan Docker
+writer и не отзывает уже открытый fd или mount. Mass не выбирает момент stop,
+capture или resume и не получает callbacks такой политики.
+
+Обычный Graph read и причинный quiesce не ждут live directory lease. Capture
+bytes — отдельная операция после Meta-owned подготовки writer. Существующий
+byte-oriented контур пока явно отклоняет directory capture, copy, detach и
+dissolve до изменения canonical membership; это граница текущего исполнения,
+а не замена coherent directory snapshot архивом на stop.
+
+Для закрытой подготовки Energy может разрешить private native location уже
+существующей directory Mass по точному canonical Atom и объявленному key.
+Такое чтение не создаёт каталог, не получает lease и не подтверждает остановку
+writer. Владелец подготовки сначала подтверждает Meta stopping и закрытие
+Quantum. Native path остаётся только у installer и не входит в Fields, Graph
+или Force.
+
+Whole и partial Matter binding переиспользуют key identity только между
+совпадающими representations; совпадающие bytes не создают sharing. MIME не
+является частью Mass declaration. Runtime не создаёт и не удаляет key IDs.
 
 ## Закон результата Process
 

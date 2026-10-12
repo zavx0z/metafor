@@ -1,5 +1,6 @@
 {
   "name": {{packageNameJson}},
+  "repository": {{repositoryJson}},
   "version": "0.1.0",
   "description": {{descriptionJson}},
   "author": {{authorJson}},

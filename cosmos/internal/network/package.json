@@ -1,0 +1,12 @@
+{
+  "name": "@internal/network",
+  "label": "Сетевое участие устройства",
+  "description": "Участие устройства в сети с самостоятельной подготовкой и жизненным циклом",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {".": {"internal:server": "./meta.ts"}, "./meta": {"internal:server": "./meta.ts"}},
+  "scripts": {"typecheck": "tsc --project tsconfig.json --pretty false", "test": "bun test spec"},
+  "devDependencies": {"@metafor/dsl": "workspace:*"},
+  "dependencies": {"@internal/peer": "workspace:*", "@cosmos/peer-lifecycle": "workspace:*", "@metafor/types": "workspace:*"}
+}

@@ -34,9 +34,14 @@
     "./protocol/bulk/store": "./protocol/bulk/store.ts",
     "./metafor/matter": "./metafor/matter.ts",
     "./protocol/metafor/authoring": "./protocol/metafor/authoring.ts",
-    "./protocol/metafor/observation": "./protocol/metafor/observation.ts"
+    "./protocol/metafor/observation": "./protocol/metafor/observation.ts",
+    "./metafor/source": "./metafor/source.ts",
+    "./transport/oracle/peer-channel": "./transport/oracle/peer-channel.ts",
+    "./transport/force/peer": "./transport/force/peer.ts",
+    "./transport/peer-lane": "./transport/peer-lane.ts"
   },
   "dependencies": {
-    "@metafor/types": "workspace:*"
+    "@metafor/types": "workspace:*",
+    "@metafor/tech-peer": "workspace:*"
   }
 }

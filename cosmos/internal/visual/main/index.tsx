@@ -17,6 +17,10 @@ Release предоставляет native Canvas и declaration default font. Vi
 import {createRoot} from "@zavx0z/immersive"
 import {inspectRoot} from "@zavx0z/immersive"
 import {App} from "./app.tsx"
+import {createNetworkSpace} from "./network-space.tsx"
+import type {InfrastructureProjection} from "./infrastructure-model.ts"
+
+export type {InfrastructureProjection} from "./infrastructure-model.ts"
 
 /** Точный browser environment этого platform entrypoint. */
 export const environment = "main" as const
@@ -30,10 +34,28 @@ if (typeof packageVersion !== "string" || packageVersion.length === 0) {
 
 /** Управление единственным приложением; render обновляет его без потери состояния. */
 export const root = createRoot(canvas)
-root.render(<App />)
+const network = createNetworkSpace()
+root.render(
+  <App
+    network={network}
+  />,
+)
+
+/**
+Принимает полный read-only снимок от владельца наблюдения и обновляет то же
+приложение. Сохранившиеся пространственные сущности сохраняют identity; unmount root
+завершает модель. После unmount вызов отклоняется. Transport Visual не создаёт.
+*/
+export function presentInfrastructure(projection: InfrastructureProjection): void {
+  network.present(projection)
+}
+
+/** Явно возвращает пространственный обзор всей наблюдаемой сети. */
+export function fitInfrastructure(): void { network.fit() }
 
 /** Release наблюдает первый кадр через диагностику того же root. */
 export const runtime = await inspectRoot(root).whenReady()
+network.attach(runtime)
 
 console.debug("[@internal/visual:main]", "основное visual-окружение создано", {
   space: runtime.space,

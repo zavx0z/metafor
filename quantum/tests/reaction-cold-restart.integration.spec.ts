@@ -67,7 +67,7 @@ describe("Reaction cold restart", () => {
         ]])
         .matter(({html}) => html`<meta-for src="audit/restart-source" />`)
         .bulk()
-      const declarations = new Map([[TARGET, target], [SOURCE, source]])
+      const declarations = new Map<string, typeof source | typeof target>([[TARGET, target], [SOURCE, source]])
 
       boundary = await open(database)
       for await (const part of matterParticles(TARGET, async (src: string) => {

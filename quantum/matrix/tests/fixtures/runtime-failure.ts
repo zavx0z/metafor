@@ -60,7 +60,7 @@ const initial: BoundaryInitialState = {
 
 Bun.env.FORCE_RECONNECT = "0"
 await prepareMatrixBirth(initial)
-await import("../../matrix.ts")
+await import("../../matrix-websocket.ts")
 await Bun.sleep(0)
 
 sockets.at(-1)?.receive({

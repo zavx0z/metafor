@@ -1,3 +1,4 @@
+import {resolveMetaDependency} from "./meta-imports"
 import {lstat, readdir, realpath} from "node:fs/promises"
 import {dirname, isAbsolute, join, relative, resolve, sep} from "node:path"
 import {
@@ -117,22 +118,19 @@ export async function packageExportGraph(
       declaration.env === null
         ? packageEnvironments.filter((env) => rootEnvironments.has(env))
         : [declaration.env]
-    const files = declaration.source.startsWith("./")
+    const ownedFiles = declaration.source.startsWith("./")
       ? await expandDeclaration(root, declaration.artifact, declaration.source)
-      : [
-          {
-            artifact: declaration.artifact as PublicPackageArtifactKey,
-            source: await resolveDependencyExport(
-              root,
-              manifest,
-              declaration.artifact,
-              declaration.source,
-            ),
-          },
-        ]
-    for (const file of files) {
-      if (exclusions.some((pattern) => artifactPatternMatches(pattern, file.artifact))) continue
-      for (const env of environments) {
+      : undefined
+    for (const env of environments) {
+      if (!ownedFiles && declaration.artifact.includes("*")) throw new Error("Dependency export references must use an exact artifact key")
+      const files = ownedFiles ?? [{
+        artifact: declaration.artifact as PublicPackageArtifactKey,
+        source: env === "server" || env === "server-worker"
+          ? await resolveMetaDependency(root, manifest, declaration.source, env)
+          : await resolveDependencyExport(root, manifest, declaration.artifact, declaration.source),
+      }]
+      for (const file of files) {
+        if (exclusions.some((pattern) => artifactPatternMatches(pattern, file.artifact))) continue
         const identity = `${env}\u0000${file.artifact}`
         const previous = identities.get(identity)
         if (previous !== undefined)
@@ -354,9 +352,9 @@ function artifactPatternMatches(pattern: string, artifact: PublicPackageArtifact
 }
 
 function packageConditionScope(name: string) {
-  const match = /^@([a-z0-9][a-z0-9._-]*)\/[a-z0-9][a-z0-9._-]*$/i.exec(name)
+  const match = /^(?:@([a-z0-9][a-z0-9._-]*)\/)?([a-z0-9][a-z0-9._-]*)$/i.exec(name)
   if (!match) throw new Error(`Invalid Cosmos package name ${name}`)
-  return match[1]!
+  return match[1] ?? match[2]!
 }
 
 function record(value: unknown, message: string): Record<string, unknown> {

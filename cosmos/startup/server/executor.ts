@@ -14,6 +14,8 @@ export interface ServerProcessContext {
   readonly env?: Readonly<Record<string, string | undefined>>
   readonly inspect?: string
   readonly readyTimeoutMs?: number
+  /** Срок каждого этапа owned shutdown: SIGTERM, затем подтверждение SIGKILL. */
+  readonly terminationTimeoutMs?: number
 }
 
 export interface ServerProcessCandidate {

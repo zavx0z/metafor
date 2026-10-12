@@ -437,6 +437,7 @@ describe("sqlite ddl", () => {
       "name",
       "desc",
       "view_css",
+      "lifecycle_json",
     ])
     expect(fieldColumns).toEqual(["id", "wimp", "local_id", "key", "type", "required", "label"])
     expect(fieldDefaultColumns).toEqual(["field"])

@@ -1,3 +1,4 @@
+import {Force} from "shared/transport/force"
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
 import {join} from "node:path"
 import type {ProcessResultCommit, ProcessResultProposal} from "shared/protocol/force/execution"
@@ -75,8 +76,14 @@ describe("Matrix packed Force runtime", () => {
   test("waits for Boundary commit before applying Energy W result", async () => {
     await prepareMatrixBirth(runtimeInitialState())
     const fromBootstrap = fixture.messages.length
+    const beforeClients = fixture.clients.length
     const waiting = fixture.nextClient("matrix")
     const runtime = await import(`./matrix.ts?packed-force-test=${crypto.randomUUID()}`)
+    expect(fixture.clients).toHaveLength(beforeClients)
+    let forceCreations = 0
+    await runtime.startMatrixForce(() => {forceCreations++; return new Force("matrix")})
+    expect(forceCreations).toBe(1)
+    await expect(runtime.startMatrixForce(() => {throw new Error("duplicate factory must not run")})).rejects.toThrow("already started")
     const client = await waiting
     expect(await waitForPart(client, (part) => part.part === "photon" && part.value === "idle", fromBootstrap)).toEqual({
       part: "photon", op: "replace", path: 17, by: "matrix", ts: expect.any(Number),

@@ -152,20 +152,22 @@ export class DarkOracle {
       throw new Error("Dark Oracle time control is already installed or RPC registration has started")
     }
     this.#timeControl = control
-    const mutations = this.#mutations
     const oracle = this
     this.#graph.setCausalTime({
       async readAtExactFrontier<T>(
         reader: (frontier: CheckpointBarrierFrontier) => Promise<T>,
       ): Promise<T> {
-        if (oracle.#pauseMutationRelease) {
-          return await control.readAtExactFrontier(reader)
-        }
-        return await mutations.withClosedAdmission(
+        return await oracle.withClosedMutationAdmission(
           async () => await control.readAtExactFrontier(reader),
         )
       },
     })
+  }
+
+  /** Удерживает существующий admission gate при служебном drain, заимствуя явную user pause. */
+  async withClosedMutationAdmission<T>(operation: () => Promise<T>): Promise<T> {
+    if (this.#pauseMutationRelease) return await operation()
+    return await this.#mutations.withClosedAdmission(operation)
   }
 
   setAuthoring(services: DarkMetaAuthoringRpc): void {

@@ -72,12 +72,14 @@
   inventory отсутствует. Каждая capability требует версии contract и
   повторной привязки к точному scope.
 - Не возвращать старый `qTp` как смысловую замену текущей архитектуре.
-- `cluster/` содержит внешние Meta-репозитории и не является workspace MetaFor.
-- Каждая Meta в canonical Cluster является независимым peer Git-репозиторием
-  `cluster/<owner>/<repository>`. Canonical `src` имеет ровно два сегмента
-  `<owner>/<repository>`; nested Meta repositories и третий address segment
-  запрещены. Композиция выполняется через Meta/Matter/Oracle references.
-- При задаче внутри `cluster/` по умолчанию работать только с Meta-пакетом по
+- Meta-репозитории находятся рядом с checkout MetaFor в общем каталоге
+  репозиториев и не являются участниками его workspace автоматически.
+- Meta описывает структурную единицу: Component, Container, Domain, Repo либо
+  другую единицу принятой предметной архитектуры. Её identity задаёт точное
+  `package.json#name`, независимо от Git-репозитория и физического пути.
+  В одном репозитории могут находиться несколько Meta-пакетов. Композиция
+  выполняется через Meta/Matter/Oracle references по именам пакетов.
+- При задаче во внешнем Meta-репозитории по умолчанию работать только с Meta-пакетом по
   границе `docs/META_PACKAGES.md`. Продуктовый runtime внешнего репозитория и
   ядро MetaFor требуют отдельного явного запроса.
 

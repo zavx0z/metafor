@@ -80,7 +80,26 @@ export default MetaFor("<name>")
   })
 ```
 
-**Порядок вызовов:** `fields → superposition → mass → energy → processes → reactions → matter → bulk`
+**Порядок вызовов:** `fields → lifecycle? → superposition → mass → energy → processes → reactions → matter → bulk`
+
+### Lifecycle-вход Meta
+
+Meta может после Fields объявить `.lifecycle(...)`: явное соответствие native
+событий `started` и `stopping` своим ordinary Fields и scalar-значениям. Например,
+`.lifecycle({started: {field: "request", value: "recover"}, stopping: {field: "request", value: "stop"}})`.
+Имя Field и его значение принадлежат Meta; зарезервированного Field нет. Binding
+может ссылаться только на объявленный string, number или boolean Field и
+допустимое для него значение. Декларация сохраняется вместе с Meta в Boundary.
+
+После рождения или восстановления Вселенной native `started` даёт корневой Meta
+обычный Field input; перед штатным завершением здорового contour `stopping`
+делает то же. State, восстановление ресурса, capture, resume и cleanup определяют
+только объявленные Meta Processes и destroy. Сам binding не повторяет
+завершённые Processes. Для повторного приёма одинакового события Meta явно
+потребляет или подтверждает свой input; платформа не сбрасывает Field скрыто.
+Отсутствующее событие ничего не изменяет. После потери Energy невозможно
+обещать выполнение её cleanup: следующая Meta-reconciliation разрешает судьбу
+оставшегося внешнего ресурса.
 
 `MetaFor` в `meta.ts` предоставляется DSL-средой как глобал; локальный `import "metafor"` не нужен. Обычные TypeScript-модули действий могут импортировать типы явно: `import type { ActionParams } from "@metafor/types/metafor/action"`.
 
@@ -417,8 +436,9 @@ agent-сессии. Фактическая capability всегда привяз�
 
 - `create-metafor/src/cli.ts`, вызываемый как `bun create metafor`, создаёт один
   независимый peer Meta-репозиторий непосредственно под выбранным каталогом
-  владельца. Canonical `src` всегда имеет форму `<owner>/<repository>`; CLI
-  отклоняет создание внутри существующего Meta-репозитория. Он записывает
+  владельца. Этот generator отклоняет создание внутри существующего
+  Meta-репозитория; его ограничение не определяет допустимые структурные
+  единицы Meta. Он записывает
   полный template, выполняет `bun install`, `git init`, `git add` и initial
   commit, поэтому остаётся отдельным write/commit entrypoint с высоким
   side-effect risk.
@@ -839,7 +859,7 @@ canonical `ts`, а Matrix разрешает все подходящие пер�
 в файловом пути.
 
 ```typescript
-// cluster/owner/capsule-browser/meta.ts
+// <repositories-root>/capsule-browser/meta.ts
 .superposition({
   "ожидание профиля": {"подготовка WebRTC": {profileAddress: {null: false}}},
   "подготовка WebRTC": {"запуск браузера": {rtcEndpoint: {null: false}}},
@@ -1429,39 +1449,43 @@ action-модулях. Inline callback процесса является тон�
 
 ## Cluster, Galaxy и Atom-репозитории
 
-Физический корень внешних Meta называется `cluster/`. Он содержит Galaxy —
-каталоги GitHub-владельцев. Каждый непосредственный дочерний каталог владельца
-является независимым peer Meta-репозиторием; его `meta.ts` находится
-непосредственно в корне. Дополнительных каталогов `galaxy/`, `atom/`, `metas/`,
-вложенных Meta-репозиториев и третьего address segment нет.
+Cluster объединяет независимые внешние Meta-репозитории. Для авторинга и
+подготовки их checkout располагаются непосредственными соседями MetaFor под
+предоставленным корнем репозиториев; корневая декларация находится в `meta.ts`.
+Galaxy обозначает логическую принадлежность GitHub-владельцу, а не обязательный
+промежуточный каталог. Вложенные Meta-репозитории и третий address segment
+запрещены.
 
-**Локальная структура:**
+**Локальная структура подготовки:**
 
 ```text
-cluster/
-└── owner/                     # Galaxy: GitHub-владелец
-    ├── project/               # независимый peer Git-репозиторий
-    │   └── meta.ts            # src: owner/project
-    ├── project-start/         # независимый peer Git-репозиторий
-    │   └── meta.ts            # src: owner/project-start
-    └── project-work/          # независимый peer Git-репозиторий
-        └── meta.ts            # src: owner/project-work
+repositories-root/
+├── metafor/
+├── project/                   # независимый peer Git-репозиторий
+│   └── meta.ts                # src: owner/project
+├── project-start/             # независимый peer Git-репозиторий
+│   └── meta.ts                # src: owner/project-start
+└── project-work/              # независимый peer Git-репозиторий
+    └── meta.ts                # src: owner/project-work
 ```
 
-Каждая Meta создаётся командой `create-metafor <repository> --dir
-cluster/<owner>` и получает полный актуальный template, lockfile после
-`bun install`, собственный Git и один `Initial commit`. Составные роли получают
-уникальные hyphenated repository names, например `project-start` и
-`project-work`. Создание внутри уже существующего Meta-репозитория отклоняется.
+Каждая новая Meta получает явно заданные owner и repository независимо от
+физического parent. Template содержит canonical repository identity, lockfile
+после установки зависимостей, собственный Git и начальный commit. Составные
+роли получают уникальные hyphenated repository names, например `project-start`
+и `project-work`. Создание внутри существующего Meta-репозитория отклоняется.
 
-**Пути в `src`:**
+[Работа с Meta-пакетами](../../docs/META_PACKAGES.md) отделяет discovery исходных
+checkout от исполнения выбранного кода из storage: runtime получает явный
+resolver установленных артефактов и не использует исходники как fallback.
 
-- любая Meta: `<owner>/<repository>` — ровно два сегмента.
+**Identity в `src`:**
 
-Префикс `cluster/` в `src` не входит. Source-путь идентифицирует peer
-Meta-репозиторий, но не кодирует runtime parent chain: одна Meta может
-materialize occurrences у разных родителей и на любой глубине. Композиция
-выражается Meta/Matter/Oracle references, а не файловой вложенностью.
+Meta адресуется точным именем своего пакета из `package.json#name`, включая
+scope, если он есть. Component, Container, Domain и другие структурные единицы
+могут иметь собственные Meta в одном репозитории. Физический путь позволяет
+найти исходник; runtime parent chain определяется композицией. Одна Meta может
+materialize occurrences у разных родителей и на любой глубине.
 
 WIMP `src` не равен npm-имени. Например, source `owner/project-start`
 соответствует npm-имени `@owner/project-start`; оба выводятся только из owner и

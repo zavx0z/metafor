@@ -3,7 +3,9 @@ import type {ForceMessage, ForceMessageInput} from "shared/protocol/force/messag
 import type {Particle, SourcedParticle} from "shared/protocol/force/particle"
 import type {MatterEdgeSlot, MatterParticle} from "@metafor/types/metafor/matter"
 import type {MetaDSL} from "@metafor/types/metafor/schema"
-import {canonicalMetaSource, loadMeta} from "./load.ts"
+import {normalizeMetaLifecycle} from "@metafor/types/metafor/lifecycle"
+import {loadMeta} from "./load.ts"
+import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {
   loadMetaDeclarationGraph,
   type MetaLoader,
@@ -33,8 +35,9 @@ let runtime: {force: DarkForcePort} | null = null
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-const canonicalRootSource = (value: string): boolean =>
-  value.split("/").length === 2 && canonicalMetaSource(value)
+// Domain projections also accept identities already persisted by earlier worlds.
+const canonicalMetaSource = (value: string): boolean => parseMetaAddress(value) !== null
+const canonicalRootSource = canonicalMetaSource
 
 const jsonRecord = (value: Record<string, unknown>): Record<string, unknown> =>
   JSON.parse(JSON.stringify(value)) as Record<string, unknown>
@@ -76,6 +79,7 @@ const declaration = (
   const entities: DeclarationEntity[] = [wimpEntity(src, {
     name: dsl.name,
     desc: dsl.desc ?? null,
+    ...(dsl.lifecycle === undefined ? {} : {lifecycle: normalizeMetaLifecycle(dsl.lifecycle, dsl.fields)}),
   })]
   const fieldIds = new Map<string, number>()
   const stateIds = new Map<string, number>()
@@ -857,7 +861,10 @@ export const applyAgentInflaton = (part: Particle): boolean => {
 
   const src = part.value.src
   const current = projection.get(src)
-  const wimp = wimpEntity(src, {name: part.value.name, desc: part.value.desc ?? null})
+  const previousLifecycle = current?.entities.find(item => item.path === "wimp")?.value.lifecycle
+  const lifecycle = normalizeMetaLifecycle(Object.hasOwn(part.value, "lifecycle") ? part.value.lifecycle : previousLifecycle)
+  const wimp = wimpEntity(src, {name: part.value.name, desc: part.value.desc ?? null,
+    ...(lifecycle === undefined ? {} : {lifecycle})})
   projection.set(src, {
     entities: [wimp, ...(current?.entities.filter((item) => item.path !== "wimp") ?? [])],
     children: current?.children ?? [],

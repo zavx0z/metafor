@@ -425,6 +425,11 @@ export const createDetachedDissolveCandidateBundle = async (
   ) {
     throw new Error("Detached dissolve candidate identity, absence or capture time is invalid")
   }
+  for (const name of readdirSync(options.stoppedMassDirectory)) {
+    if (name.endsWith(".dir") || lstatSync(join(options.stoppedMassDirectory, name)).isDirectory()) {
+      throw new Error("Directory Mass dissolve/copy is temporarily unsupported")
+    }
+  }
   const target = resolve(options.targetDirectory)
   if (existsSync(target)) {
     throw new Error(`Detached dissolve candidate target already exists: ${target}`)

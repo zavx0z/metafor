@@ -1,0 +1,18 @@
+{
+  "name": "@metafor/tech-peer",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./browser": "./browser.ts",
+    "./werift": "./werift.ts",
+    "./signaling": "./signaling.ts",
+    "./rendezvous": "./rendezvous.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "test": "bun test spec"
+  },
+  "dependencies": {"werift": "0.23.0"},
+  "devDependencies": {"@types/bun": "^1.4.0", "typescript": "^7.0.2"}
+}

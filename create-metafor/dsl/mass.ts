@@ -7,15 +7,16 @@ import type {
   MassOptions,
 } from "@metafor/types/metafor/mass"
 
-const declaration = (
-  format: MassFormat,
+const declaration = <Format extends MassFormat>(
+  format: Format,
   options: MassOptions = {},
-): MassDeclaration => ({format, ...options})
+): MassDeclaration<Format> => ({format, ...options})
 
 /** Builds the authored Mass metadata for the MetaFor DSL. */
 export const massFactory: MassFactory = {
   json: (options = {}) => declaration("json", options),
   binary: (options = {}) => declaration("binary", options),
+  directory: (options = {}) => declaration("directory", options),
 }
 
 export const normalizeMassDeclarations = (

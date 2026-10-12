@@ -69,6 +69,32 @@ const start = (): void => {
 }
 
 describe("ForceLifecycle", () => {
+  test("headless participants reach running without Bulk and route only to real channels", async () => {
+    const domains = ["dark", "boundary", "matrix", "energy"] as const
+    const {bulk: _bulk, ...channels} = recording.channels
+    const headless = new ForceLifecycle({accept(particle) {
+      accepted.push(structuredClone(particle))
+      return {} as never
+    }}, undefined, domains)
+    headless.start(channels)
+    for (const domain of domains) headless.channelReady(domain)
+    expect(headless.status()).toMatchObject({state: "running", requiredDomains: [...domains], connectedDomains: [...domains]})
+    expect(await headless.acceptAgentParticle(agentInflaton(1))).toMatchObject({ok: true, delivered: ["dark"]})
+    expect(recording.deliveries("bulk")).toEqual([])
+    expect(() => headless.channelReady("bulk")).toThrow("does not participate")
+    expect(await headless.acceptParticle("bulk", {parts: [{part: "z", op: "test", path: 17, by: "bulk", ts: 2, value: {}}]})).toMatchObject({ok: false})
+    headless.channelDestroyed("bulk", "excluded projection")
+    expect(headless.status().state).toBe("running")
+    headless.channelDestroyed("energy", "required consumer lost")
+    expect(headless.status().state).toBe("error")
+  })
+
+  test("headless composition cannot omit a causal domain or substitute a missing channel", () => {
+    expect(() => new ForceLifecycle({accept() {return {} as never}}, undefined, ["dark", "boundary", "matrix"])).toThrow("Energy")
+    const headless = new ForceLifecycle({accept() {return {} as never}}, undefined, ["dark", "boundary", "matrix", "energy"])
+    expect(headless.start({dark: recording.channels.dark})).toMatchObject({state: "error"})
+  })
+
   test("enters running only after all five prepared channels are connected", () => {
     expect(lifecycle.status()).toEqual({
       ok: false,

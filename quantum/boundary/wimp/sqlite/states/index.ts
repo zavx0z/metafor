@@ -38,7 +38,7 @@ export class States {
     )[0]
     const position = posRow?.next ?? 0
 
-    const row = (await sql<Array<{id: number}>>`
+    void (await sql<Array<{id: number}>>`
       INSERT INTO state (wimp, name, position) VALUES (${src}, ${name}, ${position})
       RETURNING id
     `)[0]

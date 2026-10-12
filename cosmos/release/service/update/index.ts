@@ -4,6 +4,7 @@ import {browserPackageCache} from "../../../shared/package/cache"
 import {browserPackageIdentitySlot, browserPackageIdentityUrl, parseBrowserPackageArtifactUrl} from "@metafor/tech-build/identity"
 import type {ReleaseDelta} from "../../shared/protocol"
 import type {ReleaseLoader, ReleaseRuntime} from "../runtime/contract"
+import {observeSafely, type ReleaseObservation} from "../observation"
 import {
   cachedPackageIdentity,
   currentReleasePackages,
@@ -35,6 +36,7 @@ export async function updateRelease(
     activate(candidate: ReleaseRuntime): Promise<void>
     restartBrowser?(): Promise<void>
     signal?: AbortSignal
+    observation?: Pick<ReleaseObservation, "network" | "response">
   }>,
 ) {
   const interrupted = await pendingTransaction()
@@ -89,10 +91,18 @@ export async function updateRelease(
     }
 
     const request = exactRequest(entry)
-    const network = await fetch(
-      request,
-      handover?.signal ? {signal: handover.signal} : undefined,
-    )
+    const operation = observeSafely(() => handover?.observation?.network(request.url))
+    let network: Response
+    try {
+      network = await fetch(
+        request,
+        handover?.signal ? {signal: handover.signal} : undefined,
+      )
+      if (operation !== undefined) observeSafely(() => handover?.observation?.response(operation, network.status))
+    } catch (error) {
+      if (operation !== undefined) observeSafely(() => handover?.observation?.response(operation))
+      throw error
+    }
     const response = await verifyPackageArtifactResponse(startup.verify(network), entry)
     await preparePackage(entry, response)
     console.debug("[@cosmos/release:service:prepare]", "exact artifact подготовлен", {

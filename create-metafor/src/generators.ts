@@ -149,6 +149,7 @@ export function generatePackageJsonFile(
   const template = loadTemplate("package.json")
   return render(template, {
     packageNameJson: jsString(npmPackageName(identity)),
+    repositoryJson: JSON.stringify({type: "git", url: `https://github.com/${identity.owner}/${identity.repository}.git`}),
     descriptionJson: jsString(description),
     authorJson: jsString(author),
     buildScriptJson: jsString("bun build meta.ts --outdir dist --target browser --format=esm"),

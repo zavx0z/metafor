@@ -1,7 +1,9 @@
 import type {ServerWebSocket} from "bun"
 import type {SourcedForceMessage} from "shared/protocol/force/message"
 import {
-  remoteForceDomains,
+  forceParticipants,
+  forceDomains,
+  type ForceDomain,
   type ForceChannel,
   type RemoteForceDomain,
 } from "./store.ts"
@@ -23,19 +25,20 @@ export type ForceWebSocketChannels = {
 }
 
 /**
- * Оборачивает физические WebSocket-соединения в четыре remote channel.
+ * Оборачивает физические WebSocket-соединения в remote channels выбранного состава.
  *
  * Функция обслуживает только transport: identity HTTP Upgrade, набор открытых
  * сокетов и JSON-кодирование одной Particle. Решения о server state, готовности
  * и fail-stop принимает `ForceLifecycle`.
  */
-export function createForceWebSocketChannels(): ForceWebSocketChannels {
+export function createForceWebSocketChannels(participants: readonly ForceDomain[] = forceDomains): ForceWebSocketChannels {
+  const admitted = forceParticipants(participants).filter(domain => domain !== "dark") as RemoteForceDomain[]
   const sockets = Object.fromEntries(
-    remoteForceDomains.map((domain) => [domain, new Set<ForceSocket>()]),
+    admitted.map((domain) => [domain, new Set<ForceSocket>()]),
   ) as Record<RemoteForceDomain, Set<ForceSocket>>
   const channels = Object.create(null) as Record<RemoteForceDomain, ForceChannel>
 
-  for (const domain of remoteForceDomains) {
+  for (const domain of admitted) {
     channels[domain] = {
       domain,
       send(message) {
@@ -53,7 +56,7 @@ export function createForceWebSocketChannels(): ForceWebSocketChannels {
       const url = new URL(request.url)
       const domain = url.searchParams.get("domain")
       const id = url.searchParams.get("id")
-      if (!domain || !id || !remoteForceDomains.includes(domain as RemoteForceDomain)) return null
+      if (!domain || !id || !admitted.includes(domain as RemoteForceDomain)) return null
       return {domain: domain as RemoteForceDomain, id}
     },
     opened(socket) {
@@ -71,7 +74,7 @@ export function createForceWebSocketChannels(): ForceWebSocketChannels {
       return JSON.parse(String(raw)) as SourcedForceMessage
     },
     close() {
-      for (const domain of remoteForceDomains) {
+      for (const domain of admitted) {
         for (const socket of sockets[domain]) socket.close()
         sockets[domain].clear()
       }

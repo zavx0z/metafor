@@ -13,7 +13,6 @@ import type {Fields, Values} from "@metafor/types/metafor/fields"
 import {Initiator, type Energy, type Mass} from "@metafor/types/metafor/schema"
 import {
   ProcessType,
-  type ActionChain,
   type ParsedProcess,
   type Process,
   type ProcessChain,

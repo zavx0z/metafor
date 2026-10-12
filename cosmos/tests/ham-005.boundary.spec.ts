@@ -63,7 +63,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(html).toContain('"@cosmos/release": "/@cosmos/release?env=main"')
   expect(html).toContain('"@internal/visual": "/@internal/visual?env=main"')
 
-  expect(main).toContain('const {runtime} = await import("@internal/visual")')
+  expect(main).toContain('const {runtime, presentInfrastructure} = await import("@internal/visual")')
   expect(main).toContain('console.debug("[@cosmos/release:main]", "Visual runtime подключён", {')
   expect(main).toContain("runtime: Object.keys(runtime)")
   expect(mainPackage.dependencies).toEqual({
@@ -71,6 +71,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     "@internal/visual": "workspace:^0.1.10",
     "@metafor/tech-build": "workspace:*",
     "@metafor/tech-release": "workspace:*",
+    "werift": "0.23.0",
+    "reflect-metadata": "0.2.2",
   })
   expect(visualPackage.name).toBe("@internal/visual")
   expect(visualPackage.exports?.["."]).toEqual({
@@ -88,12 +90,15 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualPackage.dependencies).not.toHaveProperty("@layout/core")
   expect(visualPackage.dependencies).not.toHaveProperty("@ui/elements")
   expect(visualPackage.dependencies).not.toHaveProperty("@ui/hud")
-  expect(visualPackage.dependencies).toEqual({"@zavx0z/immersive": "^0.0.0"})
+  expect(visualPackage.dependencies).toEqual({
+    "@zavx0z/immersive": "^0.0.0",
+    "@zavx0z/immersive-nodes": "^0.0.0",
+  })
   for (const legacy of ["@engine/core", "@ui/components", "@zavx0z/react", "@zavx0z/renderer-browser", "@zavx0z/renderer-webgpu"]) {
     expect(visualPackage.dependencies).not.toHaveProperty(legacy)
   }
   expect(visual).toContain("createRoot(canvas)")
-  expect(visual).toContain("root.render(<App />)")
+  expect(visual).toMatch(/root\.render\(\s*<App\s+infrastructure=\{infrastructure\}\s+bot=\{bot\}\s*\/>/)
   expect(app).toContain('rel="stylesheet"')
   expect(app).toContain("/@internal/visual/theme.css?env=main&version=")
   expect(app).toContain("width={600}")
@@ -110,7 +115,8 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(app).not.toContain('id="main-hud"')
   expect(app).toContain('from "@zavx0z/immersive/space"')
   expect(app).not.toContain("@zavx0z/immersive/engine")
-  expect(app).not.toContain("factory=")
+  expect(app).toContain("factory={props.bot.object}")
+  expect(app).toContain("factory={props.bot.animation}")
   expect(app).not.toContain("VisualScene")
   expect(app).toContain("<space>")
   expect(app).toContain("<display")
@@ -177,6 +183,7 @@ test("UPD-002 builds Window release and internal visual as separate artifacts", 
     const mainOutput = main.outputs.find(({artifact}) => artifact === ".")
     const visualOutput = visual.outputs.find(({artifact}) => artifact === ".")
     const themeOutput = visual.outputs.find(({artifact}) => artifact === "./theme.css")
+    const botOutput = visual.outputs.find(({artifact}) => artifact === "./bots.glb")
 
     expect(main.success, `${main.stdout}\n${main.stderr}`).toBeTrue()
     expect(visual.success, `${visual.stdout}\n${visual.stderr}`).toBeTrue()
@@ -187,7 +194,9 @@ test("UPD-002 builds Window release and internal visual as separate artifacts", 
       load: "eager",
       type: expect.stringContaining("text/css"),
     })
-    expect(visual.outputs.length).toBeGreaterThanOrEqual(3)
+    expect(botOutput).toMatchObject({kind: "copy", load: "lazy", type: "model/gltf-binary"})
+    expect(botOutput?.size).toBe(4_175_804)
+    expect(visual.outputs.length).toBeGreaterThanOrEqual(4)
     expect(visual.outputs.filter(({path}) => path === themeOutput?.path)).toHaveLength(2)
     expect(visual.outputs.every(({path}) => path.startsWith(`${visualOutdir}/`))).toBeTrue()
     expect(await Bun.file(mainOutput!.path).text()).not.toContain("visual-canvas")

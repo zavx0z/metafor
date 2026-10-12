@@ -21,7 +21,7 @@ export function serializeStyle(fn: Function): string {
   const withoutComments = rawCss.replace(/\/\*[\s\S]*?\*\//g, "")
   const collapsedWhitespace = withoutComments.replace(/\s+/g, " ")
   const tightPunct = collapsedWhitespace
-    .replace(/\s*([:;,{()} ,])\s*/g, (m, p1) => (p1 === " " ? " " : p1))
+    .replace(/\s*([:;,{()} ,])\s*/g, (_m, p1) => (p1 === " " ? " " : p1))
     .replace(/\s*\/\s*/g, "/")
   return tightPunct.trim()
 }

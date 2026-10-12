@@ -4,7 +4,7 @@
 
 Активный workspace задан явным списком корневого `package.json`. Его установка
 не обходит весь репозиторий: архивные исходники, templates и внешние репозитории
-`cluster/` не становятся участниками автоматически.
+рядом с MetaFor не становятся участниками автоматически.
 
 Текущие библиотеки визуальной среды принадлежат canonical checkout Immersive.
 Публичные package dependencies и корневые overrides связывают их с уже
@@ -134,18 +134,19 @@ bun test energy
 
 ```bash
 tmpdir="$(mktemp -d)"
-mkdir -p "$tmpdir/cluster/zavx0z"
+mkdir -p "$tmpdir/repositories"
 bun run --filter create-metafor build
-bun create-metafor/dist/cli.js capsule --dir "$tmpdir/cluster/zavx0z" --lang en
-bun create-metafor/dist/cli.js capsule-profile --dir "$tmpdir/cluster/zavx0z" --lang en
-bun build "$tmpdir/cluster/zavx0z/capsule/meta.ts" --outdir "$tmpdir/dist" --target browser --format esm
-bun build "$tmpdir/cluster/zavx0z/capsule-profile/meta.ts" --outdir "$tmpdir/dist-profile" --target browser --format esm
+bun create-metafor/dist/cli.js capsule --dir "$tmpdir/repositories" --owner zavx0z --lang en
+bun create-metafor/dist/cli.js capsule-profile --dir "$tmpdir/repositories" --owner zavx0z --lang en
+bun build "$tmpdir/repositories/capsule/meta.ts" --outdir "$tmpdir/dist" --target browser --format esm
+bun build "$tmpdir/repositories/capsule-profile/meta.ts" --outdir "$tmpdir/dist-profile" --target browser --format esm
 rm -rf "$tmpdir"
 ```
 
-Каталог `cluster/` является локальным resolver root, не входит в WIMP `src`, не
-является workspace и игнорируется внешним репозиторием MetaFor. Каждый
-`cluster/<owner>/<repository>` является независимым peer Git-репозиторием.
+Resolver разработки читает соседние Git-репозитории с корневым `meta.ts`.
+Физический parent не входит в WIMP `src`; owner задаётся отдельно и сохраняется
+в repository metadata. Установленная среда получает явное соответствие `src`
+проверенным артефактам storage и не ищет исходный checkout.
 Третьего сегмента и nested Meta repository нет; composition выполняется через
 Meta/Matter/Oracle references. Оба вызова создают полный template, lockfile,
 собственный Git и один `Initial commit`.

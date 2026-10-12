@@ -2,6 +2,15 @@ import {describe, expect, test} from "bun:test"
 import {waitForMatrixBirthGate} from "./birth-order.ts"
 
 describe("Matrix birth order", () => {
+  test("headless birth waits for hydrated Energy and never waits for Bulk", async () => {
+    await waitForMatrixBirthGate(async () => ({state: "starting", connectedDomains: ["dark", "boundary", "energy"]}), {
+      requiredDomains: ["dark", "boundary", "energy"], waitMs: 10, retryMs: 1,
+    })
+    await expect(waitForMatrixBirthGate(async () => ({state: "starting", connectedDomains: ["dark", "boundary"]}), {
+      requiredDomains: ["dark", "boundary", "energy"], waitMs: 2, retryMs: 1,
+    })).rejects.toThrow("waiting for ForceChannels: energy")
+  })
+
   test("opens only after the other four ForceChannels are ready", async () => {
     const statuses = [
       {state: "starting", connectedDomains: ["dark", "boundary"]},

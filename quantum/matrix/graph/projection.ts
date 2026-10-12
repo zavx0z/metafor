@@ -201,6 +201,30 @@ export function readMatrixProjectionFragment(atomIds: Iterable<number>): Boundar
   }
 }
 
+/**
+Reads exact Process inputs from Matrix's existing canonical projection.
+Weak's packed numeric/string representation is not an execution snapshot.
+Absent values retain declaration defaults; enum references resolve to values.
+*/
+export function readMatrixProcessFields(atomId: number): Record<string, unknown> {
+  requireProjection()
+  const atom = atomById.get(atomId)
+  if (!atom) throw new Error(`Matrix Process Atom is missing: ${atomId}`)
+  const fields: Record<string, unknown> = {}
+  for (const declaration of declarationsBySrc.get(atom.wimp) ?? []) {
+    if (declaration.section !== "fields") continue
+    const fieldId = Number(declaration.value.id)
+    const stored = atom.values.find(item => item.field === fieldId)
+    const value = stored ? stored.value : declaration.value.default ?? null
+    if (isVariantRef(value)) {
+      const variant = (variantsByFieldId.get(fieldId) ?? []).find(item => item.id === value.variant)
+      if (!variant && stored) throw new Error(`Matrix Process Variant is missing: ${value.variant}`)
+      fields[String(fieldId)] = variant ? clone(variant.value) : null
+    } else fields[String(fieldId)] = clone(value)
+  }
+  return fields
+}
+
 const addToIndex = <K>(index: Map<K, Set<number>>, key: K, atomId: number): void => {
   const values = index.get(key)
   if (values) values.add(atomId)
@@ -477,28 +501,37 @@ const applyDeclarationGraviton = (part: Particle): MatrixProjectionChange => {
   }
 }
 
-const applyFieldParticle = (part: Particle): void => {
-  if (typeof part.path !== "number") return
+const applyFieldParticle = (part: Particle): number[] => {
+  const affected = new Set<number>()
+  if (typeof part.path !== "number") return []
   const fields = resolveForceFieldsPayload(part.value)
   const canonical = resolveCanonicalForceFieldsPayload(part.value)
-  if (!fields) return
+  if (!fields) return []
   const atom = atomById.get(part.path)
-  if (!atom) return
+  if (!atom) return []
   for (const [address, value] of Object.entries(fields)) {
     const field = Number(address)
     if (!Number.isSafeInteger(field) || field <= 0) continue
     const index = atom.values.findIndex((item) => item.field === field)
     if (part.op === "remove") {
-      if (index >= 0) {
-        removeFromIndex(atomIdsByValueId, atom.values[index]!.valueId, atom.id)
-        atom.values.splice(index, 1)
-      }
+      // An explicit runtime removal means absent input (null), not a fresh
+      // application of the declaration default. Its local slot has no durable
+      // Boundary value identity and cannot remain an alias of the retired row.
+      const previous = index >= 0 ? atom.values[index] : undefined
+      const oldValue = previous?.value ?? readMatrixProcessFields(atom.id)[String(field)]
+      if (previous) removeFromIndex(atomIdsByValueId, previous.valueId, atom.id)
+      const absent = {field, valueId: nextSyntheticValueId--, value: null}
+      if (index >= 0) atom.values[index] = absent
+      else atom.values.push(absent)
+      addToIndex(atomIdsByValueId, absent.valueId, atom.id)
+      if (!same(oldValue, null)) affected.add(atom.id)
       continue
     }
     if (part.op !== "add" && part.op !== "replace") continue
     const normalized = enumFieldIds.has(field) ? normalizeEnumValueRef(field, value) : clone(value)
     const valueId = canonical?.[address]?.valueId ??
       (index >= 0 ? atom.values[index]!.valueId : nextSyntheticValueId--)
+    if (index < 0 || !same(atom.values[index]!.value, normalized)) affected.add(atom.id)
     if (index >= 0) {
       const previousValueId = atom.values[index]!.valueId
       if (previousValueId !== valueId) {
@@ -510,7 +543,19 @@ const applyFieldParticle = (part: Particle): void => {
       atom.values.push({field, valueId, value: normalized})
       addToIndex(atomIdsByValueId, valueId, atom.id)
     }
+    // One canonical value changes every existing alias immediately. Later
+    // alias consequences repeat that same fact and must not retrigger twice.
+    for (const aliasId of atomIdsByValueId.get(valueId) ?? []) {
+      const alias = atomById.get(aliasId)
+      if (!alias) continue
+      for (const item of alias.values) {
+        if (item.valueId !== valueId || same(item.value, normalized)) continue
+        item.value = clone(normalized)
+        affected.add(aliasId)
+      }
+    }
   }
+  return [...affected]
 }
 
 /** Синхронизирует сохранённый State одного Atom после канонического подтверждения. */
@@ -524,8 +569,7 @@ export function recordMatrixProjectionState(atomId: number, metaState: number | 
 export function applyMatrixProjectionParticle(part: Particle): MatrixProjectionChange {
   requireProjection()
   if (part.part === "gluon" || part.part === "higgs") {
-    applyFieldParticle(part)
-    return unchanged()
+    return {...unchanged(), affectedAtomIds: applyFieldParticle(part)}
   }
   if (part.part !== "graviton") return unchanged()
   if (part.path === REACTION_RELATION_PATH && isReactionRelation(part.value)) {

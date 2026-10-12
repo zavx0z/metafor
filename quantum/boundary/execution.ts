@@ -13,7 +13,7 @@ import {
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import type {BoundaryIncrementalCommit} from "./incremental.ts"
-import {commitBoundaryAtomFields} from "./world.ts"
+import {commitBoundaryAtomFields, readBoundaryValue} from "./world.ts"
 
 type Database = SQL | ReservedSQL
 type JsonRecord = Record<string, unknown>
@@ -489,6 +489,7 @@ export class BoundaryExecutionStore {
         }
       }
 
+      const sharedInputs = await this.captureSharedInputValues(tx, atomId, proposal.fields)
       const fieldCommit = await commitBoundaryAtomFields(
         tx,
         atomId,
@@ -497,6 +498,17 @@ export class BoundaryExecutionStore {
         proposal.fields,
         `Process ${proposal.processId}`,
       )
+
+      // Retire stale readers atomically with the canonical write. A new Matrix
+      // Photon may still be in transit when their old Energy result arrives.
+      for (const [valueId, input] of sharedInputs) {
+        if (JSON.stringify(input.value) === JSON.stringify(await readBoundaryValue(tx, valueId))) continue
+        for (const aliasAtomId of input.atoms) await tx`
+          UPDATE boundary_process_execution SET status = ${"superseded"}
+           WHERE atom = ${aliasAtomId} AND status = ${"pending"}
+             AND execution_id <> ${proposal.processExecutionId}
+        `
+      }
 
       const status = part.part === "w+" ? "committed" : "failed"
       const updated = await tx<Array<{executionId: string}>>`
@@ -568,6 +580,29 @@ export class BoundaryExecutionStore {
       value: acknowledgement,
     }))
     return {rootSrc: committed.atom.wimp, messages: consequences}
+  }
+
+  private async captureSharedInputValues(
+    sql: Database,
+    atomId: number,
+    proposed: Record<string, unknown>,
+  ): Promise<Map<number, {value: unknown; atoms: number[]}>> {
+    const inputs = new Map<number, {value: unknown; atoms: number[]}>()
+    if (Object.keys(proposed).length === 0) return inputs
+    const values = await sql<Array<{field: number; value: number}>>`
+      SELECT field, value FROM atom_value WHERE atom = ${atomId}
+    `
+    for (const address of Object.keys(proposed)) {
+      const record = values.find(item => Number(item.field) === Number(address))
+      if (!record || inputs.has(Number(record.value))) continue
+      const valueId = Number(record.value)
+      const aliases = await sql<Array<{atom: number}>>`
+        SELECT DISTINCT atom FROM atom_value WHERE value = ${valueId} AND atom <> ${atomId}
+      `
+      if (aliases.length === 0) continue
+      inputs.set(valueId, {value: await readBoundaryValue(sql, valueId), atoms: aliases.map(item => Number(item.atom))})
+    }
+    return inputs
   }
 
   private async atom(sql: Database, atomId: number): Promise<AtomRow | null> {

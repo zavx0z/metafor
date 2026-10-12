@@ -1,5 +1,5 @@
-/** Codec of one persisted Mass key-file. */
-export type MassFormat = "json" | "binary"
+/** Representation of one persisted Mass key. */
+export type MassFormat = "json" | "binary" | "directory"
 
 /**
  * Authored metadata of one Mass key.
@@ -8,8 +8,8 @@ export type MassFormat = "json" | "binary"
  * its declaration ID and global key ID; paths, MIME and versions are not
  * authored metadata.
  */
-export type MassDeclaration = {
-  readonly format: MassFormat
+export type MassDeclaration<Format extends MassFormat = MassFormat> = {
+  readonly format: Format
   readonly label?: string
   readonly description?: string
 }
@@ -30,7 +30,30 @@ export type MassHandle = {
   write(value: unknown): Promise<void>
 }
 
-export type MassHandles<Schema extends MassDeclarations> = {[Key in keyof Schema]: MassHandle}
+/**
+Local cooperative writer lifetime. Meta stops its writer before release; release
+never removes persisted directory bytes or proves Docker/fd shutdown. Retirement
+aborts signal but retains writer exclusivity until this exact lease releases.
+*/
+export type MassDirectoryLease = {
+  readonly path: string
+  readonly signal: AbortSignal
+  release(): Promise<void>
+}
+
+/**
+Directory access is local to actions, not a byte-result or snapshot API. Acquire
+checks the Boundary grant and safe directory path, and excludes another writer
+of the same global key in this Energy process. Cold resource identity/adoption
+belongs to Meta; a process-local lease cannot detect an orphan external writer.
+*/
+export type MassDirectoryHandle = {
+  acquire(): Promise<MassDirectoryLease>
+}
+
+export type MassHandles<Schema extends MassDeclarations> = {
+  [Key in keyof Schema]: Schema[Key] extends MassDeclaration<"directory"> ? MassDirectoryHandle : MassHandle
+}
 
 export type MassDeclarationDSL = {
   key: string
@@ -42,6 +65,7 @@ export type MassDeclarationDSL = {
 export type MassOptions = {label?: string; description?: string}
 
 export type MassFactory = {
-  json(options?: MassOptions): MassDeclaration
-  binary(options?: MassOptions): MassDeclaration
+  json(options?: MassOptions): MassDeclaration<"json">
+  binary(options?: MassOptions): MassDeclaration<"binary">
+  directory(options?: MassOptions): MassDeclaration<"directory">
 }

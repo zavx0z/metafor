@@ -10,6 +10,7 @@ export interface I18nStrings {
   optionName: string
   optionDesc: string
   optionDir: string
+  optionOwner: string
   optionLang: string
   exampleCreate: string
   exampleWithDesc: string
@@ -43,6 +44,7 @@ const ru: I18nStrings = {
   helpExamples: "Примеры:",
   optionName: "Имя Мета",
   optionDesc: "Описание Мета",
+  optionOwner: "Логический GitHub owner (обязательно)",
   optionDir: "Родительский каталог peer Meta-репозиториев",
   optionLang: "Язык вывода (ru|en)",
   exampleCreate: "Создать Мета",
@@ -62,7 +64,7 @@ const ru: I18nStrings = {
   helpNoteOptions: "[options] — необязательные опции",
   errorPackageName: "Имя Meta-репозитория должно быть одним нижнерегистровым сегментом без slash",
   errorParent: "Родительский каталог --dir должен существовать",
-  errorOwner: "Имя родительского каталога должно быть валидным owner segment",
+  errorOwner: "--owner должен задавать валидный owner segment",
   errorNested: "Нельзя создавать Meta внутри существующего Meta-репозитория",
   errorExists: "Meta-репозиторий уже существует",
   errorGitRequired: "Для создания peer Meta-репозитория требуется Git",
@@ -77,6 +79,7 @@ const en: I18nStrings = {
   helpExamples: "Examples:",
   optionName: "Meta name",
   optionDesc: "Meta description",
+  optionOwner: "Logical GitHub owner (required)",
   optionDir: "Parent directory for peer Meta repositories",
   optionLang: "Output language (ru|en)",
   exampleCreate: "Create Meta",
@@ -96,7 +99,7 @@ const en: I18nStrings = {
   helpNoteOptions: "[options] — optional options",
   errorPackageName: "Meta repository name must be one lowercase segment without slashes",
   errorParent: "The --dir parent directory must exist",
-  errorOwner: "The parent directory name must be a valid owner segment",
+  errorOwner: "--owner must specify a valid owner segment",
   errorNested: "A Meta cannot be created inside an existing Meta repository",
   errorExists: "Meta repository already exists",
   errorGitRequired: "Git is required to create a peer Meta repository",

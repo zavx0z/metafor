@@ -4,7 +4,7 @@ import {
   type SourcedForceMessage,
 } from "shared/protocol/force/message"
 import {particleDestinations, routeParticle, type ForceOrigin} from "./route.ts"
-import {force$, forceDomains, type ForceDomain, type ForceStore} from "./store.ts"
+import {force$, forceDomains, forceParticipants, type ForceDomain, type ForceStore} from "./store.ts"
 import type {DarkForceHistory, DarkForceHistoryParticle} from "./history.ts"
 import type {CheckpointDeliveryReceipt} from "../checkpoint/barrier.ts"
 import type {
@@ -84,25 +84,32 @@ export class ForceLifecycle {
   #externalAdmissionClosed = false
   #startup: Promise<void> = Promise.resolve()
   #recoveryDeliveriesQueued: Promise<void> = Promise.resolve()
+  readonly #participants: readonly ForceDomain[]
 
   constructor(
     private readonly history: Pick<DarkForceHistory, "accept"> & Partial<Pick<DarkForceHistory, "read" | "status">>,
     private readonly checkpoint?: ForceCheckpointTransfer,
-  ) {}
+    participants: readonly ForceDomain[] = forceDomains,
+  ) {this.#participants = forceParticipants(participants)}
 
   /**
    * Сервер запущен и просит подготовить Force к рождению runtime.
    *
-   * В `created` lifecycle помещает пять заранее созданных ForceChannel в Store
+   * В `created` lifecycle помещает каналы выбранного состава в Store
    * и входит в `starting`. Runtime разрешается только после готовности всех
    * обязательных доменов. Повторный вызов ничего не подменяет; из `error` и
    * `stopped` запуск не возобновляется.
    */
-  start(channels: ForceStore): ForceLifecycleStatus {
+  start(channels: Partial<ForceStore>): ForceLifecycleStatus {
     if (this.#state !== "created") return this.status()
     this.#state = "starting"
     try {
-      for (const domain of forceDomains) force$[domain] = channels[domain]
+      for (const domain of forceDomains) delete (force$ as Partial<ForceStore>)[domain]
+      for (const domain of this.#participants) {
+        const channel = channels[domain]
+        if (!channel || channel.domain !== domain) throw new Error(`Force Store has no ${domain} channel`)
+        force$[domain] = channel
+      }
     } catch (error) {
       this.#failStop("force", `could not prepare domain channels: ${this.#reason(error)}`)
     }
@@ -112,14 +119,15 @@ export class ForceLifecycle {
   /**
    * Один обязательный ForceChannel физически готов.
    *
-   * В `starting` lifecycle фиксирует готовый канал и после пятого домена разрешает
+   * В `starting` lifecycle фиксирует готовый канал и после последнего участника разрешает
    * runtime, переходя в `running`. Повторное соединение того же домена не меняет
    * состояние. В `error` и `stopped` подключение не восстанавливает Вселенную.
    */
   channelReady(domain: ForceDomain): ForceLifecycleStatus {
+    if (!this.#participants.includes(domain)) throw new Error(`Force domain does not participate: ${domain}`)
     if (this.#state !== "starting" && this.#state !== "recovering" && this.#state !== "running") return this.status()
     this.#connectedDomains.add(domain)
-    if (this.#state === "starting" && forceDomains.every((required) => this.#connectedDomains.has(required))) {
+    if (this.#state === "starting" && this.#participants.every((required) => this.#connectedDomains.has(required))) {
       const pending = this.checkpoint?.pendingDeliveries() ?? []
       if (pending.length === 0) {
         this.#state = "running"
@@ -271,6 +279,7 @@ export class ForceLifecycle {
    * выполняет fail-stop. В остальных состояниях Particle не проходит дальше.
    */
   async acceptParticle(domain: ForceDomain, value: SourcedForceMessage): Promise<ForceLifecycleDecision> {
+    if (!this.#participants.includes(domain)) return {ok: false, reason: "not_running", error: `Force domain does not participate: ${domain}`}
     if (!this.#acceptsDomainCausality()) {
       return {ok: false, reason: "not_running", error: this.#blockedReason()}
     }
@@ -296,6 +305,9 @@ export class ForceLifecycle {
     if (!this.checkpoint || !this.history.read) {
       throw new Error("Force recovery requires checkpoint receipts and readable history")
     }
+    if (pending.some(receipt => !this.#participants.includes(receipt.domain))) {
+      throw new Error("Checkpoint recovery includes a domain outside the participating contour")
+    }
     await this.checkpoint.prepare(pending)
     const sequences = [...new Set(pending.map(({acceptanceSequence}) => acceptanceSequence))].toSorted((a, b) => a - b)
     for (const sequence of sequences) {
@@ -308,7 +320,7 @@ export class ForceLifecycle {
         : forceDomains.includes(entry.particle.by as ForceDomain)
           ? entry.particle.by as ForceDomain
           : (() => { throw new Error(`Force history entry ${sequence} has an invalid source`) })()
-      const expected = new Set(particleDestinations({parts: [entry.particle]}, origin))
+      const expected = new Set(particleDestinations({parts: [entry.particle]}, origin, this.#participants))
       const receipts = pending.filter((receipt) => receipt.acceptanceSequence === sequence)
       if (receipts.some(({domain}) => !expected.has(domain))) {
         throw new Error(`Checkpoint recovery destinations do not match Force history entry ${sequence}`)
@@ -325,10 +337,10 @@ export class ForceLifecycle {
     authoring?: MetaAuthoringCauseV1,
   ): Promise<{delivered: ForceDomain[]; accepted: DarkForceHistoryParticle}> {
     const accepted = this.history.accept(message.parts[0], authoring) as DarkForceHistoryParticle
-    const destinations = particleDestinations(message, origin)
+    const destinations = particleDestinations(message, origin, this.#participants)
     const receipts = this.checkpoint?.recordAccepted(accepted.sequence, destinations) ?? []
     if (this.checkpoint) await this.checkpoint.prepare(receipts)
-    const delivered = routeParticle(message, origin)
+    const delivered = routeParticle(message, origin, this.#participants)
     if (origin !== "agent" && this.checkpoint) this.checkpoint.acceptedFrom(origin)
     if (this.checkpoint) await this.checkpoint.waitApplied(receipts)
     return {delivered, accepted}
@@ -355,6 +367,7 @@ export class ForceLifecycle {
    * lifecycle в `error`. В `error` и `stopped` первая причина не меняется.
    */
   channelDestroyed(domain: ForceDomain, cause: unknown): void {
+    if (!this.#participants.includes(domain)) return
     this.#connectedDomains.delete(domain)
     if (this.#state === "created" || this.#state === "starting" || this.#state === "stopped" || this.#state === "error") return
     this.#failStop(domain, `channel was destroyed: ${this.#reason(cause)}`)
@@ -416,8 +429,8 @@ export class ForceLifecycle {
       domain: "force",
       state: this.#state,
       externalAdmission: this.#externalAdmissionClosed ? "closed" : "open",
-      requiredDomains: [...forceDomains],
-      connectedDomains: forceDomains.filter((domain) => this.#connectedDomains.has(domain)),
+      requiredDomains: [...this.#participants],
+      connectedDomains: this.#participants.filter((domain) => this.#connectedDomains.has(domain)),
       error: this.#error,
     }
   }

@@ -2,6 +2,7 @@ import type {ParsedFinally} from "@metafor/types/metafor/finally"
 import type {ProcessType, ParsedProcess} from "@metafor/types/metafor/process"
 import type {MetaDSL, MetaFieldDSL, MetaReactionDSL, MetaSuperpositionDSL} from "@metafor/types/metafor/schema"
 import type {MatterParticle} from "@metafor/types/metafor/matter"
+import type {MetaLifecycle} from "@metafor/types/metafor/lifecycle"
 
 export interface WimpCreateProcessInput {
   key: string
@@ -11,6 +12,7 @@ export interface WimpCreateProcessInput {
 export interface WimpCreateInput {
   name?: string | null | undefined
   desc?: string | null | undefined
+  lifecycle?: MetaLifecycle | undefined
   bulk?: MetaDSL["bulk"] | null | undefined
   fields?: readonly MetaFieldDSL[] | undefined
   superposition?: readonly MetaSuperpositionDSL[] | undefined

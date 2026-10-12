@@ -386,7 +386,7 @@ const insertFuzzyAt = async (
   wimp: Wimp,
   parentParticle: number | null,
   edgeSlot: MatterEdgeSlot,
-  fuzzyKind: "dynamic-meta",
+  _fuzzyKind: "dynamic-meta",
   predicateBindingValue: MatterBindingValue,
 ): Promise<number> => {
   const particleOrder =

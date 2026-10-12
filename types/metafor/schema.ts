@@ -1,7 +1,7 @@
-import type { Fields, Field, Update, Values } from "./fields.ts"
+import type { Fields, Field, Values } from "./fields.ts"
+import type {MetaLifecycle, MetaLifecycleInput} from "./lifecycle"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.ts"
 import type { MatterDeclaration, MatterSchema } from "./matter.ts"
-import type { ReactionsSchema } from "./reactions.ts"
 import type { SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.ts"
 import type { ReactionsDeclaration } from "./reactions.ts"
 import type {ReactionSourceSelector} from "./reactions.ts"
@@ -11,7 +11,7 @@ export interface BulkSchema {
   view: string
 }
 
-export type {MassDeclaration, MassDeclarations, MassFactory, MassHandle, MassHandles} from "./mass.ts"
+export type {MassDeclaration, MassDeclarations, MassFactory, MassHandle, MassHandles, MassDirectoryHandle, MassDirectoryLease} from "./mass.ts"
 export type MetaMassDSL = MassDeclarationDSL
 
 /**
@@ -164,6 +164,9 @@ export type EnergyDeclaration<e extends Energy> = {
 export type EnergyInputCheck<e extends Energy> =
   e extends EnergyDeclaration<e> ? [] : [energy: never]
 
+declare const MetaDSLFieldsType: unique symbol
+declare const MetaDSLStatesType: unique symbol
+declare const MetaDSLMassType: unique symbol
 declare const MetaDSLEnergyType: unique symbol
 
 /**
@@ -234,7 +237,13 @@ export type MetaForFn = (
    */
   fields<ɸ extends Fields>(
     fields: (field: Field) => ɸ,
-  ): {
+  ): MetaFieldsChain<ɸ>
+}
+
+/** Typed continuation after Fields, with an optional saved lifecycle declaration. */
+export interface MetaFieldsChain<ɸ extends Fields> {
+  /** Declares optional native lifecycle input using the preceding ordinary Fields. */
+  lifecycle(input: MetaLifecycleInput<ɸ>): Omit<MetaFieldsChain<ɸ>, "lifecycle">
     /**
      * Регистрирует суперпозицию переходов автомата между состояниями.
      *
@@ -377,7 +386,6 @@ export type MetaForFn = (
       }
     }
   }
-}
 
 declare global {
   var DEV: boolean
@@ -540,6 +548,8 @@ export interface MetaDSL<
   name: string
   /** Описание компонента */
   desc?: string
+  /** Saved native lifecycle inputs; ordinary Field values remain governed by Meta. */
+  lifecycle?: MetaLifecycle
   /** Суперпозиция состояний и переходов */
   superposition: readonly MetaSuperpositionDSL[]
   /** Снимок процессов */
@@ -554,6 +564,37 @@ export interface MetaDSL<
   bulk?: BulkSchema
   /** Normalized metadata-only Mass declarations. */
   mass?: MetaMassDSL[]
+  /** Выведенная схема Fields; type-only связь не создаёт runtime metadata. */
+  readonly [MetaDSLFieldsType]?: ɸ
+  /** Имена состояний объявления; отсутствуют в runtime как phantom property. */
+  readonly [MetaDSLStatesType]?: 𝛴
+  /** Точные Mass handles объявления; bytes остаются у runtime-владельца. */
+  readonly [MetaDSLMassType]?: m
   /** Phantom-type Energy declaration; runtime-поля и сериализации не создаёт. */
   readonly [MetaDSLEnergyType]?: e
 }
+
+
+/**
+Извлекает исходную схему Fields итоговой [Meta-декларации](../../docs/META_PACKAGES.md)
+без копии интерфейса. Сохранение типов не добавляет данные в сериализуемый Graph.
+Положительные и отрицательные случаи: [type tests](../../create-metafor/dsl/tests/types/meta-inference.typing.spec.ts).
+*/
+export type InferMetaFields<T> = T extends MetaDSL<infer ɸ, infer _𝛴, infer _m, infer _e> ? ɸ : never
+
+/** Имена состояний итоговой Meta; не назначает текущее runtime-состояние. */
+export type InferMetaStates<T> = T extends MetaDSL<infer _ɸ, infer 𝛴, infer _m, infer _e> ? 𝛴 : never
+
+/**
+Точные ключи и существующие типы Mass handles итоговой Meta, без содержимого файлов.
+Текущий MassHandle одинаков для JSON/binary keys и принимает write(unknown).
+Directory declaration выводит отдельный MassDirectoryHandle по literal format.
+Utility не вводит schema payload, codec-specific write или новые runtime handles.
+*/
+export type InferMetaMass<T> = T extends MetaDSL<infer _ɸ, infer _𝛴, infer m, infer _e> ? m : never
+
+/** Сохраняет существующий тип живых Energy-сущностей итоговой Meta. */
+export type InferMetaEnergy<T> = T extends MetaDSL<infer _ɸ, infer _𝛴, infer _m, infer e> ? e : never
+
+/** Значения Fields по существующему Values contract, включая nullable optional Fields. */
+export type InferMetaValues<T> = Values<InferMetaFields<T>>

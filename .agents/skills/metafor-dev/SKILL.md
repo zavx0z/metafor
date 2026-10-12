@@ -60,6 +60,17 @@ parents or start a second Cosmos to obtain a debugger.
 Do not use `runtime:universe`, ports 4000-4005, `launchd`, HMR, another Chrome
 profile, or a second CDP port for this contour.
 
+If the user explicitly authorizes an existing personal Chrome instead of the
+managed profile, `start-server` / `restart-server` preserve the same managed
+iTerm and Cosmos process ownership while leaving all browsers untouched.
+Attach separately only to the authorized Chrome. Approval-only Chrome exposes
+its browser WebSocket through its profile's `DevToolsActivePort`, requires its
+own user approval, and may not provide `/json/*` discovery. Reuse one MetaFor
+target through `Target` CDP commands; do not alter unrelated targets. In this
+mode `status` reports only the dedicated managed Chrome, so report the external
+browser identity separately. Managed-only `clear-site-data` and `sizes` remain
+unavailable until their exact browser ownership requirements are met.
+
 ## Документация
 
 Перед изменением документов-владельцев, package README, карты документации или

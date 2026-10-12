@@ -396,6 +396,7 @@ const membership = async (
      WHERE member.atom = ${atom} AND declaration.local_key = ${authoredKey}
        AND declaration.active = 1
   `)[0]
+  if (row?.format === "directory") throw new BoundaryDissolveError("invalid_mass_mapping", "Directory Mass dissolve is temporarily unsupported")
   if (!row || (row.format !== "json" && row.format !== "binary")) {
     throw new BoundaryDissolveError(
       "invalid_mass_mapping",

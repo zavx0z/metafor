@@ -2,6 +2,7 @@ import type {SQL, ReservedSQL} from "bun"
 import type { WimpCreateInput, WimpCreateProcessInput } from "@boundary/types/wimp"
 import type {MetaFieldDSL, MetaReactionDSL, MetaSuperpositionDSL} from "@metafor/types/metafor/schema"
 import type { MatterBindingValue, MatterEdgeSlot, MatterParticle } from "@metafor/types/metafor/matter"
+import {normalizeMetaLifecycle} from "@metafor/types/metafor/lifecycle"
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -592,9 +593,10 @@ const insertMatter = async (sql: SQL | ReservedSQL, src: string, matter: readonl
 }
 
 export const writeWimpCreate = async (sql: SQL | ReservedSQL, src: string, input: WimpCreateInput): Promise<void> => {
+  const lifecycle = normalizeMetaLifecycle(input.lifecycle, input.fields ?? [])
   await sql`
-    INSERT INTO wimp (src, name, desc, view_css)
-    VALUES (${src}, ${input.name ?? null}, ${input.desc ?? null}, ${input.bulk?.view ?? null})
+    INSERT INTO wimp (src, name, desc, view_css, lifecycle_json)
+    VALUES (${src}, ${input.name ?? null}, ${input.desc ?? null}, ${input.bulk?.view ?? null}, ${lifecycle === undefined ? null : JSON.stringify(lifecycle)})
   `
 
   const fieldIds = await insertFields(sql, src, input.fields ?? [])

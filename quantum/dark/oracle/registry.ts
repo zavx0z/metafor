@@ -15,7 +15,6 @@ import {
   type MetaSourceRevisionReadReceipt,
 } from "shared/protocol/metafor/authoring"
 import {parseMetaAddress, type MetaAddress} from "@metafor/types/metafor/graph"
-import {readSourceRevision} from "create-metafor/library"
 import {resolveMetaPath} from "../load.ts"
 
 export type MetaAuthoringSourcePath = (address: MetaAddress) => string
@@ -146,6 +145,7 @@ export class MetaAuthoringRegistry {
     if (!normalized.ok) throw validationError(normalized.issues)
     const sources = await Promise.all(normalized.value.addresses.map(async (address) => {
       try {
+        const {readSourceRevision} = await import("create-metafor/library")
         return {address, revision: await readSourceRevision(this.sourcePath(address))}
       } catch {
         throw new MetaAuthoringRegistryError(`Source revision is unavailable: ${address}`)

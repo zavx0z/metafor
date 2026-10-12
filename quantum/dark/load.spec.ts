@@ -1,37 +1,50 @@
 import {describe, expect, test} from "bun:test"
-import {resolve} from "node:path"
+import {join, resolve} from "node:path"
+import {mkdtemp, rm, writeFile} from "node:fs/promises"
+import {tmpdir} from "node:os"
+import {createMetaSourceResolver} from "shared/metafor/source"
 
-import {canonicalMetaSource, evaluateMetaSource, resolveMetaPath} from "./load.ts"
+import {canonicalMetaSource, evaluateMetaSource, loadMeta, resolveMetaAuthoringPath, resolveMetaPath} from "./load.ts"
 
 describe("Dark Meta source addressing", () => {
-  test("accepts exactly one owner and one peer repository segment", () => {
-    expect(canonicalMetaSource("zavx0z/capsule")).toBe(true)
-    expect(canonicalMetaSource("zavx0z/capsule-profile")).toBe(true)
+  test("accepts exact scoped or unscoped package names", () => {
+    expect(canonicalMetaSource("@zavx0z/capsule")).toBe(true)
+    expect(canonicalMetaSource("@zavx0z/capsule-profile")).toBe(true)
 
-    expect(canonicalMetaSource("capsule")).toBe(false)
+    expect(canonicalMetaSource("capsule")).toBe(true)
     expect(canonicalMetaSource("zavx0z/capsule/profile")).toBe(false)
     expect(canonicalMetaSource("zavx0z/capsule/profile/nested")).toBe(false)
     expect(canonicalMetaSource("zavx0z/capsule/../profile")).toBe(false)
     expect(canonicalMetaSource("/zavx0z/capsule/profile")).toBe(false)
   })
 
-  test("resolves src below the physical cluster root", () => {
-    const root = resolve(import.meta.dir, "..", "cluster")
+  test("resolves canonical src through an explicitly supplied installed root", () => {
+    const root = resolve(import.meta.dir, "fixtures", "installed")
+    const resolver = createMetaSourceResolver({root, installed: true})
+    expect(resolveMetaPath("@zavx0z/capsule", resolver)).toBe(resolve(root, "@zavx0z/capsule/meta.ts"))
+  })
 
-    expect(resolveMetaPath("zavx0z/capsule")).toBe(
-      resolve(root, "zavx0z", "capsule", "meta.ts"),
-    )
-    expect(resolveMetaPath("zavx0z/capsule-profile")).toBe(
-      resolve(root, "zavx0z", "capsule-profile", "meta.ts"),
-    )
+  test("loads installed entry and its compiled relative chunks with no source checkout", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metafor-installed-meta-"))
+    try {
+      await writeFile(join(root, "chunk.js"), "export const name = 'cached-release'\n")
+      await writeFile(join(root, "server.js"), "import {name} from './chunk.js'; export default {name}\n")
+      const resolver = createMetaSourceResolver({root, artifacts: {"owner/repository": {directory: ".", entry: "server.js"}}})
+      expect((await loadMeta("owner/repository", resolver)).name).toBe("cached-release")
+    } finally { await rm(root, {recursive: true, force: true}) }
+  })
+
+  test("rejects installed artifact paths as authoring targets", () => {
+    const resolver = createMetaSourceResolver({root: "/tmp/installed", installed: true})
+    expect(() => resolveMetaAuthoringPath("@zavx0z/capsule", resolver)).toThrow("source preparation root")
   })
 
   test("rejects noncanonical sources before filesystem access", () => {
-    expect(() => resolveMetaPath("capsule")).toThrow(
-      "Ожидается <owner>/<repository>",
+    expect(() => resolveMetaPath("../capsule")).toThrow(
+      "Ожидается имя package.json#name",
     )
     expect(() => resolveMetaPath("zavx0z/capsule/profile")).toThrow(
-      "Ожидается <owner>/<repository>",
+      "Ожидается имя package.json#name",
     )
   })
 

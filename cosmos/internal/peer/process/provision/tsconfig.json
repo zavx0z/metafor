@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {"customConditions": ["internal:server", "cosmos:server"]},
+  "include": ["**/*.ts"],
+  "exclude": []
+}

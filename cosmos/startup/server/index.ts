@@ -18,8 +18,14 @@ import {
   createServerProcessExecutor,
   type ServerProcessRuntime,
 } from "./executor"
+import {startStagedServerRelease, type ServerHandoverState, type ServerStagedStartupOptions} from "./staged-host"
 
-export interface ServerStartupOptions {
+export type {ServerHandoverState, ServerStagedStartupOptions} from "./staged-host"
+export {ServerStartupCleanupError, startStagedServerRelease} from "./staged-host"
+export type {StagedServerReleaseHost} from "./staged-host"
+export type {ServerProcessArtifact, ServerProcessCandidate, ServerProcessContext, ServerProcessRuntime} from "./executor"
+
+export interface ServerStartupOptions extends ServerStagedStartupOptions {
   readonly cosmosRoot?: string
   readonly inspect?: string
   readonly port?: number
@@ -28,6 +34,11 @@ export interface ServerStartupOptions {
 
 export interface ServerReleaseHost {
   readonly active: ActivePackage<ServerProcessRuntime>
+  readonly finished?: Promise<PackageExit>
+  readonly transition?: ServerHandoverState | null
+  prepare?(target?: string): Promise<import("./executor").ServerProcessCandidate>
+  activate?(candidate: import("./executor").ServerProcessCandidate): Promise<void>
+  handover?(target: string): Promise<void>
   destroy(): Promise<void>
 }
 
@@ -38,9 +49,16 @@ export async function startServerRelease(
   const cosmosRoot = options.cosmosRoot ?? serverStartupCosmosRoot()
   let artifact: Awaited<ReturnType<typeof currentServerReleaseArtifact>> | null = null
   try {
+    if (options.staged) {
+      if (!options.initialTarget || !options.resolveCandidate)
+        throw new Error("Staged server startup requires an installed initial target")
+      const initial = await options.resolveCandidate(options.initialTarget)
+      if (initial.context.env?.COSMOS_RELEASE_DIGEST !== options.initialTarget)
+        throw new Error("Initial server candidate differs from the installed target")
+      return await startStagedServerRelease(initial, options)
+    }
     artifact = await currentServerReleaseArtifact(cosmosRoot)
-    const executor = createServerProcessExecutor()
-    const candidate = await executor.prepare(artifact, Object.freeze({
+    const context = Object.freeze({
       cwd: cosmosRoot,
       env: Object.freeze({
         COSMOS_ROOT: cosmosRoot,
@@ -48,7 +66,9 @@ export async function startServerRelease(
       }),
       ...(options.inspect ? {inspect: options.inspect} : {}),
       ...(options.readyTimeoutMs === undefined ? {} : {readyTimeoutMs: options.readyTimeoutMs}),
-    }))
+    })
+    const executor = createServerProcessExecutor()
+    const candidate = await executor.prepare(artifact, context)
     const active = await executor.activate(candidate)
     console.debug("[@cosmos/startup:server]", "release process активирован", {
       env: artifact.identity.env,
@@ -70,7 +90,7 @@ export async function startServerRelease(
 
 /** Наблюдает завершение release без restart и rollback. */
 export async function observeServerRelease(host: ServerReleaseHost): Promise<PackageExit> {
-  const exit = await host.active.finished
+  const exit = await (host.finished ?? host.active.finished)
   if (exit.reason === "failed") {
     console.error("[@cosmos/startup:server]", "release process завершился с ошибкой", {
       error: errorMessage(exit.error),

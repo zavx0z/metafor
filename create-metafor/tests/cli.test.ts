@@ -17,7 +17,7 @@ const generatedFiles = [
 ] as const
 
 const runCli = (name: string, parent: string) =>
-  spawnSync("bun", [cli, name, "--dir", parent, "--lang", "en"], {
+  spawnSync("bun", [cli, name, "--dir", parent, "--owner", "zavx0z", "--lang", "en"], {
     encoding: "utf8",
   })
 
@@ -37,7 +37,7 @@ describe("create-metafor CLI", () => {
 
   beforeEach(() => {
     temporaryRoot = mkdtempSync(join(tmpdir(), "create-metafor-"))
-    ownerDirectory = join(temporaryRoot, "zavx0z")
+    ownerDirectory = join(temporaryRoot, "repositories")
     mkdirSync(ownerDirectory)
   })
 
@@ -45,7 +45,7 @@ describe("create-metafor CLI", () => {
     rmSync(temporaryRoot, {recursive: true, force: true})
   })
 
-  test("creates two full independent peers beneath an arbitrary owner parent", () => {
+  test("creates two full independent peers beneath a physical parent independent of owner", () => {
     expect(runCli("capsule", ownerDirectory).status).toBe(0)
     expect(runCli("capsule-profile", ownerDirectory).status).toBe(0)
 
@@ -62,6 +62,7 @@ describe("create-metafor CLI", () => {
 
       const packageJson = JSON.parse(readFileSync(join(repositoryRoot, "package.json"), "utf8"))
       expect(packageJson.name).toBe(`@zavx0z/${repository}`)
+      expect(packageJson.repository).toEqual({type: "git", url: `https://github.com/zavx0z/${repository}.git`})
       expect(packageJson.workspaces).toBeUndefined()
       expect(readFileSync(join(repositoryRoot, "index.html"), "utf8")).toContain(
         `src="zavx0z/${repository}"`,
@@ -96,12 +97,10 @@ describe("create-metafor CLI", () => {
     expect(existsSync(join(ownerDirectory, "capsule"))).toBe(false)
   })
 
-  test("requires the supplied parent basename to be a valid owner segment", () => {
-    const invalidOwner = join(temporaryRoot, "Owner Space")
-    mkdirSync(invalidOwner)
-
-    const result = runCli("capsule", invalidOwner)
-    expect(result.status).toBe(1)
-    expect(result.stderr).toContain("valid owner segment")
+  test("requires an explicit canonical owner independently of parent basename", () => {
+    const missing = spawnSync("bun", [cli, "capsule", "--dir", ownerDirectory, "--lang", "en"], {encoding: "utf8"})
+    expect(missing.status).toBe(1)
+    expect(missing.stderr).toContain("valid owner segment")
+    expect(existsSync(join(ownerDirectory, "capsule"))).toBe(false)
   })
 })

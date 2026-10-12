@@ -1,0 +1,11 @@
+{
+  "name": "@internal/network-provision",
+  "label": "Подготовка участия в сети",
+  "description": "Подготовка приватных данных сетевого участника с подтверждённой полнотой и устойчивым повтором",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {".": {"internal:server": "./index.ts"}},
+  "scripts": {"typecheck": "tsc --project tsconfig.json --pretty false", "test": "bun test spec"},
+  "dependencies": {"@internal/peer": "workspace:*", "@cosmos/release": "workspace:*", "@metafor/types": "workspace:*"}
+}

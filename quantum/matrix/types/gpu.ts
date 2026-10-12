@@ -4,7 +4,6 @@
  * @packageDocumentation
  */
 
-import type { MatrixFieldRecord } from "./data.ts"
 import type { MatrixConditionOperand } from "./condition.ts"
 import type { StringInterner } from "./strong.ts"
 import type { WeakChanges } from "./weak.ts"

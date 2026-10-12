@@ -4,6 +4,7 @@
   "type": "module",
   "main": "index.ts",
   "private": true,
+  "devDependencies": {"fixture": "workspace:*"},
   "dependencies": {
     "@metafor/types": "workspace:*",
     "@matrix/types": "workspace:*",

@@ -18,7 +18,7 @@ import {
 
 export type MetaCreatePatchErrorCode =
   | "invalid_operation"
-  | "invalid_cluster"
+  | "invalid_repositories_root"
   | "invalid_owner"
   | "target_conflict"
   | "candidate_conflict"
@@ -54,7 +54,7 @@ export interface MetaCreatePatchReceipt {
 }
 
 export interface MaterializeMetaCreatePatchOptions {
-  readonly clusterRoot: string
+  readonly repositoriesRoot: string
   readonly operationId: string
   readonly template: MetaPackageTemplate
 }
@@ -77,7 +77,7 @@ const optionalStat = async (path: string): Promise<Awaited<ReturnType<typeof lst
 
 const requireDirectory = async (
   path: string,
-  code: "invalid_cluster" | "invalid_owner" | "candidate_conflict" | "target_conflict",
+  code: "invalid_repositories_root" | "invalid_owner" | "candidate_conflict" | "target_conflict",
   label: string,
 ): Promise<void> => {
   const stat = await optionalStat(path)
@@ -266,21 +266,19 @@ export const materializeMetaCreatePatch = async (
     throw new MetaCreatePatchError("invalid_operation", "Create operationId is invalid")
   }
   const template = validateMetaPackageTemplate(options.template)
-  const clusterRoot = resolve(options.clusterRoot)
-  await requireDirectory(clusterRoot, "invalid_cluster", "Cluster root")
-  const ownerPath = resolve(clusterRoot, template.identity.owner)
-  if (relative(clusterRoot, ownerPath).startsWith(`..${sep}`)) {
-    throw new MetaCreatePatchError("invalid_owner", "Create owner escapes the Cluster root")
+  const repositoriesRoot = resolve(options.repositoriesRoot)
+  await requireDirectory(repositoriesRoot, "invalid_repositories_root", "Repositories root")
+  if (await optionalStat(resolve(repositoriesRoot, ".git")) && await optionalStat(resolve(repositoriesRoot, "meta.ts"))) {
+    throw new MetaCreatePatchError("invalid_owner", `Repositories root is itself a Meta repository: ${repositoriesRoot}`)
   }
-  await requireDirectory(ownerPath, "invalid_owner", "Create owner")
-  if (await optionalStat(resolve(ownerPath, ".git")) && await optionalStat(resolve(ownerPath, "meta.ts"))) {
-    throw new MetaCreatePatchError("invalid_owner", `Create owner is itself a Meta repository: ${ownerPath}`)
+  const targetPath = resolve(repositoriesRoot, template.identity.repository)
+  if (relative(repositoriesRoot, targetPath).startsWith(`..${sep}`)) {
+    throw new MetaCreatePatchError("invalid_owner", "Create target escapes repositories root")
   }
-  const targetPath = resolve(ownerPath, template.identity.repository)
   const existing = await optionalStat(targetPath)
   if (existing) return await receipt(targetPath, template, "already_created")
 
-  const candidatePath = resolve(ownerPath, `.${template.identity.repository}.${options.operationId}.candidate`)
+  const candidatePath = resolve(repositoriesRoot, `.${template.identity.repository}.${options.operationId}.candidate`)
   await writeTemplate(candidatePath, template)
   initializeGit(candidatePath)
   await inspectGit(candidatePath)
@@ -293,6 +291,6 @@ export const materializeMetaCreatePatch = async (
     if (await optionalStat(targetPath)) return await receipt(targetPath, template, "already_created")
     throw new MetaCreatePatchError("publish_failed", `Create target publication failed: ${targetPath}`, {cause: error})
   }
-  await syncDirectory(ownerPath)
+  await syncDirectory(repositoriesRoot)
   return await receipt(targetPath, template, "created")
 }

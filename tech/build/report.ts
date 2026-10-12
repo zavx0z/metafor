@@ -1,3 +1,4 @@
+import {materializeServerBindings} from "./server-output"
 import {lstat, realpath} from "node:fs/promises"
 import {dirname, isAbsolute, join, relative, resolve, sep} from "node:path"
 import type {PackageBuildArtifact, PackageBuildReport, PackageBuildReportOutput, PackageOwner} from "./contracts"
@@ -34,7 +35,7 @@ export async function validatePackageBuildOutputs(
 ): Promise<PackageBuildArtifact[]> {
   validatePackageBuildReport(report)
   await validateBuildReportPaths(execution, report)
-  const bindings = await validateBuildReportGraph(name, owner, execution, report)
+  let bindings = await validateBuildReportGraph(name, owner, execution, report)
   const prepared = new Map((execution.preparedDependencies ?? []).flatMap(graph => graph.files.map(file =>
     [preparedFileRelative(graph, file.path), {
       ...file, imports: file.imports.map(edge => ({...edge, path: preparedFileRelative(graph, edge.path)})),
@@ -60,6 +61,8 @@ export async function validatePackageBuildOutputs(
       await externalizeSourceMap(output.path)
     }
   }
+
+  if (!isBrowserPackageEnvironment(owner.env)) bindings = await materializeServerBindings(owner, execution, bindings, profile === "development")
 
   const outputs: PackageBuildArtifact[] = []
   const physical = new Map<string, Promise<PackageBuildArtifact | null>>()
@@ -88,7 +91,9 @@ export async function validatePackageBuildOutputs(
       if (!sourceMap) throw new Error(`Package development source map is missing: ${mapPath}`)
       outputs.push({
         ...sourceMap,
-        artifact: generatedMapArtifact(`${binding.output.relative}.map`),
+        artifact: generatedMapArtifact(isBrowserPackageEnvironment(owner.env) || isGeneratedPackageArtifactKey(binding.artifact)
+          ? `${binding.output.relative}.map`
+          : binding.artifact === "." ? `root/${owner.env}.js.map` : `public/${binding.artifact.slice(2)}/map.js.map`),
         kind: "sourcemap",
         sourceMapFor: binding.artifact,
         load: binding.load,
@@ -230,6 +235,7 @@ async function validateBuildReportGraph(
 
   const bindings: PackageBuildBinding[] = []
   const claimed = new Set<PackageBuildReportOutput>()
+  const generatedBindings = new Set<PackageArtifactKey>()
   for (const source of owner.sources) {
     const kind = packageBuildSourceKind(source.source)
     const matches =
@@ -244,11 +250,13 @@ async function validateBuildReportGraph(
     }
     bindings.push({
       artifact: source.artifact,
-      load: eagerPublic.has(source.artifact) ? "eager" : "lazy",
+      load: eagerPublic.has(source.artifact) || (!isBrowserPackageEnvironment(owner.env) && rootClosure.has(output.relative)) ? "eager" : "lazy",
       output,
     })
     if (kind !== "copy") {
       const generated = generatedOutputArtifact(output.relative)
+      if (generatedBindings.has(generated)) continue
+      generatedBindings.add(generated)
       bindings.push({
         artifact: generated,
         load: rootClosure.has(output.relative) ? "eager" : "lazy",

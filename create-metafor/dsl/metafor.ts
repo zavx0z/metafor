@@ -51,14 +51,16 @@ import type {
   MetaForFn,
 } from "@metafor/types/metafor/schema"
 import {massFactory, normalizeMassDeclarations} from "./mass.ts"
+import {normalizeMetaLifecycle, type MetaLifecycle} from "@metafor/types/metafor/lifecycle"
 
 const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
-  const dev = config?.dev ?? globalThis.DEV ?? false
+  void (config?.dev ?? globalThis.DEV ?? false)
   return {
     fields<ɸ extends Fields>(schema: (field: Field) => ɸ) {
       const fields = fieldSchema(schema)
-      return {
+      let lifecycle: MetaLifecycle | undefined
+      const next = {
         superposition<const ψ extends Record<string, unknown>>(
           superposition: ψ,
           ..._check: SuperpositionInputCheck<ɸ, ψ>
@@ -83,6 +85,7 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
                     mass: normalizeMassDeclarations(mass),
                   }
                   if (desc) schema.desc = desc
+                  if (lifecycle !== undefined) schema.lifecycle = structuredClone(lifecycle)
                   return {
                     processes(process: ProcessesDeclaration<ɸ, 𝛴, import("@metafor/types/metafor/mass").MassHandles<Schema>, ψ, e> = () => []) {
                       const processes = processesSchema(process, Object.keys(fields))
@@ -129,6 +132,13 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
               }
             },
           }
+        },
+      }
+      return {
+        superposition: next.superposition,
+        lifecycle(input: unknown) {
+          lifecycle = normalizeMetaLifecycle(input, Object.entries(fields).map(([key, value]) => ({key, ...value})))
+          return next
         },
       }
     },

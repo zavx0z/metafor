@@ -10,7 +10,8 @@
     "typecheck": "tsc --project tsconfig.json --pretty false"
   },
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./installed": "./installed.ts"
   },
   "dependencies": {
     "@metafor/tech-build": "workspace:*"

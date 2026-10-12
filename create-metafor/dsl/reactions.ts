@@ -36,7 +36,7 @@ const normalizeSources = (
     throw new Error(`Reaction source ${index} atom must use atom:<positive-id>`)
   }
   if (meta !== undefined && parseMetaAddress(meta) === null) {
-    throw new Error(`Reaction source ${index} meta must use <owner>/<repository>`)
+    throw new Error(`Reaction source ${index} meta must use a Meta package identity`)
   }
   if (source.relation !== undefined && source.relation !== "parent" &&
       source.relation !== "child" && source.relation !== "descendant") {

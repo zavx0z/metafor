@@ -4,7 +4,9 @@
     "allowJs": false,
     "checkJs": false,
     "customConditions": [
-      "cosmos:service"
+      "cosmos:service",
+      "internal:server",
+      "internal:main"
     ],
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -16,7 +18,8 @@
     "jsxImportSource": "@zavx0z/immersive/XReact"
   },
   "include": [
-    "**/*.ts"
+    "**/*.ts",
+    "../../scripts/types/module.d.ts"
   ],
   "exclude": []
 }

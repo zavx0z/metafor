@@ -1,0 +1,22 @@
+{
+  "name": "@internal/network-start",
+  "label": "Запуск участия в сети",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "internal:server": "./index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "@internal/peer": "workspace:*",
+    "@cosmos/release": "workspace:*",
+    "@metafor/tech-release": "workspace:*",
+    "@metafor/types": "workspace:*"
+  },
+  "description": "Начало участия в доверенной сети с назначенным источником проверенного кода"
+}

@@ -119,10 +119,11 @@ export interface MatrixRuntimeSnapshot {
 /**
  * Matrix-owned identity одного незавершённого Process.
  *
- * Fields копируются в момент входа в Process State. `acceptedEnergy` появляется
+ * Канонические Fields копируются при входе в Process State или повторном старте. `acceptedEnergy` появляется
  * только после первого корректного claim и участвует в проверке Boundary
  * подтверждения. Запись остаётся текущей до совпавшего Boundary commit либо до
- * структурного аннулирования; автоматического срока ожидания сейчас нет.
+ * изменения снимка Fields или структурного аннулирования; автоматического
+ * срока ожидания сейчас нет.
  */
 export type MatrixPendingProcessExecution = {
   braneIndex: number
@@ -138,6 +139,8 @@ export type AsyncGate = {
 }
 
 export type MatrixUpdateOptions = {
+  /** Exact canonical input changes may retrigger even when Weak F32 bytes coincide. */
+  processInputChangedBraneIndexes?: Iterable<number>
   retriggerProcessStates?: boolean
   skipProcessRetriggerBraneIndexes?: Iterable<number>
 }
