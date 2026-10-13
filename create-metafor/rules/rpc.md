@@ -177,9 +177,61 @@ Meta, добавляя его последним в target, и сохраняе�
 Required Field этим slice не изменяется. Удаление enum value, на которую ещё
 ссылается живое значение, default или condition, отклоняется атомарно.
 
+## Рабочая версия и явная публикация
+
+`meta.declaration.stage` принимает тот же закрытый запрос declaration operation.
+Его revisions получаются из `meta.working.revision.read` и обозначают рабочую
+версию. Чтение возвращает также revision исходного файла. Scope и capability
+принадлежат действующему Oracle Environment; отдельного уровня доступа для
+публикации нет.
+
+Stage подготавливает производный source candidate и проводит изменение через
+обычный Force path. После Boundary commit receipt имеет phase `working`, а
+canonical `meta.ts` остаётся прежним. Следующий шаг читает сохранённую
+декларацию Boundary и использует принятый source candidate предыдущего шага.
+Связь с candidate принадлежит той же записи Force history, поэтому повтор и
+восстановление не принимают изменение второй раз.
+
+`meta.source.commit` принимает `contractVersion`, capability
+`meta.declaration.write`, `operationId` и `requestDigest` выбранной принятой
+операции. Он публикует её подготовленные bytes у владельца файлового пакета
+через обычный source projector. Публикация не создаёт новую Particle и не
+выполняет Git commit. Если файлы уже совпадают с выбранным срезом, операция
+возвращает `already_published`; после других файловых изменений повтор явно
+публикует выбранный срез снова.
+
+Подготовленная рабочая версия сохраняется отдельно от её публикационной копии.
+Commit более раннего принятого шага не уничтожает последующую рабочую версию:
+выбранные bytes можно опубликовать явно, продолжая авторинг текущего мира.
+Публикация записывает выбранный срез; авторизация остаётся общим договором Oracle.
+Исходная revision сохраняет происхождение изменения и не является условием
+свежести файлов при явной публикации. Выбранные bytes заменяют файловую
+проекцию без дополнительного согласования; scope и проверки операции сохраняются.
+
+`meta.matter.stage` принимает обычный Matter request с рабочими revisions и
+меняет композицию на уже установленных канонических Meta. Его Boundary commit
+создаёт или перемещает Atom до публикации исходников. Commit такой операции
+использует существующую capability `meta.matter.write`.
+
+Для закрытого `add` или `move` stage заранее проверяет именованные direct Mass
+связи: source key объявлен ближайшим owning Atom, target key — дочерней Meta,
+их форматы совпадают. WIMP меняет owning Atom для вложенных детей; topology
+сохраняет его. Whole binding использует существующее пересечение одинаковых
+ключей с совпадающими форматами и не требует совпадения всех деклараций.
+`remove` не блокируется отсутствующим Mass key удаляемой связи.
+
+Stage поддерживает существующий declaration union. Новые исполняемые artifacts
+сначала требуют подготовки выпуска; stage не запускает непоставленный файл.
+Новая Meta сначала должна быть установлена в канонический мир. Source-backed
+операции ниже сохраняют свой отдельный порядок.
+
+Текущий Field slice не переписывает декларации с `id`/`data` metadata, которые
+Boundary ещё не сохраняет полностью: такой запрос отклоняется до изменения
+мира или исходников. Изменение остальных entities не перерисовывает Fields.
+
 ## Live-first commit и source projection
 
-Операция проходит один порядок:
+Source-backed `meta.declaration.apply` и `meta.matter.apply` проходят один порядок:
 
 ```text
 RPC request
@@ -211,6 +263,9 @@ Inflaton particles деклараций нового reachable Meta.
 Particle. Service preflight, source candidates и receipt Particles не являются.
 
 ## Ошибки и повтор
+
+Этот раздел описывает немедленный авторинг; явная публикация рабочей версии
+следует отдельному контракту выше.
 
 До live commit любая ошибка оставляет мир и canonical source неизменными.
 После live commit source failure сохраняет подготовленные source candidates.
@@ -281,6 +336,10 @@ Receipt возвращает acceptance identity именно этой Particle 
 frontier после её проведения. Повтор со старой ожидаемой frontier отклоняется
 до новой Particle. Это runtime input, поэтому authoring operation journal,
 source projection и Git revision к нему не добавляются.
+Явный отказ из-за несовпадения frontier либо закрытого входа сообщает, что
+Particle не была принята. Ошибка исполнения, потеря соединения и timeout такого
+доказательства не дают: клиент сохраняет неизвестный исход и не повторяет intent
+автоматически.
 
 `meta.process.execution.read` принимает тот же public Atom locator, semantic
 Process key и созданный Matrix public execution identity. Ответ возвращает

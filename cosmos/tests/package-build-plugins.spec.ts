@@ -23,7 +23,7 @@ test("legacy packages stay direct while Visual main owns one compiler plugin", a
       } else {
         expect(owner.plugins).toEqual([])
       }
-      expect(owner.loaders).toEqual(name === "@internal/visual" ? {".wgsl": "text"} : {})
+      expect(owner.loaders).toEqual(name === "@internal/visual" || name === "@cosmos/release" ? {".wgsl": "text"} : {})
       expect(packageBuildCommand(owner.build, "production").join(" ")).toBe(owner.build)
     }
   }

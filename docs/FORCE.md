@@ -148,7 +148,8 @@ Particle history. Формат использует только UTF-8 JSON/NDJS
 операции; он не зависит от Bun storage API.
 
 Dark Oracle публикует `dark.force.history.read`: exact current frontier либо
-bounded acceptance-sequence range над этой же history. Service не становится
+bounded acceptance-sequence range либо ограниченное чтение Photon точного
+происхождения и Atom в указанном cut над этой же history. Service не становится
 владельцем persistence, не копирует строки и не публикует clear/rewrite.
 Authoring RPC использует сохранённую в той же строке cause как единственную
 привязку request к принятому изменению; отдельный operation-service log для
@@ -164,6 +165,16 @@ Bulk также принимаются по одной entity в одном `For
 acceptance и новый пользовательский patch не создаются; уже подтверждённые
 домены повторной доставки не получают. Обычный ingress остаётся закрыт до
 завершения recovery, а несоответствие receipt и history приводит к fail-stop.
+При восстановлении ещё не обработанного подтверждения State Matrix проверяет
+исходный Photon Matrix и точное подтверждение Boundary в одном сохранённом cut.
+Текущее вычисленное State может быть дальше и не заменяет это доказательство.
+Если Boundary впервые подтверждает принятое намерение после начального снимка,
+Matrix восстанавливает только затронутую проекцию State. Более новые местные
+намерения сохраняются; живое исполнение прежнего Process не восстанавливается.
+Отсутствие, неоднозначность или несовпадение identity закрывают восстановление.
+Повтор одного подтверждённого события для одной связи Reaction сохраняет identity
+исполнения и не создаёт второй эффект.
+
 Если Matrix enqueue уже принят Dark, но ещё не записан Boundary к моменту нового
 начального снимка, эта же доставка восстанавливает запись, а Boundary queue copy
 добавляет её в новую Matrix. Текущее или старое State источника для этого не
@@ -202,9 +213,9 @@ Boundary, Matrix и Energy не открывают HTTP/TCP listeners. Посл�
 Cosmos владеет физическим listener и жизненным циклом исполнения. Bulk не
 входит в текущий серверный состав и не получает фиктивный канал.
 
-Именованный development adapter сохраняет `/force`, `/ws` и `/oracle/*` только
-для доверенных fixtures. Эти routes сами не проверяют полномочия внешнего
-клиента и не являются безопасным публичным сетевым интерфейсом.
+Именованный development adapter сохраняет доменные HTTP и WebSocket входы
+для доверенных fixtures. Допуск внешнего наблюдателя принадлежит отдельному
+локальному Oracle control-входу и не создаёт доменное воплощение.
 
 Dark Oracle владеет `OracleRouter`, service RPC и `/oracle/*`. Оба слоя находятся
 в одном Dark process и используют локальную границу вместо self-WebSocket.
@@ -214,9 +225,13 @@ Dark Oracle владеет `OracleRouter`, service RPC и `/oracle/*`. Оба с
 release процессов и не удостоверяет отдельное устройство. Oracle открывается
 до гидратации; Force объявляет причинную готовность только после неё.
 Каждый процесс владеет одной сетью; закрывает adapters перед собственной сетью.
-Старые `/force`, `/ws`, `/oracle/ws`, `/oracle/channels`, `/oracle/rpc` и
-`/oracle/channel` в этом режиме запрещены для всех HTTP методов, включая
-запросы через proxy с loopback IP. Health сообщает только готовность и
+Прежние доменные HTTP и WebSocket входы в этом режиме запрещены, включая
+запросы через proxy с loopback IP. Локальный Oracle observer использует тот же
+service router: сервер назначает отдельную identity без exposed methods и
+проверяет принадлежность запроса локальному origin. Observer не подменяет
+provider или домен; каждый вызываемый service сохраняет собственные capabilities
+и authoring grants. Root и browser agents наблюдают и управляют доступными им
+services через этот общий Oracle API. Health сообщает только готовность и
 transport status, не Graph или Mass bytes. Отдельный именованный WebSocket
 adapter остаётся для локальных development fixtures. Допуск внешних user-peer
 к Graph или Mass этим частным доменным знакомством не предоставляется.

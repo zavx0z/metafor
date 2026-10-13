@@ -1,7 +1,7 @@
 {
   "name": "@internal/visual",
   "label": "Визуальная среда Cosmos",
-  "version": "0.1.51",
+  "version": "0.3.14",
   "private": true,
   "type": "module",
   "exports": {
@@ -14,16 +14,22 @@
     },
     "./bots.glb": {
       "internal:main": "./main/bots.glb"
+    },
+    "./fonts/jetbrains-mono-bold.ttf": {
+      "internal:main": "@zavx0z/immersive/engine/fonts/jetbrains-mono-bold.ttf"
     }
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build:main": "bun build ./main/index.tsx --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
+    "build:main": "bun build ./main/index.tsx --conditions=internal:main --conditions=metafor:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
     "build:server": "bun build ./server/index.ts --conditions=internal:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
   },
   "dependencies": {
+    "@metafor/types": "workspace:*",
+    "@metafor/agent": "workspace:*",
     "@zavx0z/immersive": "^0.0.0",
-    "@zavx0z/immersive-nodes": "^0.0.0"
+    "@zavx0z/immersive-nodes": "^0.0.0",
+    "@zavx0z/storybook-app-web-page-shell-execution-settings": "^0.0.0"
   },
   "devDependencies": {
     "@metafor/tech-build": "workspace:*"

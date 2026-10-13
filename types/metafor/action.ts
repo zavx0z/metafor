@@ -1,5 +1,6 @@
 import type { Fields, Values } from "./fields.ts"
 import type { Energy, Mass, Self } from "./schema.ts"
+import type {OracleProcessEnvironment} from "./environment"
 
 /**
  * Параметры для action.
@@ -25,6 +26,8 @@ export interface ActionParams<
   energy: e
   /** Сигнал остановки старого execution после структурного перестроения. */
   signal: AbortSignal
+  /** Optional execution-bound, explicitly granted read-only Oracle capability. */
+  environment?: OracleProcessEnvironment
   /** Полный идентификатор атома */
   self: Self
 }

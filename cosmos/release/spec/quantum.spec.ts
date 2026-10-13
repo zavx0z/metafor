@@ -527,6 +527,7 @@ test("compiled native Quantum reads Graph and restores its stored root over two 
       child = Bun.spawn({cmd: [process.execPath, executable], cwd: directory, env: {
         PATH: process.env.PATH, TMPDIR: process.env.TMPDIR,
         QUANTUM_FIXTURE_STATE: stateRoot, QUANTUM_FIXTURE_ROOT_FILE: rootFile, QUANTUM_FIXTURE_PEER: "1",
+        META_AUTHORING_RPC_SOURCE: "native-http-observer", META_AUTHORING_SCOPES: "fixture/initialized", META_AUTHORING_CREATE_SCOPES: "fixture/initialized",
         METAFOR_WEAK_BACKEND: "cpu", METAFOR_META_ARTIFACT_ROOT: artifacts,
         METAFOR_META_ARTIFACT_MAP: JSON.stringify({"fixture/initialized": {directory: ".", entry: "meta.mjs"}}),
       }, stdout: "pipe", stderr: "pipe", ipc(message) {
@@ -554,11 +555,47 @@ test("compiled native Quantum reads Graph and restores its stored root over two 
         expect(link.transport).toBe("direct")
         expect(link.channels).toEqual([{name: "oracle", state: "open"}, {name: "force", state: "open"}])
       }
-      for (const route of ["/force", "/ws", "/oracle/ws", "/oracle/channels", "/oracle/rpc", "/oracle/channel"]) {
+      for (const route of ["/force", "/ws", "/oracle/ws"]) {
         for (const method of ["GET", "POST", "DELETE"]) {
           expect((await fetch(`${evidence.origin}${route}`, {method})).status).toBe(403)
         }
       }
+      const {OracleRpcPeer, OracleTransport} = await import("shared/transport/oracle")
+      const transport = new OracleTransport("native-http-observer", evidence.origin)
+      const peer = new OracleRpcPeer(transport.channel)
+      try {
+        await transport.open()
+        expect(transport.identity).toMatch(/^observer:/)
+        const concurrent = new OracleTransport("native-http-observer", evidence.origin)
+        const concurrentPeer = new OracleRpcPeer(concurrent.channel)
+        try {
+          await concurrent.open()
+          expect(concurrent.identity).not.toBe(transport.identity)
+          expect(await concurrentPeer.call<typeof evidence.graph>("dark", "readGraph", {})).toEqual(evidence.graph)
+        } finally {concurrentPeer.close(); await concurrent.close()}
+        expect(await peer.call<typeof evidence.graph>("dark", "readGraph", {})).toEqual(evidence.graph)
+        expect(await peer.call("dark", "meta.capabilities.read", {contractVersion: 1})).toMatchObject({contractVersion: 1, capabilities: []})
+        const prior = transport.identity
+        await transport.close()
+        await transport.open()
+        expect(transport.identity).toMatch(/^observer:/)
+        expect(transport.identity).not.toBe(prior)
+        expect(await peer.call<typeof evidence.graph>("dark", "readGraph", {})).toEqual(evidence.graph)
+      } finally {peer.close(); await transport.close()}
+      for (const identity of ["dark", "boundary", "matrix", "energy", "cosmos-clients", "observer:injected"]) {
+        const response = await fetch(`${evidence.origin}/oracle/channels`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({version: 1, identity, methods: []})})
+        expect(response.status).toBe(403)
+      }
+      const opening = await fetch(`${evidence.origin}/oracle/channels`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({version: 1, identity: "negative-observer", methods: []})})
+      const {channel} = await opening.json() as {channel: string}
+      const auth = {"Content-Type": "application/json", Authorization: `Bearer ${channel}`}
+      try {
+        expect((await fetch(`${evidence.origin}/oracle/rpc`, {method: "POST", headers: auth, body: JSON.stringify({version: 1, id: "spoof", source: "energy", target: "dark", method: "readGraph", params: {}})})).status).toBe(400)
+        expect((await fetch(`${evidence.origin}/oracle/rpc`, {method: "POST", headers: {...auth, Origin: "https://outsider.invalid"}, body: "{}"})).status).toBe(403)
+        expect((await fetch(`${evidence.origin}/oracle/rpc`, {method: "POST", headers: {...auth, Forwarded: "for=127.0.0.1"}, body: "{}"})).status).toBe(403)
+        expect((await fetch(`${evidence.origin}/oracle/rpc`, {method: "POST", headers: auth, body: JSON.stringify({version: 1, id: "capacity", target: "dark", method: "readGraph", params: "x".repeat(1024 * 1024)})})).status).toBe(400)
+        expect((await fetch(`${evidence.origin}/oracle/channels`, {method: "POST", headers: auth, body: JSON.stringify({version: 1, identity: "not-provider", methods: ["readGraph"], endpoint: `${evidence.origin}/callback`, callback: "private"})})).status).toBe(400)
+      } finally {await fetch(`${evidence.origin}/oracle/channel`, {method: "DELETE", headers: {Authorization: `Bearer ${channel}`}})}
       current.send("stop")
       await Promise.race([current.exited, Bun.sleep(5000).then(() => {throw new Error("Native Quantum cleanup timed out")})])
       for (const pid of owned) expect(isAlive(pid)).toBeFalse()

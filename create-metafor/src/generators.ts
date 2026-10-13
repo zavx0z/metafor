@@ -46,11 +46,16 @@ export function generateMetaFile(
 ): string {
   const template = loadTemplate("meta.ts")
   return render(template, {
+    agentsImport: 'import agents from "./agents/index.tsx"',
+    agentsStage: ".agents(agents)",
     nameJson: jsString(name),
     descriptionJson: jsString(description),
     fieldsBody: profile === "empty"
       ? "{}"
       : `{
+    task: field.string.optional(),
+    answer: field.string.optional(),
+    status: field.string.required("idle"),
     error: field.string.optional({ label: ${jsString(errorLabel)} }),
   }`,
   })
@@ -60,60 +65,22 @@ export function generateMetaFile(
  * Сгенерировать локальные декларации DSL-глобалов
  */
 export function generateMetaforTypesFile(): string {
-  const template = loadTemplate("metafor.d.ts")
-  const metadataOnlyMass = `type MetaForMassFormat = "json" | "binary"
-
-type MetaForMassDeclaration = {
-  readonly format: MetaForMassFormat
-  readonly label?: string
-  readonly description?: string
+  return loadTemplate("metafor.d.ts")
 }
 
-type MetaForMassDeclarations = Record<string, MetaForMassDeclaration>
-
-type MetaForMassHandle = {
-  readBytes(): Promise<Uint8Array>
-  readText(): Promise<string>
-  readJson(): Promise<unknown>
-  write(value: unknown): Promise<void>
+/** Baseline JSX composition; even an empty Meta keeps the reusable component. */
+export function generateAgentsIndexFile(profile: MetaTemplateProfile = "standard"): string {
+  return profile === "empty"
+    ? '/** @jsxImportSource @metafor/dsl */\nexport default () => null\n'
+    : loadTemplate("agents/index.tsx.txt")
 }
 
-type MetaForMassHandles<Schema extends MetaForMassDeclarations> = {
-  [Key in keyof Schema]: MetaForMassHandle
+export function generateAssistantFile(): string {
+  return loadTemplate("agents/assistant.tsx.txt")
 }
 
-type MetaForMassOptions = {
-  label?: string
-  description?: string
-}
-
-type MetaForMassFactory = {
-  json(options?: MetaForMassOptions): MetaForMassDeclaration
-  binary(options?: MetaForMassOptions): MetaForMassDeclaration
-}
-
-`
-  const withoutLegacyMass = template.replace(
-    /type MetaForIsAny<Value>[\s\S]*?(?=type MetaForSelf =)/,
-    metadataOnlyMass,
-  )
-  if (withoutLegacyMass === template) throw new Error("Generated MetaFor declaration is missing the legacy Mass contract")
-
-  const generated = withoutLegacyMass.replace(
-    /type MetaForMassStage<[\s\S]*?\n}\n\ntype MetaForSuperpositionStage/,
-    `type MetaForMassStage<
-  Fields extends MetaForFields,
-  Superposition,
-> = {
-  mass<Factory extends (mass: MetaForMassFactory) => MetaForMassDeclarations>(
-    factory: Factory,
-  ): MetaForEnergyStage<Fields, Superposition, MetaForMassHandles<ReturnType<Factory>>>
-}
-
-type MetaForSuperpositionStage`,
-  )
-  if (generated === withoutLegacyMass) throw new Error("Generated MetaFor declaration is missing the Mass stage")
-  return generated
+export function generateAgentsJsxTypesFile(): string {
+  return loadTemplate("agents-jsx.d.ts.txt")
 }
 
 /**
@@ -152,7 +119,7 @@ export function generatePackageJsonFile(
     repositoryJson: JSON.stringify({type: "git", url: `https://github.com/${identity.owner}/${identity.repository}.git`}),
     descriptionJson: jsString(description),
     authorJson: jsString(author),
-    buildScriptJson: jsString("bun build meta.ts --outdir dist --target browser --format=esm"),
+    buildScriptJson: jsString("bun build meta.ts --outdir dist --target browser --format=esm --external=@metafor/dsl --external=@metafor/dsl/*"),
   })
 }
 

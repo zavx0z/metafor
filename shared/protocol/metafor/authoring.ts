@@ -16,7 +16,11 @@ export const META_CAPABILITIES_READ_METHOD = "meta.capabilities.read" as const
 export const META_SOURCE_REVISION_READ_METHOD = "meta.source.revision.read" as const
 export const META_CREATE_METHOD = "meta.create" as const
 export const META_MATTER_APPLY_METHOD = "meta.matter.apply" as const
+export const META_MATTER_STAGE_METHOD = "meta.matter.stage" as const
 export const META_DECLARATION_APPLY_METHOD = "meta.declaration.apply" as const
+export const META_DECLARATION_STAGE_METHOD = "meta.declaration.stage" as const
+export const META_WORKING_REVISION_READ_METHOD = "meta.working.revision.read" as const
+export const META_SOURCE_COMMIT_METHOD = "meta.source.commit" as const
 
 export const META_SOURCE_READ_CAPABILITY = "meta.source.read" as const
 export const META_CREATE_CAPABILITY = "meta.create" as const
@@ -28,7 +32,11 @@ export type MetaAuthoringMethod =
   | typeof META_SOURCE_REVISION_READ_METHOD
   | typeof META_CREATE_METHOD
   | typeof META_MATTER_APPLY_METHOD
+  | typeof META_MATTER_STAGE_METHOD
   | typeof META_DECLARATION_APPLY_METHOD
+  | typeof META_DECLARATION_STAGE_METHOD
+  | typeof META_WORKING_REVISION_READ_METHOD
+  | typeof META_SOURCE_COMMIT_METHOD
 
 export type MetaAuthoringCapabilityId =
   | typeof META_SOURCE_READ_CAPABILITY
@@ -70,6 +78,20 @@ export interface MetaSourceRevisionReadReceipt {
   }>
 }
 
+/** Revisions of prepared working source and its current filesystem baseline. No source bytes are exposed. */
+export interface MetaWorkingRevisionReadReceipt {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  sources: Array<{address: MetaAddress; revision: MetaSourceRevision; sourceRevision: MetaSourceRevision}>
+}
+
+/** Explicit publication of an already accepted working operation under the existing authoring scope. */
+export interface MetaSourceCommitRequest {
+  contractVersion: typeof META_AUTHORING_CONTRACT_VERSION
+  capability: typeof META_DECLARATION_WRITE_CAPABILITY | typeof META_MATTER_WRITE_CAPABILITY
+  operationId: MetaAuthoringOperationId
+  requestDigest: MetaAuthoringRequestDigest
+}
+
 export type MetaAuthoringOperationId = string
 export type MetaSourceRevision = `sha256:${string}`
 export type MetaSourcePrecondition = MetaSourceRevision | "absent"
@@ -102,6 +124,7 @@ export interface MetaMatterAuthoringCauseV1 {
   operationId: MetaAuthoringOperationId
   requestDigest: MetaAuthoringRequestDigest
   sourceProjections: MetaMatterSourceProjectionV1[]
+  publication?: "deferred"
 }
 
 export interface MetaDeclarationAuthoringCauseV1 {
@@ -111,6 +134,8 @@ export interface MetaDeclarationAuthoringCauseV1 {
   operationId: MetaAuthoringOperationId
   requestDigest: MetaAuthoringRequestDigest
   sourceProjections: MetaDeclarationSourceProjectionV1[]
+  /** Working Boundary version; publication occurs only through explicit source commit. */
+  publication?: "deferred"
 }
 
 export type MetaAuthoringCauseV1 =
@@ -137,6 +162,11 @@ export interface MetaMatterPublishedSourceV1 extends MetaMatterSourceProjectionV
 }
 
 export type MetaMatterApplyReceipt =
+  | MetaMatterApplyReceiptBase & {
+      phase: "working"
+      source: {outcome: "deferred"}
+      materialization: {outcome: "applied"}
+    }
   | MetaMatterApplyReceiptBase & {
       phase: "source_pending"
       source: {outcome: "pending"; error: string}
@@ -172,6 +202,11 @@ export interface MetaDeclarationPublishedSourceV1 extends MetaDeclarationSourceP
 }
 
 export type MetaDeclarationApplyReceipt =
+  | MetaDeclarationApplyReceiptBase & {
+      phase: "working"
+      source: {outcome: "deferred"}
+      materialization: {outcome: "applied"}
+    }
   | MetaDeclarationApplyReceiptBase & {
       phase: "source_pending"
       source: {outcome: "pending"; error: string}

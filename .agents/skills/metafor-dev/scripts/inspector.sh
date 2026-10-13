@@ -42,7 +42,10 @@ is_project_version() {
 }
 
 is_exact_release_artifact_token() {
-  local token=$1 release_root=$2 relative version
+  local token=$1 release_root=$2 installed_artifacts=${3:-} installed relative version
+  while IFS= read -r installed; do
+    [[ -n $installed && $token == "$installed" ]] && return 0
+  done <<<"$installed_artifacts"
   relative=${token#"$release_root/dist/versions/"}
   [[ $relative != "$token" && $relative == */server.js ]] || return 1
   version=${relative%/server.js}
@@ -50,27 +53,36 @@ is_exact_release_artifact_token() {
 }
 
 is_exact_release_command() {
-  local command=$1 release_root=$2 token artifacts=0
+  local command=$1 release_root=$2 installed_artifacts=${3:-} token artifacts=0
   for token in $command; do
-    is_exact_release_artifact_token "$token" "$release_root" || continue
+    is_exact_release_artifact_token "$token" "$release_root" "$installed_artifacts" || continue
     artifacts=$((artifacts + 1))
   done
   [[ $artifacts == 1 ]]
 }
 
 exact_release_descendants() {
-  local descendants=$1 release_root=$2 pid tty_value command
+  local descendants=$1 release_root=$2 installed_artifacts=${3:-} pid tty_value command
   while IFS=$'\t' read -r pid tty_value command; do
     [[ -n $pid ]] || continue
-    is_exact_release_command "$command" "$release_root" || continue
+    is_exact_release_command "$command" "$release_root" "$installed_artifacts" || continue
     printf '%s\t%s\t%s\n' "$pid" "$tty_value" "$command"
   done <<<"$descendants"
 }
 
 release_inspector_state() {
-  local descendants=$1 release_root=$2 exact count line pid tty_value command
+  local descendants=$1 release_root=$2 installed_artifacts=${3:-} exact count line pid tty_value command
   local token address= inspect_arguments=0
-  exact=$(exact_release_descendants "$descendants" "$release_root")
+  exact=$(exact_release_descendants "$descendants" "$release_root" "$installed_artifacts")
+  if [[ $# -ge 4 ]]; then
+    local http_listeners listener_count listener
+    http_listeners=$(awk 'NF && !seen[$1]++ {print $1}' <<<"$4")
+    listener_count=$(awk 'NF {count+=1} END {print count+0}' <<<"$http_listeners")
+    if [[ $listener_count == 0 ]]; then printf 'absent\t0\n'; return; fi
+    if [[ $listener_count != 1 ]]; then printf 'multiple\t%s\n' "$listener_count"; return; fi
+    listener=${http_listeners%%$'\n'*}
+    exact=$(awk -F '\t' -v listener="$listener" '$1 == listener {print}' <<<"$exact")
+  fi
   count=$(awk 'NF { count += 1 } END { print count + 0 }' <<<"$exact")
   if [[ $count == 0 ]]; then
     printf 'absent\t0\n'
@@ -84,7 +96,7 @@ release_inspector_state() {
   line=${exact%%$'\n'*}
   IFS=$'\t' read -r pid tty_value command <<<"$line"
   for token in $command; do
-    is_exact_release_artifact_token "$token" "$release_root" && break
+    is_exact_release_artifact_token "$token" "$release_root" "$installed_artifacts" && break
     case "$token" in
       --inspect=*)
         address=${token#--inspect=}
@@ -122,9 +134,10 @@ inspector_listener_ownership() {
 }
 
 require_managed_release_mode() {
-  local mode=$1 requested_address=$2 descendants=$3 release_root=$4 listeners=${5:-}
+  local mode=$1 requested_address=$2 descendants=$3 release_root=$4 listeners=${5:-} installed_artifacts=${6:-}
   local state kind release_pid actual_address ownership ownership_kind listener_pid
-  state=$(release_inspector_state "$descendants" "$release_root")
+  if [[ $# -ge 7 ]]; then state=$(release_inspector_state "$descendants" "$release_root" "$installed_artifacts" "$7")
+  else state=$(release_inspector_state "$descendants" "$release_root" "$installed_artifacts"); fi
   IFS=$'\t' read -r kind release_pid actual_address <<<"$state"
   case "$mode" in
     normal)

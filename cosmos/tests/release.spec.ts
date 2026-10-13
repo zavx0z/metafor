@@ -98,11 +98,14 @@ test("release membership is closed over compatible runtime dependencies", async 
     current.filter(({name}) => name !== "@internal/visual"),
     isMember,
   )).toThrow("requires missing release package @internal/visual")
+  const currentVisual = current.find(member => member.name === "@internal/visual")
+  if (!currentVisual) throw new Error("Visual release member is missing")
+  const incompatibleVisualVersion = nextPackageVersion(currentVisual.version, "major")
   expect(() => validateTargetReleaseVersions(
     current,
-    new Map([["@internal/visual", "0.2.0"]]),
+    new Map([["@internal/visual", incompatibleVisualVersion]]),
     isMember,
-  )).toThrow("selected 0.2.0")
+  )).toThrow(`selected ${incompatibleVisualVersion}`)
   expect(() => validateTargetReleaseVersions(
     current,
     new Map([["@internal/not-a-member", "0.1.0"]]),

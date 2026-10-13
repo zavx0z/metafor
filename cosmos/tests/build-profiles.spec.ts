@@ -2,7 +2,7 @@ import {builder} from "../release/server/services"
 const {buildablePackage, packageOwners} = builder
 import {expect, setDefaultTimeout, test} from "bun:test"
 import {existsSync, realpathSync} from "node:fs"
-import {mkdtemp, readdir, rm, symlink} from "node:fs/promises"
+import {mkdir, mkdtemp, readdir, rm, symlink} from "node:fs/promises"
 import {dirname, join, relative} from "node:path"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
@@ -337,9 +337,9 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
           VerifiedArtifact<unknown, unknown>,
         ]
       `,
-      ["serviceworker"],
+      ["bun", "serviceworker"],
     )
-    expect(service.exitCode).toBe(0)
+    expect(service.exitCode, service.stdout + service.stderr).toBe(0)
 
     const server = await typecheckPackageEnvironment(
       directory,
@@ -361,9 +361,9 @@ test("canonical TypeScript verification keeps release runtime contracts in servi
         // @ts-expect-error service-only contract is not public in env server
         import type {ReleaseRuntime} from "@cosmos/release"
       `,
-      ["bun"],
+      ["bun", "@webgpu/types"],
     )
-    expect(server.exitCode).toBe(0)
+    expect(server.exitCode, server.stdout + server.stderr).toBe(0)
   } finally {
     await rm(directory, {recursive: true, force: true})
   }
@@ -427,6 +427,8 @@ test("development keeps debug and source maps while production drops both", asyn
     expect(development.sources.startupMain).toContain("страница готова к работе")
     expect(development.sources.releaseMain).toContain("[@cosmos/release:main]")
     expect(development.sources.internalVisual).toContain("[@internal/visual:main]")
+    expect(new Bun.Transpiler({loader: "js"}).scan(development.sources.releaseMain).imports.map(({path}) => path)).toEqual(["@internal/visual"])
+    expect(new Bun.Transpiler({loader: "js"}).scan(development.sources.internalVisual).imports.filter(({path}) => !path.startsWith("/") && !path.startsWith("./") && !path.startsWith("../"))).toEqual([])
     expect(development.releaseServer).toContain("Bun.serve")
     expect(development.releaseServer).toContain("process.send")
     for (const artifact of Object.values(development.sources)) {
@@ -438,6 +440,8 @@ test("development keeps debug and source maps while production drops both", asyn
 
     const production = await build("production")
     expect(production.releaseServer).toContain("Bun.serve")
+    expect(new Bun.Transpiler({loader: "js"}).scan(production.sources.releaseMain).imports.map(({path}) => path)).toEqual(["@internal/visual"])
+    expect(new Bun.Transpiler({loader: "js"}).scan(production.sources.internalVisual).imports.filter(({path}) => !path.startsWith("/") && !path.startsWith("./") && !path.startsWith("../"))).toEqual([])
     for (const artifact of Object.values(production.sources)) {
       expect(artifact).not.toContain("console.debug")
       expect(artifact).not.toContain("sourceMappingURL=")
@@ -472,13 +476,14 @@ async function build(mode: "development" | "production") {
     startupServer: join(directory, "startup-server.js"),
     releaseMain: join(directory, "release-main.js"),
     releaseService: join(directory, "release-service.js"),
-    releaseServer: join(directory, "release-server.js"),
+    releaseServer: join(directory, "release-server"),
     internalVisual: join(directory, "visual-main"),
     internalVisualServer: join(directory, "visual-server.js"),
   }
-  const {version: visualVersion} = await Bun.file(
-    join(cosmos, "internal/visual/package.json"),
-  ).json() as {version: string}
+  const [{version: visualVersion}, {version: releaseVersion}] = await Promise.all([
+    Bun.file(join(cosmos, "internal/visual/package.json")).json() as Promise<{version: string}>,
+    Bun.file(join(cosmos, "release/package.json")).json() as Promise<{version: string}>,
+  ])
   const child = Bun.spawn([
     Bun.which("bun") ?? "bun",
     "--conditions=cosmos:server",
@@ -486,7 +491,7 @@ async function build(mode: "development" | "production") {
     "-e",
     `import {builder} from "./release/server/services"
 const {buildPackage} = builder
- const artifacts = ${JSON.stringify(artifacts)}; const visualVersion = ${JSON.stringify(visualVersion)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/startup", {env:"server",artifact:artifacts.startupServer}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",artifact:artifacts.releaseServer}), buildPackage("@internal/visual", {env:"main",outdir:artifacts.internalVisual,version:visualVersion}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
+ const artifacts = ${JSON.stringify(artifacts)}; const visualVersion = ${JSON.stringify(visualVersion)}; const releaseVersion = ${JSON.stringify(releaseVersion)}; console.log(JSON.stringify(await Promise.all([buildPackage("@cosmos/startup", {env:"main",artifact:artifacts.startupMain}), buildPackage("@cosmos/startup", {env:"service",artifact:artifacts.startupService}), buildPackage("@cosmos/startup", {env:"server",artifact:artifacts.startupServer}), buildPackage("@cosmos/release", {env:"main",artifact:artifacts.releaseMain}), buildPackage("@cosmos/release", {env:"service",artifact:artifacts.releaseService}), buildPackage("@cosmos/release", {env:"server",outdir:artifacts.releaseServer,version:releaseVersion}), buildPackage("@internal/visual", {env:"main",outdir:artifacts.internalVisual,version:visualVersion}), buildPackage("@internal/visual", {env:"server",artifact:artifacts.internalVisualServer})])))`,
   ], {
     cwd: cosmos,
     env: {...process.env, NODE_ENV: mode},
@@ -505,10 +510,11 @@ const {buildPackage} = builder
       env: PackageEnvironment
       success: boolean
       exitCode: number | null
-      outputs: Array<{artifact?: string, path: string}>
+      stderr: string
+      outputs: Array<{artifact?: string, kind?: string, path: string}>
     }>
     expect(exitCode).toBe(0)
-    expect(result.map(({env, success, exitCode: buildExitCode}) => ({env, success, exitCode: buildExitCode})))
+    expect(result.map(({env, success, exitCode: buildExitCode}) => ({env, success, exitCode: buildExitCode})), result.filter(entry => !entry.success).map(entry => entry.stderr).join("\n"))
       .toEqual([
         {env: "main", success: true, exitCode: 0},
         {env: "service", success: true, exitCode: 0},
@@ -521,8 +527,13 @@ const {buildPackage} = builder
       ])
     const visualRoot = result[6]?.outputs.find(({artifact}) => artifact === ".")
     if (!visualRoot) throw new Error("Visual root output is missing")
+    const releaseServerRoot = result[5]?.outputs.find(({artifact}) => artifact === ".")
+    if (!releaseServerRoot) throw new Error("Release server root output is missing")
+    // The server owns a complete multi-entry graph, including its public ./node
+    // export and shared chunks. Its runtime implementation need not stay in root.
+    const releaseServerSources = await Promise.all(result[5]!.outputs.filter(output => output.kind !== "sourcemap" && output.path.endsWith(".js")).map(output => Bun.file(output.path).text()))
     return {
-      releaseServer: await Bun.file(artifacts.releaseServer).text(),
+      releaseServer: releaseServerSources.join("\n"),
       sources: {
         internalVisual: await Bun.file(visualRoot.path).text(),
         releaseMain: await Bun.file(artifacts.releaseMain).text(),
@@ -531,7 +542,7 @@ const {buildPackage} = builder
       },
       sourceMaps: await Promise.all(
         Object.entries(artifacts)
-          .map(([name, artifact]) => Bun.file(`${name === "internalVisual" ? visualRoot.path : artifact}.map`).exists()),
+          .map(([name, artifact]) => Bun.file(`${name === "internalVisual" ? visualRoot.path : name === "releaseServer" ? releaseServerRoot.path : artifact}.map`).exists()),
       ),
     }
   } finally {
@@ -583,13 +594,28 @@ async function typecheckPackageEnvironment(
   const sourcePath = join(directory, `${suffix}.ts`)
   const configPath = join(directory, `${suffix}.json`)
   const modules = join(directory, "node_modules")
-  if (!existsSync(modules)) await symlink(join(repository, "node_modules"), modules, "dir")
+  if (!existsSync(modules)) {
+    await mkdir(modules)
+    // Model the consumer dependency context without assuming workspace hoisting.
+    for (const source of [join(repository, "node_modules"), join(cosmos, "node_modules")]) {
+      for (const entry of await readdir(source, {withFileTypes: true})) {
+        if (entry.name.startsWith("@")) {
+          const scope = join(modules, entry.name)
+          await mkdir(scope, {recursive: true})
+          for (const name of await readdir(join(source, entry.name))) {
+            const target = join(scope, name)
+            if (!existsSync(target)) await symlink(join(source, entry.name, name), target, "dir")
+          }
+        } else if (!existsSync(join(modules, entry.name))) await symlink(join(source, entry.name), join(modules, entry.name), entry.isDirectory() ? "dir" : "file")
+      }
+    }
+  }
   await Promise.all([
     Bun.write(sourcePath, source),
     Bun.write(configPath, `${JSON.stringify({
       extends: join(repository, "tsconfig.json"),
       compilerOptions: {
-        customConditions: [condition],
+        customConditions: [condition, ...(condition.endsWith(":main") ? ["metafor:main"] : [])],
         lib: ["ESNext", "DOM", "DOM.Iterable"],
         types,
       },

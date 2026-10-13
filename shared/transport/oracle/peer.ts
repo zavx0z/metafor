@@ -9,6 +9,7 @@ import {
 } from "../../protocol/oracle/rpc.ts"
 import {
   OracleRpcRemoteError,
+  OracleRpcAdmissionRefusedError,
   type OracleChannel,
 } from "./channel.ts"
 
@@ -94,6 +95,9 @@ export class OracleRpcPeer {
     const response = new Promise<T>((resolve, reject) => {
       this.#pending.set(call.id, {resolve, reject})
     })
+    // close may reject while asynchronous channel.send is still pending.
+    // The caller still awaits the original promise and receives that rejection.
+    void response.catch(() => {})
     try {
       await this.channel.send(call)
     } catch (error) {
@@ -116,7 +120,7 @@ export class OracleRpcPeer {
     if (!pending) return
     this.#pending.delete(response.id)
     if (response.ok) pending.resolve(response.result)
-    else pending.reject(new OracleRpcRemoteError(response.error.code, response.error.message))
+    else pending.reject(new OracleRpcRemoteError(response.error.code, response.error.message, response.error.data))
   }
 
   async #receiveCall(call: RoutedOracleRpcCall): Promise<void> {
@@ -134,6 +138,10 @@ export class OracleRpcPeer {
       await this.channel.send({version: ORACLE_RPC_VERSION, id: call.id, ok: true, result})
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      if (error instanceof OracleRpcAdmissionRefusedError) {
+        await this.channel.send(oracleRpcFailure(call.id, "admission_refused", message, error.data))
+        return
+      }
       await this.channel.send(oracleRpcFailure(call.id, "method_error", message))
     }
   }

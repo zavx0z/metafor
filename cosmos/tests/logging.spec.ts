@@ -68,10 +68,12 @@ async function sourceFiles(root: string): Promise<string[]> {
   const entries = await readdir(root, {withFileTypes: true})
   const files: string[] = []
   for (const entry of entries) {
-    if (entry.name === "dist" || entry.name === "node_modules" || entry.name === "tests") continue
+    // The matrix governs runtime lifecycle diagnostics, not test scaffolding or
+    // human CLI output (the explicit development-guide boundary).
+    if (["dist", "node_modules", "tests", "spec", "__tests__"].includes(entry.name)) continue
     const path = join(root, entry.name)
     if (entry.isDirectory()) files.push(...await sourceFiles(path))
-    else if (entry.isFile() && /\.tsx?$/.test(entry.name)) files.push(path)
+    else if (entry.isFile() && /\.tsx?$/.test(entry.name) && !/\.(?:spec|test)\.tsx?$/.test(entry.name) && path !== join(cosmos, "cli.ts")) files.push(path)
   }
   return files
 }

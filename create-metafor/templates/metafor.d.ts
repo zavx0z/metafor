@@ -336,38 +336,88 @@ type MetaForEnergyDeclaration<Energy extends Record<string, unknown>> = {
 type MetaForEnergyInputCheck<Energy extends Record<string, unknown>> =
   Energy extends MetaForEnergyDeclaration<Energy> ? [] : [energy: never]
 
-type MetaForIsAny<Value> = 0 extends (1 & Value) ? true : false
+type MetaForMassFormat = "json" | "binary" | "directory"
 
-type MetaForSerializableMassResult<Value> = MetaForIsAny<Value> extends true
-  ? false
-  : Value extends null | string | number | boolean
-    ? true
-    : Value extends readonly (infer Item)[]
-      ? MetaForIsSerializableMassValue<Item>
-      : Value extends (...args: any[]) => any
-        ? false
-        : Value extends object
-          ? Extract<keyof Value, symbol> extends never
-            ? Extract<Value[keyof Value], (...args: any[]) => any> extends never
-              ? false extends {
-                  [Key in keyof Value]-?: MetaForIsSerializableMassValue<Value[Key]>
-                }[keyof Value]
-                ? false
-                : true
-              : false
-            : false
-          : false
+type MetaForMassDeclaration<Format extends MetaForMassFormat = MetaForMassFormat> = {
+  readonly format: Format
+  readonly label?: string
+  readonly description?: string
+}
 
-type MetaForIsSerializableMassValue<Value> = MetaForIsAny<Value> extends true
-  ? false
-  : false extends (Value extends unknown ? MetaForSerializableMassResult<Value> : never)
-    ? false
-    : true
+type MetaForMassDeclarations = Record<string, MetaForMassDeclaration>
 
-type MetaForMassDeclaration<Mass extends Record<string, unknown>> = {
-  [Key in keyof Mass]: MetaForIsSerializableMassValue<Mass[Key]> extends true
-    ? Mass[Key]
-    : never
+type MetaForMassHandle = {
+  readBytes(): Promise<Uint8Array>
+  readText(): Promise<string>
+  readJson<Value = unknown>(): Promise<Value>
+  write(value: unknown): Promise<void>
+}
+
+type MetaForMassDirectoryLease = {
+  readonly path: string
+  readonly signal: AbortSignal
+  release(): Promise<void>
+}
+
+type MetaForMassDirectoryHandle = {acquire(): Promise<MetaForMassDirectoryLease>}
+type MetaForMassHandles<Schema extends MetaForMassDeclarations> = {
+  [Key in keyof Schema]: Schema[Key] extends MetaForMassDeclaration<"directory"> ? MetaForMassDirectoryHandle : MetaForMassHandle
+}
+
+type MetaForMassOptions = {label?: string; description?: string}
+type MetaForMassFactory = {
+  json(options?: MetaForMassOptions): MetaForMassDeclaration<"json">
+  binary(options?: MetaForMassOptions): MetaForMassDeclaration<"binary">
+  directory(options?: MetaForMassOptions): MetaForMassDeclaration<"directory">
+}
+
+/** The host supplies Graph types and implementation; standalone editing keeps its body opaque. */
+type MetaForOracleEnvironment = {
+  read(): Promise<{
+    contractVersion: 1
+    actor: {ref: `atom:${string}`; meta: string}
+    scope: {kind: "full-root"; root: string}
+    operations: readonly [{name: "readGraph"; description: string; inputSchema: {type: "object"; properties: Readonly<Record<string, never>>; additionalProperties: false}}]
+    graph: unknown
+  }>
+  call(name: "readGraph", input: Readonly<Record<string, never>>): Promise<unknown>
+}
+
+declare const MetaForAgentFieldBrand: unique symbol
+type MetaForAgentFieldReference<T> = {readonly kind: "field"; readonly key: string; readonly [MetaForAgentFieldBrand]?: T}
+type MetaForAgentAtomReference = {readonly kind: "atom"; readonly scope: "owner"}
+type MetaForAgentMassReference = {readonly kind: "mass"; readonly key: string}
+type MetaForAgentJson = null | string | number | boolean | readonly MetaForAgentJson[] | {readonly [key: string]: MetaForAgentJson}
+type MetaForAgentTool = {readonly kind: "oracle-tool"; readonly name: string; readonly input: MetaForAgentJson; readonly owner?: {readonly meta: string}}
+type MetaForAgentOracleReference = {
+  readonly kind: "oracle"
+  tool<const Name extends string, const Input extends MetaForAgentJson>(name: Name, input: Input, owner?: {readonly meta: string}): MetaForAgentTool
+}
+type MetaForAgentDisplaySource = MetaForAgentAtomReference | MetaForAgentMassReference | MetaForAgentOracleReference | {readonly kind: "graph" | "force"}
+type MetaForAgentBinding = string | null | MetaForAgentFieldReference<string | null>
+type MetaForAgentElement = {readonly tag: "agent" | "display" | symbol; readonly props: Readonly<Record<string, unknown>>}
+type MetaForAgentChildren = MetaForAgentElement | readonly MetaForAgentChildren[] | null | false
+type MetaForAgentDisplayProps = {id: string; source: MetaForAgentDisplaySource}
+type MetaForAgentProps = {
+  id: string
+  atom?: MetaForAgentAtomReference
+  task: MetaForAgentBinding
+  answer: MetaForAgentBinding
+  status: MetaForAgentBinding
+  error: MetaForAgentBinding
+  providerBinding?: MetaForAgentBinding
+  providerBootstrap?: MetaForAgentBinding
+  providerRegistry?: MetaForAgentMassReference
+  tools?: readonly MetaForAgentTool[]
+  children?: MetaForAgentChildren
+}
+type MetaForAgentsContext<Values extends Record<string, unknown>, MassKeys extends string = never> = {
+  readonly atom: MetaForAgentAtomReference
+  readonly value: {[Key in keyof Values]: MetaForAgentFieldReference<Values[Key]>}
+  readonly mass: {[Key in MassKeys]: MetaForAgentMassReference}
+  readonly oracle: MetaForAgentOracleReference
+  readonly graph: {readonly kind: "graph"}
+  readonly force: {readonly kind: "force"}
 }
 
 type MetaForSelf = {
@@ -399,6 +449,7 @@ type MetaForActionParams<
   mass: Mass
   energy: Energy
   signal: AbortSignal
+  environment?: MetaForOracleEnvironment
   self: MetaForSelf
 }
 
@@ -467,8 +518,12 @@ type MetaForSchema = {
   readonly __metafor?: true
 }
 
-type MetaForBulkStage = {
-  bulk(parts?: MetaForBulkParts): MetaForSchema
+type MetaForFinalStage<Fields extends MetaForFields, Mass> = MetaForSchema & {
+  agents(declaration: (context: MetaForAgentsContext<MetaForValues<Fields>, Extract<keyof Mass, string>>) => MetaForAgentChildren): MetaForSchema
+}
+
+type MetaForBulkStage<Fields extends MetaForFields, Mass> = {
+  bulk(parts?: MetaForBulkParts): MetaForFinalStage<Fields, Mass>
 }
 
 type MetaForMatterStage<
@@ -486,7 +541,7 @@ type MetaForMatterStage<
       energy: Energy
       html: MetaForTemplateTag
     }) => string,
-  ): MetaForBulkStage
+  ): MetaForBulkStage<Fields, Mass>
 }
 
 type MetaForReactionSourceSelector = Readonly<{
@@ -606,14 +661,17 @@ type MetaForEnergyStage<
   ): MetaForProcessStage<Fields, Superposition, Mass, Energy>
 }
 
-type MetaForMassStage<
-  Fields extends MetaForFields,
-  Superposition,
-> = {
-  mass<Mass extends Record<string, unknown>>(
-    value: Mass & MetaForMassDeclaration<Mass>,
-  ): MetaForEnergyStage<Fields, Superposition, Mass>
+type MetaForMassStage<Fields extends MetaForFields, Superposition> = {
+  mass<Factory extends (mass: MetaForMassFactory) => MetaForMassDeclarations>(
+    factory: Factory,
+  ): MetaForEnergyStage<Fields, Superposition, MetaForMassHandles<ReturnType<Factory>>>
 }
+
+type MetaForLifecycle<Fields extends MetaForFields> = Partial<Record<"started" | "stopping", {
+  [Key in keyof Fields]: Fields[Key]["type"] extends "string" | "number" | "boolean"
+    ? {field: Key & string; value: MetaForValues<Fields>[Key]}
+    : never
+}[keyof Fields]>>
 
 type MetaForSuperpositionStage<Fields extends MetaForFields> = {
   superposition<const Superposition extends Record<string, unknown>>(
@@ -625,7 +683,9 @@ type MetaForSuperpositionStage<Fields extends MetaForFields> = {
 type MetaForFieldsStage = {
   fields<Fields extends MetaForFields>(
     callback: (field: MetaForFieldBuilder) => Fields,
-  ): MetaForSuperpositionStage<Fields>
+  ): MetaForSuperpositionStage<Fields> & {
+    lifecycle(input: MetaForLifecycle<Fields>): MetaForSuperpositionStage<Fields>
+  }
 }
 
 type MetaForFn = (
@@ -641,4 +701,8 @@ declare global {
   }
 }
 
-export {}
+export type AgentsContext<Keys extends string = string, MassKeys extends string = never> =
+  MetaForAgentsContext<Record<Keys, string | null>, MassKeys>
+export type AgentProps = MetaForAgentProps & {atom: MetaForAgentAtomReference}
+export type AgentDisplayProps = MetaForAgentDisplayProps
+export type AgentElement = MetaForAgentElement

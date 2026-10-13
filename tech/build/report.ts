@@ -58,7 +58,7 @@ export async function validatePackageBuildOutputs(
       if (output.kind !== "entry-point" && output.kind !== "chunk") continue
       if (!output.path.endsWith(".js")) continue
       canonicalized.add(output.path)
-      await externalizeSourceMap(output.path)
+      await externalizeSourceMap(output.path, {generatedLinkingChunk: output.kind === "chunk"})
     }
   }
 

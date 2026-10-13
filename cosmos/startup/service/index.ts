@@ -1,7 +1,8 @@
 /**
 Неизменяемая Service Worker оболочка `@cosmos/startup`.
 
-Она синхронно регистрирует browser listeners, сразу запускает release и
+Она синхронно регистрирует browser listeners, включая forwarding ошибок в
+текущий console.error, сразу запускает release и
 оставляет всё прикладное поведение самому release.
 Пользовательский lifecycle задан [startup owner law](../README.md#как-начинается-работа).
 

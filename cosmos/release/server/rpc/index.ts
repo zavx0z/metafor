@@ -8,6 +8,8 @@ import type {BrowserPackageArtifactIdentity} from "@metafor/tech-build/identity"
 import {releaseDelta} from "../release/delta"
 import type {RendezvousSession} from "@metafor/tech-peer/rendezvous"
 import type {DarkRuntimeSocketData} from "../../../../quantum/dark/types/runtime"
+import type {AgentBrowserSocketData} from "../agents-browser"
+import type {ClientSocketData} from "../clients"
 
 
 /** Данные одного подключённого release env `service`. */
@@ -18,7 +20,7 @@ export interface RpcSocketData {
 }
 
 /** Раздельные RPC и выданные signaling handler сессии одного release-owned listener. */
-export type ReleaseServerSocketData = RpcSocketData | RendezvousSession | DarkRuntimeSocketData
+export type ReleaseServerSocketData = RpcSocketData | RendezvousSession | DarkRuntimeSocketData | AgentBrowserSocketData | ClientSocketData
 
 /** Общая тема серверных сообщений для release services. */
 export const rpcServiceTopic = "release/service"

@@ -42,9 +42,9 @@
       "name": "@metafor/cosmos",
       "version": "0.1.0",
       "dependencies": {
-        "@cosmos/release": "workspace:^0.1.31",
-        "@cosmos/startup": "workspace:*",
-        "@internal/visual": "workspace:^0.1.48",
+        "@cosmos/release": "workspace:^0.3.15",
+        "@cosmos/startup": "workspace:^0.1.12",
+        "@internal/visual": "workspace:^0.3.13",
         "@metafor/tech-build": "workspace:*",
         "@metafor/tech-release": "workspace:*",
         "@zavx0z/immersive": "^0.0.0",
@@ -113,10 +113,13 @@
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.1.49",
+      "version": "0.3.13",
       "dependencies": {
+        "@metafor/agent": "workspace:*",
+        "@metafor/types": "workspace:*",
         "@zavx0z/immersive": "^0.0.0",
         "@zavx0z/immersive-nodes": "^0.0.0",
+        "@zavx0z/storybook-app-web-page-shell-execution-settings": "^0.0.0",
       },
       "devDependencies": {
         "@metafor/tech-build": "workspace:*",
@@ -131,13 +134,17 @@
     },
     "cosmos/release": {
       "name": "@cosmos/release",
-      "version": "0.1.31",
+      "version": "0.3.15",
       "dependencies": {
-        "@internal/visual": "workspace:^0.1.10",
+        "@internal/visual": "workspace:^0.3.0",
+        "@metafor/agent": "workspace:*",
+        "@metafor/provider": "workspace:*",
         "@metafor/tech-build": "workspace:*",
         "@metafor/tech-peer": "workspace:*",
         "@metafor/tech-release": "workspace:*",
+        "@metafor/types": "workspace:*",
         "@zavx0z/immersive": "^0.0.0",
+        "@zavx0z/provider-tech-peer": "^0.0.0",
         "reflect-metadata": "0.2.2",
         "werift": "0.23.0",
       },
@@ -149,9 +156,9 @@
     },
     "cosmos/startup": {
       "name": "@cosmos/startup",
-      "version": "0.1.8",
+      "version": "0.1.12",
       "dependencies": {
-        "@cosmos/release": "workspace:^0.1.17",
+        "@cosmos/release": "workspace:^0.3.0",
         "@metafor/tech-build": "workspace:*",
       },
       "devDependencies": {
@@ -336,9 +343,149 @@
         "@metafor/types": "workspace:*",
       },
     },
+    "standard/agent": {
+      "name": "@metafor/agent",
+      "version": "0.1.0",
+      "dependencies": {
+        "@capsule/input": "^0.1.0",
+        "@capsule/screenshot": "^0.1.0",
+        "@capsule/web": "^0.1.0",
+        "@capsule/webrtc": "^0.1.0",
+        "@metafor/chat": "workspace:*",
+        "@metafor/codespace": "workspace:*",
+        "@metafor/repl": "workspace:*",
+        "@metafor/scenario": "workspace:*",
+        "@metafor/types": "workspace:*",
+        "@zavx0z/chat": "^0.0.0",
+        "@zavx0z/immersive": "^0.0.0",
+        "@zavx0z/provider-tech-peer": "^0.0.0",
+        "@zavx0z/storybook-chat-preferences": "^0.0.0",
+        "@zavx0z/storybook-chat-view": "^0.0.0",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+        "@metafor/provider": "workspace:*",
+      },
+    },
+    "standard/agent-slot": {
+      "name": "@metafor/agent-slot",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metafor/agent": "workspace:*",
+        "@metafor/types": "workspace:*",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "standard/chat": {
+      "name": "@metafor/chat",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metafor/provider": "workspace:*",
+        "@metafor/types": "workspace:*",
+      },
+      "devDependencies": {
+        "@agentclientprotocol/sdk": "1.6.0",
+        "@metafor/dsl": "workspace:*",
+        "@zavx0z/provider-tech-peer": "^0.0.0",
+      },
+    },
+    "standard/codespace": {
+      "name": "@metafor/codespace",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metafor/types": "workspace:*",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "standard/environment": {
+      "name": "@metafor/environment",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metafor/agent": "workspace:*",
+        "@metafor/types": "workspace:*",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "standard/intel-macos-chrome-studio": {
+      "name": "intel-macos-chrome-studio",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cosmos/peer-lifecycle": "workspace:*",
+        "@internal/peer": "workspace:*",
+        "@metafor/agent": "workspace:*",
+        "@metafor/agent-slot": "workspace:*",
+        "@metafor/provider": "workspace:*",
+        "@metafor/types": "workspace:*",
+        "chrome-studio": "^0.3.0",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "standard/provider": {
+      "name": "@metafor/provider",
+      "version": "0.1.0",
+      "dependencies": {
+        "@agentclientprotocol/sdk": "1.6.0",
+        "@metafor/tech-peer": "workspace:*",
+        "@metafor/types": "workspace:*",
+        "@zavx0z/provider-configuration-ollama": "^0.0.0",
+        "@zavx0z/provider-model-ollama": "^0.0.0",
+        "@zavx0z/provider-session-ollama": "^0.0.0",
+        "@zavx0z/provider-tech-peer": "^0.0.0",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "standard/repl": {
+      "name": "@metafor/repl",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metafor/types": "workspace:*",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "standard/scenario": {
+      "name": "@metafor/scenario",
+      "version": "0.1.0",
+      "dependencies": {
+        "@metafor/types": "workspace:*",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+      },
+    },
+    "standard/workspace-capsule": {
+      "name": "workspace-capsule",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cosmos/peer-lifecycle": "workspace:*",
+        "@internal/peer": "workspace:*",
+        "@metafor/agent": "workspace:*",
+        "@metafor/agent-slot": "workspace:*",
+        "@metafor/provider": "workspace:*",
+        "@metafor/types": "workspace:*",
+        "capsule": "^0.1.0",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
+      },
+    },
     "tech/build": {
       "name": "@metafor/tech-build",
       "version": "0.0.0",
+      "dependencies": {
+        "oxc-parser": "^0.146.0",
+      },
       "devDependencies": {
         "@metafor/tech-release": "workspace:*",
       },
@@ -366,6 +513,11 @@
     },
   },
   "overrides": {
+    "@capsule/input": "link:@capsule/input",
+    "@capsule/screenshot": "link:@capsule/screenshot",
+    "@capsule/web": "link:@capsule/web",
+    "@capsule/webrtc": "link:@capsule/webrtc",
+    "@zavx0z/chat": "link:@zavx0z/chat",
     "@zavx0z/immersive": "link:@zavx0z/immersive",
     "@zavx0z/immersive-browser": "link:@zavx0z/immersive-browser",
     "@zavx0z/immersive-component": "link:@zavx0z/immersive-component",
@@ -386,8 +538,19 @@
     "@zavx0z/immersive-ui-component-button-basic": "link:@zavx0z/immersive-ui-component-button-basic",
     "@zavx0z/immersive-ui-theme-icon-set": "link:@zavx0z/immersive-ui-theme-icon-set",
     "@zavx0z/immersive-webgpu": "link:@zavx0z/immersive-webgpu",
+    "@zavx0z/provider-configuration-ollama": "link:@zavx0z/provider-configuration-ollama",
+    "@zavx0z/provider-model-ollama": "link:@zavx0z/provider-model-ollama",
+    "@zavx0z/provider-session-ollama": "link:@zavx0z/provider-session-ollama",
+    "@zavx0z/provider-tech-peer": "link:@zavx0z/provider-tech-peer",
+    "@zavx0z/storybook-app-web-page-shell-execution-settings": "link:@zavx0z/storybook-app-web-page-shell-execution-settings",
+    "@zavx0z/storybook-chat-preferences": "link:@zavx0z/storybook-chat-preferences",
+    "@zavx0z/storybook-chat-view": "link:@zavx0z/storybook-chat-view",
+    "capsule": "link:capsule",
+    "chrome-studio": "link:chrome-studio",
   },
   "packages": {
+    "@agentclientprotocol/sdk": ["@agentclientprotocol/sdk@1.6.0", "", { "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" } }, "sha512-XxXrmX7aZkDgOB0Rg9cu+ZFyiUUc5lF2n9seO3Gc4OR+MTdfZOwIqF6m3LvsmmM8K3qgPmXkDH8/IFM2u9vdcQ=="],
+
     "@boundary/atom": ["@boundary/atom@workspace:quantum/boundary/atom"],
 
     "@boundary/topology": ["@boundary/topology@workspace:quantum/boundary/topology"],
@@ -395,6 +558,14 @@
     "@boundary/types": ["@boundary/types@workspace:quantum/boundary/types"],
 
     "@boundary/wimp": ["@boundary/wimp@workspace:quantum/boundary/wimp"],
+
+    "@capsule/input": ["@capsule/input@link:@capsule/input", {}],
+
+    "@capsule/screenshot": ["@capsule/screenshot@link:@capsule/screenshot", {}],
+
+    "@capsule/web": ["@capsule/web@link:@capsule/web", {}],
+
+    "@capsule/webrtc": ["@capsule/webrtc@link:@capsule/webrtc", {}],
 
     "@cosmos/peer-lifecycle": ["@cosmos/peer-lifecycle@workspace:cosmos/peer/lifecycle"],
 
@@ -434,11 +605,27 @@
 
     "@matrix/weak": ["@matrix/weak@workspace:quantum/matrix/weak"],
 
+    "@metafor/agent": ["@metafor/agent@workspace:standard/agent"],
+
+    "@metafor/agent-slot": ["@metafor/agent-slot@workspace:standard/agent-slot"],
+
+    "@metafor/chat": ["@metafor/chat@workspace:standard/chat"],
+
+    "@metafor/codespace": ["@metafor/codespace@workspace:standard/codespace"],
+
     "@metafor/cosmos": ["@metafor/cosmos@workspace:cosmos"],
 
     "@metafor/dsl": ["@metafor/dsl@workspace:create-metafor/dsl"],
 
+    "@metafor/environment": ["@metafor/environment@workspace:standard/environment"],
+
     "@metafor/node-tree": ["@metafor/node-tree@workspace:pkg/node-tree"],
+
+    "@metafor/provider": ["@metafor/provider@workspace:standard/provider"],
+
+    "@metafor/repl": ["@metafor/repl@workspace:standard/repl"],
+
+    "@metafor/scenario": ["@metafor/scenario@workspace:standard/scenario"],
 
     "@metafor/tech-build": ["@metafor/tech-build@workspace:tech/build"],
 
@@ -578,6 +765,8 @@
 
     "@webgpu/types": ["@webgpu/types@0.1.74", "", {}, "sha512-lgiI4hbuLcI9unnm2cL/tvCaQU45dp0xcLWJh5uB/9MBGvIA4F8XIk7nSiBeg+K4xWGYwgZKn80LmERI5CxoTA=="],
 
+    "@zavx0z/chat": ["@zavx0z/chat@link:@zavx0z/chat", {}],
+
     "@zavx0z/highlighter": ["@zavx0z/highlighter@link:@zavx0z/highlighter", {}],
 
     "@zavx0z/immersive": ["@zavx0z/immersive@link:@zavx0z/immersive", {}],
@@ -593,6 +782,20 @@
     "@zavx0z/immersive-template": ["@zavx0z/immersive-template@link:@zavx0z/immersive-template", {}],
 
     "@zavx0z/immersive-ui-component-button-basic": ["@zavx0z/immersive-ui-component-button-basic@link:@zavx0z/immersive-ui-component-button-basic", {}],
+
+    "@zavx0z/provider-configuration-ollama": ["@zavx0z/provider-configuration-ollama@link:@zavx0z/provider-configuration-ollama", {}],
+
+    "@zavx0z/provider-model-ollama": ["@zavx0z/provider-model-ollama@link:@zavx0z/provider-model-ollama", {}],
+
+    "@zavx0z/provider-session-ollama": ["@zavx0z/provider-session-ollama@link:@zavx0z/provider-session-ollama", {}],
+
+    "@zavx0z/provider-tech-peer": ["@zavx0z/provider-tech-peer@link:@zavx0z/provider-tech-peer", {}],
+
+    "@zavx0z/storybook-app-web-page-shell-execution-settings": ["@zavx0z/storybook-app-web-page-shell-execution-settings@link:@zavx0z/storybook-app-web-page-shell-execution-settings", {}],
+
+    "@zavx0z/storybook-chat-preferences": ["@zavx0z/storybook-chat-preferences@link:@zavx0z/storybook-chat-preferences", {}],
+
+    "@zavx0z/storybook-chat-view": ["@zavx0z/storybook-chat-view@link:@zavx0z/storybook-chat-view", {}],
 
     "aes-js": ["aes-js@3.1.2", "", {}, "sha512-e5pEa2kBnBOgR4Y/p20pskXI74UEz7de8ZGVo58asOtvSVG5YAbJeELPZxOmt+Bnz3rX753YKhfIn4X4l1PPRQ=="],
 
@@ -624,6 +827,10 @@
 
     "bun-webgpu-win32-x64": ["bun-webgpu-win32-x64@0.1.7", "", { "os": "win32", "cpu": "x64" }, "sha512-KZktiFkBz6sN7PEm1NVdeaLP5Q5X/PlSHZqefY4nNuWtf0LNvh54NhZe7yVv/Plz/nGbv92b0KHMBY3ki/pp6g=="],
 
+    "capsule": ["capsule@link:capsule", {}],
+
+    "chrome-studio": ["chrome-studio@link:chrome-studio", {}],
+
     "create-metafor": ["create-metafor@workspace:create-metafor"],
 
     "debug": ["debug@4.4.0", "", { "dependencies": { "ms": "^2.1.3" }, "peerDependencies": { "supports-color": "*" }, "optionalPeers": ["supports-color"] }, "sha512-6WTZ/IxCY/T6BALoZHaE4ctp9xm+Z5kY/pzYaCHRFeyVhojxlrm+46y68HA6hr0TcwEssoxNiDEUJQjfPZ/RYA=="],
@@ -651,6 +858,8 @@
     "inherits": ["inherits@2.0.4", "", {}, "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ=="],
 
     "int64-buffer": ["int64-buffer@1.1.0", "", {}, "sha512-94smTCQOvigN4d/2R/YDjz8YVG0Sufvv2aAh8P5m42gwhCsDAJqnbNOrxJsrADuAFAA69Q/ptGzxvNcNuIJcvw=="],
+
+    "intel-macos-chrome-studio": ["intel-macos-chrome-studio@workspace:standard/intel-macos-chrome-studio"],
 
     "ip": ["ip@2.0.1", "", {}, "sha512-lJUL9imLTNi1ZfXT+DU6rBBdbiKGBuay9B6xGSPVjUeQwaH1RIGqef8RZkUtHioLmSNpPR5M4HVKJGm1j8FWVQ=="],
 
@@ -717,6 +926,10 @@
     "werift-rtp": ["werift-rtp@0.8.9", "", { "dependencies": { "buffer": "^6.0.3", "debug": "4.4.0", "mediabunny": "^1.45.2" } }, "sha512-uLFOawIXw8FblIp1akfIVYFuRNtNo7csRxYypLz0t++sUNCN7sPeghVqET/c3Mq7Tg2QA3oAb15fXIIuJEp2AA=="],
 
     "werift-sctp": ["werift-sctp@0.0.11", "", { "dependencies": { "@shinyoshiaki/jspack": "^0.0.6" } }, "sha512-7109yuI5U7NTEHjqjn0A8VeynytkgVaxM6lRr1Ziv0D8bPcaB8A7U/P88M7WaCpWDoELHoXiRUjQycMWStIgjQ=="],
+
+    "workspace-capsule": ["workspace-capsule@workspace:standard/workspace-capsule"],
+
+    "zod": ["zod@4.6.6", "", {}, "sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA=="],
 
     "@types/web-push/@types/node": ["@types/node@26.6.5", "", { "dependencies": { "undici-types": "~8.9.0" } }, "sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg=="],
 

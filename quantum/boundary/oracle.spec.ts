@@ -19,6 +19,7 @@ import {
 } from "shared/protocol/oracle/rpc"
 import {BoundaryOracle} from "./oracle.ts"
 import {open, type BoundaryDatabase} from "./sqlite.ts"
+import {BOUNDARY_META_READ_METHOD} from "shared/protocol/boundary/declaration"
 
 class TestChannel implements OracleChannel {
   readonly identity = "boundary"
@@ -62,6 +63,7 @@ describe("Boundary Oracle", () => {
       BOUNDARY_GRAPH_PROJECTION_METHOD,
       BOUNDARY_INITIAL_PROJECTION_METHOD,
       BOUNDARY_INITIAL_STATE_METHOD,
+      BOUNDARY_META_READ_METHOD,
       BOUNDARY_FIELD_VALUE_PLAN_METHOD,
       BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
     ])

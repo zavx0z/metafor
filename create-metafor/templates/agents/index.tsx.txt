@@ -1,0 +1,14 @@
+/** @jsxImportSource @metafor/dsl */
+import type {AgentsContext} from "../src/metafor.d.ts"
+import Assistant from "./assistant.tsx"
+
+export default ({atom, value}: AgentsContext<"task" | "answer" | "status" | "error">) => (
+  <Assistant
+    id="assistant"
+    atom={atom}
+    task={value.task}
+    answer={value.answer}
+    status={value.status}
+    error={value.error}
+  />
+)

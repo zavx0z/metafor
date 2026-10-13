@@ -20,9 +20,17 @@ export interface OracleChannel {
 }
 
 export class OracleRpcRemoteError extends Error {
-  constructor(readonly code: OracleRpcErrorCode, message: string) {
+  constructor(readonly code: OracleRpcErrorCode, message: string, readonly data?: unknown) {
     super(message)
     this.name = "OracleRpcRemoteError"
+  }
+}
+
+/** Explicit method-owned refusal before admission; transport failures never construct this error. */
+export class OracleRpcAdmissionRefusedError extends Error {
+  constructor(message: string, readonly data: unknown) {
+    super(message)
+    this.name = "OracleRpcAdmissionRefusedError"
   }
 }
 

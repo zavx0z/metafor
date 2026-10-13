@@ -7,6 +7,8 @@ import {
 import {OracleRpcPeer, type OracleWebSocketTransport} from "shared/transport/oracle"
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {waitForMatrixBirthGate} from "./birth-order.ts"
+import {DARK_FORCE_HISTORY_READ_METHOD, type DarkForceHistoryReadReceipt} from "shared/protocol/metafor/observation"
+import {proveMatrixStatePublication} from "./state-proof"
 import {MatrixOracle} from "./oracle.ts"
 
 /** Matrix hydrates its projection before explicitly creating the causal Force port. */
@@ -47,7 +49,9 @@ export async function startMatrixRuntime(options: {
       })
     const summary = await oracle.onServerStarted(rpc)
     const matrix = await import("./matrix.ts")
-    await matrix.startMatrixForce(options.createForce)
+    const birthHistory = await rpc.call<DarkForceHistoryReadReceipt>("dark", DARK_FORCE_HISTORY_READ_METHOD, {contractVersion: 1, query: {kind: "frontier"}})
+    if (birthHistory.contractVersion !== 1 || birthHistory.resolution !== "exact" || birthHistory.frontier.cutId !== checkpoint.frontier()?.cutId) throw new Error("Matrix birth history and checkpoint cut differ")
+    await matrix.startMatrixForce(options.createForce, {recoverStatePublication: event => proveMatrixStatePublication(rpc, birthHistory.frontier, event)})
     oracle.onRuntimeBorn()
     console.log(`[matrix] born atoms=${summary.atoms} fields=${summary.fields} backend=${summary.backend}`)
   } catch (error) {

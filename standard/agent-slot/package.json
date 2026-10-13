@@ -1,0 +1,10 @@
+{
+  "name": "@metafor/agent-slot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Место явного подключения агента в рабочем окружении",
+  "exports": {".": {"metafor:server": "./meta.ts"}, "./meta": {"metafor:server": "./meta.ts"}},
+  "dependencies": {"@metafor/agent": "workspace:*", "@metafor/types": "workspace:*"},
+  "devDependencies": {"@metafor/dsl": "workspace:*"}
+}

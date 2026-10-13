@@ -109,6 +109,7 @@ describe("Reaction cold restart", () => {
           SELECT id FROM state WHERE wimp = ${SOURCE} AND name = ${state}
         `)[0]?.id)
         stateIds.set(sourceAtomId, stateId)
+        router.publishState({kind: "state-commit", eventId, atomId: sourceAtomId, wimp: SOURCE, stateId, state})
         const committed = await boundary!.materialize(message({
           part: "photon", op: "replace", path: sourceAtomId, from: eventId, value: state,
         }))
@@ -140,7 +141,7 @@ describe("Reaction cold restart", () => {
       }
 
       const firstRequest = await enqueue("restart-ready-first")
-      await commitSource("idle", "restart-idle-between")
+      router.confirmState(await commitSource("idle", "restart-idle-between"), Date.now())
       const secondRequest = await enqueue("restart-ready-second")
       expect(router.pending(targetAtomId)).toBe(firstRequest.reactionExecutionId)
       expect(router.queued(targetAtomId)).toBe(1)

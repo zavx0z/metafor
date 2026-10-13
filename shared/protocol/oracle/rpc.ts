@@ -21,6 +21,7 @@ export type OracleRpcErrorCode =
   | "transport_error"
   | "invalid_response"
   | "method_error"
+  | "admission_refused"
 
 export type OracleRpcSuccess<T = unknown> = {
   version: typeof ORACLE_RPC_VERSION
@@ -36,6 +37,8 @@ export type OracleRpcFailure = {
   error: {
     code: OracleRpcErrorCode
     message: string
+    /** Method-owned structured refusal; absence preserves the original error contract. */
+    data?: unknown
   }
 }
 
@@ -74,9 +77,10 @@ export const oracleRpcFailure = (
   id: string,
   code: OracleRpcErrorCode,
   message: string,
+  data?: unknown,
 ): OracleRpcFailure => ({
   version: ORACLE_RPC_VERSION,
   id,
   ok: false,
-  error: {code, message},
+  error: {code, message, ...(data === undefined ? {} : {data})},
 })

@@ -176,11 +176,12 @@ export class BoundaryMassStore {
     }
   }
 
-  async ensureIndependentMemberships(sql: Database): Promise<void> {
+  async ensureIndependentMemberships(sql: Database, atomId?: number): Promise<void> {
     for (const row of await sql<Array<{atomId: number; declarationId: number}>>`
       SELECT atom.id AS atomId, mass_declaration.id AS declarationId
         FROM atom JOIN mass_declaration ON mass_declaration.wimp = atom.wimp
        WHERE mass_declaration.active = 1
+         AND (${atomId ?? null} IS NULL OR atom.id = ${atomId ?? null})
          AND NOT EXISTS (
            SELECT 1 FROM mass_membership
             WHERE mass_membership.atom = atom.id AND mass_membership.declaration = mass_declaration.id

@@ -36,6 +36,8 @@ export type HttpOracleChannelOpening = {
 export type HttpOracleChannelOpened = {
   version: typeof ORACLE_RPC_VERSION
   channel: string
+  /** Сервер может назначить observer identity независимо от предложенного имени. */
+  identity?: string
 }
 
 export type HttpOracleChannelSession = {
@@ -151,10 +153,11 @@ class LocalOracleChannel implements OracleChannel {
   }
 }
 
-/** Current REST implementation that produces one transport-neutral OracleChannel. */
+/** REST adapter одного OracleChannel. Observer использует назначенную сервером identity; reopen сохраняет исходное предложенное имя. Проверки: cosmos/release/spec/quantum.spec.ts. */
 export class BaseOracleTransport {
   readonly channel: OracleChannel
-  readonly identity: string
+  #identity: string
+  readonly #requestedIdentity: string
   readonly #base: URL
   readonly #events = new OracleChannelEvents()
   readonly #callback = crypto.randomUUID()
@@ -165,11 +168,15 @@ export class BaseOracleTransport {
   #requestTimeoutMs = 10_000
 
   constructor(identity: string, address: string | URL) {
-    this.identity = normalizeOracleIdentity(identity)
+    this.#identity = normalizeOracleIdentity(identity)
+    this.#requestedIdentity = this.#identity
     this.#base = new URL(address)
     if (!this.#base.pathname.endsWith("/")) this.#base.pathname += "/"
     this.channel = new LocalOracleChannel(this)
   }
+
+  /** Фактическая identity открытого канала; observer получает её от сервера. */
+  get identity(): string {return this.#identity}
 
   get methods(): readonly string[] {
     return this.#methods
@@ -191,15 +198,20 @@ export class BaseOracleTransport {
         headers: {"content-type": "application/json"},
         body: JSON.stringify({
           version: ORACLE_RPC_VERSION,
-          identity: this.identity,
+          identity: this.#requestedIdentity,
           methods: this.#methods,
           ...(endpoint === undefined ? {} : {endpoint, callback: this.#callback}),
         }),
         signal: AbortSignal.timeout(this.#requestTimeoutMs),
       })
       if (!response.ok) throw new Error(`Dark rejected Oracle channel: HTTP ${response.status}`)
-      const token = readHttpOracleChannel(await response.json())
+      const receipt: unknown = await response.json()
+      const token = readHttpOracleChannel(receipt)
       if (!token) throw new OracleRpcRemoteError("invalid_response", "Dark returned an invalid Oracle channel")
+      if (isRecord(receipt) && receipt.identity !== undefined) {
+        if (typeof receipt.identity !== "string" || !receipt.identity.trim()) throw new OracleRpcRemoteError("invalid_response", "Dark returned an invalid Oracle identity")
+        this.#identity = normalizeOracleIdentity(receipt.identity)
+      }
       this.#token = token
       return this.channel
     }, options)

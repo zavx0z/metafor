@@ -13,9 +13,9 @@
     "test:load": "tsc --project tests/tsconfig.json --pretty false && bun test tests/load-001.boundary.spec.ts tests/load-001.browser.spec.ts"
   },
   "dependencies": {
-    "@cosmos/release": "workspace:^0.1.31",
-    "@cosmos/startup": "workspace:*",
-    "@internal/visual": "workspace:^0.1.51",
+    "@cosmos/release": "workspace:^0.3.17",
+    "@cosmos/startup": "workspace:^0.1.12",
+    "@internal/visual": "workspace:^0.3.14",
     "@zavx0z/immersive": "^0.0.0",
     "@metafor/tech-build": "workspace:*",
     "@metafor/tech-release": "workspace:*"

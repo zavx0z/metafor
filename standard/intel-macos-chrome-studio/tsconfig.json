@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "bun",
+      "node"
+    ],
+    "customConditions": [
+      "metafor:server",
+      "cosmos:server",
+      "internal:server"
+    ],
+    "jsxImportSource": "@metafor/dsl"
+  },
+  "include": [
+    "../../types/metafor-global.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": []
+}

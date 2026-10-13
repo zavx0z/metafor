@@ -124,8 +124,10 @@ describe("Dark Oracle", () => {
       DARK_FORCE_RESUME_METHOD,
       DARK_FORCE_STACK_METHOD,
       DARK_FORCE_STEP_METHOD,
+      "readAgents",
       "readGraph",
       READ_GRAPH_DELTA_METHOD,
+      "readProviders",
     ])
     oracle.onChannelOpened()
 

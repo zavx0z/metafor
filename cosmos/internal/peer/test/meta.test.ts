@@ -7,7 +7,7 @@ test("root export is the same Meta declaration and creates no transport factory"
 })
 
 test("network Meta declares ordinary correlated inputs and real public Process wrappers without secret Fields", () => {
-  expect(meta.fields.map(field => field.key)).toEqual(["request", "requestId", "ack", "ackId", "status", "error"])
+  expect(meta.fields.map(field => field.key)).toEqual(["request", "requestId", "ack", "ackId", "status", "error", "role", "oracleReady", "oracleError"])
   expect(meta.fields.every(field => field.type === "string" || field.type === "boolean")).toBeTrue()
   expect(meta.mass).toEqual([{key: "configuration", format: "directory"}])
   const fields = new Set(meta.fields.map(field => field.key))

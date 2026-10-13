@@ -104,6 +104,8 @@ export type DarkForceHistoryQuery = {
 
 export type DarkForceHistoryOptions = {
   now?: () => Date
+  /** Только проверка сохранённых segments: без создания manifest/catalog и без accept. */
+  readOnly?: boolean
 }
 
 const segmentFile = (firstSequence: number): string =>
@@ -151,7 +153,8 @@ const parseAuthoringCause = (
       "operationId",
       "requestDigest",
       "sourceProjections",
-    ]) ||
+    ], ["publication"]) ||
+    (value.publication !== undefined && value.publication !== "deferred") ||
     (value.schema !== META_MATTER_AUTHORING_CAUSE_SCHEMA_V1 &&
       value.schema !== META_DECLARATION_AUTHORING_CAUSE_SCHEMA_V1) ||
     value.contractVersion !== META_AUTHORING_CONTRACT_VERSION ||
@@ -213,6 +216,7 @@ const parseAuthoringCause = (
     operationId: value.operationId,
     requestDigest: value.requestDigest,
     sourceProjections,
+    ...(value.publication === "deferred" ? {publication: "deferred" as const} : {}),
   }) as MetaAuthoringCauseV1
 }
 
@@ -443,6 +447,7 @@ const queryTime = (name: string, value: string | undefined): string | undefined 
  * never participates in Particle acceptance.
  */
 export class DarkForceHistory {
+  readonly #readOnly: boolean
   readonly #manifest: DarkForceHistoryManifest
   readonly #now: () => Date
   #activeFile: string | null = null
@@ -456,6 +461,7 @@ export class DarkForceHistory {
     cut?: DarkForceHistoryCutInput,
     options: DarkForceHistoryOptions = {},
   ) {
+    this.#readOnly = options.readOnly === true
     this.#now = options.now ?? (() => new Date())
     const manifestFile = join(directory, MANIFEST_FILE)
     const segmentsDirectory = join(directory, SEGMENTS_DIRECTORY)
@@ -465,6 +471,7 @@ export class DarkForceHistory {
     }
 
     if (!existsSync(manifestFile)) {
+      if (this.#readOnly) throw new Error("Read-only Dark Force history requires an existing manifest")
       if (!cutId) {
         throw new Error("DARK_FORCE_HISTORY_CUT_ID is required to create the first complete Dark Force history")
       }
@@ -529,13 +536,14 @@ export class DarkForceHistory {
         storedCatalog = null
       }
     }
-    if (!sameCatalog(storedCatalog, this.#catalog)) persistCatalog(directory, this.#catalog)
+    if (!this.#readOnly && !sameCatalog(storedCatalog, this.#catalog)) persistCatalog(directory, this.#catalog)
   }
 
   accept(
     particle: SourcedParticle,
     authoring?: MetaAuthoringCauseV1,
   ): DarkForceHistoryParticle {
+    if (this.#readOnly) throw new Error("Read-only Dark Force history cannot accept a Particle")
     const normalized = parseParticle(particle, "accept")
     const normalizedAuthoring = authoring === undefined
       ? undefined

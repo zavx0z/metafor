@@ -3,7 +3,15 @@
 Cosmos работает постоянно на `http://127.0.0.1:4444/`. Для обновления
 клиентской сборки server не останавливать и не перезапускать.
 
-Skill запускает development contour через `bun run dev`. Этот режим
+Локальный запуск выполняется в видимой iTerm-сессии обычной командой
+`bun run dev` с `NODE_ENV=development`. `start` и `restart` dispatcher управляют
+только Bun process tree. Отдельная проверка браузера выполняется по явному
+запросу; она не является частью установки или распространения MetaFor.
+
+На этом Mac команда `metafor` запускает или повторно использует тот же видимый
+contour; `metafor status`, `metafor stop` и `metafor restart` обращаются к тому же dispatcher. Адрес печатается после подтверждения `/health` с `ok: true` и `state: running`.
+
+Этот development режим
 минифицирует browser artifacts, сохраняет `console.debug`, временно создаёт
 inline source map внутри package-owned build и затем выносит её в отдельный immutable
 companion. Server связывает JavaScript и map заголовком `SourceMap`; Worker не
@@ -427,6 +435,12 @@ installed-контур выбирается через `COSMOS_RELEASE_STORE`: �
 проверенный installed candidate и запускает отдельный release process. Первый
 запуск получает явно назначенный `COSMOS_RELEASE_DIGEST`; последующие читают
 единственный сохранённый active. `PORT` задаёт рабочий вход.
+
+Dispatcher узнаёт установленный release по точному server artifact выбранного
+active либо явно настроенного candidate через публичный installed store API.
+Процесс должен одновременно принадлежать managed parent и быть единственным
+HTTP listener назначенного порта. Quantum children с тем же executable не
+становятся отдельными release hosts; произвольный `server.js` не принимается.
 
 Начальная установка использует публичные операции `createPublishedReleaseSource`
 из `@metafor/tech-release` и `createInstalledReleaseStore` из

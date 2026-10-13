@@ -32,6 +32,7 @@ import {
   isReactionRelation,
   isReactionResultCommit,
   isReactionStateCommit,
+  type ReactionStateCommit,
 } from "shared/protocol/force/reaction"
 import {FieldType} from "@matrix/gravity"
 import {createStoredStringInterner, normalizeFieldValue, strong$} from "@matrix/strong"
@@ -51,6 +52,7 @@ import {
   applyIncrementalMatrixProjection,
   initializeIncrementalMatrixIndexes,
 } from "./incremental.ts"
+import type {MatrixStatePublicationProof} from "./state-proof"
 import {MatrixReactionRouter} from "./reaction.ts"
 
 type MatrixForce = Pick<Force, "onImpulse" | "onImpulseError" | "impulse">
@@ -198,7 +200,8 @@ const applyRuntimeFieldParts = async (
   })
 }
 
-const publishPhotonChanges = (changes: [number, number][]): void => {
+const publishPhotonChanges = (changes: [number, number][], stateChanges: [number, number][] = changes): void => {
+  const changedStates = new Set(stateChanges.map(([braneIndex, stateIndex]) => `${braneIndex}\0${stateIndex}`))
   for (const [braneIndex, stateIndex] of changes) {
     const atomId = gravity$.getAtomId(braneIndex)
     if (atomId === undefined) continue
@@ -211,12 +214,18 @@ const publishPhotonChanges = (changes: [number, number][]): void => {
 
     const hasProcess = weak$.stateHasProcessByBraneIndex[braneIndex]?.[stateIndex] === true
     const pending = hasProcess ? pendingProcessExecutionsByAtomId.get(atomId) : undefined
+    const eventId = pending?.processExecutionId ?? crypto.randomUUID()
+    if (changedStates.has(`${braneIndex}\0${stateIndex}`)) reactionRouter.publishState({
+      kind: REACTION_STATE_COMMIT_KIND, eventId, atomId,
+      wimp: gravity$.getWimpSrcByAtomId(atomId)!,
+      stateId: weak$.stateMetaStateIdsByBraneIndex[braneIndex]![stateIndex]!, state: stateName,
+    })
     force.impulse({parts: [{
       part: "photon",
       op: hasProcess ? "test" : "replace",
       path: atomId,
       ts: Date.now(),
-      from: pending?.processExecutionId ?? crypto.randomUUID(),
+      from: eventId,
       value: stateName,
     }]})
   }
@@ -249,7 +258,7 @@ const applyStructuralProjection = async (
     const photonTargets = [...targets.values()]
     if (photonTargets.length > 0) {
       syncProcessLocksForChanges(photonTargets, stateChanges)
-      publishPhotonChanges(photonTargets)
+      publishPhotonChanges(photonTargets, stateChanges)
     }
   })
 }
@@ -498,13 +507,15 @@ export async function update(
         ]
 
     syncProcessLocksForChanges(photonTargets, changes)
-    publishPhotonChanges(photonTargets)
+    publishPhotonChanges(photonTargets, changes)
     return changes
   })
 }
 
 /** Begins causal work only after the caller has hydrated the Matrix projection. */
-export async function startMatrixForce(createForce: () => MatrixForce): Promise<void> {
+export async function startMatrixForce(createForce: () => MatrixForce, options: {
+  recoverStatePublication?: (event: ReactionStateCommit) => Promise<MatrixStatePublicationProof>
+} = {}): Promise<void> {
   if (force) throw new Error("Matrix Force is already started")
   const preparedBirth = consumePreparedMatrixBirth()
   const restartProcessAtomIds = preparedBirth ? consumePreparedMatrixProcessRestarts() : []
@@ -558,8 +569,26 @@ export async function startMatrixForce(createForce: () => MatrixForce): Promise<
     }
 
     if (part.part === "photon" && part.op === "copy" && isRecord(part.value) && part.value.kind === REACTION_STATE_COMMIT_KIND) {
-      if (!isReactionStateCommit(part.value)) throw new Error("Matrix received an invalid confirmed Reaction State")
-      reactionRouter.confirmState(part.value, part.ts)
+      if (!isReactionStateCommit(part.value) || part.by !== "boundary" || part.path !== part.value.atomId || part.from !== part.value.eventId) throw new Error("Matrix received an invalid confirmed Reaction State")
+      const event = part.value
+      if (!reactionRouter.hasStatePublication(event.eventId) && options.recoverStatePublication) {
+        const brane = gravity$.getBraneIndexByAtomId(event.atomId)
+        const stateIndex = brane === undefined ? -1 : matrix$.stateNames[brane]?.indexOf(event.state) ?? -1
+        if (brane === undefined || gravity$.getWimpSrcByAtomId(event.atomId) !== event.wimp ||
+            stateIndex < 0 || weak$.stateMetaStateIdsByBraneIndex[brane]?.[stateIndex] !== event.stateId) {
+          throw new Error("Recovered Matrix State does not match the born Atom declaration")
+        }
+        const proof = await options.recoverStatePublication(event)
+        if (!proof.confirmedBeforeBirth && !reactionRouter.hasPendingStatePublication(event.atomId) && currentMetaStateId(event.atomId) !== event.stateId) {
+          // The accepted pre-crash intent was not in Boundary's startup snapshot.
+          // Reconcile exactly this Atom through the existing local incremental
+          // projection path; no second birth or global State evaluation occurs.
+          recordMatrixProjectionState(event.atomId, event.stateId)
+          await applyStructuralProjection({structural: true, affectedAtomIds: [event.atomId], invalidatedProcessWimps: [], invalidatedProcessAtomIds: []})
+        }
+        reactionRouter.restoreStatePublication(event, proof.confirmedBeforeBirth)
+      }
+      reactionRouter.confirmState(event, part.ts)
       return
     }
 
@@ -584,7 +613,7 @@ export async function startMatrixForce(createForce: () => MatrixForce): Promise<
     }
   }
 
-  if (birthPhotonTargets.length > 0) publishPhotonChanges(birthPhotonTargets)
+  if (birthPhotonTargets.length > 0) publishPhotonChanges(birthPhotonTargets, birthChanges)
   reactionRouter.resumeColdStart()
 
 }

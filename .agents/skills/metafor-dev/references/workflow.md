@@ -8,8 +8,10 @@ Inspector.
 
 1. Run `scripts/metafor-dev.sh status <checkout>` and retain its exact origin,
    CDP PID, and target ID.
-2. Run `scripts/metafor-dev.sh start <checkout>` only when the managed contour
-   is stopped. Do not launch another Chrome or Cosmos process.
+2. Ordinary `start` / `restart` launch only the visible iTerm Bun development
+   contour. Use `scripts/metafor-dev.sh start-browser <checkout>` for an
+   explicitly requested managed browser check. Do not launch another Chrome or
+   Cosmos process.
 3. Use the existing non-instrumented target for console, reload-loop, loader,
    functional, first-paint, CPU, heap, and final visual evidence.
 4. Read server output through `scripts/metafor-dev.sh logs <checkout>` so the

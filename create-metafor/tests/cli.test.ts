@@ -7,6 +7,9 @@ import {join, resolve} from "node:path"
 const cli = resolve(import.meta.dir, "../src/cli.ts")
 const cliTestTimeout = 60_000
 const generatedFiles = [
+  "agents/assistant.tsx",
+  "agents/index.tsx",
+  "src/agents-jsx.d.ts",
   "meta.ts",
   "src/metafor.d.ts",
   "package.json",

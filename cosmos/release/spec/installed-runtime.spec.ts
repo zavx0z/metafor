@@ -1,10 +1,13 @@
 import {afterAll, beforeAll, describe, expect, test} from "bun:test"
-import {mkdtemp, mkdir, readFile, rm} from "node:fs/promises"
+import {chmod, mkdtemp, mkdir, readFile, rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join, resolve} from "node:path"
 import {createHash} from "node:crypto"
 import {createInstalledReleaseStore, publishedReleaseGraphDigest, type PublishedReleaseGraph} from "@metafor/tech-release/installed"
+import {OracleRpcPeer, OracleTransport} from "shared/transport/oracle"
 import {startInstalledCosmos} from "../../installed"
+
+const font = new Uint8Array([0, 1, 0, 0, 111, 119, 110, 101, 100, 45, 102, 111, 110, 116])
 
 /** Реальный bundled server, два независимых installed roots и RTC-доставка обновления. */
 describe.each([
@@ -17,12 +20,17 @@ describe.each([
   let nextDigest: string
   let nextServerHash: string
   let oldPid: number
+  let replConfig: string
+  const replToken = "test-only-native-repl-assigned-capability"
   let launcherPath: string
   let launcher: ReturnType<typeof Bun.spawn> | undefined
   const token = "test-only-installed-release-capability"
 
   beforeAll(async () => {
     directory = await mkdtemp(join(tmpdir(), "cosmos-installed-e2e-"))
+    replConfig = join(directory, "native-repl.json")
+    await Bun.write(replConfig, JSON.stringify({token: replToken, cwd: directory}))
+    await chmod(replConfig, 0o600)
     const entry = resolve(import.meta.dir, "../server/index.ts")
     const build = await Bun.build({
       entrypoints: [entry], target: "bun", minify: true,
@@ -49,7 +57,7 @@ describe.each([
     const next = graph(props.next, nextServer)
     nextDigest = publishedReleaseGraphDigest(next)
     const main = new TextEncoder().encode("export const ready = true")
-    const artifacts = new Map([[hash(previousServer), previousServer], [nextServerHash, nextServer], [hash(main), main]])
+    const artifacts = new Map([[hash(previousServer), previousServer], [nextServerHash, nextServer], [hash(main), main], [hash(font), font]])
     const source = {async read(identity: {sha256: string}) {
       const artifact = artifacts.get(identity.sha256)
       if (!artifact) throw new Error("Fixture artifact is absent from the published graph")
@@ -61,7 +69,7 @@ describe.each([
     const initial = await targetStore.prepare(previous, source)
     publisher = await startInstalledCosmos({storeRoot: sourceRoot, initialDigest: nextDigest, port: await freePort(), controlToken: token})
     const port = await freePort()
-    receiver = await startInstalledCosmos({storeRoot: targetRoot, initialDigest: initial.digest, port, controlToken: token})
+    receiver = await startInstalledCosmos({storeRoot: targetRoot, initialDigest: initial.digest, port, controlToken: token, environment: {ORACLE_REPL_CONFIG: replConfig}})
     address = `http://127.0.0.1:${port}`
     oldPid = receiver.host.active.runtime.process.pid
   }, 90_000)
@@ -82,15 +90,49 @@ describe.each([
     expect(await response.json(), "Browser видит свою часть согласованного выпуска").toEqual({packages: [{
       name: "@cosmos/release", env: "main", version: props.previous,
       sha256: hash(new TextEncoder().encode("export const ready = true")), size: 25,
+    }, {
+      name: "@internal/visual", env: "main", version: props.previous,
+      sha256: hash(new TextEncoder().encode("export const ready = true")), size: 25,
     }]})
     expect(await Bun.file(join(directory, "receiver", "package.json")).exists(), "Получателю не нужен source manifest Cosmos").toBeFalse()
     expect(await Bun.file(join(directory, "receiver", "node_modules", "werift", "package.json")).exists(), "Исполняемые зависимости уже связаны в доставленном artifact").toBeFalse()
+  })
+
+  test("Installed release exposes clients and assigned REPL through its actual public Oracle transport", async () => {
+    const transport = new OracleTransport("installed-clients-observer", address)
+    const peer = new OracleRpcPeer(transport.channel)
+    try {
+      await transport.open()
+      expect(transport.identity).toMatch(/^observer:/)
+      expect(await peer.call("cosmos-clients", "cosmos.client.inspect", {})).toMatchObject({schema: "cosmos/client-command/v1", ok: false, error: {code: "no_active_client"}})
+      expect(await peer.call("cosmos-clients", "cosmos.client.events", {})).toMatchObject({schema: "cosmos/client-events/v1", entries: []})
+      await expect(peer.call("cosmos-repl", "cosmos.repl.capabilities", {})).rejects.toThrow("capability")
+      expect(await peer.call("cosmos-repl", "cosmos.repl.capabilities", {token: replToken})).toMatchObject({schema: "cosmos/repl-capabilities/v1", available: true, execution: "native-bun-process"})
+      expect(await peer.call("dark", "meta.capabilities.read", {contractVersion: 1})).toMatchObject({contractVersion: 1, capabilities: []})
+      for (const identity of ["cosmos-clients", "cosmos-repl", "dark", "energy"]) {
+        const response = await fetch(`${address}/oracle/channels`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({version: 1, identity, methods: []})})
+        expect(response.status).toBe(403)
+      }
+      expect(await peer.call("cosmos-clients", "cosmos.client.inspect", {})).toMatchObject({ok: false, error: {code: "no_active_client"}})
+    } finally {peer.close(); await transport.close()}
+  })
+
+  test("Default font is served from the verified Visual artifact without source or staticRoot", async () => {
+    const response = await fetch(`${address}/assets/fonts/jetbrains-mono-bold.ttf`)
+    expect(response.status).toBe(200)
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(font)
+    expect(await Bun.file(join(directory, "receiver", "assets", "fonts", "jetbrains-mono-bold.ttf")).exists()).toBe(false)
   })
 
   test("Без capability обновление не начинается", async () => {
     const response = await fetch(`${address}/release/update`, {method: "POST"})
     expect(response.status, "Операторский запрос требует выданного права").toBe(403)
     expect(receiver!.host.active.runtime.process.pid, "Отказ не перезапускает действующий процесс").toBe(oldPid)
+    const rejectedMeta = await fetch(`${address}/release/metas/apply`, {method: "POST"})
+    expect(rejectedMeta.status).toBe(403)
+    const noAssignedRoot = await fetch(`${address}/release/metas/apply`, {method: "POST", headers: {Authorization: `Bearer ${token}`}})
+    expect(noAssignedRoot.status).toBe(409)
+    expect(receiver!.host.active.runtime.process.pid).toBe(oldPid)
   })
 
   test("RTC-получение завершается новым действующим процессом", async () => {
@@ -177,10 +219,13 @@ describe.each([
 
 function graph(version: string, server: Uint8Array): PublishedReleaseGraph {
   const main = new TextEncoder().encode("export const ready = true")
-  return {schemaVersion: 1, packages: [{name: "@cosmos/release", version, dependencies: {}, environments: [
+  return {schemaVersion: 1, packages: [{name: "@cosmos/release", version, dependencies: {"@internal/visual": version}, environments: [
     {env: "server", publicArtifacts: {}, outputs: [{artifact: ".", kind: "entry-point", type: "text/javascript", sha256: hash(server), size: server.length}]},
     {env: "main", publicArtifacts: {}, outputs: [{artifact: ".", kind: "entry-point", type: "text/javascript", sha256: hash(main), size: main.length}]},
-  ]}]}
+  ]}, {name: "@internal/visual", version, dependencies: {}, environments: [{env: "main", publicArtifacts: {"./fonts/jetbrains-mono-bold.ttf": ".ttf"}, outputs: [
+    {artifact: ".", kind: "entry-point", type: "text/javascript", sha256: hash(main), size: main.length},
+    {artifact: "./fonts/jetbrains-mono-bold.ttf", kind: "asset", type: "font/ttf", sha256: hash(font), size: font.length},
+  ]}]}]}
 }
 
 function hash(bytes: Uint8Array) { return createHash("sha256").update(bytes).digest("hex") }

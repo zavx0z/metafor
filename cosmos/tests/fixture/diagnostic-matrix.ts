@@ -22,6 +22,17 @@ const checkpoint = (
 
 export const diagnosticStories: DiagnosticStory[] = [
   {
+    id: "owned-quantum-domain-failure",
+    checkpoints: [
+      checkpoint("error", "[@cosmos/release:server:quantum]", "owned peer failed", ["domain", "error"]),
+      checkpoint("error", "[@cosmos/release:server:quantum]", "owned cleanup failed", ["domain", "error"]),
+      checkpoint("error", "[@cosmos/release:server:quantum]", "owned shutdown failed", ["domain", "error"]),
+    ],
+    proofs: [
+      {file: "quantum-diagnostics.spec.ts", test: "owned Quantum failures retain domain and error under distinct fixed diagnostic checkpoints"},
+    ],
+  },
+  {
     id: "server-startup-release-process",
     checkpoints: [
       checkpoint("debug", "[@cosmos/startup:server]", "release process активирован", [
@@ -56,7 +67,7 @@ export const diagnosticStories: DiagnosticStory[] = [
       ]),
     ],
     proofs: [
-      {file: "runtime.spec.ts", test: "startup cold boot is immediate, shared, and retriable"},
+      {file: "runtime.spec.ts", test: "startup cold boot failure is shared and terminal for automatic fetch/message admission"},
       {file: "runtime.spec.ts", test: "runtime swap sends new events to candidate and destroys old after in-flight work"},
       {file: "transaction.spec.ts", test: "UPD-003 startup uses Cache order and fails closed on a damaged first release"},
     ],
@@ -186,7 +197,7 @@ export const diagnosticStories: DiagnosticStory[] = [
         "remove", "update",
       ]),
       checkpoint("error", "[@cosmos/release:service:rpc:update]", "синхронизация завершилась с ошибкой", [
-        "error", "to",
+        "error", "to", "retryInMs", "blocked",
       ]),
       checkpoint("error", "[@cosmos/release:server:rpc:update]", "сверка browser cache завершилась с ошибкой", [
         "error", "source",
@@ -195,6 +206,7 @@ export const diagnosticStories: DiagnosticStory[] = [
     proofs: [
       {file: "rpc-runtime.spec.ts", test: "release RPC diagnostics expose no-op and suppress reconnect spam"},
       {file: "rpc-runtime.spec.ts", test: "release RPC diagnostics preserve the exact synchronization failure"},
+      {file: "rpc-runtime.spec.ts", test: "failed delta has no timed retry and remains blocked through changed signals and reconnect until a new target"},
       {file: "release.spec.ts", test: "release RPC carries only a payload-free signal, full current, and update/remove delta"},
       {file: "transaction.spec.ts", test: "UPD-003 treats a stale update for an installed exact entry as a no-op"},
     ],
@@ -226,6 +238,8 @@ export const diagnosticStories: DiagnosticStory[] = [
     ],
     proofs: [
       {file: "transaction.spec.ts", test: "UPD-003 keeps a complete old or new composition after every durable mutation"},
+      {file: "transaction.spec.ts", test: "installed graph startup identities never enter release candidate or mutate saved startup cache"},
+      {file: "transaction.spec.ts", test: "known final composition failure survives saved caches and blocks another Window reload for the same target"},
       {file: "transaction.spec.ts", test: "UPD-003 prepares release runtime before cleanup and activates it only after durable commit"},
       {file: "transaction.spec.ts", test: "lazy artifacts of the predecessor survive until Window handover"},
       {file: "load-001.browser.spec.ts", test: "UPD-003 keeps canonical caches unchanged and resumes one fixed transaction"},
@@ -243,6 +257,7 @@ export const diagnosticStories: DiagnosticStory[] = [
       checkpoint("debug", "[@internal/visual:main]", "основное visual-окружение создано", [
         "display", "dock", "space", "viewPoint",
       ]),
+      checkpoint("error", "[@internal/visual:main]", "не удалось загрузить avatar asset офиса", ["error"]),
       checkpoint("debug", "[@cosmos/release:main]", "Visual runtime подключён", ["runtime"]),
       checkpoint("debug", "[@cosmos/startup:main]", "страница готова к работе", [
         "controller", "registration",
@@ -250,6 +265,7 @@ export const diagnosticStories: DiagnosticStory[] = [
     ],
     proofs: [
       {file: "ham-005.boundary.spec.ts", test: "HAM-005 creates one standard Window environment through internal visual"},
+      {file: "visual-diagnostics.spec.ts", test: "office avatar load failure reports one normalized owner-scoped diagnostic without rejecting the existing Visual runtime"},
       {file: "load-001.browser.spec.ts", test: "UPD-002 updates one module group and restarts every Window once"},
     ],
   },

@@ -20,6 +20,7 @@ import type {ForceMessageInput} from "shared/protocol/force/message"
 import type {DarkForceHistory, DarkForceHistoryParticle} from "../force/history.ts"
 import type {ForceLifecycle} from "../force/lifecycle.ts"
 import type {OracleRpcPeer} from "shared/transport/oracle"
+import {OracleRpcAdmissionRefusedError} from "shared/transport/oracle"
 
 type RuntimePeer = Pick<OracleRpcPeer, "call">
 type RuntimeHistory = Pick<DarkForceHistory, "read" | "status">
@@ -84,7 +85,12 @@ export class MetaRuntimeRpcService {
       request,
     ))
     const decision = await this.ingress.acceptAgentParticleAtFrontier(plan, request.expectedFrontier)
-    if (!decision.ok) throw new Error(decision.error)
+    if (!decision.ok) {
+      if (decision.reason !== "runtime_error") throw new OracleRpcAdmissionRefusedError(decision.error, {
+        schema: "metafor/field-admission-refusal/v1", contractVersion: 1, reason: decision.reason,
+      })
+      throw new Error(decision.error)
+    }
     if (decision.acceptance.cutId !== request.expectedFrontier.cutId ||
         decision.acceptance.sequence !== request.expectedFrontier.throughSequence + 1) {
       throw new Error("Dark Force returned a non-contiguous Field acceptance identity")

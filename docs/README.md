@@ -22,9 +22,26 @@
 
 * [Агентные Вселенные](AGENT_UNIVERSES.md) — Agent Atom, окружающие Tool,
   Device и Service Atoms, предметное изменение Fields и будущий интерфейс Bulk.
+* В стандартной агентной композиции [Environment](../standard/environment/README.md)
+  принимает задачу, [Agent](../standard/agent/README.md) связывает её исполнение,
+  [Chat](../standard/chat/README.md) сохраняет беседу, а
+  [Scenario](../standard/scenario/README.md) проверяет наблюдаемое свойство мира.
+  Явно назначенный [Codespace](../standard/codespace/README.md) наблюдает и запускает
+  один существующий внешний ресурс автономным Process.
+  [Provider](../standard/provider/README.md) владеет реестром исполнителей модели,
+  настройками и проверками в собственной Mass.
+  [Нативный REPL](../standard/repl/README.md) исполняет явный код Agent в назначенной
+  долгоживущей среде Bun и сохраняет квитанции без повторов неизвестных эффектов.
+* Корневые [workspace-capsule](../standard/workspace-capsule/README.md) и
+  [intel-macos-chrome-studio](../standard/intel-macos-chrome-studio/README.md)
+  описывают самостоятельные рабочие окружения с явным подключением Agent.
 * [Архитектура runtime](ARCHITECTURE.md) — состав contour и связи доменов.
-* [Dark](DARK.md) — Oracle, Force, декларации, причинное время и границы
-  публичного наблюдения.
+* [Окружения и связь Вселенных](ENVIRONMENTS.md) — корневые Meta устройств,
+  ведущий и ведомые, условия доступности и связи Oracle/Force между Atom.
+* [Dark](DARK.md) — Oracle Environment, Force, декларации, причинное время и
+  границы публичного наблюдения.
+* [План перехода на Oracle Environment](ORACLE_ENVIRONMENT_PLAN.md) — этапы
+  подключения рабочей среды и критерии проверки исполнения и авторинга.
 * [Force](FORCE.md) — Dark Force: единый Particle channel, complete post-cut
   history, relay и fail-stop внутри Dark process.
 * [Immutable checkpoints](CHECKPOINTS.md) — coherent Boundary+Mass capture,
@@ -95,8 +112,9 @@
   не создавая второй канонический Store или runtime WIMP.
 * [Протоколы сил](proto/) — справочное чтение wire-потоков; при конфликте
   приоритет имеет контракт домена и public type.
-* [Работа с Meta-пакетами](META_PACKAGES.md) — граница внешних sibling checkout,
-  source discovery и исполнения установленных артефактов.
+* [Работа с Meta-пакетами](META_PACKAGES.md) — исполнение без исходного checkout,
+  рабочая версия в Boundary, явная публикация у владельца исходников,
+  source discovery и границы внешних Meta-пакетов.
 * [Все правила Create MetaFor](../create-metafor/rules/metafor.md) — законы
   авторинга `meta.ts` и канонический смысловой контракт клиентских
   RPC-проекций.

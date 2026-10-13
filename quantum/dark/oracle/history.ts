@@ -48,13 +48,15 @@ export class DarkForceHistoryReadService {
     if (query.cutId !== status.cutId) {
       throw new Error(`Dark Force history cut mismatch: expected ${status.cutId}, received ${query.cutId}`)
     }
-    const requestedTo = query.toSequence ?? null
-    const effectiveTo = Math.min(query.toSequence ?? status.sequence, status.sequence)
-    const found = query.fromSequence > effectiveTo
+    const requestedTo = query.kind === "range" ? query.toSequence ?? null : null
+    const effectiveTo = Math.min(requestedTo ?? status.sequence, status.sequence)
+    const requestedFrom = query.fromSequence ?? 1
+    const found = requestedFrom > effectiveTo
       ? []
       : this.history.read({
-          fromSequence: query.fromSequence,
+          fromSequence: requestedFrom,
           toSequence: effectiveTo,
+          ...(query.kind === "origin" ? {from: query.from, path: query.path, part: "photon" as const} : {}),
           limit: query.limit + 1,
         })
     const truncated = found.length > query.limit
@@ -66,7 +68,7 @@ export class DarkForceHistoryReadService {
       resolution: "exact",
       frontier,
       range: {
-        requestedFromSequence: query.fromSequence,
+        requestedFromSequence: requestedFrom,
         requestedToSequence: requestedTo,
         firstSequence,
         lastSequence,

@@ -13,8 +13,10 @@ const cosmos = fileURLToPath(new URL("../", import.meta.url))
 test("release server recovers the prepared composition before opening its listener", async () => {
   const server = await Bun.file(new URL("../release/server/runtime.ts", import.meta.url)).text()
   const recovery = server.indexOf("await recoverPublication()")
+  const listener = server.indexOf("Bun.serve<ReleaseServerSocketData>")
   expect(recovery).toBeGreaterThan(0)
-  expect(recovery).toBeLessThan(server.indexOf("Bun.serve<RpcSocketData>"))
+  expect(listener).toBeGreaterThan(0)
+  expect(recovery).toBeLessThan(listener)
 })
 
 test("root intent is one reversible atomic manifest write", async () => {

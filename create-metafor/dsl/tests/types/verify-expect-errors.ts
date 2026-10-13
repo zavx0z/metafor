@@ -6,7 +6,7 @@ const root = resolve(import.meta.dir, "../..")
 const configPath = resolve(root, "tsconfig.json")
 
 const typingFiles = readdirSync(resolve(root, "tests"), {recursive: true})
-  .filter((entry): entry is string => typeof entry === "string" && entry.endsWith("typing.spec.ts"))
+  .filter((entry): entry is string => typeof entry === "string" && /typing\.spec\.tsx?$/.test(entry))
   .map((entry) => resolve(root, "tests", entry))
   .sort()
 

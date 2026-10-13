@@ -8,10 +8,12 @@
   "type": "module",
   "private": true,
   "exports": {
-    ".": "./meta.ts"
+    ".": "./meta.ts",
+    "./meta": "./meta.ts"
   },
   "scripts": {
-    "build": {{buildScriptJson}}
+    "build": {{buildScriptJson}},
+    "typecheck": "tsc --project tsconfig.json --pretty false"
   },
   "devDependencies": {
     "@types/bun": "^1.4.0",

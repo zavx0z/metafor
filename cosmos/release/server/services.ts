@@ -1,4 +1,5 @@
 import {realpath} from "node:fs/promises"
+import {createRequire} from "node:module"
 import {dirname, join} from "node:path"
 import {fileURLToPath} from "node:url"
 import {createPackageBuilder} from "@metafor/tech-build"
@@ -21,7 +22,13 @@ export const builder = createPackageBuilder({
   async resolvePackage(name) {
     if (!/^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/i.test(name))
       throw new Error(`Invalid package name ${name}`)
-    const root = await realpath(join(dirname(cosmosRoot), "node_modules", ...name.split("/")))
+    const resolver = createRequire(join(cosmosRoot, "package.json"))
+    let root: string | undefined
+    for (const directory of resolver.resolve.paths(name) ?? []) {
+      try {root = await realpath(join(directory, ...name.split("/"))); break}
+      catch (error) {if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) throw error}
+    }
+    if (!root) throw new Error(`Package ${name} is not installed in the Cosmos dependency context`)
     if (root !== cosmosRoot && !root.startsWith(`${cosmosRoot}/`))
       throw new Error(`Package ${name} is outside Cosmos`)
     return root

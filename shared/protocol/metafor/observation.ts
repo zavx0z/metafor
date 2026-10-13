@@ -21,6 +21,22 @@ export const META_FIELD_VALUE_APPLY_METHOD = "meta.field.value.apply" as const
 export const META_PROCESS_EXECUTION_READ_METHOD = "meta.process.execution.read" as const
 export const ENERGY_MASS_RESULT_MAX_BYTES = 4 * 1024 * 1024
 
+/** Dark rejected this Field input before Force acceptance; no effect was admitted. Runtime/transport failures do not provide this proof. */
+export interface MetaFieldValueApplyRefusal {
+  schema: "metafor/field-admission-refusal/v1"
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  reason: "frontier_mismatch" | "admission_closed" | "not_running"
+}
+
+/** Recognizes only the closed no-admission proof emitted by Field.apply. */
+export function isMetaFieldValueApplyRefusal(value: unknown): value is MetaFieldValueApplyRefusal {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  return Object.keys(record).sort().join(",") === "contractVersion,reason,schema" &&
+    record.schema === "metafor/field-admission-refusal/v1" && record.contractVersion === 1 &&
+    typeof record.reason === "string" && ["frontier_mismatch", "admission_closed", "not_running"].includes(record.reason)
+}
+
 export type MetaObservationDigest = `sha256:${string}`
 
 export type MetaCausalFrontier = {
@@ -112,9 +128,16 @@ export type DarkForceHistoryRangeReadRequest = {
   }
 }
 
+/** Exact Photon origin lookup in one verified cut; bounded pages never widen the history capability. */
+export type DarkForceHistoryOriginReadRequest = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  query: {kind: "origin"; cutId: string; from: string; path: number; limit: number; fromSequence?: number}
+}
+
 export type DarkForceHistoryReadRequest =
   | DarkForceHistoryFrontierReadRequest
   | DarkForceHistoryRangeReadRequest
+  | DarkForceHistoryOriginReadRequest
 
 export type DarkForceHistoryPublicEntry = {
   id: string
@@ -309,6 +332,9 @@ const validateFrontier = (
   return {ok: true, value: structuredClone(value) as MetaCausalFrontier}
 }
 
+/** Validates an observed frontier without claiming that it is one Particle's exact cursor. */
+export const validateMetaCausalFrontier = (value: unknown): ValidationResult<MetaCausalFrontier> => validateFrontier(value, "")
+
 /** Validates an identity previously returned by `readGraphDelta`. */
 export const validateMetaGraphSnapshotIdentity = (
   value: unknown,
@@ -394,6 +420,15 @@ export const validateDarkForceHistoryReadRequest = (
       return {ok: false, issues: [issue("/query", "unknown_property", "Frontier query contains unknown properties")]}
     }
     return {ok: true, value: {contractVersion: 1, query: {kind: "frontier"}}}
+  }
+  if (input.query.kind === "origin") {
+    if (!exactKeys(input.query, ["kind", "cutId", "from", "path", "limit"], ["fromSequence"]) ||
+        typeof input.query.cutId !== "string" || !CUT_ID.test(input.query.cutId) || !isProcessExecutionId(input.query.from) ||
+        !safePositive(input.query.path) || !safePositive(input.query.limit) || input.query.limit > 16 ||
+        input.query.fromSequence !== undefined && !safePositive(input.query.fromSequence)) {
+      return {ok: false, issues: [issue("/query", "invalid_origin", "Photon origin query must name one cut, source identity, Atom and a limit between 1 and 16")]}
+    }
+    return {ok: true, value: structuredClone(input) as DarkForceHistoryOriginReadRequest}
   }
   if (input.query.kind !== "range" || !exactKeys(input.query, ["kind", "cutId", "fromSequence", "limit"], ["toSequence"])) {
     return {ok: false, issues: [issue("/query", "invalid_query", "History range query is invalid or contains unknown properties")]}

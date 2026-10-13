@@ -98,3 +98,23 @@ expect_equal "multiple Inspector listeners" \
   "$(inspector_listener_ownership 202 $'202\n901')" $'multiple\t2'
 expect_equal "missing Inspector listener" \
   "$(inspector_listener_ownership 202 '')" "missing"
+
+digest=$(printf 'a%.0s' {1..64})
+installed_artifact="/assigned/store/candidates/$digest/packages/%40cosmos%2Frelease/dist/versions/0.2.0/server.js"
+installed_child=$'301\tttys001\t/opt/home/bin/bun '"$installed_artifact"
+domain_child=$'302\tttys001\t/opt/home/bin/bun '"$installed_artifact"
+wrong_installed_child=${installed_child/\/assigned\/store/\/other\/store}
+expect_equal "installed artifact requires explicit verified configuration" \
+  "$(release_inspector_state "$installed_child" /repo/cosmos/release)" $'absent\t0'
+expect_equal "configured installed artifact is recognized exactly" \
+  "$(release_inspector_state "$installed_child" /repo/cosmos/release "$installed_artifact" 301)" $'normal\t301'
+expect_equal "domain child with the same artifact is not another HTTP release host" \
+  "$(release_inspector_state "$installed_child"$'\n'"$domain_child" /repo/cosmos/release "$installed_artifact" 301)" $'normal\t301'
+expect_equal "foreign HTTP listener cannot be adopted through a configured path" \
+  "$(release_inspector_state "$installed_child" /repo/cosmos/release "$installed_artifact" 901)" $'absent\t0'
+expect_equal "multiple HTTP listeners reject ambiguous host ownership" \
+  "$(release_inspector_state "$installed_child" /repo/cosmos/release "$installed_artifact" $'301\n901')" $'multiple\t2'
+expect_equal "another installed store is not an exact configured artifact" \
+  "$(release_inspector_state "$wrong_installed_child" /repo/cosmos/release "$installed_artifact" 301)" $'absent\t0'
+expect_equal "configured installed normal host passes mode gate" \
+  "$(require_managed_release_mode normal 127.0.0.1:6501 "$installed_child"$'\n'"$domain_child" /repo/cosmos/release '' "$installed_artifact" 301)" $'normal\t301'

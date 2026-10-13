@@ -12,6 +12,7 @@ import {PeerForce} from "shared/transport/force/peer"
 import type {RemoteForceDomain} from "../../../quantum/dark/force/store"
 import type {OracleChannel} from "shared/transport/oracle"
 import {DOMAIN_OBSERVATION_SCHEMA, type DomainTransportReport, type ObservedChannelState} from "../shared/peer-observation"
+import {reportQuantumDomainFailure} from "./quantum-diagnostics"
 
 /** Four-domain incarnation owned by one release; its persistent state is outside immutable artifacts. */
 export interface QuantumRuntimeOptions {
@@ -78,12 +79,12 @@ export async function runQuantumDomain(domain: string): Promise<void> {
   const onFailure = (error: Error) => {
     if (stopping) return
     failed.reject(error)
-    console.error(`[${domain}] owned peer failed`, error)
-    void close().catch(cleanup => console.error(`[${domain}] owned cleanup failed`, cleanup)).finally(() => process.exit(1))
+    reportQuantumDomainFailure(domain, "peer", error)
+    void close().catch(cleanup => reportQuantumDomainFailure(domain, "cleanup", cleanup)).finally(() => process.exit(1))
   }
   const transport = new PeerOracleTransport({network, peerId, identity: domain, onFailure})
   const context = {transport, createForce: () => force = new PeerForce(domain, {network, peerId, onFailure})}
-  const shutdown = () => {void close().catch(error => {console.error(error); process.exitCode = 1})}
+  const shutdown = () => {void close().catch(error => {reportQuantumDomainFailure(domain, "shutdown", error); process.exitCode = 1})}
   process.once("SIGINT", shutdown)
   process.once("SIGTERM", shutdown)
   try {
@@ -106,7 +107,17 @@ export async function runQuantumDomain(domain: string): Promise<void> {
 export function quantumRuntimeOptions(stateRoot: string): QuantumRuntimeOptions | undefined {
   if (Bun.env.COSMOS_QUANTUM === "0") return
   const sources = Bun.env.METAFOR_ROOT_SOURCES?.split(",").map(source => source.trim()).filter(Boolean)
-  return {stateRoot: resolve(stateRoot), transport: "peer", ...(sources?.length ? {sources} : {})}
+  return {stateRoot: resolve(stateRoot), transport: "peer", ...(sources?.length ? {sources} : {}), energyEnvironment: {
+    ORACLE_ENVIRONMENT_GRAPH_SCOPES: Bun.env.ORACLE_ENVIRONMENT_GRAPH_SCOPES,
+    ORACLE_ENVIRONMENT_CODESPACE_SCOPES: Bun.env.ORACLE_ENVIRONMENT_CODESPACE_SCOPES,
+    ORACLE_ENVIRONMENT_PEER_SCOPES: Bun.env.ORACLE_ENVIRONMENT_PEER_SCOPES,
+    ORACLE_ENVIRONMENT_PROVIDER_DISCOVERY_SCOPES: Bun.env.ORACLE_ENVIRONMENT_PROVIDER_DISCOVERY_SCOPES,
+    ORACLE_ENVIRONMENT_REPL_SCOPES: Bun.env.ORACLE_ENVIRONMENT_REPL_SCOPES,
+    ORACLE_REPL_CONFIG: Bun.env.ORACLE_REPL_CONFIG,
+    ORACLE_AGENT_CODEX_COMMAND: Bun.env.ORACLE_AGENT_CODEX_COMMAND,
+    ORACLE_AGENT_CODEX_CWD: Bun.env.ORACLE_AGENT_CODEX_CWD,
+    ORACLE_AGENT_PROVIDER_CONFIG: Bun.env.ORACLE_AGENT_PROVIDER_CONFIG,
+  }}
 }
 
 /**
@@ -267,6 +278,7 @@ export async function prepareQuantumRuntime(options: QuantumRuntimeOptions) {
       const origin = `http://127.0.0.1:${port}`
       const inherited = {...process.env, ...options.env}
       for (const key of Object.keys(energyEnvironment)) delete inherited[key]
+      for (const key of ["ORACLE_CODESPACE_HELPER_COMMAND", "ORACLE_CODESPACE_ACCOUNT", "ORACLE_CODESPACE_TARGET"]) delete inherited[key]
       const context = {
         FORCE_ADDRESS: `${origin.replace("http:", "ws:")}/ws`, FORCE_RPC_ADDRESS: origin,
         COSMOS_QUANTUM_TRANSPORT: peerMode ? "peer" : "websocket",

@@ -3,8 +3,12 @@ import {
   META_CREATE_CAPABILITY,
   META_CREATE_METHOD,
   META_DECLARATION_APPLY_METHOD,
+  META_DECLARATION_STAGE_METHOD,
+  META_WORKING_REVISION_READ_METHOD,
+  META_SOURCE_COMMIT_METHOD,
   META_DECLARATION_WRITE_CAPABILITY,
   META_MATTER_APPLY_METHOD,
+  META_MATTER_STAGE_METHOD,
   META_MATTER_WRITE_CAPABILITY,
   META_SOURCE_READ_CAPABILITY,
   META_SOURCE_REVISION_READ_METHOD,
@@ -76,6 +80,26 @@ export const metaAuthoringCapabilitiesForScopes = (
     operationClass: "source_read",
     liveState: false,
     gitCommit: false,
+  },
+  {
+    capability: META_DECLARATION_WRITE_CAPABILITY, method: META_DECLARATION_STAGE_METHOD,
+    scopes: [...scopes], operationClass: "declaration", liveState: true, gitCommit: false,
+  },
+  {
+    capability: META_MATTER_WRITE_CAPABILITY, method: META_MATTER_STAGE_METHOD,
+    scopes: [...scopes], operationClass: "matter", liveState: true, gitCommit: false,
+  },
+  {
+    capability: META_SOURCE_READ_CAPABILITY, method: META_WORKING_REVISION_READ_METHOD,
+    scopes: [...scopes], operationClass: "source_read", liveState: false, gitCommit: false,
+  },
+  {
+    capability: META_DECLARATION_WRITE_CAPABILITY, method: META_SOURCE_COMMIT_METHOD,
+    scopes: [...scopes], operationClass: "declaration", liveState: false, gitCommit: false,
+  },
+  {
+    capability: META_MATTER_WRITE_CAPABILITY, method: META_SOURCE_COMMIT_METHOD,
+    scopes: [...scopes], operationClass: "matter", liveState: false, gitCommit: false,
   },
 ]
 

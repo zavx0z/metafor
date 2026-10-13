@@ -1,0 +1,14 @@
+{
+  "name": "@metafor/codespace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Инструмент наблюдения и явного запуска назначенного существующего Codespace",
+  "exports": {
+    ".": {"metafor:server": "./meta.ts"},
+    "./meta": {"metafor:server": "./meta.ts"},
+    "./run": "./run.ts"
+  },
+  "dependencies": {"@metafor/types": "workspace:*"},
+  "devDependencies": {"@metafor/dsl": "workspace:*"}
+}

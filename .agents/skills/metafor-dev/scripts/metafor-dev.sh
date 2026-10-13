@@ -304,16 +304,18 @@ wait_cosmos() {
 }
 
 managed_release_mode_evidence() {
-  local mode=$1 children state kind release_pid actual_address inspector_port listeners=
+  local mode=$1 children state kind release_pid actual_address inspector_port listeners= installed_artifacts http_listeners
   children=$(cosmos_children)
-  state=$(release_inspector_state "$children" "$cosmos/release")
+  installed_artifacts=$(bun --cwd "$cosmos" "$script_dir/installed-release.ts" "$cosmos") || return 1
+  http_listeners=$(lsof -nP -iTCP:"$(package_port)" -sTCP:LISTEN -t 2>/dev/null || true)
+  state=$(release_inspector_state "$children" "$cosmos/release" "$installed_artifacts" "$http_listeners")
   IFS=$'\t' read -r kind release_pid actual_address <<<"$state"
   if [[ $kind == debug ]]; then
     inspector_port=$(inspector_port_from_address "$actual_address") || return 1
     listeners=$(lsof -nP -iTCP:"$inspector_port" -sTCP:LISTEN -t 2>/dev/null || true)
   fi
   require_managed_release_mode \
-    "$mode" "$debug_address" "$children" "$cosmos/release" "$listeners"
+    "$mode" "$debug_address" "$children" "$cosmos/release" "$listeners" "$installed_artifacts" "$http_listeners"
 }
 
 wait_managed_release_mode() {
@@ -354,7 +356,7 @@ ensure_target() {
 }
 
 start_contour() {
-  local mode=${1:-normal} browser=${2:-managed} port origin processes state command_text listeners window_count
+  local mode=${1:-normal} browser=${2:-external} port origin processes state command_text listeners window_count
   local parents reuse_error
   port=$(package_port)
   [[ $port =~ ^[0-9]+$ ]] || die "cannot derive Cosmos port from scripts.dev"
@@ -415,7 +417,9 @@ start_contour() {
 }
 
 stop_contour() {
-  local state parents parent_pid attempt
+  local state parents parent_pid attempt child_pid identity current index remaining
+  local stop_wait_attempts=50 stop_wait_interval=0.2
+  local -a owned_pids owned_identities
   state=$(iterm_state)
   [[ $state == found$'\t'* ]] || die "managed iTerm session is missing; refusing to stop external processes"
   ensure_process_ownership
@@ -426,12 +430,34 @@ stop_contour() {
   fi
   [[ $(wc -l <<<"$parents" | tr -d ' ') == 1 ]] || die "multiple Cosmos parents found"
   parent_pid=$(awk -F '\t' '{print $1}' <<<"$parents")
+  identity=$(ps -p "$parent_pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+  [[ -n $identity ]] || die "Cosmos parent disappeared before stop: $parent_pid"
+  owned_pids=("$parent_pid")
+  owned_identities=("$identity")
+  # PPID после TERM может стать 1. Birth/UID/TTY/command сохраняют точное
+  # наблюдавшееся дерево и не принимают переиспользованный PID за его потомка.
+  while IFS=$'\t' read -r child_pid _; do
+    [[ $child_pid =~ ^[1-9][0-9]*$ ]] || continue
+    identity=$(ps -p "$child_pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+    [[ -n $identity ]] || continue
+    owned_pids+=("$child_pid")
+    owned_identities+=("$identity")
+  done < <(process_descendants "$parent_pid")
+  current=$(ps -p "$parent_pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+  [[ $current == "${owned_identities[0]}" ]] || die "Cosmos parent identity changed before stop: $parent_pid"
   kill -TERM "$parent_pid"
-  for attempt in $(seq 1 50); do
-    kill -0 "$parent_pid" 2>/dev/null || break
-    sleep 0.2
+  for attempt in $(seq 1 "$stop_wait_attempts"); do
+    remaining=
+    for ((index=0; index<${#owned_pids[@]}; index++)); do
+      current=$(ps -p "${owned_pids[$index]}" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+      if [[ -n $current && $current == "${owned_identities[$index]}" ]]; then
+        remaining="${remaining}${remaining:+ }${owned_pids[$index]}"
+      fi
+    done
+    [[ -n $remaining ]] || break
+    sleep "$stop_wait_interval"
   done
-  kill -0 "$parent_pid" 2>/dev/null && die "Cosmos did not stop: $parent_pid"
+  [[ -z $remaining ]] || die "Cosmos process tree did not stop ($stop_wait_attempts polls at ${stop_wait_interval}s); remaining owned PIDs: $remaining"
   printf 'cosmos: stopped %s\niterm: preserved %s\n' "$parent_pid" "${state#*$'\t'}"
 }
 
@@ -461,6 +487,29 @@ clear_site_data() {
     "$chrome_port" "$target_id" "$origin"
 }
 
+# Явное завершение ранее наблюдавшегося потомка после выхода его parent.
+# Birth, команда, UID и managed TTY защищают от переиспользования PID.
+retire_owned_orphan() {
+  local pid=$1 artifact=$2 birth=$3 tty_value command current
+  [[ $pid =~ ^[1-9][0-9]*$ ]] || die "invalid orphan PID"
+  [[ $artifact == "$repo/.local/"*"/candidates/"*"/packages/%40cosmos%2Frelease/dist/versions/"*"/server.js" ]] || die "orphan artifact is outside this checkout"
+  tty_value=$(iterm_tty) || die "managed iTerm session is missing"
+  [[ $(ps -p "$pid" -o ppid= | tr -d ' ') == 1 ]] || die "process is not an orphan"
+  [[ $(ps -p "$pid" -o uid= | tr -d ' ') == "$(id -u)" ]] || die "process owner differs"
+  [[ $(ps -p "$pid" -o tty= | tr -d ' ') == "${tty_value#/dev/}" ]] || die "process TTY differs"
+  current=$(ps -p "$pid" -o lstart= | sed 's/^ *//; s/ *$//')
+  [[ $current == "$birth" ]] || die "process birth differs"
+  command=$(ps -p "$pid" -o command=)
+  [[ $command == *"/bun $artifact" ]] || die "process command differs"
+  kill -TERM "$pid"
+  for _ in $(seq 1 50); do
+    current=$(ps -p "$pid" -o lstart= 2>/dev/null | sed 's/^ *//; s/ *$//' || true)
+    [[ $current == "$birth" ]] || { printf 'cosmos: retired owned orphan %s\n' "$pid"; return; }
+    sleep 0.2
+  done
+  die "owned orphan still closing: $pid"
+}
+
 package_sizes() {
   local port origin processes expected
   port=$(package_port)
@@ -481,7 +530,7 @@ package_sizes() {
 print_status() {
   local port origin state processes children chrome expected targets
   local inspector_state inspector_kind release_pid inspector_address inspector_port
-  local listeners ownership ownership_kind listener_pid
+  local listeners ownership ownership_kind listener_pid installed_artifacts http_listeners
   port=$(package_port)
   origin="http://127.0.0.1:${port:-unknown}"
   state=$(iterm_state)
@@ -516,7 +565,9 @@ print_status() {
   else
     printf 'chrome: stopped\n'
   fi
-  inspector_state=$(release_inspector_state "$children" "$cosmos/release")
+  installed_artifacts=$(bun --cwd "$cosmos" "$script_dir/installed-release.ts" "$cosmos") || installed_artifacts=
+  http_listeners=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
+  inspector_state=$(release_inspector_state "$children" "$cosmos/release" "$installed_artifacts" "$http_listeners")
   IFS=$'\t' read -r inspector_kind release_pid inspector_address <<<"$inspector_state"
   case "$inspector_kind" in
     debug)
@@ -554,6 +605,7 @@ done
 case "$action" in
   start) start_contour normal ;;
   start-server) start_contour normal external ;;
+  start-browser) start_contour normal managed ;;
   start-debug) start_contour debug ;;
   status) print_status ;;
   focus)
@@ -574,6 +626,10 @@ case "$action" in
     stop_contour
     start_contour normal external
     ;;
+  restart-browser)
+    stop_contour
+    start_contour normal managed
+    ;;
   restart-debug)
     stop_contour
     start_contour debug
@@ -581,5 +637,6 @@ case "$action" in
   clear-site-data) clear_site_data ;;
   sizes) package_sizes ;;
   stop) stop_contour ;;
-  *) die "usage: $0 {start|start-server|start-debug|status|focus|logs|restart|restart-server|restart-debug|clear-site-data|sizes|stop} [checkout]" ;;
+  retire-owned-orphan) retire_owned_orphan "${3:?PID required}" "${4:?artifact required}" "${5:?birth required}" ;;
+  *) die "usage: $0 {start|start-server|start-browser|start-debug|status|focus|logs|restart|restart-server|restart-browser|restart-debug|clear-site-data|sizes|stop} [checkout]" ;;
 esac

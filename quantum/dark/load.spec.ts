@@ -1,6 +1,6 @@
 import {describe, expect, test} from "bun:test"
 import {join, resolve} from "node:path"
-import {mkdtemp, rm, writeFile} from "node:fs/promises"
+import {mkdir, mkdtemp, rm, writeFile} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {createMetaSourceResolver} from "shared/metafor/source"
 
@@ -77,5 +77,47 @@ describe("Dark Meta source addressing", () => {
     `)
 
     expect(declaration.name).toBe("cluster-global")
+  })
+
+  test("source-bound preparation resolves relative JSX components with one DSL identity and leaves action imports inert", async () => {
+    const root = await mkdtemp(join(tmpdir(), "metafor-static-agents-"))
+    const sourcePath = join(root, "meta.ts")
+    const key = "__metaforStaticAgentDeclaration"
+    const global = globalThis as typeof globalThis & {[key: string]: number | undefined}
+    try {
+      await mkdir(join(root, "agents"))
+      await writeFile(join(root, "package.json"), JSON.stringify({name: "@fixture/declarations", exports: {"./meta": "./meta.ts"}}))
+      await writeFile(sourcePath, 'throw new Error("Do not evaluate disk entry instead of the supplied candidate")')
+      await writeFile(join(root, "actions.ts"), 'throw new Error("Action modules are not declaration imports")\nexport default async () => "done"')
+      await writeFile(join(root, "agents", "assistant.tsx"), `
+        globalThis.${key} = (globalThis.${key} ?? 0) + 1
+        export default function Assistant({atom,value}) {
+          return <agent id="assistant" atom={atom} task={value.task} answer={value.answer} status={value.status} error={value.error}/>
+        }
+      `)
+      await writeFile(join(root, "agents", "index.tsx"), 'import Assistant from "./assistant.tsx"\nexport default context => <Assistant {...context}/>')
+      const source = `import agents from "./agents/index.tsx"
+        export default MetaFor("Imported agents")
+          .fields(field => ({task:field.string.optional(),answer:field.string.optional(),status:field.string.optional(),error:field.string.optional()}))
+          .superposition({idle:null}).mass(()=>({})).energy()
+          .processes(process => [process("idle").action(async ({value}) => {
+            const action = await import("./actions.ts")
+            return action.default({value})
+          })]).reactions().matter().bulk().agents(agents)
+      `
+      for (let run = 1; run <= 2; run++) {
+        const declaration = await evaluateMetaSource(source, {sourcePath})
+        expect(global[key]).toBe(run)
+        expect(declaration.matter?.[0]).toMatchObject({kind: "wimp", src: "@metafor/agent"})
+        const process = declaration.processes?.[0]?.declaration
+        if (process?.type !== "action") throw new Error("Missing declared action Process")
+        expect(process.action.src).toBe("./actions.ts")
+        expect(process.action.wrapperSrc).toContain('import("./actions.ts")')
+        expect(JSON.stringify(declaration)).not.toContain("Assistant(")
+      }
+      await writeFile(sourcePath, source)
+      const resolver = createMetaSourceResolver({root})
+      expect((await loadMeta("@fixture/declarations", resolver)).name).toBe("Imported agents")
+    } finally {delete global[key]; await rm(root, {recursive: true, force: true})}
   })
 })

@@ -6,6 +6,7 @@ import {
   type MetaAuthoringRequestDigest,
   type MetaForceAcceptanceIdentity,
   type MetaMatterApplyReceipt,
+  type MetaMatterRequest,
   type MetaMatterAuthoringCauseV1,
   type MetaMatterSourceProjectionV1,
   type MetaSourceRevision,
@@ -36,6 +37,7 @@ export interface MatterAuthoringForce {
 
 export interface MatterAuthoringParent extends MatterParentSnapshot {
   revision: MetaSourceRevision
+  sourceRevision?: MetaSourceRevision
 }
 
 export type MatterAuthoringCapabilityReader = (
@@ -148,6 +150,9 @@ export class MatterAuthoringService {
       apply: () => null,
       async reconcile() {},
     },
+    private readonly deferPublication = false,
+    private readonly requireInstalledMeta?: (address: MetaAddress) => Promise<void>,
+    private readonly validateWorking?: (request: MetaMatterRequest) => Promise<void>,
   ) {}
 
   async apply(input: unknown, rpcSource: string): Promise<MetaMatterApplyReceipt> {
@@ -177,7 +182,18 @@ export class MatterAuthoringService {
         acceptanceIdentity(existing),
         existing.authoring.sourceProjections,
         existing.particle,
+        existing.authoring.publication === "deferred",
       )
+    }
+
+    await this.validateWorking?.(request)
+    if (this.requireInstalledMeta && request.operation !== "remove") {
+      const pending = [request.particle]
+      for (let index = 0; index < pending.length; index++) {
+        const particle = pending[index]!
+        if (particle.kind === "wimp") await this.requireInstalledMeta(particle.src)
+        for (const child of particle.children ?? []) pending.push(child.particle)
+      }
     }
 
     const affected = request.operation === "add"
@@ -201,7 +217,7 @@ export class MatterAuthoringService {
       prepared = await prepareSourceCandidates(plan.sourceEdits.map((edit) => ({
         targetPath: edit.targetPath,
         operationId: request.operationId,
-        expectedRevision: current.get(edit.address)!,
+        expectedRevision: parents.find(parent => parent.address === edit.address)?.sourceRevision ?? current.get(edit.address)!,
         source: edit.afterSource,
       })))
       const addressByPath = new Map(plan.sourceEdits.map((edit) => [edit.targetPath, edit.address] as const))
@@ -222,6 +238,7 @@ export class MatterAuthoringService {
         operationId: request.operationId,
         requestDigest,
         sourceProjections,
+        ...(this.deferPublication ? {publication: "deferred" as const} : {}),
       }
       liveAttempted = true
       const decision = await this.force.acceptAuthoringParticle(plan.particle, cause)
@@ -232,6 +249,7 @@ export class MatterAuthoringService {
         decision.acceptance,
         sourceProjections,
         decision.particle,
+        this.deferPublication,
       )
     } catch (error) {
       if (!liveAttempted) await discardSourceCandidates(prepared)
@@ -245,6 +263,7 @@ export class MatterAuthoringService {
     acceptance: MetaForceAcceptanceIdentity,
     sourceProjections: MetaMatterSourceProjectionV1[],
     particle: SourcedParticle,
+    deferred: boolean,
   ): Promise<MetaMatterApplyReceipt> {
     let change: AuthoredMatterProjectionChange | null
     try {
@@ -253,6 +272,10 @@ export class MatterAuthoringService {
       return pendingReceipt(operationId, requestDigest, acceptance, sourceProjections, error)
     }
     try {
+      if (deferred) return {
+        ...receiptBase(operationId, requestDigest, acceptance, sourceProjections),
+        phase: "working", source: {outcome: "deferred"}, materialization: {outcome: "applied"},
+      }
       const {recoverAndPublishSourceCandidates} = await import("create-metafor/library")
       const projectionByPath = new Map(sourceProjections.map((projection) => [
         this.sourcePath(projection.address),

@@ -19,6 +19,15 @@ import {startReleaseNode, type ReleaseNode, type ReleaseNodeConfiguration} from 
 import {createInstalledMetaMapping, findInstalledRootMeta} from "./metas"
 import {createMetaSourceResolver} from "shared/metafor/source"
 import {loadMeta} from "../../../../quantum/dark/load"
+import {createAgentUiOracle} from "../agents"
+import {AGENT_UI_PATH, AGENT_UI_PROVIDER_PATH, AGENT_UI_CONNECT_PATH, AGENT_UI_PROFILE_PATH, AGENT_UI_CONNECTIONS_PATH} from "../../shared/agents"
+import {AGENT_BROWSER_PATH} from "../../shared/agents-browser"
+import type {AgentBrowserSocketData} from "../agents-browser"
+import {configuredCodespaceHostOracle} from "../codespace-oracle"
+import {createClientOracle, type ClientSocketData} from "../clients"
+import {CLIENT_SOCKET_PATH} from "../../shared/clients"
+import {configuredNativeReplOracle} from "../repl"
+import {isProductPath} from "../../shared/product-route"
 
 /** Конфигурация установленного runtime; исходный checkout не является зависимостью. */
 export interface InstalledServerOptions {
@@ -53,7 +62,12 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
   let signaling: RendezvousHandler | null = null
   let quantum: QuantumRuntime | undefined
   let quantumOptions = options.quantum
+  let preparedMetaRoot: (() => Promise<{source: string, readMeta: (source: string) => ReturnType<typeof loadMeta>}>) | undefined
   let node: ReleaseNode | undefined
+  let agentUi: ReturnType<typeof createAgentUiOracle> | undefined
+  let clients: ReturnType<typeof createClientOracle> | undefined
+  let nativeRepl: Awaited<ReturnType<typeof configuredNativeReplOracle>> = null
+  let codespaceHost: ReturnType<typeof configuredCodespaceHostOracle> = null
   const storeRoot = await realpath(options.storeRoot)
   const requestedRoot = Bun.env.METAFOR_ROOT_META?.trim()
   const beneath = (root: string, path: string) => {
@@ -68,6 +82,14 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
     const knownRoots = quantumOptions ? quantumOptions.sources ?? [] : options.node?.sources ?? []
     const mapping = await createInstalledMetaMapping({store, digest: options.digest, graph: delivery.graph,
       knownRoots: selected ? [...knownRoots, selected] : knownRoots})
+    const assignedRoot = selected ?? (knownRoots.length === 1 ? knownRoots[0] : undefined)
+    if (assignedRoot && mapping[assignedRoot]) {
+      const resolver = createMetaSourceResolver({root: storeRoot, artifacts: mapping})
+      preparedMetaRoot = async () => {
+        await store.verifyCandidate(options.digest)
+        return {source: assignedRoot, readMeta: source => loadMeta(source, resolver)}
+      }
+    }
     if (requestedRoot && installedRoot !== undefined && quantumOptions) {
       const resolver = createMetaSourceResolver({root: storeRoot, artifacts: mapping})
       quantumOptions = {...quantumOptions, root: async () => {
@@ -112,6 +134,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
 
   async function handle(request: Request, current: Bun.Server<ReleaseServerSocketData>, rendezvous: RendezvousHandler | null): Promise<Response | undefined> {
     const url = new URL(request.url)
+    if (url.pathname === CLIENT_SOCKET_PATH) return clients ? clients.fetch(request, current) : new Response(null, {status: 404})
     if (url.pathname === "/peer") {
       return rendezvous ? rendezvous.upgrade(request, (request, data) => current.upgrade(request, {data}))
         : new Response(null, {status: 404})
@@ -122,10 +145,36 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       if (current.upgrade(request, {data})) return
       return new Response("WebSocket upgrade required", {status: 426})
     }
+    if ([AGENT_UI_PATH, AGENT_UI_PROVIDER_PATH, AGENT_UI_CONNECT_PATH, AGENT_UI_PROFILE_PATH, AGENT_UI_CONNECTIONS_PATH, "/agents/settings"].some(path => path === url.pathname) || url.pathname.startsWith(`${AGENT_BROWSER_PATH}/`))
+      return agentUi ? await agentUi.fetch(request, current) : new Response(null, {status: 404})
     if (url.pathname === "/release/state") {
       if (!authorized(request)) return new Response(null, {status: 403})
       if (request.method !== "GET" || url.search) return new Response(null, {status: 405})
       return Response.json({digest: options.digest, version: identity.version, update, node: node?.snapshot()})
+    }
+    if (url.pathname === "/release/metas/apply") {
+      if (!authorized(request)) return new Response(null, {status: 403})
+      if (request.method !== "POST" || url.search) return new Response(null, {status: 405})
+      if (!quantum || !preparedMetaRoot) return Response.json({error: "Prepared Meta root is unavailable"}, {status: 409})
+      if (update && update.state !== "failed") return Response.json({error: "Release update is active"}, {status: 409})
+      const input = await jsonBody(request)
+      if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).sort().join(",") !== "expectedFrontier,operationId,target" ||
+          !("operationId" in input) || typeof input.operationId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,179}$/.test(input.operationId) ||
+          !("target" in input) || input.target !== options.digest || !("expectedFrontier" in input) ||
+          !input.expectedFrontier || typeof input.expectedFrontier !== "object" || Array.isArray(input.expectedFrontier) ||
+          Object.keys(input.expectedFrontier).sort().join(",") !== "cutId,throughSequence" ||
+          !("cutId" in input.expectedFrontier) || typeof input.expectedFrontier.cutId !== "string" || !input.expectedFrontier.cutId || input.expectedFrontier.cutId.length > 180 ||
+          !("throughSequence" in input.expectedFrontier) || !Number.isSafeInteger(input.expectedFrontier.throughSequence) || Number(input.expectedFrontier.throughSequence) < 0)
+        return Response.json({error: "Invalid prepared Meta activation"}, {status: 400})
+      try {
+        const prepared = await preparedMetaRoot()
+        const receipt = await quantum.dark.applyPreparedDeclarations({operationId: input.operationId, releaseDigest: options.digest,
+          root: prepared.source, readMeta: prepared.readMeta,
+          expectedFrontier: {cutId: input.expectedFrontier.cutId, throughSequence: Number(input.expectedFrontier.throughSequence)}})
+        return Response.json(receipt, {status: receipt.phase === "complete" ? 200 : 409, headers: {"Cache-Control": "no-store"}})
+      } catch (error) {
+        return Response.json({error: error instanceof Error ? error.message : "Prepared Meta activation failed"}, {status: 409, headers: {"Cache-Control": "no-store"}})
+      }
     }
     if (url.pathname === "/release/peer") {
       if (!authorized(request)) return new Response(null, {status: 403})
@@ -186,8 +235,15 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       timers.add(timer)
       return Response.json({target: input.target, state: "accepted"}, {status: 202})
     }
+    if (request.method === "GET" && url.pathname === "/assets/fonts/jetbrains-mono-bold.ttf") {
+      const visual = delivery.graph.packages.find(member => member.name === "@internal/visual")
+      if (visual?.environments.some(part => part.env === "main" && Object.hasOwn(part.publicArtifacts, "./fonts/jetbrains-mono-bold.ttf"))) {
+        const asset = new URL(`/@internal/visual/fonts/jetbrains-mono-bold.ttf?env=main&version=${visual.version}`, url)
+        return await delivery.fetch(new Request(asset, request))
+      }
+    }
     if (request.method === "GET" && options.staticRoot) {
-      const path = url.pathname === "/" ? "index.html"
+      const path = isProductPath(url.pathname) ? "index.html"
         : url.pathname === "/manifest.webmanifest" ? "manifest.json"
           : url.pathname.startsWith("/assets/") ? url.pathname.slice(1) : null
       if (path && !path.includes("%") && path.split("/").every(part => part && part !== "." && part !== ".." && !part.includes("\\"))) {
@@ -243,9 +299,18 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
   control = await attachServerProcessControl({
     async bind() {
       if (destroyed || server) throw new Error("Installed server cannot bind")
-      if (quantumOptions) quantum = await prepareQuantumRuntime(quantumOptions)
+      if (quantumOptions) {
+        nativeRepl = await configuredNativeReplOracle(Bun.env, () => admitting && !destroyed)
+        agentUi = createAgentUiOracle({admitted: () => admitting && !destroyed, verseId: Bun.env.COSMOS_VERSE_ID})
+        clients = createClientOracle({admitted: () => admitting && !destroyed})
+        codespaceHost = configuredCodespaceHostOracle(Bun.env, () => admitting && !destroyed)
+        quantum = await prepareQuantumRuntime({...quantumOptions,
+          localOracleChannels: [...(quantumOptions.localOracleChannels ?? []), agentUi.channel, clients.channel, ...(nativeRepl ? [nativeRepl.channel] : []), ...(codespaceHost ? [codespaceHost.channel] : [])],
+        }).catch(async error => {await agentUi?.close(); await clients?.close(); await nativeRepl?.close(); await codespaceHost?.close(); throw error})
+      }
       const rendezvous = options.signalingToken ? createRendezvousHandler({token: options.signalingToken, relay: true}) : null
-      const current = Bun.serve<ReleaseServerSocketData>({
+      let current: Bun.Server<ReleaseServerSocketData>
+      try {current = Bun.serve<ReleaseServerSocketData>({
         port,
         fetch(request, current) {
           const pathname = new URL(request.url).pathname
@@ -263,6 +328,8 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
         },
         websocket: {
           open(socket) {
+            if (clients?.owns(socket.data)) {clients.websocket.open(socket as Bun.ServerWebSocket<ClientSocketData>); return}
+            if (agentUi?.owns(socket.data)) {agentUi.websocket.open(socket as Bun.ServerWebSocket<AgentBrowserSocketData>); return}
             if (quantum?.owns(socket.data)) { quantum.websocket.open(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>); return }
             if (options.quantum && rendezvous?.owns(socket.data)) { rendezvous.websocket.open(socket); return }
             if ((!admitting && (socket.data as RpcSocketData).observation !== "publisher") || destroyed) { socket.close(1012, "release handover"); return }
@@ -270,6 +337,8 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
             else sockets.add(socket as Bun.ServerWebSocket<RpcSocketData>)
           },
           message(socket, message) {
+            if (clients?.owns(socket.data)) return clients.websocket.message(socket as Bun.ServerWebSocket<ClientSocketData>, message)
+            if (agentUi?.owns(socket.data)) return agentUi.websocket.message(socket as Bun.ServerWebSocket<AgentBrowserSocketData>, message)
             if (quantum?.owns(socket.data)) return quantum.websocket.message(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>, message)
             if (options.quantum && rendezvous?.owns(socket.data)) { rendezvous.websocket.message(socket, message); return }
             if ((socket.data as RpcSocketData).source === "release/service") {
@@ -290,16 +359,22 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
             void track(work)
           },
           close(socket, code, reason) {
-            if (quantum?.owns(socket.data)) quantum.websocket.close(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>)
+            if (clients?.owns(socket.data)) {clients.websocket.close(socket as Bun.ServerWebSocket<ClientSocketData>); return}
+            if (agentUi?.owns(socket.data)) agentUi.websocket.close(socket as Bun.ServerWebSocket<AgentBrowserSocketData>)
+            else if (quantum?.owns(socket.data)) quantum.websocket.close(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>)
             else if (rendezvous?.owns(socket.data)) rendezvous.websocket.close(socket, code, reason)
             else {observations.close(socket as Bun.ServerWebSocket<RpcSocketData>);sockets.delete(socket as Bun.ServerWebSocket<RpcSocketData>)}
           },
         },
-      })
+      })} catch (error) {
+        await clients?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum?.close(); rendezvous?.close()
+        throw error
+      }
       signaling = rendezvous
       server = current
       if (quantum) {
         try {await quantum.start(current.port!)} catch (error) {
+          await clients?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum.close()
           rendezvous?.close()
           await current.stop(true)
           server = null
@@ -354,6 +429,14 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       if (admitting || !server) throw new Error("Installed server must quiesce before unbind")
       await node?.close()
       node = undefined
+      await agentUi?.close()
+      agentUi = undefined
+      await clients?.close()
+      clients = undefined
+      await nativeRepl?.close()
+      nativeRepl = null
+      await codespaceHost?.close()
+      codespaceHost = null
       await quantum?.close()
       quantum = undefined
       signaling?.close()
@@ -366,6 +449,14 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       destroyed = true
       admitting = false
       abort.abort(new Error("Installed release destroyed"))
+      await agentUi?.close()
+      agentUi = undefined
+      await clients?.close()
+      clients = undefined
+      await nativeRepl?.close()
+      nativeRepl = null
+      await codespaceHost?.close()
+      codespaceHost = null
       observations.destroy()
       const ownedNode = node
       node = undefined

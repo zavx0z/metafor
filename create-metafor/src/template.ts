@@ -2,6 +2,9 @@ import {
   generateGitignoreFile,
   generateIndexHtmlFile,
   generateMetaFile,
+  generateAgentsIndexFile,
+  generateAssistantFile,
+  generateAgentsJsxTypesFile,
   generateMetaforTypesFile,
   generatePackageJsonFile,
   generateTodoFile,
@@ -41,9 +44,12 @@ const IDENTITY_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 const REQUIRED_FILES = [
   ".gitignore",
   "TODO.md",
+  "agents/assistant.tsx",
+  "agents/index.tsx",
   "index.html",
   "meta.ts",
   "package.json",
+  "src/agents-jsx.d.ts",
   "src/metafor.d.ts",
   "tsconfig.json",
 ] as const
@@ -93,7 +99,7 @@ export const validateMetaPackageTemplate = (
     packageJson.repository.type !== "git" ||
     packageJson.repository.url !== `https://github.com/${template.identity.owner}/${template.identity.repository}.git` ||
     !isRecord(packageJson.exports) ||
-    packageJson.exports["."] !== "./meta.ts"
+    packageJson.exports["."] !== "./meta.ts" || packageJson.exports["./meta"] !== "./meta.ts"
   ) {
     throw new MetaPackageTemplateError("Meta package manifest does not match its identity")
   }
@@ -104,6 +110,9 @@ export const validateMetaPackageTemplate = (
     throw new MetaPackageTemplateError("Meta package index does not reference its canonical source")
   }
   const meta = file("meta.ts")
+  if (!meta.includes('import agents from "./agents/index.tsx"') || !meta.trimEnd().endsWith(".agents(agents)")) {
+    throw new MetaPackageTemplateError("Meta package must finish with its imported agents composition")
+  }
   if (template.profile === "empty" && !meta.includes(".fields((field) => ({}))")) {
     throw new MetaPackageTemplateError("Empty Meta package profile must not declare Fields")
   }
@@ -117,7 +126,10 @@ export const buildMetaPackageTemplate = (
   const source = `${options.identity.owner}/${options.identity.repository}`
   const files: MetaPackageFile[] = [
     {path: "meta.ts", source: generateMetaFile(options.name, options.description, options.errorLabel, options.profile)},
+    {path: "agents/index.tsx", source: generateAgentsIndexFile(options.profile)},
+    {path: "agents/assistant.tsx", source: generateAssistantFile()},
     {path: "src/metafor.d.ts", source: generateMetaforTypesFile()},
+    {path: "src/agents-jsx.d.ts", source: generateAgentsJsxTypesFile()},
     {path: "package.json", source: generatePackageJsonFile(options.identity, options.description, options.author)},
     {path: "tsconfig.json", source: generateTsconfigFile()},
     {path: "TODO.md", source: generateTodoFile(options.name, options.description)},

@@ -14,12 +14,22 @@ Release предоставляет native Canvas и declaration default font. Vi
 @packageDocumentation
 */
 
-import {createRoot} from "@zavx0z/immersive"
+import {createRoot, type DOMComponentConstructor, type HTMLElement} from "@zavx0z/immersive"
 import {inspectRoot} from "@zavx0z/immersive"
 import {App} from "./app.tsx"
 import {createNetworkSpace} from "./network-space.tsx"
+import {createAgentWorkspace, type AgentWorkspaceSource} from "./agent-workspace"
+import {loadBot} from "./bot"
+import {createProductAnnotationState} from "./product-annotation-state"
+import {createClientControls} from "./client-controls"
+import {createClientDiagnostics} from "./client-diagnostics"
+import {awaitVisualReady} from "./readiness"
+import {createAtomScene, type AtomSceneModel, type AtomSceneRoute} from "./atom-scene"
+import {AtomSurface, agentsForAtom} from "./atom-surface"
+import type {ClientViewAction} from "@metafor/types/cosmos/client"
 import type {InfrastructureProjection} from "./infrastructure-model.ts"
 
+export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentConnectableSlot} from "./agent-workspace-types"
 export type {InfrastructureProjection} from "./infrastructure-model.ts"
 
 /** Точный browser environment этого platform entrypoint. */
@@ -35,9 +45,18 @@ if (typeof packageVersion !== "string" || packageVersion.length === 0) {
 /** Управление единственным приложением; render обновляет его без потери состояния. */
 export const root = createRoot(canvas)
 const network = createNetworkSpace()
+const workspace = createAgentWorkspace({externalNavigation: true})
+const scene: AtomSceneModel = createAtomScene({workspace, contentFor: atom => ({
+  type: AtomSurface as unknown as DOMComponentConstructor<{atom: typeof atom; workspace: typeof workspace; scene: AtomSceneModel}>,
+  props: {atom, workspace, scene}, key: atom.ref,
+})})
+const annotations = createProductAnnotationState()
 root.render(
   <App
     network={network}
+    workspace={workspace}
+    annotations={annotations}
+    scene={scene}
   />,
 )
 
@@ -51,11 +70,82 @@ export function presentInfrastructure(projection: InfrastructureProjection): voi
 }
 
 /** Явно возвращает пространственный обзор всей наблюдаемой сети. */
-export function fitInfrastructure(): void { network.fit() }
+export function fitInfrastructure(): void { scene.navigateNetworks() }
+
+/** Window router назначает адрес; движение камеры этот адрес не меняет. */
+let addressedRoute: AtomSceneRoute | undefined
+export function presentAtomRoute(route: AtomSceneRoute): void {
+  if (JSON.stringify(addressedRoute) !== JSON.stringify(route)) workspace.parkViews()
+  addressedRoute = route
+  if (route.kind === "atom") {
+    const scoped = agentsForAtom(workspace, route.ref)
+    if (!scoped.some(agent => agent.key === workspace.getSnapshot().selected)) {
+      if (scoped.length) workspace.select(scoped[0]!.key)
+      else workspace.clearSelection()
+    }
+  } else workspace.clearSelection()
+  scene.applyRoute(route)
+}
+
+/** Callback передаёт выбор узла единственному History owner, не создавая второй router. */
+export function connectAtomNavigation(navigation: Parameters<AtomSceneModel["setNavigation"]>[0]): () => void {
+  scene.setNavigation(navigation)
+  return () => {if (!workspace.disposed) scene.setNavigation({atom() {}, networks() {}})}
+}
+
+/** Подключает только назначенный read-only source; cleanup отписывает UI, не владея transport source. */
+export function connectAgents(source: AgentWorkspaceSource): () => void {
+  return workspace.connect(source)
+}
+
+/** Подключает отдельный служебный feedback transport выбранного Agent; draft не изменяется. */
+export function connectAnnotationFeedback(bridge: Parameters<typeof annotations.connectFeedback>[1]): () => void {
+  return annotations.connectFeedback(workspace, bridge)
+}
 
 /** Release наблюдает первый кадр через диагностику того же root. */
-export const runtime = await inspectRoot(root).whenReady()
-network.attach(runtime)
+export const runtime = await awaitVisualReady(root, () => inspectRoot(root).whenReady())
+export const clientDiagnostics = createClientDiagnostics(runtime, {
+  viewport: () => {
+    const rect = runtime.canvas.getBoundingClientRect()
+    return {width: rect.width, height: rect.height, devicePixelRatio: globalThis.devicePixelRatio ?? 1}
+  },
+})
+workspace.attach(runtime, network)
+scene.attach(runtime, network)
+annotations.attach(runtime)
+const selectedDisplay = () => {
+  const ref = scene.getSnapshot().selectedAtom?.ref
+  return [...runtime.document.querySelectorAll("[data-spatial-node-id]")].find(node => node.getAttribute("data-spatial-node-id") === ref) as HTMLElement | undefined
+}
+const stopFocus = runtime.document.subscribeMutations(batch => {
+  if (scene.getSnapshot().mode !== "atoms" || !batch.records.some(record => record.target === runtime.viewPoint || record.target === selectedDisplay())) return
+  workspace.setDisplayFocused(selectedDisplay()?.getAttribute("data-metafor-display-fitted") === "true")
+})
+/** Owning Window предоставляет этот же Document и его аннотации через client Oracle. */
+const controls = createClientControls(runtime, workspace, {identity: annotations.identity!, annotations, textRoot: () => selectedDisplay() ?? null})
+export const clientControls = {
+  inspect: controls.inspect,
+  act(action: ClientViewAction) {
+    if (action.type === "atom.select") {
+      if (!scene.select(action.atomRef)) throw new Error("Atom is absent from this Verse")
+      return {outcome: "dispatched" as const}
+    }
+    if (action.type === "view.change") {
+      if (action.view === "network") scene.navigateNetworks()
+      else if (action.view === "offices") scene.fit()
+      else {const atom = scene.getSnapshot().selectedAtom; if (atom) scene.select(atom.ref, true)}
+      return {outcome: "dispatched" as const}
+    }
+    return controls.act(action)
+  },
+  dispose() {stopFocus(); controls.dispose(); clientDiagnostics.dispose()},
+}
+void loadBot(`/@internal/visual/bots.glb?env=main&version=${packageVersion}`).then(bot => {
+  if (!workspace.disposed) root.render(<App network={network} workspace={workspace} annotations={annotations} scene={scene} bot={bot} />)
+}).catch(error => console.error("[@internal/visual:main]", "не удалось загрузить avatar asset офиса", {
+  error: error instanceof Error ? error.message : String(error),
+}))
 
 console.debug("[@internal/visual:main]", "основное visual-окружение создано", {
   space: runtime.space,

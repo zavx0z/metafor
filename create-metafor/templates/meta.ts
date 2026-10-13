@@ -1,3 +1,4 @@
+/* @template agentsImport */
 export default MetaFor(/* @template nameJson */ "", { desc: /* @template descriptionJson */ "" })
   .fields((field) => (/* @template fieldsBody */ {}))
   .superposition({})
@@ -9,3 +10,4 @@ export default MetaFor(/* @template nameJson */ "", { desc: /* @template descrip
   .bulk({
     view: ({ css }) => css``,
   })
+  /* @template agentsStage */

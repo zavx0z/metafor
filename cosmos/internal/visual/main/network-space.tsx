@@ -296,6 +296,8 @@ export function createNetworkSpace() {
         return rect.width > 0 && rect.height > 0 ? {width: rect.width, height: rect.height} : null
       }})
       configure()
+      if (selected !== null) controller.select(selected, false)
+      refreshDetails()
       releasePresentation = root.subscribePresented(publishDerived)
     },
     present(value: InfrastructureProjection) {
@@ -315,6 +317,19 @@ export function createNetworkSpace() {
     fit() { assertActive(); followingOverview = true; syncViewport(); controller?.fit() },
     zoom(factor: number) { assertActive(); followingOverview = false; controller?.zoom(factor) },
     updateViewport(size: Readonly<{width: number; height: number}>) { assertActive(); controller?.updateViewport(size) },
+    /** При выборе другого представления освобождает только camera/Display controller, сохраняя источник и selection. */
+    suspend() {
+      assertActive()
+      releaseInput()
+      releasePresentation()
+      releaseInput = () => {}
+      releasePresentation = () => {}
+      controller?.dispose()
+      controller = null
+      attached = null
+      configuredKey = ""
+      contentKey = ""
+    },
     dispose() {
       if (disposed) return
       disposed = true
@@ -365,7 +380,7 @@ function NetworkCoarseLabel(props: Readonly<{node: CoarseLabel; model: NetworkSp
     z={node.rect.z + 1}
     onClick={() => props.model.select(node.id, true)}
   >
-    <xr-material kind="text" color="white" />
+    <xr-material kind="text" color="#ffffff" />
   </xr-text>
 }
 

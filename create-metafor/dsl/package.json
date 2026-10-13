@@ -5,7 +5,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./jsx-runtime": "./jsx-runtime.ts",
+    "./jsx-dev-runtime": "./jsx-runtime.ts"
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",

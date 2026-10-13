@@ -140,6 +140,28 @@ const fieldsObjectRange = (source: string): FieldsObjectRange => {
   return {start, end, callIndent}
 }
 
+/**
+The current Boundary field projection does not retain author-only id/data
+metadata. Refuse a whole-fields rewrite that would silently discard it.
+This is a representation limit, independent of caller permissions.
+*/
+export function assertCanonicalFieldSource(source: string): void {
+  const range = fieldsObjectRange(source)
+  new Visitor({CallExpression(node) {
+    if (node.start < range.start || node.end > range.end || !["required", "optional"].includes(memberName(node.callee) ?? "")) return
+    for (const argument of node.arguments) {
+      if (argument.type !== "ObjectExpression") continue
+      for (const property of argument.properties) {
+        if (property.type !== "Property") throw new DeclarationPatchError("unsupported_fields_source", "Working Field authoring requires explicit representable metadata")
+        const key = property.key.type === "Identifier" ? property.key.name : property.key.type === "Literal" ? property.key.value : null
+        if (key === "id" || key === "data") throw new DeclarationPatchError("unsupported_fields_source", "Boundary does not yet retain Field id/data metadata; working Field rewrite would lose source data")
+      }
+    }
+    if (node.arguments.length > 1 && node.arguments.at(-1)?.type !== "ObjectExpression")
+      throw new DeclarationPatchError("unsupported_fields_source", "Working Field authoring cannot verify indirect source metadata")
+  }}).visit(parsedSource(source).program)
+}
+
 const json = (value: unknown): string => {
   const rendered = JSON.stringify(value)
   if (rendered === undefined) throw new DeclarationPatchError("unsupported_fields_source", "Field contains non-JSON data")
@@ -492,7 +514,7 @@ const processWrapper = (
     : `action.${artifact.exportName}`
   const bindings = type === "finally"
     ? ["energy", "mass", "signal"]
-    : ["energy", "field", "mass", "self", "signal", "value"]
+    : ["energy", "environment", "field", "mass", "self", "signal", "value"]
   return `async ({ ${bindings.join(", ")} }) => {\n  const action = await import(${json(importPath)});\n  return ${access}({ ${bindings.join(", ")} });\n}`
 }
 

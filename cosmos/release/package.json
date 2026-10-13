@@ -1,7 +1,7 @@
 {
   "name": "@cosmos/release",
   "label": "Релизы Cosmos",
-  "version": "0.1.31",
+  "version": "0.3.17",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,17 +10,23 @@
       "cosmos:service": "./service/index.ts",
       "cosmos:server": "./server/index.ts"
     },
-    "./node": {"cosmos:server": "./node.ts"}
+    "./node": {
+      "cosmos:server": "./node.ts"
+    }
   },
   "scripts": {
     "typecheck": "tsc --project tsconfig.json --pretty false",
-    "build:main": "bun build ./main/index.ts --conditions=cosmos:main --conditions=internal:main --target=browser --packages=external --production --minify --drop console.debug --outfile=dist/main.js",
+    "build:main": "bun build ./main/index.ts --conditions=cosmos:main --conditions=internal:main --target=browser --packages=bundle --external=@internal/visual --production --minify --drop console.debug --outfile=dist/main.js",
     "build:service": "bun build ./service/index.ts --conditions=cosmos:service --target=browser --format=cjs --production --minify --drop console.debug --outfile=dist/service.js",
     "build:server": "bun build ./server/index.ts --conditions=cosmos:server --conditions=internal:server --target=bun --packages=bundle --production --minify --drop console.debug --outdir=dist/server --splitting"
   },
   "dependencies": {
+    "@metafor/types": "workspace:*",
+    "@metafor/agent": "workspace:*",
+    "@metafor/provider": "workspace:*",
+    "@zavx0z/provider-tech-peer": "^0.0.0",
     "@zavx0z/immersive": "^0.0.0",
-    "@internal/visual": "workspace:^0.1.10",
+    "@internal/visual": "workspace:^0.3.0",
     "@metafor/tech-build": "workspace:*",
     "@metafor/tech-peer": "workspace:*",
     "@metafor/tech-release": "workspace:*",

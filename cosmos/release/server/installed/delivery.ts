@@ -36,7 +36,7 @@ export async function createInstalledReleaseDelivery(options: InstalledReleaseDe
   const retained = await options.store.listCandidates()
   const graph = selected.graph
 
-  function desiredBrowserArtifacts(): BrowserPackageArtifactIdentity[] {
+  function browserArtifacts(): BrowserPackageArtifactIdentity[] {
     return graph.packages.flatMap(member => member.environments.flatMap(part => {
       if (!isBrowserPackageEnvironment(part.env)) return []
       const env = part.env
@@ -46,8 +46,13 @@ export async function createInstalledReleaseDelivery(options: InstalledReleaseDe
     }))
   }
 
+  /** Startup доставляется отдельно и не участвует в смене release composition. */
+  function desiredBrowserArtifacts(): BrowserPackageArtifactIdentity[] {
+    return browserArtifacts().filter(identity => identity.name !== "@cosmos/startup")
+  }
+
   function releasedBrowserRoots(): BrowserPackageIdentity[] {
-    return desiredBrowserArtifacts().filter(identity => identity.artifact === undefined)
+    return browserArtifacts().filter(identity => identity.artifact === undefined)
   }
 
   async function fetch(request: Request): Promise<Response> {

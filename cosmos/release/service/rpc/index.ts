@@ -34,6 +34,7 @@ export function startRpc(bindings: RpcBindings) {
   const timers = new Set<ReturnType<typeof setTimeout>>()
   const states = new WeakMap<WebSocket, SynchronizationState>()
   const connectionIds = new WeakMap<WebSocket, string>()
+  const failedDeltas = new Set<string>()
 
   const schedule = (callback: () => void, delay: number) => {
     if (destroyed) return
@@ -47,13 +48,13 @@ export function startRpc(bindings: RpcBindings) {
   const enqueueUpdate = (connection: WebSocket, update: () => Promise<void>) => {
     updates = updates.then(update, update).catch((error) => {
       const state = states.get(connection)
-      if (state) state.awaitingDelta = false
+      if (state) {state.awaitingDelta = false; state.resynchronize = false}
       console.error("[@cosmos/release:service:rpc:update]", "синхронизация завершилась с ошибкой", {
         error: errorMessage(error),
         to: connection.url,
+        retryInMs: null,
+        blocked: true,
       })
-      if (!destroyed && connection === socket && connection.readyState === WebSocket.OPEN)
-        schedule(() => requestSynchronization(connection), 1_000)
     })
   }
 
@@ -138,7 +139,15 @@ export function startRpc(bindings: RpcBindings) {
       if (delta === null || !state.awaitingDelta) return
       state.awaitingDelta = false
       enqueueUpdate(connection, async () => {
-        await applyDelta(delta)
+        if (destroyed || connection !== socket) return
+        const fingerprint = JSON.stringify({update: delta.update.map(identityFingerprint).sort(), remove: delta.remove.map(identityFingerprint).sort()})
+        if (failedDeltas.has(fingerprint)) {state.resynchronize = false; return}
+        try {await applyDelta(delta)}
+        catch (error) {
+          failedDeltas.add(fingerprint)
+          if (failedDeltas.size > 64) failedDeltas.delete(failedDeltas.values().next().value!)
+          throw error
+        }
         if (state.resynchronize && connection === socket) {
           state.resynchronize = false
           requestSynchronization(connection)
@@ -190,6 +199,10 @@ export function startRpc(bindings: RpcBindings) {
       }
     },
   }) satisfies RpcRuntime
+}
+
+function identityFingerprint(entry: ReleaseDelta["update"][number] | ReleaseDelta["remove"][number]) {
+  return JSON.stringify([entry.name, entry.env, entry.artifact ?? null, entry.version, "sha256" in entry ? entry.sha256 : null, "size" in entry ? entry.size : null])
 }
 
 function parseMessage(data: unknown) {

@@ -63,13 +63,17 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(html).toContain('"@cosmos/release": "/@cosmos/release?env=main"')
   expect(html).toContain('"@internal/visual": "/@internal/visual?env=main"')
 
-  expect(main).toContain('const {runtime, presentInfrastructure} = await import("@internal/visual")')
+  expect(main).toContain('const {runtime, presentInfrastructure, connectAgents} = await import("@internal/visual")')
   expect(main).toContain('console.debug("[@cosmos/release:main]", "Visual runtime подключён", {')
   expect(main).toContain("runtime: Object.keys(runtime)")
   expect(mainPackage.dependencies).toEqual({
+    "@metafor/agent": "workspace:*",
+    "@metafor/provider": "workspace:*",
+    "@zavx0z/provider-tech-peer": "^0.0.0",
     "@zavx0z/immersive": "^0.0.0",
     "@internal/visual": "workspace:^0.1.10",
     "@metafor/tech-build": "workspace:*",
+    "@metafor/tech-peer": "workspace:*",
     "@metafor/tech-release": "workspace:*",
     "werift": "0.23.0",
     "reflect-metadata": "0.2.2",
@@ -85,12 +89,13 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(visualPackage.artifact).toBeUndefined()
   expect(visualPackage.scripts?.prebuild).toBeUndefined()
   expect(visualPackage.scripts?.["build:main"]).toBe(
-    "bun build ./main/index.tsx --conditions=internal:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
+    "bun build ./main/index.tsx --conditions=internal:main --conditions=metafor:main --target=browser --production --minify --drop console.debug --outdir=dist/main --splitting",
   )
   expect(visualPackage.dependencies).not.toHaveProperty("@layout/core")
   expect(visualPackage.dependencies).not.toHaveProperty("@ui/elements")
   expect(visualPackage.dependencies).not.toHaveProperty("@ui/hud")
   expect(visualPackage.dependencies).toEqual({
+    "@metafor/agent": "workspace:*",
     "@zavx0z/immersive": "^0.0.0",
     "@zavx0z/immersive-nodes": "^0.0.0",
   })
@@ -98,29 +103,31 @@ test("HAM-005 creates one standard Window environment through internal visual", 
     expect(visualPackage.dependencies).not.toHaveProperty(legacy)
   }
   expect(visual).toContain("createRoot(canvas)")
-  expect(visual).toMatch(/root\.render\(\s*<App\s+infrastructure=\{infrastructure\}\s+bot=\{bot\}\s*\/>/)
+  expect(visual).toContain("const workspace = createAgentWorkspace()")
+  expect(visual).toMatch(/root\.render\(\s*<App\s+network=\{network\}\s+workspace=\{workspace\}/)
+  expect(main).toContain("const disconnectAgents = connectAgents(agents)")
+  expect(main).toContain("let stopAgents = agents.start()")
+  expect(main).toContain("agents.dispose()")
   expect(app).toContain('rel="stylesheet"')
   expect(app).toContain("/@internal/visual/theme.css?env=main&version=")
-  expect(app).toContain("width={600}")
-  expect(app).toContain("height={337.5}")
-  expect(app).toContain("width: 2268px;")
   expect(app).not.toContain("dpi={")
   expect(app).not.toContain("resolution:")
-  expect(app).toContain('controls={mode === "far"}')
+  expect(app).toContain('controls={true}')
   expect(app).not.toMatch(/up[XYZ]=/)
-  for (const owner of ["viewpoint", "Grid", "hud", "DisplayDock"]) {
+  for (const owner of ["viewpoint", "NetworkSpace", "hud", "AgentOffices", "NetworkNavigation"]) {
     expect(app).toContain(`<${owner}`)
   }
   expect(app).not.toContain('id="main"')
   expect(app).not.toContain('id="main-hud"')
-  expect(app).toContain('from "@zavx0z/immersive/space"')
+  expect(app).toContain('import {AgentOffices} from "./agent-offices"')
   expect(app).not.toContain("@zavx0z/immersive/engine")
   expect(app).toContain("factory={props.bot.object}")
   expect(app).toContain("factory={props.bot.animation}")
   expect(app).not.toContain("VisualScene")
-  expect(app).toContain("<space>")
-  expect(app).toContain("<display")
-  expect(app).toContain("rotate: x 90deg;")
+  expect(app).toContain("<space style={css`")
+  expect(app).toContain("props.workspace.showAgents()")
+  expect(app).toContain("props.workspace.showOffices()")
+  expect(app).toContain("props.workspace.showNetwork()")
   expect(app).not.toContain("key=")
   for (const source of [visual, app, displayDock]) {
     expect(source).not.toContain("createDocumentSpaceRuntime")
@@ -138,7 +145,7 @@ test("HAM-005 creates one standard Window environment through internal visual", 
   expect(displayDock).not.toContain("position: absolute")
   expect(await Bun.file(join(cosmos, "internal/visual/theme.css")).exists()).toBe(false)
   expect(templatePlugin).toContain('from "@zavx0z/immersive/compiler"')
-  expect(templatePlugin).toContain('sourceRoots: [resolve(visualRoot, "main")]')
+  expect(templatePlugin).toContain('sourceRoots: [resolve(visualRoot, "main"), resolve(visualRoot, "../../../standard/agent")]')
   expect(visual).not.toContain("@cosmos/visual")
   expect(visual).not.toContain("browser/orchestration")
   expect(visualBunfig).toContain('".wgsl" = "text"')
@@ -219,7 +226,9 @@ test("UPD-002 builds Window release and internal visual as separate artifacts", 
     const themeSource = await Bun.file(themeOutput!.path).text()
     expect(visualSource).toContain("visual-canvas")
     expect(visualSource).toContain("main-display-dock")
-    expect(visualSource).toContain("Навигация основной поверхности")
+    expect(visualSource).toContain("Навигация сети")
+    expect(visualSource).toContain("Агенты")
+    expect(visualSource).toContain("Офисы")
     expect(visualSource).toContain(
       `/@internal/visual/theme.css?env=main&version=${visualVersion}`,
     )

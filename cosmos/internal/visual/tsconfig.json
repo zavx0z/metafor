@@ -3,6 +3,7 @@
   "compilerOptions": {
     "customConditions": [
       "internal:main",
+      "metafor:main",
       "internal:server"
     ],
     "lib": [

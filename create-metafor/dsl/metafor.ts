@@ -31,6 +31,8 @@ export default MetaFor("user-profile")
 import { fieldSchema } from "./fields.ts"
 import type { Fields, Field } from "@metafor/types/metafor/fields"
 import { parseMatter } from "./matter.ts"
+import {agentsSchema} from "./agents.ts"
+import {validateMatterSchema} from "shared/metafor/matter"
 
 import { validateNoUnconditionalCycles } from "./superposition.ts"
 import type { SuperpositionInput, SuperpositionInputCheck, SuperpositionStateKeys } from "@metafor/types/metafor/superposition"
@@ -45,6 +47,7 @@ import type {
   MetaForConfig,
   BulkDeclaration,
   MetaDSL,
+  MetaDSLWithAgents,
   BulkSchema,
   Energy,
   EnergyInputCheck,
@@ -115,11 +118,21 @@ const createMetaForRuntime = function (name: string, config?: MetaForConfig) {
                             matter(matter?: MatterDeclaration<ɸ, import("@metafor/types/metafor/mass").MassHandles<Schema>, 𝛴, e>) {
                               if (matter) schema.matter = parseMatter(matter, fields, name)
                               return {
-                                bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, import("@metafor/types/metafor/mass").MassHandles<Schema>, e> {
+                                bulk(bulk?: BulkDeclaration): MetaDSLWithAgents<ɸ, 𝛴, import("@metafor/types/metafor/mass").MassHandles<Schema>, e> {
                                   if (bulk && "view" in bulk) {
                                     schema.bulk = { view: serializeStyle(bulk.view as any) } as BulkSchema
                                   }
-                                  return schema
+                                  Object.defineProperty(schema, "agents", {
+                                    enumerable: false,
+                                    configurable: true,
+                                    value(declaration: import("@metafor/types/metafor/agents").AgentsDeclaration<ɸ, import("@metafor/types/metafor/mass").MassHandles<Schema>>) {
+                                      const additions = agentsSchema(declaration, fields, schema.mass ?? [])
+                                      const matter = [...(schema.matter ?? []), ...additions]
+                                      validateMatterSchema(matter, fields, {label: `${name}.agents`})
+                                      return {...schema, matter}
+                                    },
+                                  })
+                                  return schema as MetaDSLWithAgents<ɸ, 𝛴, import("@metafor/types/metafor/mass").MassHandles<Schema>, e>
                                 },
                               }
                             },

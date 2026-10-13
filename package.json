@@ -35,12 +35,22 @@
     "pkg/web-push",
     "pkg/node-tree",
     "fixture",
+    "standard/environment",
+    "standard/agent",
+    "standard/agent-slot",
+    "standard/chat",
+    "standard/scenario",
+    "standard/codespace",
+    "standard/repl",
+    "standard/provider",
     "create-metafor",
     "create-metafor/dsl",
     "cosmos/peer/lifecycle",
     "cosmos/internal/peer/process/start",
     "cosmos/internal/peer/process/stop",
-    "cosmos/internal/peer/process/provision"
+    "cosmos/internal/peer/process/provision",
+    "standard/workspace-capsule",
+    "standard/intel-macos-chrome-studio"
   ],
   "devDependencies": {
     "boundary": "workspace:*",
@@ -90,6 +100,16 @@
     "space:build": "bun build create-metafor/dsl/metafor.ts --outdir ./dist --sourcemap=linked"
   },
   "overrides": {
+    "@zavx0z/chat": "link:@zavx0z/chat",
+    "@zavx0z/storybook-chat-preferences": "link:@zavx0z/storybook-chat-preferences",
+    "@zavx0z/storybook-chat-view": "link:@zavx0z/storybook-chat-view",
+    "@capsule/webrtc": "link:@capsule/webrtc",
+    "@capsule/input": "link:@capsule/input",
+    "@capsule/web": "link:@capsule/web",
+    "@capsule/screenshot": "link:@capsule/screenshot",
+    "capsule": "link:capsule",
+    "chrome-studio": "link:chrome-studio",
+    "@zavx0z/provider-tech-peer": "link:@zavx0z/provider-tech-peer",
     "@zavx0z/immersive-browser": "link:@zavx0z/immersive-browser",
     "@zavx0z/immersive-component": "link:@zavx0z/immersive-component",
     "@zavx0z/immersive-dom": "link:@zavx0z/immersive-dom",
@@ -109,7 +129,11 @@
     "@zavx0z/immersive-ui-component-button-basic": "link:@zavx0z/immersive-ui-component-button-basic",
     "@zavx0z/immersive-ui-theme-icon-set": "link:@zavx0z/immersive-ui-theme-icon-set",
     "@zavx0z/immersive-webgpu": "link:@zavx0z/immersive-webgpu",
-    "@zavx0z/immersive": "link:@zavx0z/immersive"
+    "@zavx0z/immersive": "link:@zavx0z/immersive",
+    "@zavx0z/storybook-app-web-page-shell-execution-settings": "link:@zavx0z/storybook-app-web-page-shell-execution-settings",
+    "@zavx0z/provider-model-ollama": "link:@zavx0z/provider-model-ollama",
+    "@zavx0z/provider-session-ollama": "link:@zavx0z/provider-session-ollama",
+    "@zavx0z/provider-configuration-ollama": "link:@zavx0z/provider-configuration-ollama"
   },
   "exports": {
     ".": "./cosmos/cli.ts",

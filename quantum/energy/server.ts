@@ -3,6 +3,9 @@ import {OracleRpcPeer, type OracleWebSocketTransport} from "shared/transport/ora
 import {installForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {birthEnergyRuntime, type EnergyRuntimeBirth, type EnergyRuntimeForce} from "./birth.ts"
 import {EnergyOracle} from "./oracle.ts"
+import {readOracleEnvironmentGraphScopes, readOracleEnvironmentCodespaceScopes, readOracleEnvironmentPeerRoles, readOracleEnvironmentReplScopes} from "./environment"
+import {readNativeReplAssignment} from "shared/native/repl"
+import {installProfileOracle} from "./profile-intent"
 
 /** Hydrates Energy through Oracle before admitting its injected Force port. */
 export async function startEnergyRuntime(options: {
@@ -16,6 +19,7 @@ export async function startEnergyRuntime(options: {
   rpc.expose(DOMAIN_HEALTH_READ_METHOD, () => oracle.health())
   const checkpoint = installForceCheckpointSideband("energy", rpc)
   let runtime: EnergyRuntimeBirth | null = null
+  installProfileOracle(rpc, () => runtime?.protocol.peerOracle)
   console.log("[energy] connecting to Dark")
 
   let closing: Promise<void> | null = null
@@ -35,6 +39,8 @@ export async function startEnergyRuntime(options: {
   }
 
   try {
+    const replScopes = readOracleEnvironmentReplScopes(Bun.env)
+    const replAssignment = replScopes.length ? await readNativeReplAssignment(Bun.env) : null
     runtime = await birthEnergyRuntime({
       oracle,
       peer: rpc,
@@ -49,6 +55,7 @@ export async function startEnergyRuntime(options: {
       createForce: options.createForce,
       protocol: {
         massStore: oracle.massStore,
+        oracleEnvironment: {peer: rpc, graphScopes: readOracleEnvironmentGraphScopes(Bun.env), codespaceScopes: readOracleEnvironmentCodespaceScopes(Bun.env), replScopes, ...(replAssignment ? {replGrant: {assignment: replAssignment, sessions: new Map()}} : {}), ...readOracleEnvironmentPeerRoles(Bun.env)},
         onFatal(error) {
           oracle.onRuntimeBirthFailed(error)
           console.error("[energy] fatal runtime invariant", error)

@@ -7,7 +7,11 @@ import {API, type Diagnostic} from "typescript/unstable/async"
 import {
   generateMetaFile,
   generateMetaforTypesFile,
+  generateAgentsIndexFile,
+  generateAssistantFile,
+  generateAgentsJsxTypesFile,
   generateTsconfigFile,
+  type MetaTemplateProfile,
 } from "../src/generators.ts"
 
 const fixtureRoot = join(import.meta.dir, "fixtures", "generated-project")
@@ -25,12 +29,15 @@ async function fixture(name: string): Promise<string> {
 async function compileGeneratedProject(
   declaration: string,
   contracts?: Readonly<Record<string, string>>,
+  profile: MetaTemplateProfile = "standard",
 ): Promise<CompileResult> {
   const project = await mkdtemp(join(tmpdir(), "create-metafor-types-"))
   const actions = join(project, "actions")
 
   try {
     await mkdir(actions)
+    await mkdir(join(project, "src"))
+    await mkdir(join(project, "agents"))
     const contractFiles = contracts ?? {"contract.ts": await fixture("contract.ts.txt")}
     const generatedConfig = JSON.parse(generateTsconfigFile()) as {
       compilerOptions: Record<string, unknown>
@@ -38,8 +45,11 @@ async function compileGeneratedProject(
     generatedConfig.compilerOptions.typeRoots = [typeRoots]
     generatedConfig.compilerOptions.skipLibCheck = false
     await Promise.all([
-      writeFile(join(project, "metafor.d.ts"), declaration),
-      writeFile(join(project, "meta.ts"), generateMetaFile("generated", "Generated", "Error")),
+      writeFile(join(project, "src/metafor.d.ts"), declaration),
+      writeFile(join(project, "src/agents-jsx.d.ts"), generateAgentsJsxTypesFile()),
+      writeFile(join(project, "agents/index.tsx"), generateAgentsIndexFile(profile)),
+      writeFile(join(project, "agents/assistant.tsx"), generateAssistantFile()),
+      writeFile(join(project, "meta.ts"), generateMetaFile("generated", "Generated", "Error", profile)),
       ...Object.entries(contractFiles).map(([name, source]) => writeFile(join(project, name), source)),
       writeFile(join(project, "tsconfig.json"), JSON.stringify(generatedConfig)),
       writeFile(join(actions, "start.ts"), await fixture("actions/start.ts.txt")),
@@ -86,6 +96,52 @@ test("generated project preserves the strict local MetaFor contract", async () =
   expect(result.sourceFiles.some((file) => file.endsWith("/metafor.d.ts"))).toBe(true)
   expect(result.sourceFiles.some((file) => file.endsWith("/meta.ts"))).toBe(true)
   expect(result.sourceFiles.some((file) => file.endsWith("/contract.ts"))).toBe(true)
+  expect(result.sourceFiles.some(file => file.endsWith("/agents/index.tsx"))).toBeTrue()
+  expect(result.sourceFiles.some(file => file.endsWith("/agents/assistant.tsx"))).toBeTrue()
+  expect(formatDiagnostics(result.diagnostics)).toBe("")
+}, 30_000)
+
+test("empty profile keeps a standalone typed JSX baseline without a private runtime dependency", async () => {
+  const result = await compileGeneratedProject(generateMetaforTypesFile(), {}, "empty")
+  expect(result.sourceFiles.some(file => file.endsWith("/agents/assistant.tsx"))).toBeTrue()
+  expect(result.sourceFiles.some(file => file.includes("node_modules/@metafor"))).toBeFalse()
+  expect(formatDiagnostics(result.diagnostics)).toBe("")
+}, 30_000)
+
+test("standalone JSX, final agents stage and optional Environment enforce their closed contracts", async () => {
+  const result = await compileGeneratedProject(generateMetaforTypesFile(), {"agents-contract.tsx": `
+    import type {AgentsContext} from "./src/metafor.d.ts"
+    declare const context: AgentsContext<"task" | "answer" | "status" | "error">
+    const props = {id: "one", atom: context.atom, task: context.value.task, answer: context.value.answer, status: context.value.status, error: context.value.error}
+    const valid = <agent {...props}><display id="owner" source={context.atom} /></agent>
+    // @ts-expect-error DOM elements are not agent declarations
+    const dom = <div />
+    // @ts-expect-error arbitrary strings do not designate owner Atom references
+    const wrongAtom = <agent {...props} atom="somewhere" />
+    // @ts-expect-error tools are declarations, not callable hooks
+    const wrongTool = <agent {...props} tools={[() => null]} />
+    const final = MetaFor("contract").fields(field => ({request: field.string.optional()}))
+      .lifecycle({started: {field: "request", value: "start"}}).superposition({ready: null})
+      .mass(mass => ({workspace: mass.directory()})).energy().processes(process => [
+        process("ready").action(async ({mass, environment}) => {
+          const lease = await mass.workspace.acquire()
+          await lease.release()
+          // @ts-expect-error directory handles do not expose JSON bytes
+          await mass.workspace.readJson()
+          if (environment) {
+            const description = await environment.read()
+            description.scope.kind satisfies "full-root"
+            await environment.call("readGraph", {})
+            // @ts-expect-error private methods are not Process capabilities
+            await environment.call("boundary.initialState.read", {})
+            // @ts-expect-error the caller cannot select another root
+            await environment.call("readGraph", {root: "other"})
+          }
+        })
+      ]).reactions().matter().bulk().agents(() => null)
+    // @ts-expect-error agents is the final declaration stage
+    final.agents(() => null)
+  `})
   expect(formatDiagnostics(result.diagnostics)).toBe("")
 }, 30_000)
 

@@ -77,6 +77,19 @@ test("готовый установленный граф сохраняет brow
   expect(await readdir(root)).not.toContain("node_modules")
 }))
 
+test("installed startup remains HTTP-deliverable and listed but never enters release update desired", async () => withStore(async store => {
+  const value = fixture()
+  const base = value.graph.packages[0]!
+  const graph = validatePublishedReleaseGraph({schemaVersion: 1, packages: [...value.graph.packages,
+    {...base, name: "@cosmos/startup", environments: base.environments.filter(part => part.env === "main" || part.env === "service")},
+  ]})
+  const candidate = await store.prepare(graph, value.source)
+  const delivery = await createInstalledReleaseDelivery({store, digest: candidate.digest})
+  expect(delivery.desiredBrowserArtifacts().some(identity => identity.name === "@cosmos/startup")).toBe(false)
+  expect(delivery.releasedBrowserRoots().filter(identity => identity.name === "@cosmos/startup")).toHaveLength(2)
+  expect((await delivery.fetch(request("/@cosmos/startup?env=main"))).status).toBe(200)
+}))
+
 test("stable/exact root, public и generated URLs отдают прежние identity headers и точные bytes", async () => withStore(async store => {
   const value = fixture()
   const candidate = await store.prepare(value.graph, value.source)

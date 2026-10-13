@@ -6,7 +6,8 @@
     "customConditions": [
       "cosmos:service",
       "internal:server",
-      "internal:main"
+      "internal:main",
+      "metafor:main"
     ],
     "noUnusedLocals": true,
     "noUnusedParameters": true,

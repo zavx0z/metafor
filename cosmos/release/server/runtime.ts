@@ -25,6 +25,15 @@ import {readReleaseNodeConfiguration, readReleaseNodeToken, startReleaseNode, ty
 import {createPublishedReleaseSource} from "@metafor/tech-release"
 import {resolveRootMetaSource} from "shared/metafor/source"
 import {loadMeta} from "../../../quantum/dark/load"
+import {createAgentUiOracle} from "./agents"
+import {AGENT_UI_PATH, AGENT_UI_PROVIDER_PATH, AGENT_UI_CONNECT_PATH, AGENT_UI_PROFILE_PATH, AGENT_UI_CONNECTIONS_PATH} from "../shared/agents"
+import {AGENT_BROWSER_PATH} from "../shared/agents-browser"
+import type {AgentBrowserSocketData} from "./agents-browser"
+import {configuredCodespaceHostOracle} from "./codespace-oracle"
+import {createClientOracle, type ClientSocketData} from "./clients"
+import {CLIENT_SOCKET_PATH} from "../shared/clients"
+import {configuredNativeReplOracle} from "./repl"
+import {isProductPath} from "../shared/product-route"
 
 const staticRoot = join(cosmosRoot, "static")
 const assetsRoot = join(cosmosRoot, "assets")
@@ -32,6 +41,10 @@ const indexHtml = join(staticRoot, "index.html")
 const signalingHandlers = new WeakMap<Bun.Server<ReleaseServerSocketData>, RendezvousHandler>()
 const quantumRuntimes = new WeakMap<Bun.Server<ReleaseServerSocketData>, QuantumRuntime>()
 const releaseNodes = new WeakMap<Bun.Server<ReleaseServerSocketData>, ReleaseNode>()
+const agentUis = new WeakMap<Bun.Server<ReleaseServerSocketData>, ReturnType<typeof createAgentUiOracle>>()
+const clientOracles = new WeakMap<Bun.Server<ReleaseServerSocketData>, ReturnType<typeof createClientOracle>>()
+const nativeRepls = new WeakMap<Bun.Server<ReleaseServerSocketData>, NonNullable<Awaited<ReturnType<typeof configuredNativeReplOracle>>>>()
+const codespaceHosts = new WeakMap<Bun.Server<ReleaseServerSocketData>, NonNullable<ReturnType<typeof configuredCodespaceHostOracle>>>()
 
 /** Admission token остаётся в server-only configuration и не входит в browser artifacts. */
 export interface ReleaseServerOptions {
@@ -47,12 +60,20 @@ export async function startReleaseServer(
 ): Promise<Bun.Server<ReleaseServerSocketData>> {
   await recoverPublication()
   const signaling = options.signalingToken ? createRendezvousHandler({token: options.signalingToken, relay: true}) : null
-  const quantum = options.quantum ? await prepareQuantumRuntime(options.quantum) : undefined
+  let agentReady = false
+  const nativeRepl = options.quantum ? await configuredNativeReplOracle(Bun.env, () => agentReady) : null
+  const agentUi = options.quantum ? createAgentUiOracle({admitted: () => agentReady, verseId: Bun.env.COSMOS_VERSE_ID}) : undefined
+  const clients = options.quantum ? createClientOracle({admitted: () => agentReady}) : undefined
+  const codespaceHost = options.quantum ? configuredCodespaceHostOracle(Bun.env, () => agentReady) : null
+  const quantum = options.quantum ? await prepareQuantumRuntime({...options.quantum,
+    localOracleChannels: [...(options.quantum.localOracleChannels ?? []), agentUi!.channel, clients!.channel, ...(nativeRepl ? [nativeRepl.channel] : []), ...(codespaceHost ? [codespaceHost.channel] : [])],
+  }).catch(async error => {await agentUi?.close(); await clients?.close(); await nativeRepl?.close(); await codespaceHost?.close(); throw error}) : undefined
   const observations = createNetworkObservationSurface({...(quantum ? {local:()=>quantum.observeDomains(),authorizePublisher:(request,server)=>quantum.authorizeObservation(request,server)} : {})})
   const domainRoute = (request: Request, server: Bun.Server<ReleaseServerSocketData>) =>
     quantum ? quantum.fetch(request, server) : new Response(null, {status: 404})
 
-  const server = Bun.serve<ReleaseServerSocketData>({
+  let server: Bun.Server<ReleaseServerSocketData>
+  try {server = Bun.serve<ReleaseServerSocketData>({
     ...(options.port === undefined ? {} : {port: options.port}),
     routes: {
       "/": Bun.file(indexHtml),
@@ -94,8 +115,23 @@ export async function startReleaseServer(
       "/force": domainRoute,
       "/ws": domainRoute,
       "/oracle/*": domainRoute,
+      [CLIENT_SOCKET_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) => clients ? clients.fetch(request, current) : new Response(null, {status: 404}),
+      [AGENT_UI_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      [AGENT_UI_PROVIDER_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      [AGENT_UI_CONNECT_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      [AGENT_UI_PROFILE_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      [AGENT_UI_CONNECTIONS_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      "/agents/settings": (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      [`${AGENT_BROWSER_PATH}/*`]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
       "/*": (request: Request) => {
-        if (request.headers.get("Accept")?.includes("text/html"))
+        if (request.method === "GET" && isProductPath(new URL(request.url).pathname))
           return new Response(Bun.file(indexHtml))
         return new Response(null, {status: 404})
       },
@@ -103,31 +139,54 @@ export async function startReleaseServer(
     fetch: () => new Response(null, {status: 404}),
     websocket: {
       open(socket) {
-        if (quantum?.owns(socket.data)) quantum.websocket.open(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>)
+        if (clients?.owns(socket.data)) {clients.websocket.open(socket as Bun.ServerWebSocket<ClientSocketData>); return}
+        if (agentUi?.owns(socket.data)) agentUi.websocket.open(socket as Bun.ServerWebSocket<AgentBrowserSocketData>)
+        else if (quantum?.owns(socket.data)) quantum.websocket.open(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>)
         else if (signaling?.owns(socket.data)) signaling.websocket.open(socket)
         else if ((socket.data as RpcSocketData).observation !== "publisher") openRpc(socket as Bun.ServerWebSocket<RpcSocketData>)
       },
       message(socket, message) {
-        if (quantum?.owns(socket.data)) return quantum.websocket.message(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>, message)
+        if (clients?.owns(socket.data)) return clients.websocket.message(socket as Bun.ServerWebSocket<ClientSocketData>, message)
+        if (agentUi?.owns(socket.data)) return agentUi.websocket.message(socket as Bun.ServerWebSocket<AgentBrowserSocketData>, message)
+        else if (quantum?.owns(socket.data)) return quantum.websocket.message(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>, message)
         else if (signaling?.owns(socket.data)) signaling.websocket.message(socket, message)
         else {if((socket.data as RpcSocketData).observation === "publisher" && message.length>128*1024){socket.close(1008,"Observation limit");return};let value:unknown;try{value=JSON.parse(String(message))}catch{};if(observations.message(socket as Bun.ServerWebSocket<RpcSocketData>,value))return;return messageRpc(socket as Bun.ServerWebSocket<RpcSocketData>, message)}
       },
       close(socket, code, reason) {
-        if (quantum?.owns(socket.data)) quantum.websocket.close(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>)
+        if (clients?.owns(socket.data)) {clients.websocket.close(socket as Bun.ServerWebSocket<ClientSocketData>); return}
+        if (agentUi?.owns(socket.data)) agentUi.websocket.close(socket as Bun.ServerWebSocket<AgentBrowserSocketData>)
+        else if (quantum?.owns(socket.data)) quantum.websocket.close(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>)
         else if (signaling?.owns(socket.data)) signaling.websocket.close(socket, code, reason)
         else {observations.close(socket as Bun.ServerWebSocket<RpcSocketData>);closeRpc(socket as Bun.ServerWebSocket<RpcSocketData>, code, reason)}
       },
     },
-  })
+  })} catch (error) {
+    await clients?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum?.close(); signaling?.close()
+    throw error
+  }
   if (signaling) signalingHandlers.set(server, signaling)
+  if (agentUi) agentUis.set(server, agentUi)
+  if (clients) clientOracles.set(server, clients)
+  if (nativeRepl) nativeRepls.set(server, nativeRepl)
+  if (codespaceHost) codespaceHosts.set(server, codespaceHost)
   if (quantum) {
     quantumRuntimes.set(server, quantum)
-    try {await quantum.start(server.port!)} catch (error) {
+    try {await quantum.start(server.port!); agentReady = true} catch (error) {
+      await clients?.close()
+      await nativeRepl?.close()
+      await agentUi?.close()
+      await codespaceHost?.close()
+      await quantum.close()
       signaling?.close()
       await server.stop(true)
       throw error
     }
     void quantum.failure.catch(async () => {
+      agentReady = false
+      await clients?.close()
+      await nativeRepl?.close()
+      await agentUi?.close()
+      await codespaceHost?.close()
       await releaseNodes.get(server)?.close()
       signaling?.close()
       await server.stop(true)
@@ -190,6 +249,14 @@ export async function runReleaseServer(): Promise<Bun.Server<ReleaseServerSocket
     quantum, node,
   })
   const stop = async () => {
+    await clientOracles.get(server)?.close()
+    clientOracles.delete(server)
+    await nativeRepls.get(server)?.close()
+    nativeRepls.delete(server)
+    await codespaceHosts.get(server)?.close()
+    codespaceHosts.delete(server)
+    await agentUis.get(server)?.close()
+    agentUis.delete(server)
     await releaseNodes.get(server)?.close()
     releaseNodes.delete(server)
     await quantumRuntimes.get(server)?.close()

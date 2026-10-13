@@ -234,6 +234,15 @@ const declaration = (
   return {entities, children}
 }
 
+/** Чистая подготовка декларации; не изменяет runtime projection и ничего не принимает в Force. */
+export const preparedDeclarationEntities = (src: string, dsl: MetaDSL) => declaration(src, dsl, []).entities
+
+/** Устанавливается только после подтверждённого полного causal cut явной активации. */
+export function installPreparedDeclarationProjection(root: string, metas: readonly {address: string; dsl: MetaDSL; references: string[]}[]): void {
+  roots.add(root)
+  for (const meta of metas) projection.set(meta.address, declaration(meta.address, meta.dsl, meta.references))
+}
+
 const emit = (particle: Particle): void => {
   if (!runtime) throw new Error("Dark runtime has not been born")
   const {by: _by, ...input} = particle

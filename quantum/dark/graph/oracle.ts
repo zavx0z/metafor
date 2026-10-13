@@ -24,6 +24,10 @@ import {
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import type {DarkForceTimeControl} from "../time-control.ts"
 import {CausalGraphReadService} from "./causal.ts"
+import {READ_AGENTS_METHOD} from "@metafor/types/metafor/agent-observation"
+import {projectAgents} from "./agents.ts"
+import {READ_PROVIDERS_METHOD} from "@metafor/types/metafor/providers"
+import {projectProviders} from "./providers.ts"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
   type DarkGraphTemplate,
@@ -292,6 +296,14 @@ export class GraphOracle {
     peer.expose(
       READ_GRAPH_METHOD,
       async (params) => await assembleGraph(peer, params),
+    )
+    peer.expose(
+      READ_AGENTS_METHOD,
+      async (params) => projectAgents(await assembleGraph(peer, params)),
+    )
+    peer.expose(
+      READ_PROVIDERS_METHOD,
+      async (params) => await projectProviders(await assembleGraph(peer, params), peer),
     )
     if (this.#causalTime) {
       const causal = new CausalGraphReadService(

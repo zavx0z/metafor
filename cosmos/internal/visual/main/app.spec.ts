@@ -2,24 +2,36 @@ import {afterAll, beforeAll, expect, test} from "bun:test"
 import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import {createDocument, createDomRoot, HTMLButtonElement, readDocumentCompiledStyleSheets, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
-import {createSpaceElementFactories, readSpaceTree, XRLineSegmentsElement} from "@zavx0z/immersive/space"
+import {createDocument, createDomRoot, HTMLButtonElement, HTMLTextAreaElement, InputEvent, Event as DomEvent, readDocumentCompiledStyleSheets, flushDocumentLayoutObservers, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
+import {createDocumentRenderer} from "@zavx0z/immersive/renderer/html"
+import {createSpaceElementFactories, readSpaceTree, XRAssetElement, XRLineSegmentsElement} from "@zavx0z/immersive/space"
+import {InstancedMesh, InstancedSkinnedMesh, type Object3D} from "@zavx0z/immersive/engine"
 import visualTemplatePlugin from "../build/template.plugin.ts"
+import {createProductAnnotationState, type ProductAnnotationState} from "./product-annotation-state"
+import type {AgentWorkspaceModel, AgentWorkspaceSnapshot} from "./agent-workspace"
+import type {AtomContext, AtomViewSnapshot} from "@metafor/agent/atom"
+import {DEFAULT_AGENT_PRESENTATION} from "@metafor/agent/presentation"
+import type {AtomRef} from "@metafor/types/metafor/graph"
 import type {NetworkSpaceModel} from "./network-space.tsx"
 import type {InfrastructureProjection} from "./infrastructure-model.ts"
 import {loadBot, type Bot} from "./bot.ts"
+import {createAgentWorkspace as createAgentWorkspaceSource} from "../../../release/main/agents"
+import {AGENT_UI_SCHEMA, type AgentUiSnapshot} from "../../../release/shared/agents"
+import {agentWorkspaceGraph} from "../../../release/spec/agent-graph-fixture"
 
 let directory = ""
-let app: DOMComponentConstructor<{network: NetworkSpaceModel; bot?: Bot | undefined}>
+let app: DOMComponentConstructor<{network: NetworkSpaceModel; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined}>
 let createNetworkSpace: () => NetworkSpaceModel
+let createAgentWorkspace: () => AgentWorkspaceModel
 
 beforeAll(async () => {
   directory = await mkdtemp(join(import.meta.dir, ".compiled-network-"))
   await symlink(resolve(import.meta.dir, "../node_modules"), join(directory, "node_modules"), "dir")
   const result = await Bun.build({
-    entrypoints: [join(import.meta.dir, "app.tsx"), join(import.meta.dir, "network-space.tsx")],
+    entrypoints: [join(import.meta.dir, "app.tsx"), join(import.meta.dir, "network-space.tsx"), join(import.meta.dir, "agent-workspace.ts")],
     outdir: directory,
     target: "bun",
+    conditions: ["metafor:main"],
     format: "esm",
     splitting: true,
     external: ["@zavx0z/immersive", "@zavx0z/immersive/*"],
@@ -28,13 +40,14 @@ beforeAll(async () => {
   if (!result.success) throw new AggregateError(result.logs, "Visual network did not compile")
   app = (await import(pathToFileURL(join(directory, "app.js")).href)).App
   createNetworkSpace = (await import(pathToFileURL(join(directory, "network-space.js")).href)).createNetworkSpace
+  createAgentWorkspace = (await import(pathToFileURL(join(directory, "agent-workspace.js")).href)).createAgentWorkspace
 }, 30_000)
 
 afterAll(async () => {
   if (directory !== "") await rm(directory, {recursive: true, force: true})
 })
 
-function mount(bot?: Bot, projectionScale = {value: 2, offset: 0}) {
+function mount(bot?: Bot, projectionScale = {value: 2, offset: 0}, workspace?: AgentWorkspaceModel, annotations?: ProductAnnotationState) {
   const document = createDocument({elementFactories: createSpaceElementFactories()})
   const html = document.createElement("html")
   const body = document.createElement("body")
@@ -42,7 +55,7 @@ function mount(bot?: Bot, projectionScale = {value: 2, offset: 0}) {
   document.append(html)
   const root = createDomRoot(body)
   const network = createNetworkSpace()
-  root.render(app, {network, bot})
+  root.render(app, {network, bot, workspace, annotations})
   const tree = readSpaceTree(document)
   const listeners = new Set<() => void>()
   const viewport = {width: 1200, height: 800}
@@ -63,15 +76,29 @@ function mount(bot?: Bot, projectionScale = {value: 2, offset: 0}) {
     render() { root.flush(); for (const listener of listeners) listener() },
   } as unknown as Presentation
   network.attach(presentation)
+  workspace?.attach(presentation, network)
+  const renderers = new Map<ReturnType<typeof readSpaceTree>["displays"][number], ReturnType<typeof createDocumentRenderer>>()
+  const flushLayout = () => {
+    if (!workspace) return
+    const displays = readSpaceTree(document).displays
+    for (const [display, renderer] of renderers) if (!displays.includes(display)) {renderer.dispose(); renderers.delete(display)}
+    for (const display of displays) {
+      let renderer = renderers.get(display)
+      if (!renderer) {renderer = createDocumentRenderer({document, root: display, viewport: {width: 1200, height: 800}}); renderers.set(display, renderer)}
+      renderer.flush()
+    }
+    flushDocumentLayoutObservers(document)
+  }
   const settle = async () => {
     for (let pass = 0; pass < 5; pass += 1) {
       root.flush()
       for (const listener of listeners) listener()
-      await Promise.resolve()
+      flushLayout()
+      await Bun.sleep(0)
     }
     root.flush()
   }
-  return {document, html, body, root, network, tree, settle, presentation, viewport, flights}
+  return {document, html, body, root: {...root, unmount() {root.unmount(); for (const renderer of renderers.values()) renderer.dispose(); renderers.clear()}}, network, tree, settle, presentation, viewport, flights}
 }
 
 const projection: InfrastructureProjection = {
@@ -339,4 +366,250 @@ test("cold Display LOD retains actual curves and bounded native labels from auth
     expect(labels()).toHaveLength(0)
     expect(view.document.querySelector('xr-line-segments[name="Наблюдаемые соединения сети"]')).toBeNull()
   } finally { view.root.unmount() }
+})
+
+
+test("real HTTP polling retains the same compiled chat and draft through delayed refresh, failure and resume", async () => {
+  const workspace = createAgentWorkspace()
+  const view = mount(undefined, {value: 2, offset: 0}, workspace)
+  const graph = agentWorkspaceGraph()
+  graph.runtime.roots[0]!.children![0]!.ref = "atom:6"
+  graph.runtime.roots[0]!.children![0]!.children![0]!.ref = "atom:7"
+  const data: AgentUiSnapshot = {schema: AGENT_UI_SCHEMA, version: 1, root: "@metafor/environment", graph, verseId: "poll-verse", observedWorld: {root: graph.root, cutId: "poll-cut"},
+    revision: {cutId: "poll-cut", throughSequence: 1639, retroactiveComplete: false},
+    observation: {mechanism: "public-oracle-poll", photonSubscription: false}, agents: [{
+      ref: "atom:6", meta: "@metafor/agent", owner: {ref: "atom:1", meta: "@metafor/environment"}, state: "idle", status: "idle",
+      configuration: {resolution: "exact", issues: [], value: {id: "assistant", atom: {kind: "atom", scope: "owner"}, presentation: DEFAULT_AGENT_PRESENTATION, tools: [], displays: []}},
+      chat: {ref: "atom:7", meta: "@metafor/chat", session: null}, chatSession: null, chatError: null,
+      issues: [], error: null, activeTaskId: null, busy: false,
+    }]} as unknown as AgentUiSnapshot
+  let delayed: ReturnType<typeof Promise.withResolvers<Response>> | null = null
+  const source = createAgentWorkspaceSource({fetch: async () => delayed ? delayed.promise : Response.json(data)})
+  const disconnect = workspace.connect(source)
+  let stop = source.start()
+  try {
+    await source.refresh()
+    await view.settle()
+    const actor = view.document.querySelector('[data-agent-atom="atom:6"]')!
+    const input = view.document.querySelector('textarea[aria-label="Сообщение"]') as HTMLTextAreaElement
+    input.value = "Черновик живого чата"
+    input.dispatchEvent(new InputEvent("input", {bubbles: true}))
+    await view.settle()
+    const assertRetained = () => {
+      expect(view.document.querySelector('[data-agent-atom="atom:6"]')).toBe(actor)
+      expect(view.document.querySelector('textarea[aria-label="Сообщение"]')).toBe(input)
+      expect(input.value).toBe("Черновик живого чата")
+      expect(input.disabled).toBe(false)
+    }
+    for (let poll = 0; poll < 3; poll++) {
+      await source.refresh()
+      await view.settle()
+      assertRetained()
+    }
+    delayed = Promise.withResolvers<Response>()
+    const refresh = source.refresh()
+    await view.settle()
+    assertRetained()
+    delayed.resolve(Response.json({error: {message: "Temporary poll failure"}}, {status: 503}))
+    await expect(refresh).rejects.toThrow("Temporary poll failure")
+    await view.settle()
+    assertRetained()
+    const send = () => [...view.document.querySelectorAll("button")].find(button => button.textContent === "Отправить") as HTMLButtonElement
+    expect(send().disabled).toBe(true)
+    delayed = Promise.withResolvers<Response>()
+    stop()
+    stop = source.start()
+    const resume = source.refresh()
+    await view.settle()
+    assertRetained()
+    delayed.resolve(Response.json(data))
+    await resume
+    await view.settle()
+    assertRetained()
+    expect(send().disabled).toBe(false)
+  } finally {stop(); disconnect(); source.dispose(); view.root.unmount()}
+})
+
+test("explicit Agent workspace keeps one Document, honest empty state and same chat Element across wall/common Display", async () => {
+  const bytes = await Bun.file(new URL("./bots.glb", import.meta.url)).arrayBuffer()
+  const bot = await loadBot(`data:model/gltf-binary;base64,${Buffer.from(bytes).toString("base64")}`)
+  const workspace = createAgentWorkspace()
+  const view = mount(bot, {value: 2, offset: 0}, workspace)
+  const sourceListeners = new Set<() => void>()
+  let snapshot: AgentWorkspaceSnapshot = {status: "ready", graph: null, verseId: null, observedWorld: null, offices: []}
+  const disconnect = workspace.connect({getSnapshot: () => snapshot, subscribe(listener) {
+    sourceListeners.add(listener)
+    return () => {sourceListeners.delete(listener)}
+  }})
+  const ref = "atom:connected-assistant" as AtomRef
+  const atomListeners = new Set<() => void>()
+  let atomSnapshot: AtomViewSnapshot = {ref, revision: "1", state: "idle", configuration: {
+    id: "connected-assistant", atom: {kind: "atom", scope: "owner"}, presentation: DEFAULT_AGENT_PRESENTATION,
+    tools: [], displays: [{id: "self", source: {kind: "atom", scope: "owner"}}],
+  }, chat: [], provider: null, operations: [], context: {scope: ref}}
+  const calls: string[] = []
+  const atom: AtomContext = {ref, getSnapshot() {expect(this).toBe(atom); return atomSnapshot},
+    subscribe(listener) {expect(this).toBe(atom); atomListeners.add(listener); return () => {atomListeners.delete(listener)}},
+    actions: {async sendMessage(text) {calls.push(text)}},
+  }
+  try {
+    await view.settle()
+    expect(view.document.querySelector("#agent-control-display")?.textContent).toContain("Нет подключённых агентов")
+    expect(view.document.querySelectorAll("[data-agent-atom]")).toHaveLength(0)
+    expect(view.document.querySelectorAll("xr-animation")).toHaveLength(0)
+    snapshot = {status: "ready", graph: null, verseId: null, observedWorld: null, offices: [{id: "office-1", owner: "atom:environment" as AtomRef, label: "Environment",
+      bounds: {min: {x: -4500, y: -3500, z: 0}, max: {x: 4500, y: 3500, z: 2600}}, agents: [{id: "assistant", atom}]}]}
+    for (const listener of sourceListeners) listener()
+    await view.settle()
+    expect(view.document.querySelectorAll("space")).toHaveLength(1)
+    expect(view.document.querySelectorAll("viewpoint")).toHaveLength(1)
+    expect(view.document.querySelectorAll("canvas")).toHaveLength(0)
+    const element = view.document.querySelector(`[data-agent-atom="${ref}"]`)!
+    expect(element).not.toBeNull()
+    expect(element.parentElement?.getAttribute("data-agent-common-host")).toBe("true")
+    const textarea = view.document.querySelector('textarea[aria-label="Сообщение"]') as HTMLTextAreaElement
+    textarea.value = "Сохранённый черновик"
+    textarea.dispatchEvent(new InputEvent("input", {bubbles: true}))
+    await view.settle()
+    for (let poll = 0; poll < 3; poll++) {
+      snapshot = {...snapshot, offices: snapshot.offices.map(office => ({...office, agents: office.agents.map(agent => ({...agent}))}))}
+      for (const listener of sourceListeners) listener()
+      await view.settle()
+      expect(view.document.querySelector(`[data-agent-atom="${ref}"]`)).toBe(element)
+      expect(view.document.querySelector('textarea[aria-label="Сообщение"]')).toBe(textarea)
+      expect(textarea.value).toBe("Сохранённый черновик")
+    }
+    const lastGood = snapshot
+    for (const status of ["loading", "error"] as const) {
+      snapshot = {status, graph: null, verseId: null, observedWorld: null, error: status === "error" ? "Обновление временно недоступно" : null, offices: []}
+      for (const listener of sourceListeners) listener()
+      await view.settle()
+      expect(view.document.querySelector(`[data-agent-atom="${ref}"]`)).toBe(element)
+      expect(view.document.querySelector('textarea[aria-label="Сообщение"]')).toBe(textarea)
+      expect(textarea.value).toBe("Сохранённый черновик")
+    }
+    snapshot = lastGood
+    for (const listener of sourceListeners) listener()
+    await view.settle()
+    expect(view.document.querySelector(`[data-agent-atom="${ref}"]`)).toBe(element)
+    expect(textarea.value).toBe("Сохранённый черновик")
+    const commonCamera = pose(view)
+    expect(view.tree.viewPoint.far).toBeGreaterThanOrEqual(100000)
+    workspace.showOffices()
+    await view.settle()
+    expect(pose(view)).not.toEqual(commonCamera)
+    expect(view.document.querySelector(`[data-agent-atom="${ref}"]`)).toBe(element)
+    expect(element.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
+    expect(textarea.value).toBe("Сохранённый черновик")
+    workspace.showAgents()
+    await view.settle()
+    expect(element.parentElement?.getAttribute("data-agent-common-host")).toBe("true")
+    expect(view.document.querySelector('textarea[aria-label="Сообщение"]')).toBe(textarea)
+    atomSnapshot = {...atomSnapshot, revision: "2", chat: [{id: "reply", role: "assistant", content: "Обновлённый ответ"}]}
+    for (const listener of atomListeners) listener()
+    await view.settle()
+    expect(element.textContent).toContain("Обновлённый ответ")
+    expect(textarea.value).toBe("Сохранённый черновик")
+    const send = [...view.document.querySelectorAll("button")].find(button => button.textContent === "Отправить") as HTMLButtonElement
+    send.click()
+    await view.settle()
+    expect(calls).toEqual(["Сохранённый черновик"])
+    view.network.present(projection)
+    workspace.showNetwork()
+    await view.settle()
+    expect(view.network.state.getSnapshot()?.nodes.length).toBe(6)
+    view.network.select("runtime")
+    workspace.showAgents()
+    await view.settle()
+    workspace.showNetwork()
+    await view.settle()
+    expect(view.document.querySelector('[data-spatial-node-id="network:entity:runtime"]')?.textContent).toContain("Cache: 1")
+    const asset = view.document.querySelector('xr-asset[name="Agent instances office-1"]')
+    if (!(asset instanceof XRAssetElement) || asset.factory === null) throw new Error("Office public instance asset missing")
+    const native = Reflect.apply(asset.factory, undefined, []) as Object3D
+    const batches = native.children.slice()
+    expect(batches.filter(batch => batch instanceof InstancedSkinnedMesh)).toHaveLength(bot.primitives.length)
+    expect(batches.filter(batch => batch instanceof InstancedMesh && !(batch instanceof InstancedSkinnedMesh))).toHaveLength(1)
+    const additional = Array.from({length: 6}, (_, index) => {
+      const addedRef = `atom:additional-${index}` as AtomRef
+      const addedSnapshot = {...atomSnapshot, ref: addedRef, configuration: {...atomSnapshot.configuration, id: `additional-${index}`}}
+      const context: AtomContext = {ref: addedRef, getSnapshot: () => addedSnapshot, subscribe: () => () => {}, actions: {}}
+      return {id: `additional-${index}`, atom: context}
+    })
+    snapshot = {...snapshot, offices: snapshot.offices.map(office => ({...office, agents: [...office.agents, ...additional]}))}
+    for (const listener of sourceListeners) listener()
+    await view.settle()
+    expect(view.document.querySelector('xr-asset[name="Agent instances office-1"]')).toBe(asset)
+    expect(Reflect.apply(asset.factory, undefined, [])).toBe(native)
+    expect(native.children).toEqual(batches)
+    expect(batches.every(batch => !(batch instanceof InstancedSkinnedMesh) || batch.count === 7)).toBe(true)
+    const devices = batches.find((batch): batch is InstancedMesh => batch instanceof InstancedMesh && !(batch instanceof InstancedSkinnedMesh))!
+    expect(devices.count).toBe(14)
+    expect(view.document.querySelectorAll("[data-agent-atom]")).toHaveLength(7)
+    disconnect()
+    await view.settle()
+    expect(view.document.querySelectorAll("[data-agent-atom]")).toHaveLength(0)
+    expect(sourceListeners.size).toBe(0)
+  } finally {
+    disconnect()
+    view.root.unmount()
+  }
+  expect(atomListeners.size).toBe(0)
+})
+
+
+test("annotation pencil and Root Window use the existing HUD without sending any chat input", async () => {
+  const annotations = createProductAnnotationState()
+  const f = mount(undefined, {value: 2, offset: 0}, undefined, annotations)
+  try {
+    annotations.attach(f.presentation)
+    await f.settle()
+    const pencil = [...f.document.querySelectorAll("button")].find(button => button.getAttribute("aria-label") === "Аннотировать Root") as HTMLButtonElement
+    expect(pencil).toBeDefined()
+    expect(f.document.querySelectorAll("hud")).toHaveLength(1)
+    pencil.click()
+    await f.settle()
+    expect(annotations.getSnapshot().enabled).toBe(true)
+    const window = f.document.getElementById("root-annotation-window")!
+    expect(window).toBeDefined()
+    expect(window.textContent).toContain("Аннотация · Root")
+    expect(window.textContent).toContain("служебное наблюдение")
+    expect(f.document.querySelectorAll("textarea")).toHaveLength(0)
+  } finally {f.root.unmount(); annotations.dispose()}
+})
+
+
+test("confirmed annotation automatically reports service data and preserves the compiled Agent user draft", async () => {
+  const workspace = createAgentWorkspace(), annotations = createProductAnnotationState()
+  const view = mount(undefined, {value: 2, offset: 0}, workspace, annotations)
+  const ref = "atom:annotation-owner" as AtomRef
+  const snapshot: AtomViewSnapshot = {ref, revision: "1", state: "idle", configuration: {id: "own-presentation", atom: {kind: "atom", scope: "owner"},
+    presentation: DEFAULT_AGENT_PRESENTATION, tools: [], displays: []}, chat: [], provider: null, operations: [], context: {scope: ref}}
+  const sent: string[] = []
+  const atom: AtomContext = {ref, getSnapshot: () => snapshot, subscribe: () => () => {}, actions: {async sendMessage(text) {sent.push(text)}}}
+  const source: AgentWorkspaceSnapshot = {status: "ready", graph: null, verseId: null, observedWorld: null, offices: [{id: "own-office", owner: "atom:environment" as AtomRef, label: "Root",
+    bounds: {min: {x: -4500, y: -3500, z: 0}, max: {x: 4500, y: 3500, z: 2600}}, agents: [{id: "different-presentation-id", atom}]}]}
+  const disconnect = workspace.connect({getSnapshot: () => source, subscribe: () => () => {}})
+  try {
+    annotations.attach(view.presentation)
+    await view.settle()
+    const feedback: import("@metafor/types/cosmos/client").ClientAnnotationFeedback[] = []
+    annotations.connectFeedback(workspace, {source: () => ({id: "client-1", connectionId: "connection-1", world: {root: "@metafor/environment", cutId: "cut-1"}} as import("@metafor/types/cosmos/client").ClientDescriptor),
+      async send(input) {feedback.push(input); return {id: input.request.id, accepted: true, replayed: false}}})
+    annotations.setEnabled(true)
+    const agent = view.document.querySelector(`[data-agent-atom="${ref}"]`)!
+    agent.dispatchEvent(new DomEvent("click", {bubbles: true, cancelable: true}))
+    await view.settle()
+    expect(annotations.getSnapshot().selected?.ownAtomRef).toBe(ref)
+    const draft = agent.querySelector('textarea[aria-label="Сообщение"]') as HTMLTextAreaElement
+    draft.value = "Пользовательский черновик"
+    draft.dispatchEvent(new InputEvent("input", {bubbles: true}))
+    await view.settle()
+    expect(feedback).toHaveLength(1)
+    expect(feedback[0]!.agentRef).toBe(ref)
+    expect(JSON.parse(feedback[0]!.request.text)).toMatchObject({kind: "ui.annotation.selected", annotation: {ownAtomRef: ref}})
+    expect(draft.value).toBe("Пользовательский черновик")
+    expect(sent).toEqual([])
+
+  } finally {disconnect(); view.root.unmount(); annotations.dispose()}
 })

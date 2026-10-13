@@ -29,9 +29,12 @@ describe("pure Create MetaFor template boundary", () => {
     expect(template.source).toBe("zavx0z/lada-test")
     expect(template.files.map(({path}) => path)).toEqual([
       ".gitignore",
+      "agents/assistant.tsx",
+      "agents/index.tsx",
       "index.html",
       "meta.ts",
       "package.json",
+      "src/agents-jsx.d.ts",
       "src/metafor.d.ts",
       "TODO.md",
       "tsconfig.json",
@@ -42,6 +45,10 @@ describe("pure Create MetaFor template boundary", () => {
     expect(meta).toContain(".mass(() => ({}))")
     expect(meta).toContain(".processes(() => [])")
     expect(meta).toContain(".matter(({ html }) => html``)")
+    expect(meta).toContain('import agents from "./agents/index.tsx"')
+    expect(meta.trimEnd()).toEndWith(".agents(agents)")
+    expect(template.files.find(file => file.path === "agents/index.tsx")!.source).toContain("export default () => null")
+    expect(template.files.find(file => file.path === "agents/assistant.tsx")!.source).toContain("<agent")
     expect(Object.isFrozen(template)).toBe(true)
     expect(Object.isFrozen(template.files)).toBe(true)
   })
@@ -52,6 +59,10 @@ describe("pure Create MetaFor template boundary", () => {
 
     expect(meta).toContain(".fields((field) => ({")
     expect(meta).toContain("error: field.string.optional")
+    expect(meta).toContain("task: field.string.optional()")
+    const agents = template.files.find(file => file.path === "agents/index.tsx")!.source
+    expect(agents).toContain("<Assistant")
+    expect(agents).toContain("atom={atom}")
   })
 
   test.each([
@@ -85,5 +96,15 @@ describe("pure Create MetaFor template boundary", () => {
     expect(() => validateMetaPackageTemplate(invalid)).toThrow(
       "Meta package manifest does not match its identity",
     )
+  })
+
+  test("requires agents directory and the final imported composition for either profile", () => {
+    for (const profile of ["empty", "standard"] as const) {
+      const template = buildMetaPackageTemplate({...options(), profile})
+      expect(() => validateMetaPackageTemplate({...template, files: template.files.filter(file => file.path !== "agents/assistant.tsx")})).toThrow("exact complete file set")
+      expect(() => validateMetaPackageTemplate({...template, files: template.files.map(file => file.path === "meta.ts"
+        ? {...file, source: file.source.replace(".agents(agents)", "")}
+        : file)})).toThrow("imported agents composition")
+    }
   })
 })

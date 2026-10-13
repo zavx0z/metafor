@@ -110,7 +110,7 @@ import {mock} from "bun:test"
 const installedApi = await import(${JSON.stringify(installed)})
 mock.module(${JSON.stringify(installed)}, () => ({...installedApi, createInstalledReleaseStore: () => ({})}))
 mock.module(${JSON.stringify(delivery)}, () => ({createInstalledReleaseDelivery: async () => ({
-  graph: {packages: [{name: "@cosmos/release", version: "1.0.0", environments: [{env: "server", outputs: [{artifact: ".", kind: "entry-point", sha256: "a".repeat(64), size: 1}]}]}]},
+  graph: {schemaVersion: 1, packages: [{name: "@cosmos/release", version: "1.0.0", dependencies: {}, environments: [{env: "server", publicArtifacts: {}, outputs: [{artifact: ".", kind: "entry-point", type: "application/javascript", sha256: "a".repeat(64), size: 1}]}]}]},
   desiredBrowserArtifacts: () => [], fetch: async () => new Response("installed-http"),
 })}))
 let lifecycle: any

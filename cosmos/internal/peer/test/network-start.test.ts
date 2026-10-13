@@ -35,18 +35,18 @@ test("network action owns one participant and pins its prepared source while cre
     Bun.env.COSMOS_NODE_CONFIG = configurationFile
     Bun.env.COSMOS_RELEASE_STORE = storeRoot
     Bun.env.COSMOS_RELEASE_DIGEST = digest
-    expect(await start(input)).toEqual({ackId: "start-one", status: "running", error: null})
+    expect(await start(input)).toEqual({ackId: "start-one", status: "running", error: null, oracleReady: false, oracleError: "Peer Oracle capability is not assigned"})
     const resource = input.energy.resource
     expect(resource?.digest).toBe(digest)
     expect(resource?.node?.id).toBe("meta-network-test")
     expect(resource?.lease.path).toBe(mass)
     expect(releases).toBe(0)
     input.requestId = "start-two"
-    expect(await start(input)).toEqual({ackId: "start-two", status: "running", error: null})
+    expect(await start(input)).toEqual({ackId: "start-two", status: "running", error: null, oracleReady: false, oracleError: "Peer Oracle capability is not assigned"})
     expect(input.energy.resource).toBe(resource)
     expect(releases).toBe(0)
     Bun.env.COSMOS_NODE_CONFIG = join(directory, "unrelated.json")
-    expect(await start(input)).toEqual({ackId: "start-two", status: "failed", error: "Network startup failed"})
+    expect(await start(input)).toEqual({ackId: "start-two", status: "failed", error: "Network startup failed", oracleReady: false, oracleError: "Peer Oracle startup failed"})
     expect(input.energy.resource).toBe(resource)
     expect(await stop({energy: input.energy, signal: input.signal, requestId: "stop-one"})).toEqual({ackId: "stop-one", status: "stopped", error: null})
     expect(releases).toBe(1)
@@ -54,7 +54,7 @@ test("network action owns one participant and pins its prepared source while cre
     Bun.env.COSMOS_NODE_CONFIG = configurationFile
     await writeFile(configurationFile, JSON.stringify({id: "meta-network-test", signalingUrl: broker.url, tokenFile,
       allowedPeers: [], iceServers: [], sources: ["metafor"]}), {mode: 0o600})
-    expect(await start(input)).toEqual({ackId: "start-two", status: "failed", error: "Network startup failed"})
+    expect(await start(input)).toEqual({ackId: "start-two", status: "failed", error: "Network startup failed", oracleReady: false, oracleError: "Peer Oracle startup failed"})
     expect(input.energy.resource).toBeUndefined()
     expect(releases).toBe(2)
   } finally {
@@ -76,7 +76,7 @@ test("a configuration outside the granted directory fails before opening network
     Bun.env.COSMOS_NODE_CONFIG = "/fixture/foreign/peer.json"
     Bun.env.COSMOS_RELEASE_STORE = "/fixture/store"
     Bun.env.COSMOS_RELEASE_DIGEST = "a".repeat(64)
-    expect(await start(input)).toEqual({ackId: "foreign-path", status: "failed", error: "Network startup failed"})
+    expect(await start(input)).toEqual({ackId: "foreign-path", status: "failed", error: "Network startup failed", oracleReady: false, oracleError: "Peer Oracle startup failed"})
     expect(releases).toBe(1)
     expect(input.energy.resource).toBeUndefined()
   } finally {
@@ -95,7 +95,7 @@ test("a failed partial-construction lease release remains in Energy for explicit
     Bun.env.COSMOS_NODE_CONFIG = "/fixture/foreign/peer.json"
     Bun.env.COSMOS_RELEASE_STORE = "/fixture/store"
     Bun.env.COSMOS_RELEASE_DIGEST = "a".repeat(64)
-    expect(await start(input)).toEqual({ackId: "partial-start", status: "failed", error: "Network startup failed"})
+    expect(await start(input)).toEqual({ackId: "partial-start", status: "failed", error: "Network startup failed", oracleReady: false, oracleError: "Peer Oracle startup failed"})
     expect(input.energy.resource?.node).toBeUndefined()
     expect(input.energy.resource?.admission.open).toBeFalse()
     expect(input.energy.resource?.lease.path).toBe("/fixture/owned-mass")

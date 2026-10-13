@@ -11,6 +11,7 @@ import {
   type DarkForceHistoryQuery,
 } from "../force/history.ts"
 import {MetaRuntimeRpcService} from "./runtime.ts"
+import {OracleRpcAdmissionRefusedError} from "shared/transport/oracle"
 
 const ROOT = parseMetaAddress("test/runtime")!
 const locator = {root: ROOT, ref: "atom:41" as const, meta: ROOT}
@@ -79,6 +80,10 @@ describe("Dark runtime RPC", () => {
       },
     ])
     await expect(service.applyFieldValue(request)).rejects.toThrow("frontier differs")
+    const refused = await service.applyFieldValue(request).catch(error => error)
+    expect(refused).toBeInstanceOf(OracleRpcAdmissionRefusedError)
+    expect(refused.data).toEqual({schema: "metafor/field-admission-refusal/v1", contractVersion: 1, reason: "frontier_mismatch"})
+    expect(sequence).toBe(5)
   })
 
   test("joins canonical Process status to existing registration and settlement history", async () => {

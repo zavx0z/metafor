@@ -3601,6 +3601,14 @@ export class BoundaryIncrementalStore {
       return
     }
     if (address.path === "mass") {
+      // A child's direct Mass input is locally ready only after both named
+      // declarations and the parent's membership have arrived in the stream.
+      for (const reference of await sql<Array<{wimp: string}>>`
+        SELECT DISTINCT particle.wimp
+          FROM matter_particle AS particle
+          JOIN matter_particle_wimp AS edge ON edge.particle = particle.id
+         WHERE edge.src = ${address.src} OR particle.wimp = ${address.src}
+      `) await this.reconcileWimpMatter(sql, reference.wimp, effects)
       for (const atom of await sql<Array<{id: number}>>`
         SELECT id FROM atom WHERE wimp = ${address.src} ORDER BY id
       `) {
@@ -3750,6 +3758,30 @@ export class BoundaryIncrementalStore {
     if (found) return []
     const exists = (await sql<Array<{ok: number}>>`SELECT 1 AS ok FROM wimp WHERE src = ${src}`)[0]
     if (!exists) return []
+    if (parent && declarationKind === "matter") {
+      const edge = await this.matter(sql, declarationWimp, declarationLocalId)
+      if (edge?.massBinding !== null && edge?.massBinding !== undefined) {
+        const direct = await sql<Array<{target: string; source: string}>>`
+          SELECT entry.target_key AS target, entry.source_key AS source
+            FROM matter_binding_direct_mass_key AS entry
+           WHERE entry.binding = ${edge.massBinding}
+           ORDER BY entry.key_order
+        `
+        for (const binding of direct) {
+          const target = (await sql<Array<{format: string}>>`
+            SELECT format FROM mass_declaration
+             WHERE wimp = ${src} AND local_key = ${binding.target} AND active = 1
+          `)[0]
+          const source = (await sql<Array<{format: string}>>`
+            SELECT declaration.format FROM mass_membership AS membership
+              JOIN mass_declaration AS declaration ON declaration.id = membership.declaration
+             WHERE membership.atom = ${parent.ownerAtom} AND declaration.local_key = ${binding.source} AND declaration.active = 1
+          `)[0]
+          if (!target || !source) return []
+          if (target.format !== source.format) throw new Error("Direct Mass mapping requires matching formats")
+        }
+      }
+    }
     const initialFields = new Map(fieldInits.map((field) => [field.key, field] as const))
     const suppliedKeys = [...initialFields.keys()]
     const declaredFields = await sql<Array<StoredField>>`
@@ -3825,6 +3857,8 @@ export class BoundaryIncrementalStore {
       SELECT id FROM state WHERE wimp = ${src} ORDER BY position LIMIT 1
     `)[0]?.id ?? null
     await sql`INSERT INTO atom_state (atom, metaState) VALUES (${atom}, ${initialState})`
+    await this.mass.ensureIndependentMemberships(sql, atom)
+    await this.reconcileMassBindingSources(sql)
     const entity = await this.atomEntity(sql, atom)
     const effects: Particle[] = entity ? [{part: "graviton", op: "add", path: `atom/${atom}`, ts: Date.now(), value: entity}] : []
     const atomParent: RuntimeRef = {
@@ -4943,10 +4977,12 @@ export class BoundaryIncrementalStore {
   /** Reuses Boundary key identities for direct /mass and /mass/<key> Matter bindings. */
   private async reconcileMassBindingSources(sql: Database): Promise<void> {
     const bindings = await sql<Array<{childAtom: number; parentAtom: number; kind: string; target: string | null; source: string | null}>>`
-      SELECT child.id AS childAtom, COALESCE(child.parent_atom, origin.owner_atom) AS parentAtom, direct.kind,
+      SELECT child.id AS childAtom, COALESCE(child.parent_atom, topology_origin.owner_atom) AS parentAtom, direct.kind,
              entry.target_key AS target, entry.source_key AS source
         FROM boundary_runtime_origin AS origin
         JOIN atom AS child ON child.id = origin.runtime_id
+        LEFT JOIN boundary_runtime_origin AS topology_origin
+          ON topology_origin.kind = ${"topology"} AND topology_origin.runtime_id = child.parent_topology
         JOIN matter_particle_wimp AS edge
           ON edge.particle = (SELECT id FROM matter_particle
                                 WHERE wimp = origin.declaration_wimp AND local_id = origin.declaration_local_id)

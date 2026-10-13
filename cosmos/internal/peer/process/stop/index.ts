@@ -7,6 +7,7 @@ async function cleanup({energy}: Stop.Cleanup): Promise<void> {
   if (!resource) return
   resource.admission.open = false
   const errors: unknown[] = []
+  try {await resource.oracleLease?.close()} catch (error) {errors.push(error)}
   try {await resource.node?.whenIdle()} catch (error) {errors.push(error)}
   let closed = false
   try {await resource.node?.close(); closed = true} catch (error) {errors.push(error)}

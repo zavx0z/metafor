@@ -128,9 +128,9 @@ test("UPD-002 exposes the development update path through owner-scoped diagnosti
 
   expect(server).toContain("GET: getRelease")
   expect(server).toMatch(/POST: \(request: Request, current: Bun\.Server<ReleaseServerSocketData>\) => publishRelease\(request/)
-  expect(server).toContain("else openRpc(")
-  expect(server).toContain("else return messageRpc(")
-  expect(server).toContain("else closeRpc(")
+  expect(server).toContain('else if ((socket.data as RpcSocketData).observation !== "publisher") openRpc(')
+  expect(server).toContain("return messageRpc(socket as Bun.ServerWebSocket<RpcSocketData>, message)")
+  expect(server).toContain("closeRpc(socket as Bun.ServerWebSocket<RpcSocketData>, code, reason)")
   expect(server).not.toContain("releaseRoute")
   expect(delivery).toContain('debug("browser artifact доставлен"')
   expect(update).toContain('debug("сигнал об обновлении отправлен"')

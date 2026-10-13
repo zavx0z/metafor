@@ -1,0 +1,22 @@
+/** @jsxImportSource @metafor/dsl */
+import type {AgentProps} from "../src/metafor.d.ts"
+
+/** The native Agent owns its persistent Chat and default chat inspector. */
+export default function Assistant(props: AgentProps) {
+  return (
+    <agent
+      id={props.id}
+      atom={props.atom}
+      task={props.task}
+      answer={props.answer}
+      status={props.status}
+      error={props.error}
+      tools={props.tools ?? []}
+    >
+      <display
+        id="owner"
+        source={props.atom}
+      />
+    </agent>
+  )
+}

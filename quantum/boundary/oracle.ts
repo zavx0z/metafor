@@ -10,6 +10,8 @@ import {
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import type {DomainHealth} from "shared/protocol/oracle/health"
 import {readBoundaryGraphProjection} from "./graph/runtime.ts"
+import {readBoundaryMeta} from "./graph/declaration.ts"
+import {BOUNDARY_META_READ_METHOD} from "shared/protocol/boundary/declaration"
 import type {BoundaryDatabase} from "./sqlite.ts"
 import {BoundaryRuntimeRpcService} from "./runtime-rpc.ts"
 
@@ -30,6 +32,7 @@ export class BoundaryOracle {
     this.#state = "registering"
     peer.expose(BOUNDARY_INITIAL_STATE_METHOD, async () => await this.boundary.initialState())
     peer.expose(BOUNDARY_INITIAL_PROJECTION_METHOD, async () => await this.boundary.initialProjection())
+    peer.expose(BOUNDARY_META_READ_METHOD, async params => await readBoundaryMeta(this.boundary, params))
     peer.expose(
       BOUNDARY_GRAPH_PROJECTION_METHOD,
       async (params) => await readBoundaryGraphProjection(this.boundary, params),

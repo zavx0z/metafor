@@ -6,6 +6,7 @@ import {extname, join} from "node:path"
 import {pathToFileURL} from "node:url"
 import {prepareMetaPackage} from "../meta"
 import {createInstalledReleaseStore, publishedReleaseGraphDigest, type InstalledArtifactIdentity, type PublishedReleaseGraph} from "../../release/installed"
+import {evaluateMetaSource} from "../../../quantum/dark/load"
 
 const declaration = () => ({
   name: "fixture", fields: [{key: "result", type: "string"}], superposition: [{name: "ready"}],
@@ -71,6 +72,56 @@ function artifactSource(prepared: Awaited<ReturnType<typeof prepareMetaPackage>>
     return Bun.file(output.path).stream()
   }}
 }
+
+test("source-bound imported agent declarations prepare once and load from installed bytes after all source deletion", async () => {
+  const f = await fixture()
+  const key = "__metaforPreparedImportedAgents"
+  const global = globalThis as typeof globalThis & {[key: string]: number | undefined}
+  try {
+    await mkdir(join(f.root, "agents"))
+    await writeFile(join(f.root, "agents", "index.tsx"), `
+      globalThis.${key} = (globalThis.${key} ?? 0) + 1
+      function Assistant({atom,value}) {
+        return <agent id="assistant" atom={atom} task={value.result} answer={value.result} status={value.result} error={value.result}/>
+      }
+      export default context => <Assistant {...context}/>
+    `)
+    const sourcePath = join(f.root, "meta.ts")
+    await writeFile(sourcePath, `import agents from "./agents/index.tsx"
+      export default MetaFor("Prepared imported Agent")
+        .fields(field => ({result:field.string.optional()}))
+        .superposition({ready:null}).mass(()=>({})).energy()
+        .processes(process => [process("ready").action(async ({value}) => {
+          const action = await import("./actions/ready.ts")
+          return action.default({value})
+        })]).reactions().matter().bulk().agents(agents)
+    `)
+    let evaluations = 0
+    const prepared = await prepareMetaPackage({root: f.root, address: "@owner/fixture", outdir: f.outdir,
+      async readDeclaration(path) {evaluations++; return await evaluateMetaSource(await readFile(path, "utf8"), {sourcePath: path})}})
+    expect(prepared.result.success, prepared.result.stderr).toBeTrue()
+    expect(evaluations).toBe(1)
+    expect(global[key]).toBe(1)
+    const composition = graph(prepared)
+    const store = createInstalledReleaseStore({root: join(f.directory, "installed")})
+    const candidate = await store.prepare(composition, artifactSource(prepared))
+    const part = composition.packages[0]!.environments[0]!
+    const installed = async (artifact: string) => {
+      const output = part.outputs.find(output => output.artifact === artifact && output.kind !== "sourcemap")!
+      return await store.artifactPath(candidate.digest, {name: "@owner/fixture", version: "1.0.0", env: "server", ...output})
+    }
+    const metaPath = await installed("./meta")
+    const actionPath = await installed("./ready")
+    await rm(f.root, {recursive: true})
+    await rm(f.outdir, {recursive: true})
+    const declaration = (await import(pathToFileURL(metaPath).href)).default
+    expect(declaration.matter[0]).toMatchObject({kind: "wimp", src: "@metafor/agent"})
+    expect(declaration.processes[0].declaration.action.src).not.toContain("/source/")
+    expect("agents" in declaration).toBeFalse()
+    expect(global[key]).toBe(1)
+    expect((await import(pathToFileURL(actionPath).href)).default()).toEqual({value: "cached-1"})
+  } finally {delete global[key]; await f.cleanup()}
+})
 
 for (const name of ["@owner/fixture", "metafor"]) test(`${name} preserves product root and installs separate Meta/actions after source deletion`, async () => {
   const f = await fixture()

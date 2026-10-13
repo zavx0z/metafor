@@ -9,6 +9,8 @@ export {
   prepareSourceCandidates,
   readSourceRevision,
   readSourceSnapshot,
+  readPreparedSource,
+  publishWorkingSourceCandidates,
   recoverAndPublishSourceCandidates,
   type PreparedSourceCandidate,
 } from "./src/source.ts"
@@ -18,5 +20,6 @@ export {
 } from "./src/matter.ts"
 export {
   planMetaDeclarationPatch,
+  assertCanonicalFieldSource,
   type DeclarationMetaSnapshot,
 } from "./src/declaration.ts"

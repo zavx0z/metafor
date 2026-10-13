@@ -1,0 +1,14 @@
+{
+  "name": "@metafor/repl",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Назначенный долгоживущий нативный Bun REPL",
+  "exports": {
+    ".": {"metafor:server": "./meta.ts"},
+    "./meta": {"metafor:server": "./meta.ts"},
+    "./run": "./run.ts"
+  },
+  "dependencies": {"@metafor/types": "workspace:*"},
+  "devDependencies": {"@metafor/dsl": "workspace:*"}
+}

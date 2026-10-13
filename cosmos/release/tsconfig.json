@@ -3,6 +3,7 @@
   "compilerOptions": {
     "customConditions": [
       "cosmos:server",
+      "metafor:main",
       "internal:server",
       "internal:main"
     ],

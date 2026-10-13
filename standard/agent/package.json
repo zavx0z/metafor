@@ -1,0 +1,59 @@
+{
+  "name": "@metafor/agent",
+  "label": "Агент",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Канонический участник, который планирует задачу через собственную беседу и выполняет разрешённый сценарий",
+  "exports": {
+    ".": {
+      "metafor:server": "./meta.ts",
+      "metafor:main": "./main.ts"
+    },
+    "./meta": {
+      "metafor:server": "./meta.ts"
+    },
+    "./actions": "./actions.ts",
+    "./atom": "./atom.ts",
+    "./presentation": "./presentation.ts",
+    "./office-layout": "./office-layout.ts",
+    "./office-instances": "./office-instances.ts",
+    "./view": {
+      "metafor:main": "./view.tsx"
+    },
+    "./browser-preview": {
+      "metafor:main": "./browser-preview.ts"
+    },
+    "./profile-view": {
+      "metafor:main": "./profile-view.tsx"
+    },
+    "./provider": "./provider.ts",
+    "./provider-pane": {
+      "metafor:main": "./provider-pane.tsx"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*",
+    "@metafor/chat": "workspace:*",
+    "@metafor/codespace": "workspace:*",
+    "@metafor/repl": "workspace:*",
+    "@metafor/scenario": "workspace:*",
+    "@zavx0z/immersive": "^0.0.0",
+    "@capsule/webrtc": "^0.1.0",
+    "@capsule/input": "^0.1.0",
+    "@zavx0z/provider-tech-peer": "^0.0.0",
+    "@capsule/web": "^0.1.0",
+    "@capsule/screenshot": "^0.1.0",
+    "@zavx0z/chat": "^0.0.0",
+    "@zavx0z/storybook-chat-preferences": "^0.0.0",
+    "@zavx0z/storybook-chat-view": "^0.0.0"
+  },
+  "devDependencies": {
+    "@metafor/dsl": "workspace:*",
+    "@metafor/provider": "workspace:*"
+  }
+}

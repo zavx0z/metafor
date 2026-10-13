@@ -73,7 +73,12 @@ describe("Meta authoring capability and source registry", () => {
     expect(known.capabilities.map(({capability}) => capability)).toEqual([
       "meta.create",
       "meta.declaration.write",
+      "meta.declaration.write",
       "meta.matter.write",
+      "meta.matter.write",
+      "meta.declaration.write",
+      "meta.matter.write",
+      "meta.source.read",
       "meta.source.read",
     ])
     expect(known.capabilities.every(({scopes}) => scopes.includes(LADA) && scopes.includes(CHAT))).toBe(true)

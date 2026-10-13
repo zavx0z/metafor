@@ -1,7 +1,7 @@
 {
   "name": "@cosmos/startup",
   "label": "Запуск Cosmos",
-  "version": "0.1.8",
+  "version": "0.1.12",
   "private": true,
   "type": "module",
   "exports": {
@@ -18,7 +18,7 @@
     "build:server": "bun build ./server/index.ts --conditions=cosmos:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
   },
   "dependencies": {
-    "@cosmos/release": "workspace:^0.1.17",
+    "@cosmos/release": "workspace:^0.3.0",
     "@metafor/tech-build": "workspace:*"
   },
   "devDependencies": {

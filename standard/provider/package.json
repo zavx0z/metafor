@@ -1,0 +1,36 @@
+{
+  "name": "@metafor/provider",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Назначенный исполнитель модели с собственным реестром и устойчивыми запросами",
+  "exports": {
+    ".": {
+      "metafor:server": "./meta.ts"
+    },
+    "./meta": {
+      "metafor:server": "./meta.ts"
+    },
+    "./catalog": "./catalog.ts",
+    "./discover": "./discover.ts",
+    "./turn": "./turn.ts",
+    "./driver": "./driver.ts",
+    "./peer-driver": "./peer-driver.ts",
+    "./runtime-types": "./runtime-types.ts",
+    "./codex-driver": "./codex-driver.ts",
+    "./protocol": "./protocol.ts",
+    "./ollama-driver": "./ollama-driver.ts"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*",
+    "@agentclientprotocol/sdk": "1.6.0",
+    "@metafor/tech-peer": "workspace:*",
+    "@zavx0z/provider-tech-peer": "^0.0.0",
+    "@zavx0z/provider-model-ollama": "^0.0.0",
+    "@zavx0z/provider-session-ollama": "^0.0.0",
+    "@zavx0z/provider-configuration-ollama": "^0.0.0"
+  },
+  "devDependencies": {
+    "@metafor/dsl": "workspace:*"
+  }
+}

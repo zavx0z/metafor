@@ -12,6 +12,8 @@ export interface StartupEventScope {
   addEventListener(type: "activate", listener: (event: ExtendableEvent) => void): void
   addEventListener(type: "fetch", listener: (event: FetchEvent) => void): void
   addEventListener(type: "message", listener: (event: ExtendableMessageEvent) => void): void
+  addEventListener(type: "error", listener: (event: ErrorEvent) => void): void
+  addEventListener(type: "unhandledrejection", listener: (event: PromiseRejectionEvent) => void): void
 }
 
 /** Runtime host, который startup использует без знания release policy. */
@@ -115,13 +117,7 @@ export function createReleaseHost(
         throw error
       }
     })()
-    const attempt = booting
-    try {
-      await attempt
-    } catch (error) {
-      if (booting === attempt) booting = null
-      throw error
-    }
+    await booting
   }
 
   const fetchEvent = async (event: FetchEvent) => {
@@ -168,7 +164,16 @@ export function createReleaseHost(
 }
 
 /** Регистрирует все поддержанные browser events во время initial evaluation. */
-export function registerReleaseListeners(scope: StartupEventScope, host: ReleaseHost) {
+export function registerReleaseListeners(scope: StartupEventScope, host: ReleaseHost, output: Pick<Console, "error"> = console) {
+  // Синхронная initial evaluation принадлежит startup. Lookup текущего console.error
+  // сохраняет release-owned capture после handover без отдельного журнала/bridge.
+  scope.addEventListener("error", (event) => {
+    output.error("service.error", event.error ?? event.message)
+  })
+  scope.addEventListener("unhandledrejection", (event) => {
+    output.error("service.unhandledrejection", event.reason)
+  })
+
   scope.addEventListener("install", (event) => {
     event.waitUntil(scope.skipWaiting())
   })

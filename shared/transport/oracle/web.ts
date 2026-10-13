@@ -20,6 +20,7 @@ export type {
 } from "./base.ts"
 export {
   OracleRpcRemoteError,
+  OracleRpcAdmissionRefusedError,
 } from "./channel.ts"
 export type {
   OracleChannel,

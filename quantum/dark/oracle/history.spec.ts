@@ -71,3 +71,21 @@ describe("Dark Force history RPC projection", () => {
       .toThrow("invalid_request")
   })
 })
+
+test("exact origin lookup stays Photon-only and bounded to one Atom/cut with honest truncation", () => {
+  const {history, service: reader} = service()
+  history.accept({part: "photon", op: "replace", path: 1, by: "matrix", from: "event-1", ts: 10, value: "ready"})
+  history.accept({part: "photon", op: "copy", path: 1, by: "boundary", from: "event-1", ts: 10, value: {kind: "state-commit"}})
+  history.accept({part: "photon", op: "copy", path: 2, by: "boundary", from: "event-1", ts: 10, value: "another Atom"})
+  history.accept({part: "gluon", op: "replace", path: 1, by: "boundary", from: "event-1", ts: 10, value: "ordinary data"})
+  const query = {kind: "origin", cutId: "rpc-cut", from: "event-1", path: 1, limit: 1}
+  const first = reader.read({contractVersion: 1, query})
+  expect(first.entries.map(entry => entry.sequence)).toEqual([4])
+  expect(first.range).toMatchObject({truncated: true, nextSequence: 5})
+  const second = reader.read({contractVersion: 1, query: {...query, fromSequence: 5}})
+  expect(second.entries.map(entry => entry.sequence)).toEqual([5])
+  expect(second.range?.truncated).toBeFalse()
+  for (const invalid of [{...query, by: "matrix"}, {...query, limit: 17}, {...query, cutId: "foreign"}, {...query, path: 0}, {...query, from: ""}, {...query, part: "gluon"}]) {
+    expect(() => reader.read({contractVersion: 1, query: invalid})).toThrow()
+  }
+})

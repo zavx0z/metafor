@@ -13,11 +13,11 @@ interface ReceivedSnapshot {
 }
 
 /**
- * Производная Window-проекция наблюдений release. Время относится к получению
- * сообщения в этом Window: молчание источника не доказывает закрытие связи.
- * Старые snapshots не заменяют более новые; одинаковый seq подтверждает
- * доступность источника после адресного повторного запроса.
- */
+Производная Window-проекция наблюдений release. Время относится к получению
+сообщения в этом Window: молчание источника не доказывает закрытие связи.
+Старые snapshots не заменяют более новые; одинаковый seq подтверждает
+доступность источника после адресного повторного запроса.
+*/
 export function createNetworkProjection(windowId: string) {
   const received = new Map<string, ReceivedSnapshot>()
   const peerReports = new Map<string,{snapshot:PeerNetworkObservation;receivedAt:number}>()
@@ -114,11 +114,11 @@ export function createNetworkProjection(windowId: string) {
 }
 
 /**
- * Читает снимки через существующий message path Service Worker и одну локальную
- * BroadcastChannel. Адресный запрос будит worker и восстанавливает состояние
- * поздно открытой вкладки. Канал не меняет доставку кода или release RPC.
- * Наблюдение начинается после загрузки release main, а не с первого HTML.
- */
+Читает снимки через существующий message path Service Worker и одну локальную
+BroadcastChannel. Адресный запрос будит worker и восстанавливает состояние
+поздно открытой вкладки. Канал не меняет доставку кода или release RPC.
+Наблюдение начинается после загрузки release main, а не с первого HTML.
+*/
 export function observeBrowserNetwork(present: (value: InfrastructureProjection) => void): () => void {
   const projection = createNetworkProjection(crypto.randomUUID())
   let channel: BroadcastChannel | null = null

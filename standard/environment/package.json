@@ -1,0 +1,13 @@
+{
+  "name": "@metafor/environment",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Рабочее окружение с задачами, агентами и наблюдаемыми результатами",
+  "exports": {
+    ".": {"metafor:server": "./meta.tsx"},
+    "./meta": {"metafor:server": "./meta.tsx"}
+  },
+  "dependencies": {"@metafor/agent": "workspace:*", "@metafor/types": "workspace:*"},
+  "devDependencies": {"@metafor/dsl": "workspace:*"}
+}

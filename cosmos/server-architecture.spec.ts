@@ -21,6 +21,12 @@ const routes = [
   '"/@metafor/:module/*"',
   '"/code"',
   '"/sw"',
+  '"/peer"',
+  '"/_quantum/*"',
+  '"/health"',
+  '"/force"',
+  '"/ws"',
+  '"/oracle/*"',
   '"/*"',
 ] as const
 
@@ -37,27 +43,36 @@ describe("Cosmos singleton server boundary", () => {
     expect(packageJson.scripts?.start).toBe(
       "env -u COSMOS_RELEASE_INSPECT bun --conditions=cosmos:server --conditions=internal:server --port=4444 server",
     )
-    expect(source).toBe('import {runServerStartup} from "@cosmos/startup"\n\nawait runServerStartup()\n')
+    expect(source).toContain('if (Bun.env.COSMOS_RELEASE_STORE)')
+    expect(source).toContain('const {runInstalledCosmos} = await import("./installed")')
+    expect(source).toContain('await runInstalledCosmos({')
+    expect(source).toContain('await runServerStartup({readyTimeoutMs: 120_000})')
     expect(source).not.toContain("Bun.serve")
     expect(runtime.match(/Bun\.serve</g)).toHaveLength(1)
     expect(runtime.indexOf("await recoverPublication()"))
-      .toBeLessThan(runtime.indexOf("Bun.serve<RpcSocketData>"))
+      .toBeLessThan(runtime.indexOf("Bun.serve<ReleaseServerSocketData>"))
     expect(source).not.toContain("class ")
     expect(source).toContain('from "@cosmos/startup"')
     expect(source).not.toContain('from "@cosmos/release"')
     expect(source).not.toContain("@internal/rpc")
     expect(runtime).toContain("GET: getRelease")
     expect(runtime).toMatch(
-      /POST: \(request: Request, current: Bun\.Server<RpcSocketData>\) => publishRelease\(request/,
+      /POST: \(request: Request, current: Bun\.Server<ReleaseServerSocketData>\) => publishRelease\(request/,
     )
-    expect(runtime).toContain("open: openRpc")
-    expect(runtime).toContain("message: messageRpc")
-    expect(runtime).toContain("close: closeRpc")
+    for (const operation of ["open", "message", "close"]) {
+      expect(runtime).toContain(`agentUi.websocket.${operation}(socket as Bun.ServerWebSocket<AgentBrowserSocketData>`)
+      expect(runtime).toContain(`quantum.websocket.${operation}(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>`)
+    }
+    expect(runtime).toContain("openRpc(socket as Bun.ServerWebSocket<RpcSocketData>)")
+    expect(runtime).toContain("messageRpc(socket as Bun.ServerWebSocket<RpcSocketData>, message)")
+    expect(runtime).toContain("closeRpc(socket as Bun.ServerWebSocket<RpcSocketData>, code, reason)")
     expect(runtime).toContain('"/assets/*": async (request: Request) =>')
 
     const declarations = [...runtime.matchAll(/^\s{6}("\/[^"]*"):/gm)]
       .map((match) => match[1])
     expect(declarations).toEqual([...routes])
+    for (const route of ["AGENT_UI_PATH", "AGENT_UI_PROVIDER_PATH", "AGENT_UI_CONNECT_PATH", "AGENT_UI_PROFILE_PATH"]) expect(runtime).toContain(`[${route}]:`)
+    expect(runtime).toContain('[`${AGENT_BROWSER_PATH}/*`]:')
   })
 
   test("shows transport wiring while release subjects own their implementation", async () => {
@@ -70,8 +85,10 @@ describe("Cosmos singleton server boundary", () => {
 
     expect(runtime).toContain('"/code": {')
     expect(runtime).toMatch(
-      /"\/sw": \(request: Request, current: Bun\.Server<RpcSocketData>\) =>\s+upgradeRpc\(request, current\)/,
+      /"\/sw": \(request: Request, current: Bun\.Server<ReleaseServerSocketData>\) =>/,
     )
+    expect(runtime).toContain("observations.data(request,current)")
+    expect(runtime).toContain("observations.message(socket as Bun.ServerWebSocket<RpcSocketData>,value)")
     expect(runtime).not.toContain("releaseRoute")
     expect(delivery).toContain("export async function getRelease")
     expect(update).toContain("export async function publishRelease")

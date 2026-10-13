@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {"types": ["bun", "node"], "customConditions": ["metafor:server"]},
+  "include": ["../../types/metafor-global.d.ts", "**/*.ts"],
+  "exclude": []
+}

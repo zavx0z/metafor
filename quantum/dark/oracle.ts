@@ -1,4 +1,5 @@
 import type {OracleRpcPeer} from "shared/transport/oracle"
+import {BOUNDARY_META_READ_METHOD, type BoundaryMetaReadReceipt} from "shared/protocol/boundary/declaration"
 import type {ForceMessageInput} from "shared/protocol/force/message"
 import {
   DARK_DECLARATION_PROJECTION_METHOD,
@@ -12,11 +13,16 @@ import {
   META_CAPABILITIES_READ_METHOD,
   META_CREATE_METHOD,
   META_DECLARATION_APPLY_METHOD,
+  META_DECLARATION_STAGE_METHOD,
+  META_WORKING_REVISION_READ_METHOD,
+  META_SOURCE_COMMIT_METHOD,
   META_MATTER_APPLY_METHOD,
+  META_MATTER_STAGE_METHOD,
   META_SOURCE_REVISION_READ_METHOD,
 } from "shared/protocol/metafor/authoring"
 import type {MatterAuthoringService} from "./oracle/matter.ts"
 import type {DeclarationAuthoringService} from "./oracle/declaration.ts"
+import type {WorkingDeclarationService} from "./oracle/working.ts"
 import type {MetaCreateService} from "./oracle/create.ts"
 import type {MetaAuthoringRegistry} from "./oracle/registry.ts"
 import {DARK_FORCE_HISTORY_READ_METHOD} from "shared/protocol/metafor/observation"
@@ -36,6 +42,7 @@ export interface DarkMetaAuthoringRpc {
   create: Pick<MetaCreateService, "create">
   matter: Pick<MatterAuthoringService, "apply">
   declaration: Pick<DeclarationAuthoringService, "apply">
+  working?: Pick<WorkingDeclarationService, "stage" | "stageMatter" | "read" | "commit">
 }
 
 export const DARK_FORCE_PAUSE_METHOD = "dark.force.pause" as const
@@ -143,7 +150,7 @@ export class DarkOracle {
   #runtime: Pick<MetaRuntimeRpcService, "applyFieldValue" | "readProcessExecution"> | null = null
 
   constructor(
-    private readonly readDeclarationProjection: DeclarationProjectionReader = readDarkDeclarationProjection,
+    private readonly readDeclarationProjection?: DeclarationProjectionReader,
   ) {}
 
   /** Installed by the local runtime after Force exists; Oracle never mutates it directly. */
@@ -196,7 +203,16 @@ export class DarkOracle {
     this.#state = "registering"
     peer.expose(
       DARK_DECLARATION_PROJECTION_METHOD,
-      async (params) => await this.readDeclarationProjection(params),
+      async (params) => {
+        if (this.readDeclarationProjection) return await this.readDeclarationProjection(params)
+        const saved = await peer.call<BoundaryMetaReadReceipt>("boundary", BOUNDARY_META_READ_METHOD, params)
+        const declarations = new Map(saved.declarations.map(item => [item.address as string, item.meta]))
+        return await readDarkDeclarationProjection(params, async address => {
+          const meta = declarations.get(address)
+          if (!meta) throw new Error(`Canonical declaration is unavailable: ${address}`)
+          return meta
+        })
+      },
     )
     peer.expose(
       DARK_FORCE_PAUSE_METHOD,
@@ -247,6 +263,16 @@ export class DarkOracle {
       )
     }
     if (this.#authoring) {
+      if (this.#authoring.working) {
+        peer.expose(META_WORKING_REVISION_READ_METHOD, async (params, context) =>
+          await this.#authoring!.working!.read(params, context.source))
+        peer.expose(META_DECLARATION_STAGE_METHOD, async (params, context) =>
+          await this.#mutations.run(async () => await this.#authoring!.working!.stage(params, context.source)))
+        peer.expose(META_MATTER_STAGE_METHOD, async (params, context) =>
+          await this.#mutations.run(async () => await this.#authoring!.working!.stageMatter(params, context.source)))
+        peer.expose(META_SOURCE_COMMIT_METHOD, async (params, context) =>
+          await this.#mutations.run(async () => await this.#authoring!.working!.commit(params, context.source)))
+      }
       peer.expose(
         META_CAPABILITIES_READ_METHOD,
         async (params, context) => this.#authoring!.registry.readCapabilities(params, context.source),

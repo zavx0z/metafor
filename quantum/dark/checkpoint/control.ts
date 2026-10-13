@@ -166,6 +166,11 @@ export const readCheckpointControlState = (
   return parseState(value, forceParticipants(participants))
 }
 
+/** Native owner сохраняет только проверенный control state; canonical мир и history не изменяются. */
+export const persistCheckpointControlState = (filename: string, value: CheckpointControlStateV1, participants: readonly ForceDomain[] = forceDomains): void => {
+  durableJSON(filename, parseState(value, forceParticipants(participants)))
+}
+
 export const checkpointControlStatePath = (repositoryState: string): string =>
   resolve(repositoryState, "checkpoint-control", "v1", "state.json")
 

@@ -1,7 +1,8 @@
 import {builder} from "../../release/server/services"
 const {buildPackage} = builder
 import {dirname, join} from "node:path"
-import {closeRpc, messageRpc, openRpc, packageChanges, releaseChangedMessage, rpcServiceTopic, upgradeRpc, type RpcSocketData} from "../../release/server"
+import {closeRpc, messageRpc, openRpc, packageChanges, parseReleaseCurrentMessage, releaseChangedMessage, rpcServiceTopic, type RpcSocketData} from "../../release/server"
+import {createNetworkObservationSurface} from "../../release/server/network-observation"
 import {packageArtifactIdentityHeaders, parseBrowserPackageArtifactUrl, type BrowserPackageArtifactIdentity, type NonRootPackageArtifactKey} from "@metafor/tech-build/identity"
 import {type ReleasablePackage, type VersionChange} from "@metafor/tech-release"
 import {artifactIntegrity, packageIdentityHeaders} from "@metafor/tech-build/identity"
@@ -65,6 +66,7 @@ let updateFetchFailures = 0
 const updateRetry = Promise.withResolvers<void>()
 let connections = 0
 const sockets = new Set<Bun.ServerWebSocket<RpcSocketData>>()
+const observations = createNetworkObservationSurface({})
 
 const javascriptHeaders = {"Content-Type": "text/javascript; charset=utf-8"}
 
@@ -166,8 +168,12 @@ const server = Bun.serve<RpcSocketData>({
         return Response.json({success, results, packages: released})
       },
     },
-    "/sw": (request: Request, bunServer: Bun.Server<RpcSocketData>) =>
-      upgradeRpc(request, bunServer),
+    "/sw": (request: Request, bunServer: Bun.Server<RpcSocketData>) => {
+      const data = observations.data(request, bunServer)
+      if (data instanceof Response) return data
+      if (bunServer.upgrade(request, {data})) return
+      return new Response("WebSocket upgrade required", {status: 426})
+    },
     "/__tests/state": () => Response.json({connections, fault, requests, updateFetchFailures}),
     "/__tests/retry": {POST: () => {
       updateRetry.resolve()
@@ -192,9 +198,16 @@ const server = Bun.serve<RpcSocketData>({
       sockets.add(socket)
       openRpc(socket)
     },
-    message: (socket, message) => messageRpc(socket, message, fixturePackages),
+    message(socket, message) {
+      let value: unknown
+      try {value = JSON.parse(String(message))} catch {}
+      if (observations.message(socket, value)) return
+      if (parseReleaseCurrentMessage(value) === null) console.info(JSON.stringify({event: "fixture-invalid-rpc", value}))
+      return messageRpc(socket, message, fixturePackages)
+    },
     close(socket, code, reason) {
       sockets.delete(socket)
+      observations.close(socket)
       closeRpc(socket, code, reason)
     },
   },

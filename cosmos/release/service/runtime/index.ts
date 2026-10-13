@@ -7,6 +7,7 @@ Factory возвращает inert runtime; RPC и timers появляются �
 @packageDocumentation
 */
 
+import {createServiceDiagnostics} from "../client-diagnostics"
 import {createReleaseCache} from "../fetch"
 import type {
   ReleaseDependencies,
@@ -22,6 +23,7 @@ export default function releaseService(
   dependencies: ReleaseDependencies,
 ): ReleaseRuntime {
   const observation = observeSafely(() => createReleaseObservation(import.meta.env.COSMOS_PACKAGE_VERSION ?? null))
+  const diagnostics = createServiceDiagnostics({version: import.meta.env.COSMOS_PACKAGE_VERSION ?? null, scriptURL: globalThis.location?.href ?? "http://localhost/sw", scope: globalThis.registration?.scope ?? "http://localhost/", console, client: id => globalThis.clients.get(id)})
   const cache = createReleaseCache(dependencies.loader, observation)
   const cleanups: Array<() => void | Promise<void>> = []
   let starting: Promise<void> | null = null
@@ -34,6 +36,7 @@ export default function releaseService(
   }
 
   const startRuntime = async () => {
+    diagnostics.start()
     observeSafely(() => observation?.start())
     const abort = new AbortController()
     cleanups.push(() => abort.abort())
@@ -62,6 +65,7 @@ export default function releaseService(
     } catch (error) {
       await rpc?.destroy()
       observeSafely(() => observation?.destroy())
+      diagnostics.destroy()
       throw error
     }
   }
@@ -73,9 +77,8 @@ export default function releaseService(
       for (const cleanup of [...cleanups].reverse()) await cleanup()
       cleanups.length = 0
       observeSafely(() => observation?.destroy())
-      console.debug("[@cosmos/release:service]", "release service очищен", {
-        resources,
-      })
+      console.debug("[@cosmos/release:service]", "release service очищен", {resources})
+      diagnostics.destroy()
     })()
     await destroying
   }
@@ -96,7 +99,7 @@ export default function releaseService(
       }
       return await cache.cacheFirst(event.request)
     },
-    async message(event: ExtendableMessageEvent) { observeSafely(() => observation?.message(event)) },
+    async message(event: ExtendableMessageEvent) {if (!await diagnostics.message(event)) observeSafely(() => observation?.message(event))},
     destroy,
   })
 }

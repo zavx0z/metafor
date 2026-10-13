@@ -1,4 +1,6 @@
-import {expect, test} from "bun:test"
+import {createServiceDiagnostics} from "../release/service/client-diagnostics"
+import {createServiceDiagnosticsClient} from "../release/main/service-diagnostics"
+import {expect, spyOn, test} from "bun:test"
 import type {
   ActivePackage,
   PackageExit,
@@ -14,6 +16,7 @@ import {
   createReleaseHost,
   registerReleaseListeners,
   type StartupEventScope,
+  type ReleaseHost,
 } from "../startup/service/runtime"
 import {captureDiagnostics} from "./fixture/diagnostics"
 
@@ -21,7 +24,7 @@ const releaseRequest = new Request(
   "http://127.0.0.1:4444/@cosmos/release?env=service",
 )
 
-test.serial("startup cold boot is immediate, shared, and retriable", async () => {
+test.serial("startup cold boot failure is shared and terminal for automatic fetch/message admission", async () => {
   const calls: string[] = []
   const first = runtime("first", calls, {startError: new Error("first failed")})
   const second = runtime("second", calls)
@@ -32,27 +35,31 @@ test.serial("startup cold boot is immediate, shared, and retriable", async () =>
     await expect(failed).rejects.toThrow("first failed")
     expect(calls).toEqual(["first:start", "first:destroy"])
 
-    await Promise.all([host.boot(), host.boot()])
+    for (let index = 0; index < 5; index++) {
+      await expect(host.boot()).rejects.toThrow("first failed")
+      await expect(host.fetch({} as FetchEvent)).rejects.toThrow("first failed")
+      await expect(host.message({} as ExtendableMessageEvent)).rejects.toThrow("first failed")
+    }
   })
   expect(calls).toEqual([
     "first:start",
     "first:destroy",
-    "second:start",
   ])
   expect(diagnostics.map(({level, event}) => `${level}:${String(event)}`)).toEqual([
     "debug:bootstrap release начат",
     "debug:release artifact выбран",
     "debug:release runtime подготовлен",
     "error:bootstrap release завершился с ошибкой",
-    "debug:bootstrap release начат",
-    "debug:release artifact выбран",
-    "debug:release runtime подготовлен",
-    "debug:release runtime активирован",
   ])
   expect(diagnostics[3]?.details).toEqual({
     error: "first failed",
     request: releaseRequest.url,
   })
+  await captureDiagnostics(async () => {
+    await host.activate(await host.prepare())
+    await host.boot()
+  })
+  expect(calls).toEqual(["first:start", "first:destroy", "second:start"])
 })
 
 test("startup passes one frozen dependency object and prepare stays inert", async () => {
@@ -150,7 +157,7 @@ test("startup registers browser listeners synchronously and extends dispatched e
   } as StartupEventScope
 
   registerReleaseListeners(scope, host)
-  expect([...listeners.keys()]).toEqual(["install", "activate", "fetch", "message"])
+  expect([...listeners.keys()]).toEqual(["error", "unhandledrejection", "install", "activate", "fetch", "message"])
 
   let fetchPromise: Promise<Response> | null = null
   let fetchLifetime: Promise<unknown> | null = null
@@ -269,3 +276,34 @@ function deferred<T>() {
   })
   return {promise, resolve, reject}
 }
+
+
+test("startup error handlers belong to initial evaluation and dynamic release starts only console capture", async () => {
+  const handlers = new Map<string, (event: unknown) => void>()
+  const originalCalls: unknown[][] = []
+  const output = Object.fromEntries(["log", "debug", "info", "warn", "error"].map(level => [level, (...values: unknown[]) => originalCalls.push([level, ...values])])) as unknown as Console
+  let initialEvaluation = true
+  const scope = {addEventListener(type: string, callback: (event: unknown) => void) {
+    expect(initialEvaluation).toBe(true)
+    handlers.set(type, callback)
+  }} as unknown as StartupEventScope
+  registerReleaseListeners(scope, {} as ReleaseHost, output)
+  expect(handlers.has("error")).toBe(true)
+  expect(handlers.has("unhandledrejection")).toBe(true)
+  initialEvaluation = false
+  const service = createServiceDiagnostics({version: "0.2.9", scope: "http://client.test/", scriptURL: "http://client.test/sw", console: output,
+    async client() {return {type: "window", url: "http://client.test/"}}})
+  const controller = {postMessage(data: unknown, ports: Transferable[]) {void service.message({data, ports: ports as unknown as readonly MessagePort[], source: {id: "own"} as Client})}}
+  const browser = createServiceDiagnosticsClient({controller} as unknown as Pick<ServiceWorkerContainer, "controller">)
+  const added = spyOn(globalThis, "addEventListener")
+  try {
+    service.start()
+    expect(added.mock.calls.filter(([type]) => type === "error" || type === "unhandledrejection")).toHaveLength(0)
+    handlers.get("error")!({error: new Error("forwarded worker failure")})
+    handlers.get("unhandledrejection")!({reason: "forwarded rejection"})
+    const snapshot = await browser.logs()
+    expect(snapshot.entries.map(entry => entry.message)).toEqual([expect.stringContaining("service.error"), expect.stringContaining("service.unhandledrejection")])
+    expect(snapshot.entries[0]!.message).toContain("forwarded worker failure")
+    expect(originalCalls).toHaveLength(2)
+  } finally {browser.dispose(); service.destroy(); added.mockRestore()}
+})

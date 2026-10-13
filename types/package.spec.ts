@@ -26,6 +26,15 @@ const expectedExports = [
   "./metafor/mass",
   "./metafor/superposition",
   "./metafor/action",
+  "./metafor/lifecycle",
+  "./metafor/environment",
+  "./metafor/agents",
+  "./metafor/agent-observation",
+  "./metafor/codespace",
+  "./metafor/providers",
+  "./metafor/provider-validation",
+  "./metafor/peer-oracle",
+  "./metafor/profile-intent",
   "./metafor/process",
   "./metafor/finally",
   "./metafor/reactions",
@@ -57,17 +66,30 @@ describe("@metafor/types ownership", () => {
 
   test("does not depend on protocol or domain-owner packages", () => {
     expect(definition.dependencies).toBeUndefined()
+    for (const file of readdirSync(join(import.meta.dir, "metafor"))) {
+      const source = readFileSync(join(import.meta.dir, "metafor", file), "utf8")
+      expect(source).not.toMatch(/(?:from\s+|import\s*\()["'](?:shared\/protocol|quantum\/|@metafor\/tech-peer)/)
+    }
   })
 
   test("contains no compatibility facade files", () => {
     expect(readdirSync(join(import.meta.dir, "metafor")).toSorted()).toEqual([
       "action.ts",
+      "agent-observation.ts",
+      "agents.ts",
+      "codespace.ts",
+      "environment.ts",
       "fields.ts",
       "finally.ts",
       "graph.ts",
+      "lifecycle.ts",
       "mass.ts",
       "matter.ts",
+      "peer-oracle.ts",
       "process.ts",
+      "profile-intent.ts",
+      "provider-validation.ts",
+      "providers.ts",
       "reactions.ts",
       "schema.ts",
       "superposition.ts",

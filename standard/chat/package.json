@@ -1,0 +1,30 @@
+{
+  "name": "@metafor/chat",
+  "label": "Беседа агента",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Устойчивая беседа с моделью, продолжение native сессии и корреляция предметных запросов",
+  "exports": {
+    ".": {
+      "metafor:server": "./meta.ts"
+    },
+    "./meta": {
+      "metafor:server": "./meta.ts"
+    },
+    "./send": "./send.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@metafor/types": "workspace:*",
+    "@metafor/provider": "workspace:*"
+  },
+  "devDependencies": {
+    "@metafor/dsl": "workspace:*",
+    "@agentclientprotocol/sdk": "1.6.0",
+    "@zavx0z/provider-tech-peer": "^0.0.0"
+  }
+}

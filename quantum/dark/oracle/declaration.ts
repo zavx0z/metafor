@@ -34,6 +34,8 @@ export interface DeclarationAuthoringForce {
 
 export interface DeclarationAuthoringMeta extends DeclarationMetaSnapshot {
   revision: MetaSourceRevision
+  /** Filesystem baseline may precede the working revision during staged authoring. */
+  sourceRevision?: MetaSourceRevision
 }
 
 export type DeclarationAuthoringCapabilityReader = (
@@ -146,6 +148,7 @@ export class DeclarationAuthoringService {
     private readonly readMeta: DeclarationAuthoringMetaReader = readDeclarationAuthoringMeta,
     private readonly sourcePath: DeclarationAuthoringSourcePath = resolveMetaAuthoringPath,
     private readonly projection: DeclarationAuthoringProjection = {apply() {}},
+    private readonly deferPublication = false,
   ) {}
 
   async apply(input: unknown, rpcSource: string): Promise<MetaDeclarationApplyReceipt> {
@@ -157,6 +160,10 @@ export class DeclarationAuthoringService {
     })
     if (!normalized.ok) throw validationError(normalized.issues)
     const request = normalized.value
+    if (this.deferPublication && request.entity === "process" &&
+        (request.operation === "add" || request.operation === "replace" && request.process.artifact)) {
+      throw new DeclarationAuthoringError("New executable artifacts require release preparation before live authoring")
+    }
     const requestDigest = metaAuthoringRequestDigest(request)
     const existing = this.history.findAuthoring(rpcSource, request.operationId)
     if (existing) {
@@ -175,6 +182,7 @@ export class DeclarationAuthoringService {
         acceptanceIdentity(existing),
         existing.authoring.sourceProjections,
         existing.particle,
+        existing.authoring.publication === "deferred",
       )
     }
 
@@ -189,7 +197,8 @@ export class DeclarationAuthoringService {
     })
     if (!verified.ok) throw validationError(verified.issues)
 
-    const {planMetaDeclarationPatch, prepareSourceCandidates, discardSourceCandidates} = await import("create-metafor/library")
+    const {planMetaDeclarationPatch, prepareSourceCandidates, discardSourceCandidates, assertCanonicalFieldSource} = await import("create-metafor/library")
+    if (this.deferPublication && request.entity === "field") for (const meta of metas) assertCanonicalFieldSource(meta.source)
     const plan = planMetaDeclarationPatch(verified.value, metas)
     let prepared: PreparedSourceCandidate[] = []
     let liveAttempted = false
@@ -197,7 +206,7 @@ export class DeclarationAuthoringService {
       prepared = await prepareSourceCandidates(plan.sourceEdits.map((edit) => ({
         targetPath: edit.targetPath,
         operationId: request.operationId,
-        expectedRevision: edit.expectedRevision ?? current.get(edit.address)!,
+        expectedRevision: edit.expectedRevision ?? metas.find(meta => meta.address === edit.address)?.sourceRevision ?? current.get(edit.address)!,
         source: edit.afterSource,
       })))
       const editByPath = new Map(plan.sourceEdits.map((edit) => [edit.targetPath, edit] as const))
@@ -218,6 +227,7 @@ export class DeclarationAuthoringService {
         operationId: request.operationId,
         requestDigest,
         sourceProjections,
+        ...(this.deferPublication ? {publication: "deferred" as const} : {}),
       }
       liveAttempted = true
       const decision = await this.force.acceptAuthoringParticle(plan.particle, cause)
@@ -228,6 +238,7 @@ export class DeclarationAuthoringService {
         decision.acceptance,
         sourceProjections,
         decision.particle,
+        this.deferPublication,
       )
     } catch (error) {
       if (!liveAttempted) await discardSourceCandidates(prepared)
@@ -241,9 +252,14 @@ export class DeclarationAuthoringService {
     acceptance: MetaForceAcceptanceIdentity,
     sourceProjections: MetaDeclarationSourceProjectionV1[],
     particle: SourcedParticle,
+    deferred: boolean,
   ): Promise<MetaDeclarationApplyReceipt> {
     try {
       await this.projection.apply(particle)
+      if (deferred) return {
+        ...receiptBase(operationId, requestDigest, acceptance, sourceProjections),
+        phase: "working", source: {outcome: "deferred"}, materialization: {outcome: "applied"},
+      }
       const {recoverAndPublishSourceCandidates} = await import("create-metafor/library")
       const targetPath = (projection: MetaDeclarationSourceProjectionV1): string => {
         const metaPath = this.sourcePath(projection.address)

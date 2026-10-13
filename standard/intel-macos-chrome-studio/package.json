@@ -1,0 +1,32 @@
+{
+  "name": "intel-macos-chrome-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Рабочее окружение Intel macOS с назначенной Chrome Studio и реестром провайдеров",
+  "exports": {
+    ".": {
+      "intel-macos-chrome-studio:server": "./meta.ts"
+    },
+    "./meta": {
+      "intel-macos-chrome-studio:server": "./meta.ts"
+    },
+    "./configuration": "./configuration.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "chrome-studio": "^0.3.0",
+    "@metafor/provider": "workspace:*",
+    "@metafor/types": "workspace:*",
+    "@cosmos/peer-lifecycle": "workspace:*",
+    "@internal/peer": "workspace:*",
+    "@metafor/agent": "workspace:*",
+    "@metafor/agent-slot": "workspace:*"
+  },
+  "devDependencies": {
+    "@metafor/dsl": "workspace:*"
+  }
+}

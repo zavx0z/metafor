@@ -2,6 +2,7 @@ import type { Fields, Field, Values } from "./fields.ts"
 import type {MetaLifecycle, MetaLifecycleInput} from "./lifecycle"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.ts"
 import type { MatterDeclaration, MatterSchema } from "./matter.ts"
+import type {AgentsDeclaration} from "./agents.ts"
 import type { SuperpositionInputCheck, SuperpositionStateKeys } from "./superposition.ts"
 import type { ReactionsDeclaration } from "./reactions.ts"
 import type {ReactionSourceSelector} from "./reactions.ts"
@@ -378,7 +379,7 @@ export interface MetaFieldsChain<ɸ extends Fields> {
                * @param bulk Конфигурация bulk-view
                * @returns Компонент для создания элемента с тегом `meta-${name}`
                */
-              bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, SuperpositionStateKeys<ψ>, MassHandles<Schema>, e>
+              bulk(bulk?: BulkDeclaration): MetaDSLWithAgents<ɸ, SuperpositionStateKeys<ψ>, MassHandles<Schema>, e>
             }
           }
         }
@@ -514,6 +515,12 @@ export interface BulkDeclaration {
    */
   view?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
 }
+
+/** Existing serialized Meta plus an optional final authoring step, absent from JSON. */
+export type MetaDSLWithAgents<ɸ extends Fields = Fields, 𝛴 extends string = string, m extends Mass = Mass, e extends Energy = Energy> =
+  MetaDSL<ɸ, 𝛴, m, e> & {
+    agents(declaration: AgentsDeclaration<ɸ, m>): MetaDSL<ɸ, 𝛴, m, e>
+  }
 
 /**
  * Схема компонента MetaFor

@@ -18,12 +18,13 @@ export default async function startNetwork(input: Start.Input): Promise<Start.Ou
     const digest = Bun.env.COSMOS_RELEASE_DIGEST
     if (!ackId || !configurationFile || !isAbsolute(configurationFile) || !storeRoot || !isReleaseDigest(digest))
       throw new Error("Pinned network context is missing")
+    if (input.role !== undefined && input.role !== "leader" && input.role !== "follower") throw new Error("Invalid network role")
     const existing = input.energy.resource
     if (existing) {
       if (!existing.node || !existing.admission.open || existing.configurationFile !== resolve(configurationFile) || existing.digest !== digest)
         throw new Error("Existing network requires an explicit stop")
       existing.lease.signal.throwIfAborted()
-      return {ackId, status: "running", error: null}
+      return {ackId, status: "running", error: null, oracleReady: existing.oracleLease?.ready === true, oracleError: existing.oracleLease ? existing.oracleLease.ready ? null : "Admitted peer Oracle scope is not ready" : "Peer Oracle capability is not assigned"}
     }
     lease = await input.mass.configuration.acquire()
     const admission = {open: false}
@@ -48,19 +49,23 @@ export default async function startNetwork(input: Start.Input): Promise<Start.Ou
       },
     }})
     constructed.node = node
+    if (input.environment?.openPeerOracle) constructed.oracleLease = await input.environment.openPeerOracle({
+      network: node.network, allowedPeers: config.allowedPeers, role: input.role === "leader" ? "leader" : "follower", lease,
+    })
     input.signal.throwIfAborted()
     lease.signal.throwIfAborted()
     input.energy.resource = constructed
-    return {ackId, status: "running", error: null}
+    return {ackId, status: "running", error: null, oracleReady: constructed.oracleLease?.ready === true, oracleError: constructed.oracleLease ? constructed.oracleLease.ready ? null : "Admitted peer Oracle scope is not ready" : "Peer Oracle capability is not assigned"}
   } catch {
     // Construction rollback only: policy for an already-published resource remains Meta-owned.
     if (constructed) constructed.admission.open = false
+    try {await constructed?.oracleLease?.close()} catch {}
     let closed = node === undefined
     try {await node?.close(); closed = true} catch {}
     let released = lease === undefined
     if (closed) {try {await lease?.release(); released = true} catch {}}
     if ((!closed || !released) && constructed) input.energy.resource = constructed
     input.signal.throwIfAborted()
-    return {ackId, status: "failed", error: "Network startup failed"}
+    return {ackId, status: "failed", error: "Network startup failed", oracleReady: false, oracleError: "Peer Oracle startup failed"}
   }
 }

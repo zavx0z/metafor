@@ -3,6 +3,13 @@
 Checkpoint — отдельная immutable replay-опора живой Вселенной. Он не является
 Particle, строкой Dark Force history, Graph projection или source commit.
 
+Если остановленный contour сохранил одну Particle в Force history до записи её
+delivery receipts, владелец может явно восстановить этот единственный хвост
+control plane. Проверка требует того же cut и точного отпечатка прежнего control
+state; новые receipts остаются неприменёнными. Обычное восстановление Force затем
+доставляет Particle по её прежней identity. Такая операция не меняет history,
+Boundary или прежние подтверждения и не подменяет отсутствующую history новым baseline.
+
 ## Идентичность и причина создания
 
 Checkpoint имеет identity `(cutId, acceptanceSequence)` и создаётся только в

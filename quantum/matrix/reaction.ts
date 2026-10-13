@@ -9,6 +9,7 @@ no current or historical source State is inferred during cold birth.
 @packageDocumentation
 */
 
+import {createHash} from "node:crypto"
 import type {BoundaryInitialReactionExecution} from "shared/protocol/boundary/initial"
 import {
   REACTION_RECOVERY_KIND,
@@ -28,7 +29,7 @@ export type MatrixReactionRouterOptions = {
   currentStateId(atomId: number): number | null
   currentWimp(atomId: number): string | null
   emit(request: ReactionMatrixRequest): void
-  executionId?: () => string
+  executionId?: (eventId: string, relationKey: string) => string
 }
 
 const sourceStateKey = (atomId: number, stateId: number): string => `${atomId}\0${stateId}`
@@ -50,6 +51,10 @@ const sameQueueEntry = (left: ReactionQueueCommit, right: ReactionQueueCommit): 
   left.queueOrder === right.queueOrder && left.status === right.status &&
   JSON.stringify(left.request) === JSON.stringify(right.request)
 
+const sameStateEvent = (left: ReactionStateCommit, right: ReactionStateCommit): boolean =>
+  left.kind === right.kind && left.eventId === right.eventId && left.atomId === right.atomId &&
+  left.wimp === right.wimp && left.stateId === right.stateId && left.state === right.state
+
 /** Exact Reaction adjacency and one Boundary-backed FIFO lane per target Atom. */
 export class MatrixReactionRouter {
   readonly #relations = new Map<string, ReactionRelation>()
@@ -61,17 +66,21 @@ export class MatrixReactionRouter {
   readonly #startingByTargetAtom = new Map<number, string>()
   readonly #recoveringExecutionIds = new Set<string>()
   readonly #seenEventIds = new Set<string>()
+  readonly #publishedStates = new Map<string, ReactionStateCommit>()
+  readonly #publishedOrderByAtom = new Map<number, string[]>()
+  readonly #restoredStateEvents = new Set<string>()
+  readonly #recentConfirmedStates = new Map<string, ReactionStateCommit>()
   readonly #confirmedStateIdByAtom = new Map<number, number>()
   readonly #currentStateId: MatrixReactionRouterOptions["currentStateId"]
   readonly #currentWimp: MatrixReactionRouterOptions["currentWimp"]
   readonly #emit: MatrixReactionRouterOptions["emit"]
-  readonly #executionId: () => string
+  readonly #executionId: (eventId: string, relationKey: string) => string
 
   constructor(options: MatrixReactionRouterOptions) {
     this.#currentStateId = options.currentStateId
     this.#currentWimp = options.currentWimp
     this.#emit = options.emit
-    this.#executionId = options.executionId ?? (() => crypto.randomUUID())
+    this.#executionId = options.executionId ?? ((eventId, relationKey) => `reaction-${createHash("sha256").update(JSON.stringify([eventId, relationKey])).digest("hex")}`)
   }
 
   /**
@@ -148,15 +157,66 @@ export class MatrixReactionRouter {
     }
   }
 
+  /** Records an actual State-changing Photon before publication; Process retriggers are excluded. */
+  publishState(event: ReactionStateCommit): void {
+    const previous = this.#publishedStates.get(event.eventId) ?? this.#recentConfirmedStates.get(event.eventId)
+    if (previous) {
+      if (!sameStateEvent(previous, event)) throw new Error(`Matrix State publication identity collision: ${event.eventId}`)
+      return
+    }
+    if (this.#currentStateId(event.atomId) !== event.stateId || this.#currentWimp(event.atomId) !== event.wimp) {
+      throw new Error(`Matrix published State ${event.stateId} does not match Atom ${event.atomId} current State`)
+    }
+    // Never discard an unconfirmed publication to admit more speculative work.
+    if (this.#publishedStates.size >= 4096) throw new Error("Matrix unconfirmed State publication capacity exceeded")
+    this.#publishedStates.set(event.eventId, structuredClone(event))
+    const order = this.#publishedOrderByAtom.get(event.atomId) ?? []
+    order.push(event.eventId)
+    this.#publishedOrderByAtom.set(event.atomId, order)
+  }
+
+  hasStatePublication(eventId: string): boolean {
+    return this.#publishedStates.has(eventId) || this.#recentConfirmedStates.has(eventId)
+  }
+
+  hasPendingStatePublication(atomId: number): boolean {
+    return (this.#publishedOrderByAtom.get(atomId)?.length ?? 0) > 0
+  }
+
+  /** Restores only an Oracle-verified pre-crash publication; an old confirmation preserves the newer born baseline. */
+  restoreStatePublication(event: ReactionStateCommit, confirmedBeforeBirth = true): void {
+    if (this.hasStatePublication(event.eventId)) throw new Error("Matrix State publication already exists")
+    if (this.#currentWimp(event.atomId) !== event.wimp) throw new Error("Recovered Matrix State WIMP no longer exists")
+    if (this.#publishedStates.size >= 4096) throw new Error("Matrix unconfirmed State publication capacity exceeded")
+    this.#publishedStates.set(event.eventId, structuredClone(event))
+    this.#publishedOrderByAtom.set(event.atomId, [event.eventId, ...(this.#publishedOrderByAtom.get(event.atomId) ?? [])])
+    if (confirmedBeforeBirth) this.#restoredStateEvents.add(event.eventId)
+  }
+
   /** Routes only a Boundary-confirmed new State and durably enqueues every match. */
   confirmState(event: ReactionStateCommit, timestamp: number): ReactionTriggerRequest[] {
-    if (this.#seenEventIds.has(event.eventId)) return []
-    const current = this.#currentStateId(event.atomId)
-    if (current !== event.stateId || this.#currentWimp(event.atomId) !== event.wimp) {
-      throw new Error(`Matrix confirmed State ${event.stateId} does not match Atom ${event.atomId} current State`)
+    const publication = this.#publishedStates.get(event.eventId) ?? this.#recentConfirmedStates.get(event.eventId)
+    if (!publication || !sameStateEvent(publication, event) || this.#currentWimp(event.atomId) !== event.wimp) {
+      throw new Error(`Matrix confirmed State does not match an exact published event: ${event.eventId}`)
     }
-    this.#confirmedStateIdByAtom.set(event.atomId, event.stateId)
-    this.#dropInactiveTargetWork(event.atomId)
+    if (this.#seenEventIds.has(event.eventId) || this.#recentConfirmedStates.has(event.eventId)) return []
+    if (this.#publishedOrderByAtom.get(event.atomId)?.[0] !== event.eventId) {
+      throw new Error(`Matrix confirmed State is out of publication order for Atom ${event.atomId}`)
+    }
+    if (!this.#restoredStateEvents.has(event.eventId)) {
+      this.#confirmedStateIdByAtom.set(event.atomId, event.stateId)
+      this.#dropInactiveTargetWork(event.atomId)
+    }
+
+    const lane = this.#publishedOrderByAtom.get(event.atomId)!
+    while (lane.length > 1 && (!this.#restoredStateEvents.has(event.eventId) || this.#confirmedStateIdByAtom.get(event.atomId) === event.stateId)) {
+      const redundant = this.#publishedStates.get(lane[1]!)!
+      if (redundant.wimp !== event.wimp || redundant.stateId !== event.stateId || redundant.state !== event.state) break
+      lane.splice(1, 1)
+      this.#publishedStates.delete(redundant.eventId)
+      this.#restoredStateEvents.delete(redundant.eventId)
+      this.#recentConfirmedStates.set(redundant.eventId, redundant)
+    }
 
     const emitted: ReactionTriggerRequest[] = []
     const keys = [...(this.#relationKeysBySourceState.get(sourceStateKey(event.atomId, event.stateId)) ?? [])]
@@ -170,7 +230,7 @@ export class MatrixReactionRouter {
       if (!relation || !this.#active(relation)) continue
       const request: ReactionTriggerRequest = {
         kind: REACTION_TRIGGER_KIND,
-        reactionExecutionId: this.#executionId(),
+        reactionExecutionId: this.#executionId(event.eventId, relationKey),
         relationKey: relation.key,
         reactionId: relation.reactionId,
         eventId: event.eventId,
@@ -187,6 +247,13 @@ export class MatrixReactionRouter {
       emitted.push(request)
     }
     this.#seenEventIds.add(event.eventId)
+    this.#publishedStates.delete(event.eventId)
+    this.#restoredStateEvents.delete(event.eventId)
+    const order = this.#publishedOrderByAtom.get(event.atomId)!
+    order.shift()
+    if (!order.length) this.#publishedOrderByAtom.delete(event.atomId)
+    this.#recentConfirmedStates.set(event.eventId, publication)
+    while (this.#recentConfirmedStates.size > 4096) this.#recentConfirmedStates.delete(this.#recentConfirmedStates.keys().next().value!)
     return emitted
   }
 
@@ -214,6 +281,12 @@ export class MatrixReactionRouter {
 
   /** Removes all adjacency and unfinished work involving a retired Atom. */
   removeAtom(atomId: number): void {
+    for (const eventId of this.#publishedOrderByAtom.get(atomId) ?? []) {
+      this.#publishedStates.delete(eventId)
+      this.#restoredStateEvents.delete(eventId)
+    }
+    this.#publishedOrderByAtom.delete(atomId)
+    for (const [eventId, event] of this.#recentConfirmedStates) if (event.atomId === atomId) this.#recentConfirmedStates.delete(eventId)
     const relationKeys = [...this.#relations.values()]
       .filter((relation) => relation.source.atomId === atomId || relation.target.atomId === atomId)
       .map((relation) => relation.key)
@@ -232,6 +305,10 @@ export class MatrixReactionRouter {
     this.#startingByTargetAtom.clear()
     this.#recoveringExecutionIds.clear()
     this.#seenEventIds.clear()
+    this.#publishedStates.clear()
+    this.#restoredStateEvents.clear()
+    this.#publishedOrderByAtom.clear()
+    this.#recentConfirmedStates.clear()
     this.#confirmedStateIdByAtom.clear()
   }
 
@@ -271,7 +348,6 @@ export class MatrixReactionRouter {
     }
     const stored = structuredClone(commit)
     this.#entryByExecutionId.set(request.reactionExecutionId, stored)
-    this.#seenEventIds.add(request.eventId)
     if (stored.status === "pending") {
       if (pending) throw new Error(`Boundary returned multiple pending Reactions for Atom ${targetAtomId}`)
       this.#pendingByTargetAtom.set(targetAtomId, stored)

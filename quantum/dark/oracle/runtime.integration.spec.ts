@@ -111,6 +111,11 @@ describe("agent runtime input and Process observation", () => {
       }
       const fieldReceipt = await service.applyFieldValue(fieldRequest)
       expect(fieldReceipt.acceptance).toEqual({cutId: "agent-runtime-cut", sequence: 1, id: "agent-runtime-cut:1"})
+      const beforeRefusal = history.status().sequence
+      const refused = await service.applyFieldValue(fieldRequest).catch(error => error)
+      expect(refused.data).toEqual({schema: "metafor/field-admission-refusal/v1", contractVersion: 1, reason: "frontier_mismatch"})
+      expect(history.status().sequence).toBe(beforeRefusal)
+      expect(deliveries.boundary).toHaveLength(1)
       const external = deliveries.boundary.shift()
       if (!external) throw new Error("Field input was not routed to Boundary")
       const fieldCommit = await boundary.materialize(external)

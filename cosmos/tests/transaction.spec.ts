@@ -13,6 +13,32 @@ import {captureDiagnostics} from "./fixture/diagnostics"
 
 const origin = "https://transaction.test"
 
+test.serial("installed graph startup identities never enter release candidate or mutate saved startup cache", async () => {
+  const state = await fixture()
+  const oldStartup = await artifact("@cosmos/startup", "main", "0.1.9", "retained startup")
+  const nextStartup = await artifact("@cosmos/startup", "main", "0.1.10", "platform startup")
+  const serviceStartup = await artifact("@cosmos/startup", "service", "0.1.10", "platform service startup")
+  const startup = await state.storage.open("startup")
+  await startup.put(exactUrl(oldStartup.identity), oldStartup.response)
+  await startup.put(`${origin}/`, new Response("saved document"))
+  state.storage.resetMutations()
+  state.network.set(exactUrl(nextStartup.identity), nextStartup.response)
+  state.network.set(exactUrl(serviceStartup.identity), serviceStartup.response)
+  let handovers = 0
+  await withServiceWorkerGlobals(state.storage, state.network, async () => {
+    const saved = await currentReleasePackages()
+    await updateRelease(loader, releaseDelta([...state.next, nextStartup.identity, serviceStartup.identity], saved), {
+      ...quietHandover, async restartBrowser() {handovers++},
+    })
+    expect(await updateRelease(loader, {update: [nextStartup.identity, serviceStartup.identity], remove: []}, quietHandover)).toEqual([])
+  })
+  expect(handovers).toBe(1)
+  await expectNewComposition(state.storage, state.next)
+  expect(await (await startup.match(exactUrl(oldStartup.identity)))!.text()).toBe("retained startup")
+  expect(await (await startup.match(`${origin}/`))!.text()).toBe("saved document")
+  expect(state.storage.mutations.some(mutation => mutation.cache === "startup")).toBe(false)
+})
+
 test.serial("UPD-003 keeps a complete old or new composition after every durable mutation", async () => {
   const successful = await fixture()
   const completed = await runUpdate(successful)
@@ -41,6 +67,44 @@ test.serial("UPD-003 keeps a complete old or new composition after every durable
     })
     await expectNewComposition(interrupted.storage, interrupted.next)
   }
+})
+
+test.serial("known final composition failure survives saved caches and blocks another Window reload for the same target", async () => {
+  const state = await fixture(), theme = await nonRootArtifact("./theme.css", "1.1.0", "required target style")
+  const desired = [...state.next, theme.identity]
+  state.network.set(exactUrl(theme.identity), theme.response)
+  let handovers = 0
+  const handover = {...quietHandover, async restartBrowser() {
+    handovers++
+    await (await state.storage.open("internal")).delete(exactUrl(theme.identity))
+  }}
+  await captureDiagnostics(async () => withServiceWorkerGlobals(state.storage, state.network, async () => {
+    await expect(updateRelease(loader, releaseDelta(desired, await currentReleasePackages()), handover)).rejects.toThrow("Final canonical composition")
+  }))
+  expect(handovers).toBe(1)
+  expect(await state.storage.keys()).toContain("transaction")
+  const failure = await (await state.storage.open("transaction")).match(`${origin}/transaction/failure`)
+  expect((await failure!.json()).error).toContain(exactUrl(theme.identity))
+  // Новый CacheStorage facade получает только сохранённые responses, без RPC/runtime памяти.
+  const restored = new MemoryCacheStorage()
+  for (const name of await state.storage.keys()) {
+    const cache = await state.storage.open(name), next = await restored.open(name)
+    for (const key of await cache.keys()) await next.put(key, (await cache.match(key))!)
+  }
+  restored.resetMutations()
+  await captureDiagnostics(async () => withServiceWorkerGlobals(restored, state.network, async () => {
+    await expect(updateRelease(loader, releaseDelta(desired, await currentReleasePackages()), handover)).rejects.toThrow("automatic reload retry is disabled")
+  }))
+  expect(handovers).toBe(1)
+  expect(restored.mutations).toEqual([])
+  const nextRoot = await artifact("@internal/visual", "main", "1.2.0", "new owner-reviewed target")
+  state.network.set(exactUrl(nextRoot.identity), nextRoot.response)
+  const newer = [...state.next.filter(identity => identity.name !== "@internal/visual"), nextRoot.identity]
+  await captureDiagnostics(async () => withServiceWorkerGlobals(restored, state.network, async () => {
+    await updateRelease(loader, releaseDelta(newer, await currentReleasePackages()), {...quietHandover, async restartBrowser() {handovers++}})
+  }))
+  expect(handovers).toBe(2)
+  await expectNewComposition(restored, newer)
 })
 
 test.serial("UPD-003 installs every candidate before cleanup and deletes service release and transaction last", async () => {

@@ -41,6 +41,16 @@ test("finite preparation writes only complete private Mass bytes, releases befor
     expect(await provision(input)).toEqual({ackId: "prepare-two", status: "prepared", error: null})
     expect((await stat(configuration)).mtimeMs).toBe(before.mtimeMs)
     expect((await stat(configuration)).ino).toBe(before.ino)
+    const retainedPins = '{"schema":"metafor/peer-world-pins/v1","version":1,"worlds":{}}'
+    await writeFile(join(mass, "oracle-world-pins.json"), retainedPins, {mode: 0o600})
+    expect((await provision(input)).status).toBe("prepared")
+    expect(await Bun.file(join(mass, "oracle-world-pins.json")).text()).toBe(retainedPins)
+    const retainedIntents = '{"schema":"metafor/profile-intents/v1","version":1,"requests":[]}'
+    await writeFile(join(mass, "oracle-profile-intents.json"), retainedIntents, {mode: 0o600})
+    expect((await provision(input)).status).toBe("prepared")
+    expect(await Bun.file(join(mass, "oracle-profile-intents.json")).text()).toBe(retainedIntents)
+    await rm(join(mass, "oracle-profile-intents.json"))
+    await rm(join(mass, "oracle-world-pins.json"))
     await writeFile(join(incoming, "token"), "test-only-different-credential")
     const conflict = await provision(input)
     expect(conflict.status).toBe("failed")

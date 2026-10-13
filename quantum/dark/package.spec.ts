@@ -16,12 +16,15 @@ const LEGACY_CHECKPOINT_BOUNDARY_IMPORTS = Object.freeze([
 ])
 
 const CREATE_METAFOR_LIBRARY_EXPORTS = Object.freeze([
+  "assertCanonicalFieldSource",
   "buildMetaPackageTemplate",
   "discardSourceCandidates",
   "materializeMetaCreatePatch",
   "planMetaDeclarationPatch",
   "planMetaMatterPatch",
   "prepareSourceCandidates",
+  "publishWorkingSourceCandidates",
+  "readPreparedSource",
   "readSourceRevision",
   "readSourceSnapshot",
   "recoverAndPublishSourceCandidates",

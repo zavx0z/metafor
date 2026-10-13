@@ -76,6 +76,8 @@ import {MetaCreateService} from "./oracle/create.ts"
 import {createLocalOracleChannelPair} from "./oracle/local.ts"
 import {MatterAuthoringService} from "./oracle/matter.ts"
 import {DeclarationAuthoringService} from "./oracle/declaration.ts"
+import {WorkingDeclarationService} from "./oracle/working.ts"
+import {BOUNDARY_META_READ_METHOD, type BoundaryMetaReadReceipt} from "shared/protocol/boundary/declaration"
 import {DarkForceHistoryReadService} from "./oracle/history.ts"
 import {MetaRuntimeRpcService} from "./oracle/runtime.ts"
 import {
@@ -152,6 +154,12 @@ oracle.setTimeControl(new DarkForceTimeController(lifecycle, checkpoint))
 oracle.setHistory(new DarkForceHistoryReadService(forceHistory))
 oracle.setRuntime(new MetaRuntimeRpcService(forceHistory, lifecycle, rpc))
 oracle.setAuthoring({
+  working: new WorkingDeclarationService(forceHistory, lifecycle, source => authoringRegistry.grants(source), async address => {
+    const saved = await rpc.call<BoundaryMetaReadReceipt>("boundary", BOUNDARY_META_READ_METHOD, {root: address})
+    const meta = saved.declarations.find(item => item.address === address)?.meta
+    if (!meta) throw new Error(`Canonical declaration is unavailable: ${address}`)
+    return meta
+  }),
   registry: authoringRegistry,
   create: new MetaCreateService((source) => authoringRegistry.grants(source)),
   matter: new MatterAuthoringService(

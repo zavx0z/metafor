@@ -1,0 +1,32 @@
+{
+  "name": "workspace-capsule",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Сетевое рабочее окружение Capsule с явным источником профиля и реестром провайдеров",
+  "exports": {
+    ".": {
+      "workspace-capsule:server": "./meta.ts"
+    },
+    "./meta": {
+      "workspace-capsule:server": "./meta.ts"
+    },
+    "./configuration": "./configuration.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --project tsconfig.json --pretty false",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@internal/peer": "workspace:*",
+    "capsule": "^0.1.0",
+    "@metafor/provider": "workspace:*",
+    "@cosmos/peer-lifecycle": "workspace:*",
+    "@metafor/types": "workspace:*",
+    "@metafor/agent": "workspace:*",
+    "@metafor/agent-slot": "workspace:*"
+  },
+  "devDependencies": {
+    "@metafor/dsl": "workspace:*"
+  }
+}

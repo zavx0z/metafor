@@ -26,6 +26,8 @@ import {
 import {EnergyCatalogStore} from "./graph/catalog.ts"
 import {createFilesystemEnergyMassStore} from "./mass.ts"
 import {executeReaction, ReactionInvariantError} from "./reaction.ts"
+import {createProcessOracleEnvironment} from "./environment"
+import {EnergyPeerOracleKernel} from "./peer-oracle"
 
 export type StartEnergyProtocolOptions = Omit<EnergyProtocolOptions, "force"> & {
   /** ForceChannel born by the service layer only after initial hydration. */
@@ -340,38 +342,43 @@ const executeProcess = async (
   mass: Record<string, unknown>,
   energy: Record<string, unknown>,
   resolver?: MetaSourceResolver,
+  oracleEnvironment?: EnergyProtocolOptions["oracleEnvironment"],
 ): Promise<unknown> => {
   if (pending.descriptor.type === "finally") {
     return await executeFinally(pending.wimp, pending.descriptor, mass, energy, signal, resolver)
   }
 
-  const params: EnergyActionParams = {
-    field: catalog.fieldSchema(pending.wimp),
-    value: buildActionValue(fields, pending.descriptor.action.readFields),
-    mass,
-    energy,
-    signal,
-    self: {
-      atom: String(pending.atomId),
-      meta: pending.wimp,
-      path: String(pending.atomId),
-    },
-  }
+  const access = oracleEnvironment ? createProcessOracleEnvironment({...oracleEnvironment, atomId: pending.atomId, wimp: pending.wimp, signal}) : undefined
+  try {
+    const params: EnergyActionParams = {
+      field: catalog.fieldSchema(pending.wimp),
+      value: buildActionValue(fields, pending.descriptor.action.readFields),
+      mass,
+      energy,
+      signal,
+      ...(access ? {environment: access.environment} : {}),
+      self: {
+        atom: String(pending.atomId),
+        meta: pending.wimp,
+        path: String(pending.atomId),
+      },
+    }
 
-  if (pending.descriptor.action.wrapperSrc) {
-    const fn = (0, eval)(`(${rewriteWrapperDynamicImports(pending.descriptor.action.wrapperSrc, pending.wimp, resolver)})`)
-    if (typeof fn !== "function") throw new Error("Energy wrapperSrc did not evaluate to a function")
+    if (pending.descriptor.action.wrapperSrc) {
+      const fn = (0, eval)(`(${rewriteWrapperDynamicImports(pending.descriptor.action.wrapperSrc, pending.wimp, resolver)})`)
+      if (typeof fn !== "function") throw new Error("Energy wrapperSrc did not evaluate to a function")
+      return await fn(params)
+    }
+
+    const module = await import(resolveActionImportSpecifier(pending.descriptor.action.src, pending.wimp, resolver))
+    const fn = pending.descriptor.action.importSpecifier
+      ? module[pending.descriptor.action.importSpecifier]
+      : module.default
+    if (typeof fn !== "function") {
+      throw new Error(`Energy action export is not a function: ${pending.descriptor.action.importSpecifier ?? "default"}`)
+    }
     return await fn(params)
-  }
-
-  const module = await import(resolveActionImportSpecifier(pending.descriptor.action.src, pending.wimp, resolver))
-  const fn = pending.descriptor.action.importSpecifier
-    ? module[pending.descriptor.action.importSpecifier]
-    : module.default
-  if (typeof fn !== "function") {
-    throw new Error(`Energy action export is not a function: ${pending.descriptor.action.importSpecifier ?? "default"}`)
-  }
-  return await fn(params)
+  } finally {access?.close()}
 }
 
 const executeFinally = async (
@@ -418,6 +425,10 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
   const activeTasks = new Set<Promise<void>>()
   let retiredDestroyQueue = Promise.resolve()
   let closed = false
+  const peerKernel = options.oracleEnvironment ? new EnergyPeerOracleKernel({peer: options.oracleEnvironment.peer,
+    refreshProviders: options.oracleEnvironment.providerDiscoveryScopes?.includes("@metafor/provider") === true,
+    profileControl: options.oracleEnvironment.peerScopes?.includes("@internal/peer") === true}) : undefined
+  const oracleEnvironment = options.oracleEnvironment ? {...options.oracleEnvironment, ...(peerKernel ? {peerKernel} : {})} : undefined
   let fatalError: Error | null = null
 
   const failInvariant = (message: string): never => {
@@ -478,6 +489,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
 
   force.onImpulse = (message: ForceMessage) => {
     if (fatalError) throw fatalError
+    peerKernel?.observe(message)
     const part = message.parts[0]
     if (part.part === "graviton") {
       const affectedBefore = catalog.affectedAtomIds(part)
@@ -718,7 +730,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
           const running = runningByAtomId.get(atomId)
           return running?.pending.processExecutionId === pending.processExecutionId && !controller.signal.aborted
         }
-        trackTask(executeProcess(pending, grant.fields, catalog, controller.signal, mass, energy, sourceResolver)
+        trackTask(executeProcess(pending, grant.fields, catalog, controller.signal, mass, energy, sourceResolver, oracleEnvironment)
           .then(async (data) => {
             if (!isCurrent()) return
             if (pending.descriptor.type === "finally") {
@@ -807,6 +819,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
   }
 
   return {
+    ...(peerKernel ? {peerOracle: peerKernel} : {}),
     async quiesce() {
       while (true) {
         const retired = retiredDestroyQueue
@@ -820,6 +833,7 @@ export function startEnergyProtocol(options: StartEnergyProtocolOptions): Energy
     },
     close() {
       closed = true
+      peerKernel?.close()
       for (const running of runningByAtomId.values()) running.controller.abort(new Error("Energy protocol closed"))
       pendingByAtomId.clear()
       runningByAtomId.clear()

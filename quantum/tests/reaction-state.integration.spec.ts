@@ -93,11 +93,9 @@ describe("Reaction confirmed State lifecycle", () => {
       const localStateIds = new Map(initial.atoms.map((atom) => [atom.id, atom.state]))
       const wimps = new Map(initial.atoms.map((atom) => [atom.id, atom.wimp]))
       const requests: ReactionMatrixRequest[] = []
-      let reactionSequence = 0
       const router = new MatrixReactionRouter({
         currentStateId: (atomId) => localStateIds.get(atomId) ?? null,
         currentWimp: (atomId) => wimps.get(atomId) ?? null,
-        executionId: () => `reaction-execution-${++reactionSequence}`,
         emit: (request) => requests.push(request),
       })
       router.hydrate(
@@ -108,6 +106,7 @@ describe("Reaction confirmed State lifecycle", () => {
 
       const readyState = relation.source.states.find((state) => state.name === "ready")!
       localStateIds.set(sourceAtomId, readyState.id)
+      router.publishState({kind: "state-commit", eventId: "source-ready-event", atomId: sourceAtomId, wimp: SOURCE, stateId: readyState.id, state: "ready"})
       const sourceCommit = await boundary.materialize(message({
         part: "photon", op: "replace", path: sourceAtomId,
         from: "source-ready-event", value: "ready",
@@ -130,6 +129,16 @@ describe("Reaction confirmed State lifecycle", () => {
         .map(({parts}) => parts[0]?.value)
         .find(isReactionQueueCommit)
       if (!firstQueue) throw new Error("Boundary did not confirm first Reaction queue entry")
+      const retryRouter = new MatrixReactionRouter({currentStateId: atomId => localStateIds.get(atomId) ?? null, currentWimp: atomId => wimps.get(atomId) ?? null, emit() {}})
+      retryRouter.hydrate(initial.reactionRelations, initial.atoms.map(atom => [atom.id, atom.state] as const))
+      retryRouter.restoreStatePublication(confirmed)
+      const retried = retryRouter.confirmState(confirmed, 2)[0]!
+      expect(retried).toEqual(firstTrigger)
+      const repeated = await boundary.materialize(message({part: "photon", op: "test", path: targetAtomId, from: retried.reactionExecutionId, value: retried}))
+      const repeatedQueue = repeated?.messages.map(({parts}) => parts[0]?.value).find(isReactionQueueCommit)
+      expect(repeatedQueue?.request.reactionExecutionId).toBe(firstTrigger.reactionExecutionId)
+      expect((await boundary.projection.sql<Array<{count: number}>>`SELECT COUNT(*) AS count FROM boundary_reaction_execution`)[0]?.count).toBe(1)
+
       const firstStart = router.confirmQueue(firstQueue)
       if (!firstStart) throw new Error("Matrix did not start first Reaction queue entry")
       const firstStarted = await boundary.materialize(message({
@@ -168,6 +177,7 @@ describe("Reaction confirmed State lifecycle", () => {
         SELECT id FROM state WHERE wimp = ${TARGET} AND name = ${"monitoring"}
       `)[0]?.id)
       localStateIds.set(targetAtomId, monitoringStateId)
+      router.publishState({kind: "state-commit", eventId: "target-monitoring-event", atomId: targetAtomId, wimp: TARGET, stateId: monitoringStateId, state: "monitoring"})
       const targetStateCommit = await boundary.materialize(message({
         part: "photon", op: "replace", path: targetAtomId,
         from: "target-monitoring-event", value: "monitoring",
@@ -181,6 +191,7 @@ describe("Reaction confirmed State lifecycle", () => {
 
       const idleStateId = Number(initial.atoms.find((atom) => atom.id === sourceAtomId)?.state)
       localStateIds.set(sourceAtomId, idleStateId)
+      router.publishState({kind: "state-commit", eventId: "source-idle-second", atomId: sourceAtomId, wimp: SOURCE, stateId: idleStateId, state: "idle"})
       const secondIdle = await boundary.materialize(message({
         part: "photon", op: "replace", path: sourceAtomId,
         from: "source-idle-second", value: "idle",
@@ -192,6 +203,7 @@ describe("Reaction confirmed State lifecycle", () => {
       router.confirmState(secondIdleConfirmed, 4)
 
       localStateIds.set(sourceAtomId, readyState.id)
+      router.publishState({kind: "state-commit", eventId: "source-ready-second", atomId: sourceAtomId, wimp: SOURCE, stateId: readyState.id, state: "ready"})
       const secondReady = await boundary.materialize(message({
         part: "photon", op: "replace", path: sourceAtomId,
         from: "source-ready-second", value: "ready",

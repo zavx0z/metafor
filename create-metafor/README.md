@@ -63,6 +63,11 @@ bun create metafor capsule-session --owner zavx0z --dir ../repositories -l en
 
 ## Структура
 
+[Базовые агенты пакета](../docs/META_PACKAGES.md#базовые-агенты-пакета) находятся
+в каталоге `agents`: JSX-композиция подключается завершающим callback Meta,
+а отдельные компоненты получают Atom своего уровня. Пустой профиль сохраняет
+тот же каталог и пример компонента, оставляя композицию пустой.
+
 ```text
 repositories-root/
 ├── metafor/
@@ -70,6 +75,9 @@ repositories-root/
 │   ├── .git/
 │   ├── meta.ts                       # src: zavx0z/capsule
 │   ├── package.json                  # repository: zavx0z/capsule
+│   ├── agents/
+│   │   ├── index.tsx                 # композиция агентов уровня
+│   │   └── assistant.tsx             # базовый JSX-компонент
 │   └── src/metafor.d.ts
 └── capsule-profile/                  # независимый peer Meta-репозиторий
     ├── .git/

@@ -12,6 +12,8 @@ import {
 } from "../cache/current"
 import {
   beginTransaction,
+  failedComposition,
+  recordFailedComposition,
   commitTransaction,
   pendingTransaction,
   preparedPackage,
@@ -19,6 +21,16 @@ import {
 } from "./transaction"
 
 const codeCaches = ["release", "internal", "metafor"] as const
+
+type ReleaseUpdateOptions = Readonly<{
+    prepare(request: Request): Promise<ReleaseRuntime>
+    activate(candidate: ReleaseRuntime): Promise<void>
+    restartBrowser?(): Promise<void>
+    signal?: AbortSignal
+    observation?: Pick<ReleaseObservation, "network" | "response">
+  }>
+
+class CanonicalCompositionError extends Error {}
 
 /**
 Применяет только fresh server delta через одну durable transaction.
@@ -31,14 +43,25 @@ composition. Cleanup начинается только после записи �
 export async function updateRelease(
   startup: ReleaseLoader,
   delta: ReleaseDelta,
-  handover?: Readonly<{
-    prepare(request: Request): Promise<ReleaseRuntime>
-    activate(candidate: ReleaseRuntime): Promise<void>
-    restartBrowser?(): Promise<void>
-    signal?: AbortSignal
-    observation?: Pick<ReleaseObservation, "network" | "response">
-  }>,
+  handover?: ReleaseUpdateOptions,
 ) {
+  // Старые installed servers включали устойчивый startup в release delta.
+  // Его cache принадлежит платформенному запуску, а не этой transaction.
+  delta = {update: delta.update.filter(entry => entry.name !== "@cosmos/startup"), remove: delta.remove.filter(entry => entry.name !== "@cosmos/startup")}
+  const candidate = deriveCandidateComposition(await currentReleasePackages(), delta)
+  const target = JSON.stringify(candidate.filter(entry => entry.artifact === undefined)
+    .map(entry => [entry.name, entry.env, entry.version, entry.sha256, entry.size]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))))
+  const failed = await failedComposition()
+  if (failed?.target === target) throw new Error(`Release update is blocked for this composition: ${failed.error}; automatic reload retry is disabled`)
+  try {
+    return await applyReleaseUpdate(startup, delta, candidate, handover)
+  } catch (error) {
+    if (error instanceof CanonicalCompositionError) await recordFailedComposition(target, error.message).catch(() => {})
+    throw error
+  }
+}
+
+async function applyReleaseUpdate(startup: ReleaseLoader, delta: ReleaseDelta, candidate: ReleasePackage[], handover?: ReleaseUpdateOptions) {
   const interrupted = await pendingTransaction()
   if (delta.update.length === 0 && delta.remove.length === 0) {
     if (!interrupted) return []
@@ -70,8 +93,6 @@ export async function updateRelease(
     remove: delta.remove,
     update: delta.update,
   })
-
-  const candidate = deriveCandidateComposition(await currentReleasePackages(), delta)
 
   for (const entry of delta.update) {
     const cached = await preparedPackage(entry)
@@ -255,6 +276,11 @@ async function verifyCandidateComposition(candidate: ReleasePackage[]) {
 
 /** После cleanup доказывает ровно одну exact entry на каждый target slot. */
 async function verifyFinalComposition(candidate: ReleasePackage[]) {
+  try {await checkFinalComposition(candidate)}
+  catch (error) {throw new CanonicalCompositionError(error instanceof Error ? error.message : String(error))}
+}
+
+async function checkFinalComposition(candidate: ReleasePackage[]) {
   const expected = new Map(candidate.map((entry) => [browserPackageIdentitySlot(entry), entry]))
   const targetVersions = targetRootVersions(candidate)
   const seen = new Set<string>()
@@ -288,8 +314,10 @@ async function verifyFinalComposition(candidate: ReleasePackage[]) {
     }
   }
 
-  if (seen.size !== expected.size)
-    throw new Error("Final canonical composition не совпадает с candidate composition")
+  if (seen.size !== expected.size) {
+    const missing = [...expected].filter(([slot]) => !seen.has(slot)).map(([, entry]) => exactRequest(entry).url)
+    throw new Error(`Final canonical composition не совпадает с candidate composition; missing: ${JSON.stringify(missing)}`)
+  }
 }
 
 async function verifyCanonicalEntry(expected: ReleasePackage) {

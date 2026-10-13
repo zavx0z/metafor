@@ -68,10 +68,12 @@ export default async function provisionNetwork(input: Provision.Input): Promise<
     lease.signal.throwIfAborted()
     const entries = await readdir(lease.path)
     if (entries.length) {
-      if (entries.length !== 2 || !entries.includes("peer.json") || !entries.includes("token")) {
+      if (!entries.includes("peer.json") || !entries.includes("token") || entries.some(name => !["peer.json", "token", "oracle-world-pins.json", "oracle-profile-intents.json"].includes(name))) {
         failure = "Network preparation is incomplete"
         throw new Error(failure)
       }
+      if (entries.includes("oracle-world-pins.json")) await privateFile(join(lease.path, "oracle-world-pins.json"), 256 * 1024)
+      if (entries.includes("oracle-profile-intents.json")) await privateFile(join(lease.path, "oracle-profile-intents.json"), 1024 * 1024)
       const [existingPeer, existingToken] = await Promise.all([privateFile(join(lease.path, "peer.json"), 64 * 1024), privateFile(join(lease.path, "token"), 4096)])
       if (!Buffer.from(existingPeer).equals(peerBytes) || !Buffer.from(existingToken).equals(tokenBytes)) {
         failure = "Network preparation conflicts with retained data"

@@ -12,8 +12,13 @@ export function canonicalExecutableSource(source: string) {
   return `${executable}\n`
 }
 
-/** Выносит Bun inline map из package-owned outfile в отдельный companion. */
-export async function externalizeSourceMap(artifact: string) {
+/**
+Выносит Bun inline map в отдельный companion без подмены исходников или mappings.
+generatedLinkingChunk применяется только к compiler chunk: пустая карта допустима
+после AST-проверки import/export-only тела, но не root или исполняемых statements.
+[Закон сборщика](./README.md) и [проверки](./spec/source-map.spec.ts).
+*/
+export async function externalizeSourceMap(artifact: string, options: {generatedLinkingChunk?: boolean} = {}) {
   const source = await Bun.file(artifact).text()
   const marker = "//# sourceMappingURL=data:application/json;base64,"
   const markerIndex = source.lastIndexOf(marker)
@@ -26,7 +31,7 @@ export async function externalizeSourceMap(artifact: string) {
   if (!encoded) throw new Error(`Inline source map payload is missing: ${artifact}`)
   const sourceMap = Buffer.from(encoded, "base64")
   const parsed = JSON.parse(sourceMap.toString("utf8")) as Record<string, unknown>
-  validateSourceMap(parsed, artifact)
+  validateSourceMap(parsed, artifact, options.generatedLinkingChunk === true && await isUnmappedLinkingChunk(parsed, source.slice(0, markerIndex)))
   delete parsed.debugId
 
   const canonicalSourceMap = Buffer.from(JSON.stringify(parsed))
@@ -59,12 +64,24 @@ export async function canonicalizeInlineSourceMap(artifact: string) {
   await Bun.write(artifact, `${executable}\n${marker}${canonicalMap}\n`)
 }
 
-function validateSourceMap(value: Record<string, unknown>, artifact: string) {
+async function isUnmappedLinkingChunk(value: Record<string, unknown>, source: string): Promise<boolean> {
+  if (!value || !Array.isArray(value.sources) || value.sources.length || !Array.isArray(value.sourcesContent) || value.sourcesContent.length ||
+      value.mappings !== "" || !Array.isArray(value.names) || value.names.length) return false
+  // Native compiler/parser availability belongs to the build host. Merely
+  // importing a source-free release on another platform must not load its NAPI.
+  const {parseSync} = await import("oxc-parser")
+  const parsed = parseSync("compiler-chunk.js", source)
+  return parsed.errors.length === 0 && parsed.program.body.length > 0 && parsed.program.body.every(statement =>
+    statement.type === "ImportDeclaration" || statement.type === "ExportAllDeclaration" || statement.type === "ExportNamedDeclaration" && statement.declaration === null,
+  )
+}
+
+function validateSourceMap(value: Record<string, unknown>, artifact: string, unmappedLinkingChunk = false) {
   if (value === null || typeof value !== "object" || value.version !== 3)
     throw new Error(`Source map has unsupported version: ${artifact}`)
   if (
     !Array.isArray(value.sources) ||
-    value.sources.length === 0 ||
+    value.sources.length === 0 && !unmappedLinkingChunk ||
     value.sources.some((source) => typeof source !== "string") ||
     !Array.isArray(value.sourcesContent) ||
     value.sourcesContent.length !== value.sources.length ||

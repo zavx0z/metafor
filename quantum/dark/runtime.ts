@@ -6,10 +6,11 @@ import type {Particle} from "shared/protocol/force/particle"
 import type {ServerWebSocket} from "bun"
 import {sourceForceMessage, type ForceMessageInput} from "shared/protocol/force/message"
 import {DARK_FORCE_STATUS_READ_METHOD, DOMAIN_HEALTH_READ_METHOD, type DarkForceStatus, type DomainHealth} from "shared/protocol/oracle/health"
-import {ORACLE_RPC_VERSION, type OracleRpcResponse} from "shared/protocol/oracle/rpc"
+import {ORACLE_RPC_VERSION, isOracleRpcCall, type OracleRpcResponse} from "shared/protocol/oracle/rpc"
 import {installForceCheckpointSideband, uninstallForceCheckpointSideband} from "shared/transport/force/checkpoint"
 import {createHttpOracleChannelRegistry, createOracleWebSocketChannelRegistry, isLoopbackAddress, ORACLE_WEBSOCKET_MAX_MESSAGE_BYTES, OracleRpcPeer, readOracleWebSocketData, readHttpOracleChannelOpening, type OracleWebSocketData} from "shared/transport/oracle"
-import {applyAuthoredDeclarationProjection, applyAuthoredMatterProjection, reconcileAuthoredMatterProjection, matterParticles, startDarkRuntime, stopDarkRuntime} from "./dark.ts"
+import {applyAuthoredDeclarationProjection, applyAuthoredMatterProjection, reconcileAuthoredMatterProjection, matterParticles, startDarkRuntime, stopDarkRuntime, installPreparedDeclarationProjection} from "./dark.ts"
+import {createPreparedDeclarationActivation, assertPreparedCanonicalLocalIds} from "./prepared-declarations"
 import {DarkForceHistory} from "./force/history.ts"
 import {readJson} from "./force/http.ts"
 import {ForceLifecycle} from "./force/lifecycle.ts"
@@ -21,6 +22,8 @@ import {MetaCreateService} from "./oracle/create.ts"
 import {createLocalOracleChannelPair} from "./oracle/local.ts"
 import {MatterAuthoringService} from "./oracle/matter.ts"
 import {DeclarationAuthoringService} from "./oracle/declaration.ts"
+import {WorkingDeclarationService} from "./oracle/working.ts"
+import {BOUNDARY_META_READ_METHOD, type BoundaryMetaReadReceipt} from "shared/protocol/boundary/declaration"
 import {DarkForceHistoryReadService} from "./oracle/history.ts"
 import {MetaRuntimeRpcService} from "./oracle/runtime.ts"
 import {MetaAuthoringRegistry, metaAuthoringCapabilitiesForScopes, readMetaAuthoringLocalConfiguration} from "./oracle/registry.ts"
@@ -136,6 +139,12 @@ export async function createDarkRuntime(options: DarkRuntimeOptions) {
   const runtimeInputs = new MetaRuntimeRpcService(forceHistory, lifecycle, rpc)
   oracle.setRuntime(runtimeInputs)
   oracle.setAuthoring({
+    working: new WorkingDeclarationService(forceHistory, lifecycle, source => authoringRegistry.grants(source), async address => {
+      const saved = await rpc.call<BoundaryMetaReadReceipt>("boundary", BOUNDARY_META_READ_METHOD, {root: address})
+      const meta = saved.declarations.find(item => item.address === address)?.meta
+      if (!meta) throw new Error(`Canonical declaration is unavailable: ${address}`)
+      return meta
+    }),
     registry: authoringRegistry,
     create: new MetaCreateService((source) => authoringRegistry.grants(source)),
     matter: new MatterAuthoringService(
@@ -252,6 +261,35 @@ export async function createDarkRuntime(options: DarkRuntimeOptions) {
   }
 
 
+  // Observer REST остаётся локальным control-входом и не выдаёт domain identity.
+  const observerRequestAllowed = (request: Request, current: DarkRuntimeServer) => {
+    const url = new URL(request.url), origin = request.headers.get("origin"), site = request.headers.get("sec-fetch-site")
+    return isLoopbackAddress(current.requestIP(request)?.address) && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
+      !["forwarded", "x-forwarded-host", "x-forwarded-for"].some(name => request.headers.has(name)) &&
+      (origin === null || origin === url.origin) && (site === null || site === "same-origin" || site === "none") && !url.search
+  }
+  const observerJson = async (request: Request): Promise<{ok: true, value: unknown} | {ok: false, error: string}> => {
+    if (request.headers.get("content-type")?.split(";", 1)[0]?.trim() !== "application/json" || !request.body) return {ok: false, error: "Oracle JSON body is required"}
+    const reader = request.body.getReader(), chunks: Uint8Array[] = []
+    let bytes = 0, expired = false
+    const timer = setTimeout(() => {expired = true; void reader.cancel().catch(() => {})}, 5000)
+    try {
+      for (;;) {
+        const item = await reader.read()
+        if (item.done) break
+        bytes += item.value.byteLength
+        if (bytes > 1024 * 1024) {await reader.cancel(); return {ok: false, error: "Oracle JSON body exceeds capacity"}}
+        chunks.push(item.value)
+      }
+      if (expired) return {ok: false, error: "Oracle JSON body timed out"}
+      return {ok: true, value: JSON.parse(new TextDecoder("utf-8", {fatal: true}).decode(Buffer.concat(chunks)))}
+    } catch {return {ok: false, error: "Invalid Oracle JSON body"}}
+    finally {clearTimeout(timer); reader.releaseLock()}
+  }
+  const closedObject = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value) &&
+    Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key))
+  const observerText = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 256 && !/[\u0000-\u001f\u007f]/u.test(value)
+
   const routes: Record<string, Record<string, (request: Request, current: DarkRuntimeServer) => Response | undefined | Promise<Response | undefined>>> = {
     "/health": {GET: async () => {const state = await health(); return Response.json(state, {status: state.ok === true ? 200 : 503})}},
     "/force": {
@@ -275,24 +313,31 @@ export async function createDarkRuntime(options: DarkRuntimeOptions) {
       },
     },
     "/oracle/channels": {
-      async POST(request: Request, current: DarkRuntimeServer) {
-        if (!isLoopbackAddress(current.requestIP(request)?.address)) {
-          return Response.json({ok: false, error: "Oracle REST channels are local-only"}, {status: 403})
-        }
-        const payload = await readJson<unknown>(request)
+      async POST(request: Request) {
+        const payload = await observerJson(request)
         if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
         const opening = readHttpOracleChannelOpening(payload.value)
         if (!opening) return Response.json({ok: false, error: "Invalid Oracle channel opening"}, {status: 400})
+        if (options.peer) {
+          if (!closedObject(payload.value, ["version", "identity", "methods"]) || !observerText(opening.identity) || opening.methods.length !== 0)
+            return Response.json({ok: false, error: "Observer channel requires empty capabilities and a closed opening"}, {status: 400})
+          if (["dark", "boundary", "matrix", "energy", "bulk"].includes(opening.identity) || (opening.identity.startsWith("observer:") || opening.identity.startsWith("cosmos-")) || router.channels().some(channel => channel.identity === opening.identity))
+            return Response.json({ok: false, error: "Provider identity is reserved"}, {status: 403})
+          opening.identity = `observer:${crypto.randomUUID()}`
+        }
         const session = await oracleChannels.open(opening)
-        return Response.json({version: ORACLE_RPC_VERSION, channel: session.token}, {status: 201})
+        return Response.json({version: ORACLE_RPC_VERSION, channel: session.token, identity: session.channel.identity}, {status: 201})
       },
     },
     "/oracle/rpc": {
       async POST(request: Request) {
         const session = oracleChannels.read(request)
         if (!session) return Response.json({ok: false, error: "Oracle channel is required"}, {status: 401})
-        const payload = await readJson<unknown>(request)
+        const payload = await observerJson(request)
         if (!payload.ok) return Response.json({ok: false, error: payload.error}, {status: 400})
+        if (options.peer && (!closedObject(payload.value, ["version", "id", "target", "method", "params"]) || !isOracleRpcCall(payload.value) ||
+            !observerText(payload.value.id) || !observerText(payload.value.target) || !observerText(payload.value.method)))
+          return Response.json({ok: false, error: "Invalid closed Oracle call"}, {status: 400})
         const response = await oracleChannels.receive(session, payload.value)
         return Response.json(response, {status: rpcStatus(response)})
       },
@@ -410,7 +455,31 @@ export async function createDarkRuntime(options: DarkRuntimeOptions) {
       if (!decision.ok) throw new Error(decision.error)
     }
   }
+  const applyPreparedDeclarations = createPreparedDeclarationActivation({
+    gate: operation => oracle.withClosedMutationAdmission(operation),
+    async read(root) {
+      return await timeControl.readAtExactFrontier(async frontier => {
+        const [world, canonical, graph] = await Promise.all([readWorld(),
+          rpc.call<BoundaryMetaReadReceipt>("boundary", BOUNDARY_META_READ_METHOD, {root}),
+          rpc.call<BoundaryGraphProjection>("boundary", BOUNDARY_GRAPH_PROJECTION_METHOD, {}),
+        ])
+        assertPreparedCanonicalLocalIds(world.projection.entries, canonical)
+        const nodes = [...graph.runtime.roots]
+        for (let index = 0; index < nodes.length; index++) nodes.push(...(nodes[index]!.children ?? []))
+        const activeAgent = nodes.some(node => node.kind === "atom" && node.meta === "@metafor/agent" &&
+          (!["idle", "done", "failed"].includes(node.state ?? "") || typeof node.values.status === "string" && !["idle", "completed", "failed"].includes(node.values.status)))
+        return {root: graph.root, canonical, frontier: {cutId: frontier.cutId, throughSequence: frontier.acceptanceSequence},
+          busy: activeAgent || world.state.pendingProcessExecutions.length > 0 || world.state.unfinishedReactionExecutions.length > 0}
+      })
+    },
+    async accept(particle) {await accept([particle])},
+    async settle() {return await timeControl.readAtExactFrontier(async frontier => ({cutId: frontier.cutId, throughSequence: frontier.acceptanceSequence}))},
+    closeAdmission() {lifecycle.closeExternalAdmission()},
+    openAdmission() {lifecycle.openExternalAdmission()},
+    install: installPreparedDeclarationProjection,
+  })
   return {
+    applyPreparedDeclarations,
     owns,
     websocket: websocketHandlers,
     health,
@@ -522,8 +591,10 @@ export async function createDarkRuntime(options: DarkRuntimeOptions) {
     handles: (pathname: string) => Object.hasOwn(routes, pathname),
     async fetch(request: Request, current: DarkRuntimeServer): Promise<Response | undefined> {
       const pathname = new URL(request.url).pathname
-      if (options.peer && ["/force", "/ws", "/oracle/ws", "/oracle/channels", "/oracle/rpc", "/oracle/channel"].includes(pathname))
+      if (options.peer && ["/force", "/ws", "/oracle/ws"].includes(pathname))
         return new Response("Legacy payload admission is disabled", {status: 403})
+      if (["/oracle/channels", "/oracle/rpc", "/oracle/channel"].includes(pathname) && !observerRequestAllowed(request, current))
+        return new Response("Oracle observer requires a local same-origin request", {status: 403})
       const route = routes[pathname]
       if (!route) return new Response(null, {status: 404})
       const handler = route[request.method]

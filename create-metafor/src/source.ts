@@ -138,6 +138,52 @@ export const readSourceSnapshot = async (targetPath: string): Promise<SourceSnap
   return {targetPath: target, source: snapshot.source, revision: snapshot.revision}
 }
 
+/** Reads a prepared derivative by its accepted identity without publishing canonical source. */
+export const readPreparedSource = async (targetPath: string, operationId: string, revision: MetaSourceRevision): Promise<string> => {
+  const target = exactTarget(targetPath)
+  if (!SAFE_OPERATION_ID.test(operationId) || !SOURCE_REVISION.test(revision)) throw new SourceWriteError("candidate_conflict", "Invalid prepared source identity")
+  const path = resolve(dirname(target), `.${basename(target)}.${operationId}.candidate`)
+  const stat = await lstat(path)
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new SourceWriteError("candidate_conflict", "Prepared source must be a regular file")
+  const source = await readFile(path, "utf8")
+  if (sourceRevision(source) !== revision) throw new SourceWriteError("source_verification_failed", "Prepared source differs from the accepted revision")
+  return source
+}
+
+/**
+Publishes the explicitly selected working bytes. The accepted derivative is
+retained so publishing one version never destroys a newer working version.
+Only the publication copies are consumed by the ordinary atomic writer; no
+live world is reread and no source diff or access policy is invented here.
+*/
+export async function publishWorkingSourceCandidates(
+  operationId: string,
+  projections: readonly SourceProjectionRecovery[],
+): Promise<SourcePublishReceipt> {
+  if (!SAFE_OPERATION_ID.test(operationId) || !projections.length) throw new SourceWriteError("candidate_conflict", "Invalid working source selection")
+  const targets = projections.map(item => exactTarget(item.targetPath))
+  if (new Set(targets).size !== targets.length) throw new SourceWriteError("duplicate_target", "Working source selection repeats a target")
+  const selections = await Promise.all(projections.map(async (projection, index) => {
+    if (!SOURCE_REVISION.test(projection.afterRevision)) throw new SourceWriteError("candidate_conflict", "Invalid working revision")
+    const targetPath = targets[index]!
+    const current = await targetSource(targetPath)
+    return {projection, targetPath, current, source: current.revision === projection.afterRevision ? current.source :
+      await readPreparedSource(targetPath, operationId, projection.afterRevision)}
+  }))
+  const changed = selections.filter(item => item.current.revision !== item.projection.afterRevision)
+  let published: SourcePublishReceipt | undefined
+  if (changed.length) {
+    const publicationId = `publish-${createHash("sha256").update(JSON.stringify([operationId,
+      changed.map(item => [item.targetPath, item.current.revision, item.projection.afterRevision])])).digest("hex")}`
+    const prepared = await prepareSourceCandidates(changed.map(item => ({targetPath: item.targetPath,
+      operationId: publicationId, expectedRevision: item.current.revision, source: item.source})))
+    published = await publishSourceCandidates(prepared)
+  }
+  return {operationId, files: selections.map(item => ({targetPath: item.targetPath,
+    beforeRevision: item.current.revision, afterRevision: item.projection.afterRevision,
+    outcome: published?.files.find(file => file.targetPath === item.targetPath)?.outcome ?? "already_published"}))}
+}
+
 const writeExclusiveFile = async (
   path: string,
   source: string,

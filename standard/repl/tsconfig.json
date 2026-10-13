@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {"types": ["bun", "node"], "customConditions": ["metafor:server"], "jsxImportSource": "@zavx0z/immersive/XReact"},
+  "include": ["../../types/metafor-global.d.ts", "**/*.ts", "**/*.tsx"],
+  "exclude": []
+}

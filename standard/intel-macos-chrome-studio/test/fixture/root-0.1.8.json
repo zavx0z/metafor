@@ -1,0 +1,1163 @@
+{
+  "schema": "metafor/verified-root-fixture/v1",
+  "owner": "intel-macos-chrome-studio",
+  "version": "0.1.8",
+  "releaseDigest": "6ed5d911845204ac80f7510c65bef2869ffd01612979ff7cea35b3f32e8edecf",
+  "sha256": "c387a29b58f44655117fcd3472fffc2c56871022d7b540e528289bef26a4b28f",
+  "size": 17095,
+  "meta": {
+    "name": "Intel macOS Chrome Studio",
+    "superposition": [
+      {
+        "name": "waiting",
+        "transitions": {
+          "configuring": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "stopped": {
+            "input": {
+              "eq": "stopping"
+            }
+          }
+        }
+      },
+      {
+        "name": "configuring",
+        "transitions": {
+          "failed-configuration": {
+            "input": {
+              "null": true
+            },
+            "studioError": {
+              "null": false
+            }
+          },
+          "preparing-network": {
+            "input": {
+              "null": true
+            },
+            "studioError": {
+              "null": true
+            },
+            "prepareOnBirth": {
+              "eq": true
+            }
+          },
+          "starting-network": {
+            "input": {
+              "null": true
+            },
+            "studioError": {
+              "null": true
+            },
+            "prepareOnBirth": {
+              "eq": false
+            }
+          }
+        }
+      },
+      {
+        "name": "failed-configuration",
+        "transitions": {
+          "configuring": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "stopped": {
+            "input": {
+              "eq": "stopping"
+            }
+          }
+        }
+      },
+      {
+        "name": "preparing-network",
+        "transitions": {
+          "waiting-preparation": {}
+        }
+      },
+      {
+        "name": "waiting-preparation",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "failed": {
+            "input": {
+              "null": true
+            },
+            "networkError": {
+              "null": false
+            }
+          },
+          "prepared": {
+            "input": {
+              "null": true
+            },
+            "networkAck": {
+              "eq": true
+            },
+            "networkStatus": {
+              "eq": "prepared"
+            }
+          }
+        }
+      },
+      {
+        "name": "prepared",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "stopped": {
+            "input": {
+              "eq": "stopping"
+            }
+          }
+        }
+      },
+      {
+        "name": "starting-network",
+        "transitions": {
+          "waiting-network": {}
+        }
+      },
+      {
+        "name": "waiting-network",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "failed": {
+            "input": {
+              "null": true
+            },
+            "networkError": {
+              "null": false
+            }
+          },
+          "connecting": {
+            "input": {
+              "null": true
+            },
+            "networkAck": {
+              "eq": true
+            }
+          }
+        }
+      },
+      {
+        "name": "connecting",
+        "transitions": {
+          "waiting-connection": {}
+        }
+      },
+      {
+        "name": "waiting-connection",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "failed": {
+            "input": {
+              "null": true
+            },
+            "studioError": {
+              "null": false
+            }
+          },
+          "awaiting-oracle": {
+            "input": {
+              "null": true
+            },
+            "studioAck": {
+              "eq": true
+            }
+          }
+        }
+      },
+      {
+        "name": "awaiting-oracle",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "ready": {
+            "input": {
+              "null": true
+            },
+            "oracleReady": {
+              "eq": true
+            }
+          },
+          "disconnecting": {
+            "input": {
+              "eq": "stopping"
+            }
+          }
+        }
+      },
+      {
+        "name": "ready",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "awaiting-oracle": {
+            "input": {
+              "null": true
+            },
+            "oracleReady": {
+              "eq": false
+            }
+          },
+          "opening": {
+            "input": {
+              "eq": "open"
+            }
+          },
+          "closing": {
+            "input": {
+              "eq": "close"
+            }
+          },
+          "saving": {
+            "input": {
+              "eq": "save"
+            }
+          },
+          "disconnecting": {
+            "input": {
+              "eq": "stopping"
+            }
+          }
+        }
+      },
+      {
+        "name": "opening",
+        "transitions": {
+          "waiting-profile": {}
+        }
+      },
+      {
+        "name": "closing",
+        "transitions": {
+          "waiting-profile": {}
+        }
+      },
+      {
+        "name": "saving",
+        "transitions": {
+          "waiting-profile": {}
+        }
+      },
+      {
+        "name": "waiting-profile",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "failed": {
+            "input": {
+              "null": true
+            },
+            "studioError": {
+              "null": false
+            }
+          },
+          "awaiting-oracle": {
+            "input": {
+              "null": true
+            },
+            "studioAck": {
+              "eq": true
+            }
+          }
+        }
+      },
+      {
+        "name": "disconnecting",
+        "transitions": {
+          "waiting-disconnection": {}
+        }
+      },
+      {
+        "name": "waiting-disconnection",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "failed": {
+            "input": {
+              "null": true
+            },
+            "studioError": {
+              "null": false
+            }
+          },
+          "stopping-network": {
+            "input": {
+              "null": true
+            },
+            "studioAck": {
+              "eq": true
+            }
+          }
+        }
+      },
+      {
+        "name": "stopping-network",
+        "transitions": {
+          "waiting-network-stop": {}
+        }
+      },
+      {
+        "name": "waiting-network-stop",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "failed": {
+            "input": {
+              "null": true
+            },
+            "networkError": {
+              "null": false
+            }
+          },
+          "stopped": {
+            "input": {
+              "null": true
+            },
+            "networkAck": {
+              "eq": true
+            }
+          }
+        }
+      },
+      {
+        "name": "stopped",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          }
+        }
+      },
+      {
+        "name": "failed",
+        "transitions": {
+          "starting-network": {
+            "input": {
+              "eq": "started"
+            }
+          },
+          "disconnecting": {
+            "input": {
+              "eq": "stopping"
+            }
+          }
+        }
+      }
+    ],
+    "fields": [
+      {
+        "key": "input",
+        "type": "string"
+      },
+      {
+        "key": "task",
+        "type": "string"
+      },
+      {
+        "key": "answer",
+        "type": "string"
+      },
+      {
+        "key": "status",
+        "type": "string",
+        "required": true,
+        "default": "idle"
+      },
+      {
+        "key": "error",
+        "type": "string"
+      },
+      {
+        "key": "providerBinding",
+        "type": "string"
+      },
+      {
+        "key": "agentEnabled",
+        "type": "boolean",
+        "required": true,
+        "default": false
+      },
+      {
+        "key": "prepareOnBirth",
+        "type": "boolean",
+        "required": true,
+        "default": false
+      },
+      {
+        "key": "networkRequest",
+        "type": "string"
+      },
+      {
+        "key": "networkRequestId",
+        "type": "string",
+        "required": true,
+        "default": ""
+      },
+      {
+        "key": "networkAck",
+        "type": "boolean",
+        "required": true,
+        "default": false
+      },
+      {
+        "key": "networkAckId",
+        "type": "string",
+        "required": true,
+        "default": ""
+      },
+      {
+        "key": "networkStatus",
+        "type": "string",
+        "required": true,
+        "default": "stopped"
+      },
+      {
+        "key": "networkError",
+        "type": "string"
+      },
+      {
+        "key": "oracleReady",
+        "type": "boolean",
+        "required": true,
+        "default": false
+      },
+      {
+        "key": "oracleError",
+        "type": "string"
+      },
+      {
+        "key": "studioConfiguration",
+        "type": "string"
+      },
+      {
+        "key": "studioRequest",
+        "type": "string"
+      },
+      {
+        "key": "studioRequestId",
+        "type": "string",
+        "required": true,
+        "default": ""
+      },
+      {
+        "key": "studioAck",
+        "type": "boolean",
+        "required": true,
+        "default": false
+      },
+      {
+        "key": "studioAckId",
+        "type": "string",
+        "required": true,
+        "default": ""
+      },
+      {
+        "key": "studioStatus",
+        "type": "string",
+        "required": true,
+        "default": "disconnected"
+      },
+      {
+        "key": "studioError",
+        "type": "string"
+      },
+      {
+        "key": "profileName",
+        "type": "string"
+      },
+      {
+        "key": "saveId",
+        "type": "string"
+      },
+      {
+        "key": "templatePath",
+        "type": "string"
+      },
+      {
+        "key": "workMode",
+        "type": "string",
+        "required": true,
+        "default": "view"
+      },
+      {
+        "key": "catalog",
+        "type": "string"
+      },
+      {
+        "key": "viewer",
+        "type": "string"
+      },
+      {
+        "key": "providerBootstrap",
+        "type": "string"
+      }
+    ],
+    "mass": [
+      {
+        "key": "configuration",
+        "format": "json"
+      },
+      {
+        "key": "imports",
+        "format": "json"
+      },
+      {
+        "key": "providerRegistry",
+        "format": "json"
+      }
+    ],
+    "desc": "Рабочее окружение назначенной Chrome Studio с WebRTC-представлением.",
+    "lifecycle": {
+      "started": {
+        "field": "input",
+        "value": "started"
+      },
+      "stopping": {
+        "field": "input",
+        "value": "stopping"
+      }
+    },
+    "processes": [
+      {
+        "key": "configuring",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.public/server/configuration/.cosmos-artifact.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ value, mass, signal }) => {\n    const action = await import(\"./.public/server/configuration/.cosmos-artifact.js\");\n    return action.default({ profileName: value.profileName, saveId: value.saveId, templatePath: value.templatePath, mass, signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ update }) => update({ input: null, studioError: null }, \"s\")",
+            "write": [
+              "input",
+              "studioError"
+            ]
+          },
+          "error": {
+            "src": "({ error, update }) => update({ input: null, studioError: error.message }, \"e\")",
+            "write": [
+              "input",
+              "studioError"
+            ]
+          }
+        }
+      },
+      {
+        "key": "preparing-network",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.cosmos/server/entry/4hgteynp.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ signal }) => {\n    const action = await import(\"./.cosmos/server/entry/4hgteynp.js\");\n    return action.default({ event: \"started\", signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ data, update }) => update({ networkRequest: \"prepare\", networkRequestId: data.requestId, networkAck: false, networkError: null, input: null }, \"s\")",
+            "write": [
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkError",
+              "input"
+            ]
+          }
+        }
+      },
+      {
+        "key": "starting-network",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.cosmos/server/entry/4hgteynp.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ signal }) => {\n    const action = await import(\"./.cosmos/server/entry/4hgteynp.js\");\n    return action.default({ event: \"started\", signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ data, update }) => update({ networkRequest: data.request, networkRequestId: data.requestId, networkAck: false, networkError: null, oracleReady: false, oracleError: null, input: null }, \"s\")",
+            "write": [
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "input"
+            ]
+          }
+        }
+      },
+      {
+        "key": "stopping-network",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.cosmos/server/entry/4hgteynp.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ signal }) => {\n    const action = await import(\"./.cosmos/server/entry/4hgteynp.js\");\n    return action.default({ event: \"stopping\", signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ data, update }) => update({ networkRequest: data.request, networkRequestId: data.requestId, networkAck: false, networkError: null, oracleReady: false, oracleError: null, input: null }, \"s\")",
+            "write": [
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "input"
+            ]
+          }
+        }
+      },
+      {
+        "key": "connecting",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.cosmos/server/entry/4hgteynp.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ signal }) => {\n    const action = await import(\"./.cosmos/server/entry/4hgteynp.js\");\n    return action.default({ event: \"started\", signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ data, update }) => update({ studioRequest: \"observe\", studioRequestId: data.requestId, studioAck: false, studioError: null, input: null }, \"s\")",
+            "write": [
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioError",
+              "input"
+            ]
+          }
+        }
+      },
+      {
+        "key": "opening",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.cosmos/server/entry/4hgteynp.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ signal }) => {\n    const action = await import(\"./.cosmos/server/entry/4hgteynp.js\");\n    return action.default({ event: \"started\", signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ data, update }) => update({ studioRequest: \"open\", studioRequestId: data.requestId, studioAck: false, studioError: null, input: null }, \"s\")",
+            "write": [
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioError",
+              "input"
+            ]
+          }
+        }
+      },
+      {
+        "key": "closing",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.cosmos/server/entry/4hgteynp.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ signal }) => {\n    const action = await import(\"./.cosmos/server/entry/4hgteynp.js\");\n    return action.default({ event: \"started\", signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ data, update }) => update({ studioRequest: \"close\", studioRequestId: data.requestId, studioAck: false, studioError: null, input: null }, \"s\")",
+            "write": [
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioError",
+              "input"
+            ]
+          }
+        }
+      },
+      {
+        "key": "saving",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.cosmos/server/entry/4hgteynp.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ signal }) => {\n    const action = await import(\"./.cosmos/server/entry/4hgteynp.js\");\n    return action.default({ event: \"started\", signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ data, update }) => update({ studioRequest: \"save\", studioRequestId: data.requestId, studioAck: false, studioError: null, input: null }, \"s\")",
+            "write": [
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioError",
+              "input"
+            ]
+          }
+        }
+      },
+      {
+        "key": "disconnecting",
+        "declaration": {
+          "type": "action",
+          "action": {
+            "src": "./.cosmos/server/entry/4hgteynp.js",
+            "importSpecifier": "default",
+            "wrapperSrc": "async ({ signal }) => {\n    const action = await import(\"./.cosmos/server/entry/4hgteynp.js\");\n    return action.default({ event: \"started\", signal });\n  }",
+            "read": [
+              "input",
+              "task",
+              "answer",
+              "status",
+              "error",
+              "providerBinding",
+              "agentEnabled",
+              "prepareOnBirth",
+              "networkRequest",
+              "networkRequestId",
+              "networkAck",
+              "networkAckId",
+              "networkStatus",
+              "networkError",
+              "oracleReady",
+              "oracleError",
+              "studioConfiguration",
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioAckId",
+              "studioStatus",
+              "studioError",
+              "profileName",
+              "saveId",
+              "templatePath",
+              "workMode",
+              "catalog",
+              "viewer",
+              "providerBootstrap"
+            ]
+          },
+          "env": [
+            "server"
+          ],
+          "success": {
+            "src": "({ data, update }) => update({ studioRequest: \"disconnect\", studioRequestId: data.requestId, studioAck: false, studioError: null, input: null }, \"s\")",
+            "write": [
+              "studioRequest",
+              "studioRequestId",
+              "studioAck",
+              "studioError",
+              "input"
+            ]
+          }
+        }
+      }
+    ],
+    "matter": [
+      {
+        "kind": "wimp",
+        "src": "@internal/peer",
+        "fieldsBinding": {
+          "data": [
+            "networkRequest",
+            "networkRequestId",
+            "networkAck",
+            "networkAckId",
+            "networkStatus",
+            "networkError",
+            "oracleReady",
+            "oracleError"
+          ],
+          "expr": "{ request: _[0], requestId: _[1], ack: _[2], ackId: _[3], status: _[4], error: _[5], role: \"leader\", oracleReady: _[6], oracleError: _[7] }"
+        }
+      },
+      {
+        "kind": "wimp",
+        "src": "chrome-studio",
+        "fieldsBinding": {
+          "data": [
+            "studioRequest",
+            "studioRequestId",
+            "studioAck",
+            "studioAckId",
+            "studioStatus",
+            "studioError",
+            "studioConfiguration",
+            "profileName",
+            "saveId",
+            "templatePath",
+            "workMode",
+            "catalog",
+            "viewer"
+          ],
+          "expr": "{ request: _[0], requestId: _[1], ack: _[2], ackId: _[3], status: _[4], error: _[5], configuration: _[6], profileName: _[7], saveId: _[8], templatePath: _[9], workMode: _[10], catalog: _[11], viewer: _[12] }"
+        }
+      },
+      {
+        "kind": "wimp",
+        "src": "@metafor/provider",
+        "fieldsBinding": {
+          "data": "providerBootstrap",
+          "expr": "{ bootstrap: _[0] }"
+        },
+        "massBinding": {
+          "data": "/mass/providerRegistry",
+          "expr": "{ registry: _[0] }",
+          "directMass": {
+            "kind": "keys",
+            "entries": [
+              {
+                "target": "registry",
+                "source": "providerRegistry"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "kind": "wimp",
+        "src": "@metafor/agent-slot",
+        "fieldsBinding": {
+          "data": [
+            "task",
+            "answer",
+            "status",
+            "error",
+            "providerBinding",
+            "agentEnabled"
+          ],
+          "expr": "{task:_[0],answer:_[1],status:_[2],error:_[3],providerBinding:_[4],configuration:\"{\\\"id\\\":\\\"assistant\\\",\\\"atom\\\":{\\\"kind\\\":\\\"atom\\\",\\\"scope\\\":\\\"owner\\\"},\\\"presentation\\\":{\\\"kind\\\":\\\"agent-inspector\\\",\\\"defaultTab\\\":\\\"chat\\\",\\\"tabs\\\":[\\\"chat\\\",\\\"provider\\\",\\\"tools\\\",\\\"context\\\"]},\\\"tools\\\":[{\\\"kind\\\":\\\"oracle-tool\\\",\\\"name\\\":\\\"bun.evaluate\\\",\\\"input\\\":{},\\\"owner\\\":{\\\"meta\\\":\\\"@metafor/repl\\\"}},{\\\"kind\\\":\\\"oracle-tool\\\",\\\"name\\\":\\\"scenario.run\\\",\\\"input\\\":{\\\"scenario\\\":\\\"agent-system.integrity\\\"},\\\"owner\\\":{\\\"meta\\\":\\\"@metafor/scenario\\\"}},{\\\"kind\\\":\\\"oracle-tool\\\",\\\"name\\\":\\\"codespace.status\\\",\\\"input\\\":{},\\\"owner\\\":{\\\"meta\\\":\\\"@metafor/codespace\\\"}},{\\\"kind\\\":\\\"oracle-tool\\\",\\\"name\\\":\\\"codespace.start\\\",\\\"input\\\":{},\\\"owner\\\":{\\\"meta\\\":\\\"@metafor/codespace\\\"}}],\\\"displays\\\":[{\\\"id\\\":\\\"providers\\\",\\\"source\\\":{\\\"kind\\\":\\\"mass\\\",\\\"key\\\":\\\"providerRegistry\\\"}}]}\",providerRegistryShared:true,enabled:_[5]}"
+        },
+        "massBinding": {
+          "data": "/mass/providerRegistry",
+          "expr": "{ providerRegistry: _[0] }",
+          "directMass": {
+            "kind": "keys",
+            "entries": [
+              {
+                "target": "providerRegistry",
+                "source": "providerRegistry"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

@@ -488,6 +488,9 @@ test.serial("UPD-003 keeps canonical caches unchanged and resumes one fixed tran
         return false
       }
     }, 30_000)
+    // New canonical bytes precede handover and the final transaction deletion.
+    // Observe the existing accepted-composition gate before asserting cleanup.
+    await waitForAcceptedCaches(page)
     await expectCanonicalReleaseCaches(page)
     expect(await evaluate(page.session, async () => (await caches.keys()).includes("transaction"))).toBe(false)
     expect(navigations).toBe(1)

@@ -123,6 +123,35 @@ test.serial("release RPC diagnostics preserve the exact synchronization failure"
   }
 })
 
+test.serial("failed delta has no timed retry and remains blocked through changed signals and reconnect until a new target", async () => {
+  const globals = installRpcGlobals()
+  let attempts = 0
+  try {
+    const {diagnostics} = await captureDiagnostics(async () => {
+      const rpc = startRpc({currentPackages: async () => [], applyDelta: async () => {attempts++; if (attempts === 1) throw new Error("Final canonical composition mismatch"); return []}})
+      const first = globals.sockets[0]!
+      first.open(); await settle()
+      const failed = JSON.stringify({type: "release-delta", update: [], remove: []})
+      first.message(failed); await settle()
+      globals.flushTimers(); await settle()
+      expect(first.sent).toHaveLength(1); expect(attempts).toBe(1)
+      first.message(JSON.stringify({type: "release-changed"})); await settle()
+      first.message(failed); await settle()
+      expect(attempts).toBe(1)
+      first.disconnect(1006, "transport reconnect", false); globals.flushTimers()
+      const second = globals.sockets[1]!
+      second.open(); await settle(); second.message(failed); await settle()
+      expect(attempts).toBe(1)
+      second.message(JSON.stringify({type: "release-changed"})); await settle()
+      second.message(JSON.stringify({type: "release-delta", update: [{name: "@internal/visual", env: "main", version: "2.0.0", sha256: "a".repeat(64), size: 42}], remove: []})); await settle()
+      expect(attempts).toBe(2)
+      await rpc.destroy()
+    })
+    expect(diagnostics.filter(entry => entry.level === "error")).toHaveLength(1)
+    expect(diagnostics.find(entry => entry.level === "error")?.details).toEqual(expect.objectContaining({retryInMs: null, blocked: true}))
+  } finally {globals.restore()}
+})
+
 class FixtureWebSocket extends EventTarget {
   static readonly CONNECTING = 0
   static readonly OPEN = 1

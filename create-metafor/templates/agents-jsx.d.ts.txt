@@ -1,0 +1,23 @@
+/** Editor-only JSX declarations. The host supplies the actual @metafor/dsl runtime. */
+type GeneratedAgentElement = import("./metafor.d.ts").AgentElement
+type GeneratedAgentProps = import("./metafor.d.ts").AgentProps
+type GeneratedAgentDisplayProps = import("./metafor.d.ts").AgentDisplayProps
+
+declare module "@metafor/dsl/jsx-runtime" {
+  export const Fragment: unique symbol
+  export function jsx(tag: unknown, props: unknown, key?: unknown): GeneratedAgentElement
+  export const jsxs: typeof jsx
+  export const jsxDEV: typeof jsx
+  export namespace JSX {
+    type Element = GeneratedAgentElement
+    interface ElementChildrenAttribute {children: unknown}
+    interface IntrinsicElements {
+      agent: GeneratedAgentProps
+      display: GeneratedAgentDisplayProps
+    }
+  }
+}
+
+declare module "@metafor/dsl/jsx-dev-runtime" {
+  export * from "@metafor/dsl/jsx-runtime"
+}
