@@ -291,16 +291,30 @@ shell_command() {
     "exec $quoted_script $quoted_repo $quoted_mode $quoted_debug_address"
 }
 
+cosmos_ready() {
+  local origin=$1 health
+  health=$(curl -fsS --max-time 2 "$origin/health" 2>/dev/null) || return 1
+  jq -e '.ok == true and .state == "running"' <<<"$health" >/dev/null 2>&1
+}
+
 wait_cosmos() {
-  local origin=$1 attempt
-  for attempt in $(seq 1 100); do
-    if curl -fsS --max-time 1 "$origin/" >/dev/null 2>&1; then
+  local origin=$1 ready_timeout_seconds=${2:-120} deadline
+  # Startup допускает до 120 секунд подготовки installed graph и Quantum.
+  # HTTP HTML и число быстрых connection-refused не определяют готовность.
+  deadline=$((SECONDS + ready_timeout_seconds))
+  while (( SECONDS < deadline )); do
+    if cosmos_ready "$origin"; then
       printf 'cosmos: ready %s\n' "$origin"
       return
     fi
     sleep 0.2
   done
-  die "Cosmos did not become ready at $origin"
+  # Последний ответ важнее истёкшего ожидания: runtime мог стать ready на границе.
+  if cosmos_ready "$origin"; then
+    printf 'cosmos: ready %s\n' "$origin"
+    return
+  fi
+  die "Cosmos /health did not confirm running within ${ready_timeout_seconds}s at $origin"
 }
 
 managed_release_mode_evidence() {
@@ -417,9 +431,10 @@ start_contour() {
 }
 
 stop_contour() {
-  local state parents parent_pid attempt child_pid identity current index remaining
-  local stop_wait_attempts=50 stop_wait_interval=0.2
-  local -a owned_pids owned_identities
+  local state parents parent_pid child_pid identity current index remaining signalled=0
+  local stop_timeout_seconds=60 stop_grace_seconds=10 stop_wait_interval=0.2
+  local deadline grace_deadline now observed_ppid parent_gone fallback_sent=0
+  local -a owned_pids owned_identities orphan_retried
   state=$(iterm_state)
   [[ $state == found$'\t'* ]] || die "managed iTerm session is missing; refusing to stop external processes"
   ensure_process_ownership
@@ -434,6 +449,7 @@ stop_contour() {
   [[ -n $identity ]] || die "Cosmos parent disappeared before stop: $parent_pid"
   owned_pids=("$parent_pid")
   owned_identities=("$identity")
+  orphan_retried=(0)
   # PPID после TERM может стать 1. Birth/UID/TTY/command сохраняют точное
   # наблюдавшееся дерево и не принимают переиспользованный PID за его потомка.
   while IFS=$'\t' read -r child_pid _; do
@@ -442,22 +458,68 @@ stop_contour() {
     [[ -n $identity ]] || continue
     owned_pids+=("$child_pid")
     owned_identities+=("$identity")
+    orphan_retried+=(0)
   done < <(process_descendants "$parent_pid")
   current=$(ps -p "$parent_pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
   [[ $current == "${owned_identities[0]}" ]] || die "Cosmos parent identity changed before stop: $parent_pid"
-  kill -TERM "$parent_pid"
-  for attempt in $(seq 1 "$stop_wait_attempts"); do
+  now=$(date +%s)
+  deadline=$((now + stop_timeout_seconds))
+  grace_deadline=$((now + stop_grace_seconds))
+  # Сначала launcher, а не внешний bun run: startup должен успеть закрыть
+  # Release и Quantum, пока runner ещё ждёт его завершения.
+  while IFS= read -r child_pid; do
+    [[ $child_pid =~ ^[1-9][0-9]*$ ]] || continue
+    for ((index=1; index<${#owned_pids[@]}; index++)); do
+      [[ ${owned_pids[$index]} == "$child_pid" ]] || continue
+      current=$(ps -p "$child_pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+      [[ -n $current && $current == "${owned_identities[$index]}" ]] || continue
+      kill -TERM "$child_pid" 2>/dev/null || true
+      signalled=1
+    done
+  done < <(pgrep -P "$parent_pid" 2>/dev/null || true)
+  if [[ $signalled == 0 ]]; then
+    current=$(ps -p "$parent_pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+    if [[ -n $current && $current == "${owned_identities[0]}" ]]; then
+      kill -TERM "$parent_pid" 2>/dev/null || true
+    fi
+  fi
+  while true; do
     remaining=
+    parent_gone=0
     for ((index=0; index<${#owned_pids[@]}; index++)); do
       current=$(ps -p "${owned_pids[$index]}" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
       if [[ -n $current && $current == "${owned_identities[$index]}" ]]; then
         remaining="${remaining}${remaining:+ }${owned_pids[$index]}"
+        if [[ $fallback_sent == 1 && $parent_gone == 1 && ${orphan_retried[$index]} == 0 ]]; then
+          observed_ppid=$(ps -p "${owned_pids[$index]}" -o ppid= 2>/dev/null | tr -d ' ' || true)
+          if [[ $observed_ppid == 1 ]]; then
+            # TERM до завершения parent мог застать ещё живой transport.
+            # Повтор разрешён один раз после фактического reparent в PPID 1.
+            current=$(ps -p "${owned_pids[$index]}" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+            if [[ -n $current && $current == "${owned_identities[$index]}" ]]; then
+              kill -TERM "${owned_pids[$index]}" 2>/dev/null || true
+              orphan_retried[$index]=1
+            fi
+          fi
+        fi
+      elif [[ $index == 0 ]]; then
+        parent_gone=1
       fi
     done
     [[ -n $remaining ]] || break
+    now=$(date +%s)
+    [[ $now -lt $deadline ]] || die "Cosmos process tree did not stop within ${stop_timeout_seconds}s; remaining owned PIDs: $remaining"
+    if [[ $fallback_sent == 0 && $now -ge $grace_deadline ]]; then
+      # Grace исчерпан: только снятые identities, от листьев к родителям.
+      for ((index=${#owned_pids[@]}-1; index>=0; index--)); do
+        current=$(ps -p "${owned_pids[$index]}" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+        [[ -n $current && $current == "${owned_identities[$index]}" ]] || continue
+        kill -TERM "${owned_pids[$index]}" 2>/dev/null || true
+      done
+      fallback_sent=1
+    fi
     sleep "$stop_wait_interval"
   done
-  [[ -z $remaining ]] || die "Cosmos process tree did not stop ($stop_wait_attempts polls at ${stop_wait_interval}s); remaining owned PIDs: $remaining"
   printf 'cosmos: stopped %s\niterm: preserved %s\n' "$parent_pid" "${state#*$'\t'}"
 }
 
