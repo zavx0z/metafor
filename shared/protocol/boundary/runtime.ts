@@ -2,11 +2,17 @@ import type {Graph, MetaAddress} from "@metafor/types/metafor/graph"
 import type {
   MetaProcessExecutionOutcome,
   MetaProcessExecutionStatus,
+  MetaFieldsValueApplyRefusal,
 } from "../metafor/observation.ts"
+import type {ForceMessageInput} from "../force/message.ts"
 
 export const BOUNDARY_GRAPH_PROJECTION_METHOD = "boundary.graph.current.read" as const
 export const BOUNDARY_FIELD_VALUE_PLAN_METHOD = "boundary.runtime.field.value.plan" as const
+export const BOUNDARY_FIELDS_VALUE_PLAN_METHOD = "boundary.runtime.fields.value.plan" as const
 export const BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD = "boundary.runtime.process.execution.project" as const
+
+/** Boundary проверяет весь набор, не пишет мир и возвращает один Particle либо no-admission CAS conflict. */
+export type BoundaryFieldsValuePlan = ForceMessageInput | MetaFieldsValueApplyRefusal
 
 /** Boundary-owned current projection consumed by the stateless Oracle assembler. */
 export interface BoundaryGraphProjection {

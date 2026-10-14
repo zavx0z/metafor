@@ -145,6 +145,15 @@ Energy исполняет descriptor и отправляет `w+`/`w-` как pr
 proposal; Matrix завершает проход только по `w+/w- copy` от Boundary с той же
 execution identity.
 
+## Наблюдение подтверждённых Fields
+
+Владельческий набор значений одного Atom наблюдается только после Boundary
+commit. Mixed ordinary и topology Fields приходят одним подтверждённым
+Field-событием с каноническими Value identities. Если оно затрагивает
+наблюдаемый browser Atom, Energy инвалидирует его наблюдение один раз по всему
+набору; она не создаёт Photon и не выдаёт proposal за подтверждённый результат.
+Обычный неподтверждённый Higgs такого права не получает.
+
 ## Закон результата Reaction
 
 Energy принимает Reaction только после того, как Boundary зарегистрировал
@@ -160,7 +169,9 @@ Reaction получает новое State источника без преды�
 Обращение `value.a` и destructuring `const {a, b} = value` объявляют читаемые
 Fields, а `update({a, b})` объявляет Fields записи. `update` может предлагать
 только собственные ordinary Fields: `string`, `number` и `boolean`. `enum` и
-`array` являются topology Fields и меняются только Process.
+`array` являются topology Fields; Reaction их не меняет. Отдельный явный
+владельческий ввод Fields допускает их по
+[атомарному закону Boundary](../../quantum/boundary/DOMAIN.md#атомарный-ввод-значений-fields).
 
 Mass записывается самим action сразу. Эти записи остаются, даже если к моменту
 завершения Boundary уже не принимает Field proposal. Boundary повторно

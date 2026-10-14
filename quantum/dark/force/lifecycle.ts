@@ -76,6 +76,10 @@ export interface ForceCheckpointTransfer {
  *
  * Он принимает только готовые ForceChannel и типизированные Particle, управляет
  * gate/fail-stop и не знает о WebSocket, REST, WebRTC или Oracle RPC.
+ * Необязательный onWorldChange получает acceptance производной Boundary Particle
+ * только после checkpoint.waitApplied. Это read-only invalidation без удержания
+ * причинного пути; stop освобождает callback. Без checkpoint сигнала нет.
+ * @see ../../../docs/FORCE.md; lifecycle.spec.ts.
  */
 export class ForceLifecycle {
   #state: ForceLifecycleState = "created"
@@ -90,6 +94,7 @@ export class ForceLifecycle {
     private readonly history: Pick<DarkForceHistory, "accept"> & Partial<Pick<DarkForceHistory, "read" | "status">>,
     private readonly checkpoint?: ForceCheckpointTransfer,
     participants: readonly ForceDomain[] = forceDomains,
+    private onWorldChange?: (acceptance: MetaForceAcceptanceIdentity) => void,
   ) {this.#participants = forceParticipants(participants)}
 
   /**
@@ -343,6 +348,10 @@ export class ForceLifecycle {
     const delivered = routeParticle(message, origin, this.#participants)
     if (origin !== "agent" && this.checkpoint) this.checkpoint.acceptedFrom(origin)
     if (this.checkpoint) await this.checkpoint.waitApplied(receipts)
+    if (origin === "boundary" && this.checkpoint && this.onWorldChange && this.#acceptsDomainCausality()) {
+      // Наблюдатель не участвует в admission/delivery и не удерживает Force.
+      try {void Promise.resolve(this.onWorldChange(this.#acceptanceIdentity(accepted))).catch(() => {})} catch {}
+    }
     return {delivered, accepted}
   }
 
@@ -383,6 +392,7 @@ export class ForceLifecycle {
   stop(): void {
     this.#state = "stopped"
     this.#externalAdmissionClosed = true
+    this.onWorldChange = undefined
   }
 
   /** Closes only agent ingress; domain causal output remains accepted. */

@@ -4,7 +4,7 @@ import {
   isDeclarationPath,
   type DeclarationPath,
 } from "shared/protocol/force/declaration"
-import {resolveForceFieldsPayload} from "shared/protocol/force/fields"
+import {resolveForceFieldsPayload, resolveForceFieldValuesTransaction} from "shared/protocol/force/fields"
 import type {ForceMessage} from "shared/protocol/force/message"
 import type {Particle} from "shared/protocol/force/particle"
 import type {FieldInit, MatterBindingValue, MatterEdgeSlot, MatterParticleKind} from "@metafor/types/metafor/matter"
@@ -19,7 +19,8 @@ import {
   insertPredicateGroup,
   validateRuntimeMatterBinding,
 } from "./wimp/sqlite/create.ts"
-import {writeBoundaryAtomValue} from "./world.ts"
+import {writeBoundaryAtomValue, commitBoundaryAtomFields} from "./world.ts"
+import {validateBoundaryFieldValues} from "./field-values"
 import {BoundaryMassStore, type BoundaryMassDetachPlan} from "./mass.ts"
 import {MassCatalog} from "../../shared/mass.ts"
 
@@ -4894,6 +4895,97 @@ export class BoundaryIncrementalStore {
     return effects
   }
 
+  /**
+  Один validated владельческий Field write-set и его Matter consequences в одной
+  SQLite transaction. Legacy Higgs проходит прежний закрытый input path.
+  Проверка: Dark oracle/runtime-fields.integration.spec.ts.
+  */
+  async applyFieldValuesTransaction(message: ForceMessage): Promise<BoundaryIncrementalCommit | undefined> {
+    const part = message.parts[0]
+    if (!isRecord(part.value) || part.value.kind !== "field-values/v1") return undefined
+    const payload = resolveForceFieldValuesTransaction(part.value)
+    if (!payload || part.from !== undefined || part.op !== "replace" || !["gluon", "higgs"].includes(part.part) ||
+        typeof part.path !== "number" || !Number.isSafeInteger(part.path) || part.path <= 0) throw new Error("Invalid Boundary Fields transaction")
+    const atomId = part.path
+    const effects = await this.sql.begin(async tx => {
+      const checked = await validateBoundaryFieldValues(tx, atomId, payload.fields, payload.expectedFields)
+      if (!checked.ok) throw new Error(`Boundary Fields transaction conflict: ${checked.reason}: ${checked.fields.join(", ")}`)
+      if (part.part !== (checked.topology ? "higgs" : "gluon")) throw new Error("Boundary Fields transaction Particle does not match its declared Field types")
+      const beforeRelations = await this.reactionRelationEntities(tx)
+      const result = await commitBoundaryAtomFields(tx, atomId, checked.wimp,
+        new Set(checked.declarations.map(field => Number(field.id))), payload.fields, "Owner Fields transaction")
+      const committed: Particle[] = []
+      for (const target of [{atom: atomId, wimp: checked.wimp, scalar: result.scalar, topology: result.topology}, ...result.aliases]) {
+        const canonical = {...target.scalar}
+        for (const [id, value] of Object.entries(target.topology)) {
+          const binding = (await tx<Array<{value: number}>>`SELECT value FROM atom_value WHERE atom = ${target.atom} AND field = ${Number(id)}`)[0]
+          if (!binding) throw new Error(`Committed Boundary Field has no canonical Value: ${target.atom}/${id}`)
+          canonical[id] = {valueId: Number(binding.value), value}
+        }
+        if (Object.keys(canonical).length) committed.push({part: Object.keys(target.topology).length ? "higgs" : "gluon", op: "replace", path: target.atom, ts: Date.now(),
+          value: {kind: "field-values-commit/v1", fields: canonical}})
+        const fields = {...target.topology, ...Object.fromEntries(Object.entries(target.scalar).map(([id, field]) => [id, field.value]))}
+        const declared = await tx<Array<{id: number; key: string}>>`SELECT id, key FROM field WHERE wimp = ${target.wimp}`
+        const keys = new Set(declared.filter(field => Object.hasOwn(fields, String(field.id))).map(field => field.key))
+        await this.reconcileFieldMatter(tx, target.atom, keys, fields, committed)
+      }
+      await this.reconcileReactionRelations(tx, beforeRelations, committed)
+      return committed
+    })
+    await this.updateIndexes(effects)
+    return {rootSrc: await this.rootSrc(), messages: effects.map(particleMessage)}
+  }
+
+  private async reconcileFieldMatter(sql: Database, atomId: number, changedKeys: ReadonlySet<string>, fields: JsonRecord, committed: Particle[]): Promise<void> {
+    const reconcileScopes = new Map<string, {wimp: string; scopeAtom: number}>()
+    for (const topology of await sql<Array<{
+      runtimeId: number; wimp: string; localId: number; scopeAtom: number; occurrenceKey: string
+    }>>`
+      SELECT origin.runtime_id AS runtimeId, origin.declaration_wimp AS wimp,
+             origin.declaration_local_id AS localId, origin.scope_atom AS scopeAtom,
+             origin.occurrence_key AS occurrenceKey
+        FROM boundary_runtime_origin AS origin
+        JOIN topology ON topology.id = origin.runtime_id
+       WHERE origin.kind = ${"topology"} AND origin.owner_atom = ${atomId}
+       ORDER BY origin.sequence
+    `) {
+      const controller = await this.matter(sql, topology.wimp, Number(topology.localId))
+      if (!controller) continue
+      const bindingId = controller.kind === "macho"
+        ? controller.collectionBinding
+        : controller.kind === "fuzzy" || controller.kind === "axion"
+          ? controller.predicateBinding
+          : null
+      if (bindingId === null) continue
+      const dependencies = (await sql<Array<{path: string}>>`
+        SELECT path FROM matter_binding_dep WHERE binding = ${bindingId}
+      `).map((dependency) => dependency.path)
+      if (!dependencies.some((path) => path !== "/state" && changedKeys.has(path))) continue
+
+      const parent: RuntimeRef = {
+        kind: "topology",
+        id: Number(topology.runtimeId),
+        ownerAtom: atomId,
+        scopeAtom: Number(topology.scopeAtom),
+        occurrenceKey: topology.occurrenceKey,
+      }
+      committed.push({
+        part: "higgs",
+        op: "replace",
+        path: `topology/${parent.id}`,
+        ts: Date.now(),
+        value: {fields: clone(fields)},
+      })
+      reconcileScopes.set(`${controller.wimp}\0${parent.scopeAtom}`, {
+        wimp: controller.wimp,
+        scopeAtom: parent.scopeAtom,
+      })
+    }
+    for (const scope of reconcileScopes.values()) {
+      await this.reconcileMatterScope(sql, scope.wimp, scope.scopeAtom, committed)
+    }
+  }
+
   private async applyHiggs(part: Particle): Promise<BoundaryIncrementalCommit | null> {
     if (typeof part.path !== "number") return null
     const atomId = part.path
@@ -4902,7 +4994,6 @@ export class BoundaryIncrementalStore {
     const effects = await this.sql.begin(async (tx): Promise<Particle[]> => {
       const committed: Particle[] = []
       const reactionRelationsBefore = await this.reactionRelationEntities(tx)
-      const reconcileScopes = new Map<string, {wimp: string; scopeAtom: number}>()
       const atom = (await tx<Array<{wimp: string}>>`SELECT wimp FROM atom WHERE id = ${atomId}`)[0]
       if (!atom) throw new Error(`Unknown Atom ${atomId}`)
       const changedKeys = new Set<string>()
@@ -4921,52 +5012,7 @@ export class BoundaryIncrementalStore {
       }
       committed.push({...clone(part), ts: Date.now()})
 
-      for (const topology of await tx<Array<{
-        runtimeId: number; wimp: string; localId: number; scopeAtom: number; occurrenceKey: string
-      }>>`
-        SELECT origin.runtime_id AS runtimeId, origin.declaration_wimp AS wimp,
-               origin.declaration_local_id AS localId, origin.scope_atom AS scopeAtom,
-               origin.occurrence_key AS occurrenceKey
-          FROM boundary_runtime_origin AS origin
-          JOIN topology ON topology.id = origin.runtime_id
-         WHERE origin.kind = ${"topology"} AND origin.owner_atom = ${atomId}
-         ORDER BY origin.sequence
-      `) {
-        const controller = await this.matter(tx, topology.wimp, Number(topology.localId))
-        if (!controller) continue
-        const bindingId = controller.kind === "macho"
-          ? controller.collectionBinding
-          : controller.kind === "fuzzy" || controller.kind === "axion"
-            ? controller.predicateBinding
-            : null
-        if (bindingId === null) continue
-        const dependencies = (await tx<Array<{path: string}>>`
-          SELECT path FROM matter_binding_dep WHERE binding = ${bindingId}
-        `).map((dependency) => dependency.path)
-        if (!dependencies.some((path) => path !== "/state" && changedKeys.has(path))) continue
-
-        const parent: RuntimeRef = {
-          kind: "topology",
-          id: Number(topology.runtimeId),
-          ownerAtom: atomId,
-          scopeAtom: Number(topology.scopeAtom),
-          occurrenceKey: topology.occurrenceKey,
-        }
-        committed.push({
-          part: "higgs",
-          op: "replace",
-          path: `topology/${parent.id}`,
-          ts: Date.now(),
-          value: {fields: clone(fields)},
-        })
-        reconcileScopes.set(`${controller.wimp}\0${parent.scopeAtom}`, {
-          wimp: controller.wimp,
-          scopeAtom: parent.scopeAtom,
-        })
-      }
-      for (const scope of reconcileScopes.values()) {
-        await this.reconcileMatterScope(tx, scope.wimp, scope.scopeAtom, committed)
-      }
+      await this.reconcileFieldMatter(tx, atomId, changedKeys, fields, committed)
       await this.reconcileReactionRelations(tx, reactionRelationsBefore, committed)
       return committed
     })

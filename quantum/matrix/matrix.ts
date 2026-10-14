@@ -37,7 +37,7 @@ import {
 import {FieldType} from "@matrix/gravity"
 import {createStoredStringInterner, normalizeFieldValue, strong$} from "@matrix/strong"
 import {StepMode, weakHeapUpdate, weakRunStep, weakStructuralUpdate, weak$} from "@matrix/weak"
-import {resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
+import {resolveCanonicalFieldValuesCommit, resolveForceFieldId, resolveForceFieldsPayload} from "shared/protocol/force/fields"
 import type {Particle} from "shared/protocol/force/particle"
 import type {Force} from "shared/transport/force"
 import {
@@ -132,6 +132,7 @@ const collectAtomFieldUpdates = (
     if (braneIndex === undefined) continue
     const fields = resolveForceFieldsPayload(part.value)
     if (fields === null) continue
+    const atomicCommit = part.by === "boundary" && part.op === "replace" && resolveCanonicalFieldValuesCommit(part.value) !== null
 
     for (const [address, value] of Object.entries(fields)) {
       const fieldId = resolveForceFieldId(address)
@@ -142,7 +143,7 @@ const collectAtomFieldUpdates = (
       if (!field) continue
       const isTopology = isTopologyCompatibleAtomField(atomId, fieldId, runtimeFieldIndex)
       if (kind === "gluon" && isTopology) continue
-      if (kind === "higgs" && !isTopology) continue
+      if (kind === "higgs" && !isTopology && !atomicCommit) continue
 
       const fieldUpdates = groupedUpdates.get(braneIndex)
       const nextValue = part.op === "remove" ? null : value

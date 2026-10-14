@@ -2,6 +2,7 @@ import type {ForceMessageInput} from "shared/protocol/force/message"
 import {resolveForceFieldId} from "shared/protocol/force/fields"
 import {
   validateMetaFieldValueApplyRequest,
+  validateMetaFieldsValueApplyRequest,
   validateMetaProcessExecutionReadRequest,
   type MetaFieldValueApplyRequest,
   type MetaProcessExecutionOutcome,
@@ -12,6 +13,8 @@ import type {JsonValue} from "@metafor/types/metafor/graph"
 import type {BoundaryProcessExecutionProjection} from "shared/protocol/boundary/runtime"
 import type {BoundaryDatabase} from "./sqlite.ts"
 import {resolveBoundaryRuntimeAtom} from "./graph/runtime.ts"
+import {boundaryFieldValueMatches, validateBoundaryFieldValues} from "./field-values"
+import type {BoundaryFieldsValuePlan} from "shared/protocol/boundary/runtime"
 
 const invalid = (issues: Array<{path: string; code: string; message: string}>): Error =>
   new Error(issues.map(({path, code, message}) => `${path || "/"} [${code}] ${message}`).join("; "))
@@ -32,20 +35,6 @@ const isJson = (value: unknown, ancestors = new Set<object>()): value is JsonVal
   }
 }
 
-const fieldValueMatches = (
-  type: "string" | "number" | "boolean" | "array" | "enum",
-  required: boolean,
-  value: unknown,
-  variants: readonly string[],
-): boolean => {
-  if (value === null) return !required
-  if (type === "string") return typeof value === "string"
-  if (type === "number") return typeof value === "number" && Number.isFinite(value)
-  if (type === "boolean") return typeof value === "boolean"
-  if (type === "array") return Array.isArray(value) && value.every((entry) => typeof entry === "number" && Number.isFinite(entry))
-  return typeof value === "string" && variants.includes(value)
-}
-
 /** Resolves public stable Atom refs into scoped Boundary read and input plans. */
 export class BoundaryRuntimeRpcService {
   constructor(private readonly boundary: BoundaryDatabase) {}
@@ -54,7 +43,7 @@ export class BoundaryRuntimeRpcService {
   Plans one external ordinary Field Gluon.
 
   `enum` and `array` are topology Fields and fail before a Particle is returned;
-  only Process result commit may create their Higgs consequence.
+  this legacy scalar surface does not grant the separate owner batch capability.
   */
   async planFieldValue(input: unknown): Promise<ForceMessageInput> {
     const validation = validateMetaFieldValueApplyRequest(input)
@@ -78,7 +67,7 @@ export class BoundaryRuntimeRpcService {
     if (field.type === "array" || field.type === "enum") {
       throw new Error(`Boundary topology Field can be changed only by Process: ${request.field}`)
     }
-    if (!fieldValueMatches(field.type, field.required === 1, request.value, [])) {
+    if (!boundaryFieldValueMatches(field.type, field.required === 1, request.value, [])) {
       throw new Error(`Boundary Field value does not match ${field.type} declaration: ${request.field}`)
     }
     return {parts: [{
@@ -88,6 +77,30 @@ export class BoundaryRuntimeRpcService {
       ts: Date.now(),
       value: {fields: {[String(field.id)]: structuredClone(request.value)}},
     }]}
+  }
+
+  /** Проверяет весь владельческий CAS и планирует один Gluon либо один Higgs для набора с topology Field; ничего не материализует. */
+  async planFieldsValue(input: unknown): Promise<BoundaryFieldsValuePlan> {
+    const validation = validateMetaFieldsValueApplyRequest(input)
+    if (!validation.ok) throw invalid(validation.issues)
+    const request = validation.value
+    const atom = await resolveBoundaryRuntimeAtom(this.boundary, request.atom)
+    if (atom === null) throw new Error("Boundary Fields Atom locator is stale or does not select an Atom")
+    const declared = await this.boundary.projection.sql<Array<{id: number; key: string}>>`
+      SELECT field.id, field.key FROM field JOIN atom ON atom.wimp = field.wimp WHERE atom.id = ${atom}
+    `
+    const fields: Record<string, unknown> = {}, expectedFields: Record<string, unknown> = {}
+    for (const update of request.updates) {
+      const matches = declared.filter(field => field.key === update.field)
+      if (matches.length !== 1) throw new Error(`Boundary Field is not uniquely declared for selected Atom: ${update.field}`)
+      const id = String(matches[0]!.id)
+      fields[id] = structuredClone(update.value)
+      expectedFields[id] = structuredClone(update.expectedValue)
+    }
+    const checked = await validateBoundaryFieldValues(this.boundary.projection.sql, atom, fields, expectedFields)
+    if (!checked.ok) return {schema: "metafor/fields-admission-refusal/v1", contractVersion: 1, reason: checked.reason, fields: checked.fields}
+    return {parts: [{part: checked.topology ? "higgs" : "gluon", op: "replace", path: atom, ts: Date.now(),
+      value: {kind: "field-values/v1", fields, expectedFields}}]}
   }
 
   async projectProcessExecution(input: unknown): Promise<BoundaryProcessExecutionProjection> {

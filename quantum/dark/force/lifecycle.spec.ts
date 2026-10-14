@@ -7,6 +7,7 @@ import {
   META_AUTHORING_CONTRACT_VERSION,
   META_MATTER_AUTHORING_CAUSE_SCHEMA_V1,
   type MetaAuthoringCauseV1,
+  type MetaForceAcceptanceIdentity,
   type MetaMatterAuthoringCauseV1,
 } from "shared/protocol/metafor/authoring"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
@@ -69,6 +70,67 @@ const start = (): void => {
 }
 
 describe("ForceLifecycle", () => {
+  test("world invalidation follows Boundary applied acknowledgements without holding or failing Force", async () => {
+    const domains = ["dark", "boundary", "matrix", "energy"] as const
+    const notifications: MetaForceAcceptanceIdentity[] = []
+    const applied = Promise.withResolvers<void>()
+    let sequence = 0
+    let waiting = false
+    const hook = new ForceLifecycle({accept(particle) {
+      sequence++
+      return {schema: "metafor/dark-force-particle/v1", id: `observer-cut:${sequence}`, sequence,
+        acceptedAt: "2026-10-14T00:00:00.000Z", particle}
+    }}, {
+      pendingDeliveries: () => [],
+      recordAccepted(acceptanceSequence, destinations) {
+        return destinations.map(domain => ({cutId: "observer-cut", domain, sentOrdinal: acceptanceSequence, acceptanceSequence}))
+      },
+      async prepare() {},
+      async waitApplied(receipts) {
+        if (receipts[0]?.acceptanceSequence === 3) {waiting = true; await applied.promise}
+      },
+      acceptedFrom() {},
+    }, domains, acceptance => {
+      notifications.push(acceptance)
+      if (notifications.length === 1) throw new Error("observer failed")
+      // Даже незавершённая работа наблюдателя не удерживает причинный путь.
+      return new Promise<void>(() => {})
+    })
+    hook.start(recording.channels)
+    for (const domain of domains) hook.channelReady(domain)
+    const matrix = {parts: [{part: "photon", op: "test", path: 1, ts: 2, by: "matrix", value: {}}]} as const
+    const commit = (ts: number): SourcedForceMessage => ({parts: [{part: "gluon", op: "replace", path: 1,
+      ts, by: "boundary", from: "boundary:committed", value: {fields: {1: {valueId: 2, value: ts}}}}]})
+    try {
+      expect(await hook.acceptAgentParticle(agentInflaton(1))).toMatchObject({ok: true})
+      expect(await hook.acceptParticle("matrix", {parts: [matrix.parts[0]]})).toMatchObject({ok: true})
+      expect(notifications).toEqual([])
+      let finished = false
+      const work = hook.acceptParticle("boundary", commit(3)).then(value => {finished = true; return value})
+      for (let tick = 0; tick < 4; tick++) await Promise.resolve()
+      expect(waiting).toBeTrue()
+      expect(finished).toBeFalse()
+      expect(notifications).toEqual([])
+      applied.resolve()
+      expect(await work).toMatchObject({ok: true})
+      expect(notifications).toEqual([{cutId: "observer-cut", sequence: 3, id: "observer-cut:3"}])
+      expect(await hook.acceptParticle("boundary", commit(4))).toMatchObject({ok: true})
+      expect(notifications).toHaveLength(2)
+      expect(hook.status().state).toBe("running")
+    } finally {applied.resolve(); hook.stop()}
+    expect(await hook.acceptParticle("boundary", commit(5))).toMatchObject({ok: false})
+    expect(notifications).toHaveLength(2)
+
+    let unproved = 0
+    const withoutCheckpoint = new ForceLifecycle({accept() {return {} as never}}, undefined, domains, () => {unproved++})
+    withoutCheckpoint.start(recording.channels)
+    for (const domain of domains) withoutCheckpoint.channelReady(domain)
+    try {
+      expect(await withoutCheckpoint.acceptParticle("boundary", commit(1))).toMatchObject({ok: true})
+      expect(unproved).toBe(0)
+    } finally {withoutCheckpoint.stop()}
+  })
+
   test("headless participants reach running without Bulk and route only to real channels", async () => {
     const domains = ["dark", "boundary", "matrix", "energy"] as const
     const {bulk: _bulk, ...channels} = recording.channels

@@ -13,6 +13,7 @@ import type {RemoteForceDomain} from "../../../quantum/dark/force/store"
 import type {OracleChannel} from "shared/transport/oracle"
 import {DOMAIN_OBSERVATION_SCHEMA, type DomainTransportReport, type ObservedChannelState} from "../shared/peer-observation"
 import {reportQuantumDomainFailure} from "./quantum-diagnostics"
+import type {MetaForceAcceptanceIdentity} from "shared/protocol/metafor/authoring"
 
 /** Four-domain incarnation owned by one release; its persistent state is outside immutable artifacts. */
 export interface QuantumRuntimeOptions {
@@ -31,6 +32,13 @@ export interface QuantumRuntimeOptions {
   env?: Readonly<Record<string, string | undefined>>
   /** Ограниченный opaque native context только Energy. Объявленные keys удаляются из env других детей, включая inherited ambient values; incarnation/storage context переопределять нельзя. */
   energyEnvironment?: Readonly<Record<string, string | undefined>>
+  /**
+  In-process read-only invalidation после подтверждённой Boundary Particle.
+  Dark не ожидает callback и не выдаёт удержанный snapshot. Без checkpoint
+  уведомления нет. При остановке Quantum callback больше не вызывается.
+  @see ../../../docs/DARK.md
+  */
+  onWorldChange?: (acceptance: MetaForceAcceptanceIdentity) => void
 }
 
 const domains = ["dark", "boundary", "matrix", "energy"] as const
@@ -155,6 +163,7 @@ export async function prepareQuantumRuntime(options: QuantumRuntimeOptions) {
     return currentDark
   }
   const createDark = async () => await createDarkRuntime({stateRoot, domains, checkpoint: true,
+    ...(options.onWorldChange ? {onWorldChange: options.onWorldChange} : {}),
     ...(options.localOracleChannels ? {localOracleChannels: options.localOracleChannels} : {}),
     ...(options.lifecycle ? {lifecycle: options.lifecycle} : {}),
     ...(network ? {peer: {network, identities}} : {}),

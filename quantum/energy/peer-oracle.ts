@@ -14,7 +14,7 @@ import {isOracleRpcCall, isOracleRpcResponse} from "shared/protocol/oracle/rpc"
 import {OracleRpcPeer, OracleRpcRemoteError, OracleRpcAdmissionRefusedError, type OracleChannel, type OracleChannelListener} from "shared/transport/oracle"
 import {DARK_FORCE_HISTORY_READ_METHOD, META_FIELD_VALUE_APPLY_METHOD, isMetaFieldValueApplyRefusal, validateMetaCausalFrontier, type DarkForceHistoryReadReceipt, type MetaCausalFrontier, type MetaFieldValueApplyReceipt, type MetaFieldValueApplyRequest} from "shared/protocol/metafor/observation"
 import type {ForceMessage, SourcedForceMessage} from "shared/protocol/force/message"
-import {resolveCanonicalForceFieldsPayload} from "shared/protocol/force/fields"
+import {resolveCanonicalFieldValuesCommit, resolveCanonicalForceFieldsPayload} from "shared/protocol/force/fields"
 import {openPeerWorldPins} from "./peer-pins"
 import {PROFILE_INTENT_METHOD, PROFILE_RECONFIGURE_INPUT_PREFIX, isProfileIntentRefusal, type ProfileIntentRequest, type ProfileIntentReceipt as PublicProfileIntentReceipt, type ProfileCatalogReceipt} from "@metafor/types/metafor/profile-intent"
 import {parseProfileIntent, profileTargets, resolveProfileTarget} from "./profile-intent"
@@ -434,8 +434,10 @@ export class EnergyPeerOracleKernel {
   observe(message: ForceMessage) {
     if (this.#closed) return
     const part = message.parts[0]
-    if (part.part === "gluon" && part.by === "boundary" && (part.op === "add" || part.op === "replace" || part.op === "remove") &&
-        this.#browserOwners.has(`atom:${part.path}`) && resolveCanonicalForceFieldsPayload(part.value)) {
+    const committedFields = (part.part === "gluon" && resolveCanonicalForceFieldsPayload(part.value)) ||
+      (part.part === "higgs" && part.op === "replace" && resolveCanonicalFieldValuesCommit(part.value))
+    if (committedFields && part.by === "boundary" && (part.op === "add" || part.op === "replace" || part.op === "remove") &&
+        this.#browserOwners.has(`atom:${part.path}`)) {
       this.#changed("notice")
       return
     }

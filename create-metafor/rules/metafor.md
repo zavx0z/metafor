@@ -148,7 +148,17 @@ transport и routing законами Oracle RPC, но не формой кли�
   key ordinary Field, типизированное scalar-значение и точную ожидаемую causal
   frontier. Внутренний Boundary provider разрешает ref и Field, а Dark Force
   принимает одну Gluon Particle в существующую history. `enum` и `array`
-  являются topology Fields и меняются только Process; этот RPC их отклоняет.
+  являются topology Fields; этот scalar RPC их отклоняет.
+* `meta.fields.value.apply` принимает один Atom locator, непустой набор
+  `{field, value, expectedValue}` и ожидаемую frontier. Он сверяет весь набор
+  на применённой причинной границе и принимает одну Gluon либо одну Higgs
+  только при сохранении этой границы. Boundary атомарно сохраняет значения и
+  зависимую Matter-структуру. Scalar, объявленные enum и числовые массивы
+  разрешены; неверный тип, stale CAS либо конфликт общей entangled Value
+  отклоняет весь набор. Acceptance не является подтверждением commit.
+  Смешанные ordinary/topology значения публикуются одним canonical
+  `field-values-commit/v1` каждого Atom с точными Value identities. Matrix
+  применяет весь набор перед тактом; Energy наблюдает тот же commit.
 * `meta.process.execution.read` возвращает для public Graph Atom locator,
   Process key и public execution identity текущий `pending`, `committed`,
   `failed` либо `superseded`, acceptance регистрации, optional settlement,
@@ -1128,7 +1138,8 @@ Reaction исполняется в Energy рядом с Mass целевого At
 объекты Energy. Она читает только объявленные собственные Fields и Mass keys,
 пишет только объявленные собственные обычные Fields (`string`, `number`,
 `boolean`) и Mass keys. `enum` и `array` являются топологическими Fields: менять
-их может только Process. Недоступный объявленный Field или Mass key означает
+их меняет Process либо отдельный владельческий атомарный ввод Fields через
+Oracle. Reaction этого права не получает. Недоступный объявленный Field или Mass key означает
 отказ системы, а не пропуск Reaction и не пользовательскую ошибку.
 
 Запись Mass происходит сразу и не откатывается, если более позднее предложение

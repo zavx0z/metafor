@@ -18,6 +18,7 @@ export const META_OBSERVATION_CONTRACT_VERSION = 1 as const
 export const DARK_FORCE_HISTORY_READ_METHOD = "dark.force.history.read" as const
 export const ENERGY_MASS_RESULT_READ_METHOD = "energy.mass.result.read" as const
 export const META_FIELD_VALUE_APPLY_METHOD = "meta.field.value.apply" as const
+export const META_FIELDS_VALUE_APPLY_METHOD = "meta.fields.value.apply" as const
 export const META_PROCESS_EXECUTION_READ_METHOD = "meta.process.execution.read" as const
 export const ENERGY_MASS_RESULT_MAX_BYTES = 4 * 1024 * 1024
 
@@ -204,6 +205,47 @@ export type MetaFieldValueApplyReceipt = {
   field: string
   acceptance: MetaForceAcceptanceIdentity
   frontier: MetaCausalFrontier
+}
+
+/**
+Владельческий набор изменений одного Atom. Scalar, объявленный enum и number[]
+проверяются вместе с точными прежними значениями на применённой причинной границе.
+Отказ любого Field исключает приём всего набора. Acceptance ещё не является commit.
+Смешанные ordinary/topology Fields передаются одним canonical Boundary commit;
+Matrix применяет весь набор перед тактом, Energy наблюдает подтверждённый набор.
+Закон: [Boundary](../../../quantum/boundary/DOMAIN.md#атомарный-ввод-значений-fields).
+*/
+export type MetaFieldsRuntimeValue = MetaRuntimeFieldValue | number[]
+
+export type MetaFieldsValueApplyRequest = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  atom: MetaRuntimeAtomLocator
+  updates: Array<{field: string; value: MetaFieldsRuntimeValue; expectedValue: MetaFieldsRuntimeValue}>
+  expectedFrontier: MetaCausalFrontier
+}
+
+export type MetaFieldsValueApplyReceipt = {
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  resolution: "exact"
+  atom: MetaRuntimeAtomLocator
+  fields: string[]
+  acceptance: MetaForceAcceptanceIdentity
+  frontier: MetaCausalFrontier
+}
+
+/** Закрытое доказательство отказа всего набора до Force acceptance. */
+export type MetaFieldsValueApplyRefusal = {
+  schema: "metafor/fields-admission-refusal/v1"
+  contractVersion: typeof META_OBSERVATION_CONTRACT_VERSION
+  reason: "value_mismatch" | "entangled_conflict" | "frontier_mismatch" | "admission_closed" | "not_running"
+  fields: string[]
+}
+
+export function isMetaFieldsValueApplyRefusal(value: unknown): value is MetaFieldsValueApplyRefusal {
+  if (!isRecord(value) || !exactKeys(value, ["schema", "contractVersion", "reason", "fields"])) return false
+  return value.schema === "metafor/fields-admission-refusal/v1" && value.contractVersion === META_OBSERVATION_CONTRACT_VERSION &&
+    typeof value.reason === "string" && ["value_mismatch", "entangled_conflict", "frontier_mismatch", "admission_closed", "not_running"].includes(value.reason) &&
+    Array.isArray(value.fields) && value.fields.every(field => typeof field === "string" && validateSemanticKey(field, "", "Field key").length === 0)
 }
 
 export type MetaProcessExecutionStatus = "pending" | "committed" | "failed" | "superseded"
@@ -403,6 +445,16 @@ const validateRuntimeFieldValue = (value: unknown, path: JsonPointer): Validatio
   return [issue(path, "invalid_field_value", "Runtime Field input must be null or an ordinary scalar")]
 }
 
+const validateFieldsRuntimeValue = (value: unknown, path: JsonPointer): ValidationIssue[] => {
+  if (Array.isArray(value) && Object.getPrototypeOf(value) === Array.prototype &&
+      Reflect.ownKeys(value).length === value.length + 1 && Array.from({length: value.length}, (_, index) => {
+        const item = Object.getOwnPropertyDescriptor(value, String(index))
+        return item?.enumerable === true && "value" in item && typeof item.value === "number" && Number.isFinite(item.value)
+      }).every(Boolean)) return []
+  if (Array.isArray(value)) return [issue(path, "invalid_field_value", "Runtime Fields array input must be a dense finite number[]")]
+  return validateRuntimeFieldValue(value, path)
+}
+
 export const validateDarkForceHistoryReadRequest = (
   input: unknown,
 ): ValidationResult<DarkForceHistoryReadRequest> => {
@@ -514,6 +566,43 @@ export const validateMetaFieldValueApplyRequest = (
       expectedFrontier: frontier.value,
     },
   }
+}
+
+export const validateMetaFieldsValueApplyRequest = (
+  input: unknown,
+): ValidationResult<MetaFieldsValueApplyRequest> => {
+  if (!isRecord(input) || !exactKeys(input, ["contractVersion", "atom", "updates", "expectedFrontier"])) {
+    return {ok: false, issues: [issue("", "invalid_request", "Fields value request must be a closed plain object")]}
+  }
+  const issues: ValidationIssue[] = []
+  if (input.contractVersion !== META_OBSERVATION_CONTRACT_VERSION) issues.push(issue("/contractVersion", "invalid_literal", "Unsupported observation contract version"))
+  const locator = validateMetaRuntimeAtomLocator(input.atom, "/atom")
+  if (!locator.ok) issues.push(...locator.issues)
+  const frontier = validateFrontier(input.expectedFrontier, "/expectedFrontier")
+  if (!frontier.ok) issues.push(...frontier.issues)
+  const updates = input.updates
+  if (!Array.isArray(updates) || updates.length === 0) issues.push(issue("/updates", "invalid_updates", "Fields update set must be nonempty"))
+  else {
+    const seen = new Set<string>()
+    for (let index = 0; index < updates.length; index++) {
+      const update = updates[index]
+      const path = childPath("/updates", index)
+      if (!isRecord(update) || !exactKeys(update, ["field", "value", "expectedValue"])) {
+        issues.push(issue(path, "invalid_update", "Field update must contain field, value and expectedValue"))
+        continue
+      }
+      issues.push(...validateSemanticKey(update.field, childPath(path, "field"), "Field key"))
+      if (typeof update.field === "string") {
+        if (seen.has(update.field)) issues.push(issue(childPath(path, "field"), "duplicate_field", "Field occurs more than once"))
+        seen.add(update.field)
+      }
+      issues.push(...validateFieldsRuntimeValue(update.value, childPath(path, "value")))
+      issues.push(...validateFieldsRuntimeValue(update.expectedValue, childPath(path, "expectedValue")))
+    }
+  }
+  if (issues.length > 0 || !locator.ok || !frontier.ok) return {ok: false, issues}
+  return {ok: true, value: {contractVersion: META_OBSERVATION_CONTRACT_VERSION, atom: locator.value,
+    updates: structuredClone(updates) as MetaFieldsValueApplyRequest["updates"], expectedFrontier: frontier.value}}
 }
 
 export const validateMetaProcessExecutionReadRequest = (

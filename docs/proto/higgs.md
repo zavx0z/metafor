@@ -42,7 +42,9 @@
 - materialization atom/topology/value instances,
 - Macho expansion по runtime array value конкретного atom,
 - различение topology field и обычного field в runtime projection,
-- запрет внешней реактивной мутации `array`.
+- запрет внешней реактивной мутации `array`;
+- отдельный явный владельческий ввод полного Field write-set с CAS, одной
+  transaction значений и зависимой Matter-структуры.
 
 ### Matrix
 
@@ -87,9 +89,13 @@
 - `array` не обновляется как обычное значение и меняется только как множественность topology,
 - ни `enum`, ни `array` не участвуют в Field entanglement,
 - `array` не мутируется внешними реакциями,
-- `array` может меняться только внутренним процессом самого атома,
-- такое изменение должно проходить через изменение `State`,
-- внешний мир может наблюдать результат изменения topology, но не должен напрямую вмешиваться в её разворачивание.
+- обычное изменение `array` выполняется внутренним Process самого Atom через
+  его State;
+- отдельно назначенный владелец может изменить topology Fields через
+  [атомарный ввод Boundary](../../quantum/boundary/DOMAIN.md#атомарный-ввод-значений-fields)
+  с проверкой полного write-set и ожидаемых прежних значений;
+- разворачиванием topology в обоих случаях владеет Boundary, а не внешний
+  наблюдатель.
 
 Dark не может создать Macho child atoms: multiplicity определяется current
 array value materialized atom. Этой identity и разворачиванием владеет
@@ -108,6 +114,11 @@ Boundary.
 - `Boundary` фиксирует atom value и перестраивает только зависимую ветвь,
 - после commit `Boundary` выпускает canonical consequences,
 - `Matrix` и `Bulk` применяют отдельные derived particles этой ветви.
+
+Подтверждённый владельческий набор одного Atom с topology Field переносится
+одним закрытым canonical Higgs, включая связанные ordinary Fields. Matrix
+применяет весь набор до такта; это исключает наблюдение промежуточного State
+между частями одного изменения. Legacy Higgs не получает право ordinary input.
 
 Dark не является runtime-наблюдателем этих изменений. Он читает source topology
 declaration и передаёт её через Inflaton; runtime consequences принадлежат

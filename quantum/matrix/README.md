@@ -281,6 +281,14 @@ consequence определяется execution identity, а не адресом 
 Это правило не превращает Process в общую блокировку: выполнение Energy
 происходит за пределами такта Matrix.
 
+Владельческий набор Fields одного Atom приходит от Boundary одним подтверждённым
+событием с каноническими Value identities. Matrix применяет весь набор до
+проверки переходов: смешанное изменение ordinary, enum и array Fields не
+создаёт такт по промежуточным значениям. Ordinary Fields внутри Higgs разрешены
+только этому закрытому canonical commit от Boundary; прежний Higgs сохраняет
+свой topology scope. Это проверяется настоящим CPU backend Matrix в
+[`атомарном Field fixture`](../dark/oracle/runtime-fields.integration.spec.ts).
+
 ## Устаревшие и ошибочные сообщения
 
 Matrix не принимает сообщение о выполнении, если не совпадает хотя бы одна

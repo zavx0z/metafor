@@ -102,7 +102,8 @@ export const open = async (filename?: string, options: BoundaryOpenOptions = {})
     return serialize(async () => {
       const executionCommit = await execution.apply(message)
       const reactionCommit = await reaction.apply(message)
-      const inputCommit = await input.apply(message)
+      const fieldsCommit = await projection.applyFieldValuesTransaction(message)
+      const inputCommit = fieldsCommit ?? await input.apply(message)
       const stateMatterCommit = executionCommit !== undefined
         ? await projection.reconcileStateMatter(message.parts[0])
         : null

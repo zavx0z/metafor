@@ -36,6 +36,7 @@ import type {PeerNetwork} from "@metafor/tech-peer"
 import type {OracleChannel} from "shared/transport/oracle"
 import {createDomainPeerChannels} from "./force/peer"
 import type {RemoteForceDomain} from "./force/store"
+import type {MetaForceAcceptanceIdentity} from "shared/protocol/metafor/authoring"
 
 /** Dark владеет причинными handlers; release предоставляет единственный listener. */
 import type {DarkRuntimeSocketData} from "./types/runtime"
@@ -54,6 +55,13 @@ export interface DarkRuntimeOptions {
   peer?: {network: PeerNetwork, identities: ReadonlyMap<string, RemoteForceDomain>}
   /** Explicit in-process composition; admission of external clients belongs to their owning capability. */
   localOracleChannels?: readonly OracleChannel[]
+  /**
+  Локальный read-only сигнал после applied-through производной Particle Boundary.
+  Передаёт identity её acceptance, а не удержанный Graph/frontier. Не вызывается
+  без checkpoint; ошибки callback изолированы, результат не ожидается.
+  Закрытие incarnation прекращает уведомления. @see ../../docs/DARK.md
+  */
+  onWorldChange?: (acceptance: MetaForceAcceptanceIdentity) => void
 }
 
 /** Native lifecycle events supply an ordinary root Field value; Meta owns the resulting Process policy. */
@@ -122,7 +130,7 @@ export async function createDarkRuntime(options: DarkRuntimeOptions) {
     ? installForceCheckpointSideband("dark", rpc)
     : null
 
-  const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefined, participants)
+  const lifecycle = new ForceLifecycle(forceHistory, checkpoint ?? undefined, participants, options.onWorldChange)
   const peerChannels = options.peer ? createDomainPeerChannels({...options.peer, router, lifecycle}) : undefined
   const authoringRegistry = new MetaAuthoringRegistry(authoringConfiguration
     ? [[
@@ -136,7 +144,7 @@ export async function createDarkRuntime(options: DarkRuntimeOptions) {
   const timeControl = new DarkForceTimeController(lifecycle, checkpoint)
   oracle.setTimeControl(timeControl)
   oracle.setHistory(new DarkForceHistoryReadService(forceHistory))
-  const runtimeInputs = new MetaRuntimeRpcService(forceHistory, lifecycle, rpc)
+  const runtimeInputs = new MetaRuntimeRpcService(forceHistory, lifecycle, rpc, timeControl)
   oracle.setRuntime(runtimeInputs)
   oracle.setAuthoring({
     working: new WorkingDeclarationService(forceHistory, lifecycle, source => authoringRegistry.grants(source), async address => {

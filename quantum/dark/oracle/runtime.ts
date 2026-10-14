@@ -1,11 +1,16 @@
 import {
   META_FIELD_VALUE_APPLY_METHOD,
+  META_FIELDS_VALUE_APPLY_METHOD,
   META_OBSERVATION_CONTRACT_VERSION,
   META_PROCESS_EXECUTION_READ_METHOD,
   validateMetaFieldValueApplyRequest,
+  validateMetaFieldsValueApplyRequest,
+  isMetaFieldsValueApplyRefusal,
   validateMetaProcessExecutionReadRequest,
   type MetaCausalFrontier,
   type MetaFieldValueApplyReceipt,
+  type MetaFieldsValueApplyReceipt,
+  type MetaFieldsValueApplyRefusal,
   type MetaProcessExecutionOutcome,
   type MetaProcessExecutionReadReceipt,
   type MetaProcessExecutionStatus,
@@ -13,6 +18,7 @@ import {
 import type {MetaForceAcceptanceIdentity} from "shared/protocol/metafor/authoring"
 import {
   BOUNDARY_FIELD_VALUE_PLAN_METHOD,
+  BOUNDARY_FIELDS_VALUE_PLAN_METHOD,
   BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
   type BoundaryProcessExecutionProjection,
 } from "shared/protocol/boundary/runtime"
@@ -21,6 +27,8 @@ import type {DarkForceHistory, DarkForceHistoryParticle} from "../force/history.
 import type {ForceLifecycle} from "../force/lifecycle.ts"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import {OracleRpcAdmissionRefusedError} from "shared/transport/oracle"
+import {resolveForceFieldValuesTransaction} from "shared/protocol/force/fields"
+import type {DarkForceTimeControl} from "../time-control"
 
 type RuntimePeer = Pick<OracleRpcPeer, "call">
 type RuntimeHistory = Pick<DarkForceHistory, "read" | "status">
@@ -54,6 +62,22 @@ const plannedFieldParticle = (value: unknown): ForceMessageInput => {
   return structuredClone(value) as unknown as ForceMessageInput
 }
 
+const plannedFieldsParticle = (value: unknown, count: number): ForceMessageInput => {
+  if (!isRecord(value) || !Array.isArray(value.parts) || value.parts.length !== 1) throw new Error("Boundary returned an invalid Fields Particle plan")
+  const part = value.parts[0]
+  if (!isRecord(part) || !["gluon", "higgs"].includes(String(part.part)) || part.op !== "replace" || part.from !== undefined ||
+      typeof part.path !== "number" || !Number.isSafeInteger(part.path) || part.path <= 0 ||
+      typeof part.ts !== "number" || !Number.isSafeInteger(part.ts) || part.ts < 0) throw new Error("Boundary returned an invalid Fields Particle plan")
+  const fields = resolveForceFieldValuesTransaction(part.value)
+  if (!fields || Object.keys(fields.fields).length !== count) throw new Error("Boundary returned an incomplete Fields Particle plan")
+  return structuredClone(value) as unknown as ForceMessageInput
+}
+
+const fieldsRefused = (reason: MetaFieldsValueApplyRefusal["reason"], fields: string[] = []): OracleRpcAdmissionRefusedError =>
+  new OracleRpcAdmissionRefusedError(`Fields input was not admitted: ${reason}`, {
+    schema: "metafor/fields-admission-refusal/v1", contractVersion: 1, reason, fields,
+  } satisfies MetaFieldsValueApplyRefusal)
+
 const projection = (value: unknown): BoundaryProcessExecutionProjection => {
   if (!isRecord(value) || !Object.hasOwn(value, "status") || !Object.hasOwn(value, "outcome") || Object.keys(value).length !== 2) {
     throw new Error("Boundary returned an invalid Process execution projection")
@@ -73,6 +97,7 @@ export class MetaRuntimeRpcService {
     private readonly history: RuntimeHistory,
     private readonly ingress: RuntimeIngress,
     private readonly peer: RuntimePeer,
+    private readonly causal?: Pick<DarkForceTimeControl, "readAtExactFrontier">,
   ) {}
 
   async applyFieldValue(input: unknown): Promise<MetaFieldValueApplyReceipt> {
@@ -103,6 +128,32 @@ export class MetaRuntimeRpcService {
       acceptance: structuredClone(decision.acceptance),
       frontier: this.frontier(),
     }
+  }
+
+  /**
+  Проверяет весь CAS на held applied-through frontier, затем принимает один
+  Particle при неизменившейся границе. Между planning и acceptance Boundary не
+  получает записи. Любой доказанный конфликт возвращает no-admission refusal.
+  */
+  async applyFieldsValue(input: unknown): Promise<MetaFieldsValueApplyReceipt> {
+    const validation = validateMetaFieldsValueApplyRequest(input)
+    if (!validation.ok) throw invalid(validation.issues)
+    const request = validation.value
+    if (!this.causal) throw new Error("Atomic Fields input requires an applied-through causal reader")
+    const plan = await this.causal.readAtExactFrontier(async held => {
+      if (held.cutId !== request.expectedFrontier.cutId || held.acceptanceSequence !== request.expectedFrontier.throughSequence) throw fieldsRefused("frontier_mismatch")
+      const planned = await this.peer.call("boundary", BOUNDARY_FIELDS_VALUE_PLAN_METHOD, request)
+      if (isMetaFieldsValueApplyRefusal(planned)) throw fieldsRefused(planned.reason, planned.fields)
+      return plannedFieldsParticle(planned, request.updates.length)
+    })
+    const decision = await this.ingress.acceptAgentParticleAtFrontier(plan, request.expectedFrontier)
+    if (!decision.ok) {
+      if (decision.reason !== "runtime_error") throw fieldsRefused(decision.reason)
+      throw new Error(decision.error)
+    }
+    if (decision.acceptance.cutId !== request.expectedFrontier.cutId || decision.acceptance.sequence !== request.expectedFrontier.throughSequence + 1) throw new Error("Dark Force returned a non-contiguous Fields acceptance identity")
+    return {contractVersion: META_OBSERVATION_CONTRACT_VERSION, resolution: "exact", atom: structuredClone(request.atom),
+      fields: request.updates.map(update => update.field), acceptance: structuredClone(decision.acceptance), frontier: this.frontier()}
   }
 
   async readProcessExecution(input: unknown): Promise<MetaProcessExecutionReadReceipt> {
@@ -163,4 +214,4 @@ export class MetaRuntimeRpcService {
   }
 }
 
-export {META_FIELD_VALUE_APPLY_METHOD, META_PROCESS_EXECUTION_READ_METHOD}
+export {META_FIELD_VALUE_APPLY_METHOD, META_FIELDS_VALUE_APPLY_METHOD, META_PROCESS_EXECUTION_READ_METHOD}

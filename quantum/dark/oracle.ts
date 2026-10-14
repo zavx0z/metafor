@@ -29,6 +29,7 @@ import {DARK_FORCE_HISTORY_READ_METHOD} from "shared/protocol/metafor/observatio
 import type {DarkForceHistoryReadService} from "./oracle/history.ts"
 import {
   META_FIELD_VALUE_APPLY_METHOD,
+  META_FIELDS_VALUE_APPLY_METHOD,
   META_PROCESS_EXECUTION_READ_METHOD,
   type MetaRuntimeRpcService,
 } from "./oracle/runtime.ts"
@@ -147,7 +148,7 @@ export class DarkOracle {
   #pauseMutationRelease: (() => void) | null = null
   #authoring: DarkMetaAuthoringRpc | null = null
   #history: Pick<DarkForceHistoryReadService, "read"> | null = null
-  #runtime: Pick<MetaRuntimeRpcService, "applyFieldValue" | "readProcessExecution"> | null = null
+  #runtime: (Pick<MetaRuntimeRpcService, "applyFieldValue" | "readProcessExecution"> & Partial<Pick<MetaRuntimeRpcService, "applyFieldsValue">>) | null = null
 
   constructor(
     private readonly readDeclarationProjection?: DeclarationProjectionReader,
@@ -191,7 +192,7 @@ export class DarkOracle {
     this.#history = service
   }
 
-  setRuntime(service: Pick<MetaRuntimeRpcService, "applyFieldValue" | "readProcessExecution">): void {
+  setRuntime(service: Pick<MetaRuntimeRpcService, "applyFieldValue" | "readProcessExecution"> & Partial<Pick<MetaRuntimeRpcService, "applyFieldsValue">>): void {
     if (this.#state !== "created" || this.#runtime) {
       throw new Error("Dark Oracle runtime RPC is already installed or RPC registration has started")
     }
@@ -257,6 +258,8 @@ export class DarkOracle {
           async () => await this.#runtime!.applyFieldValue(params),
         ),
       )
+      if (this.#runtime.applyFieldsValue) peer.expose(META_FIELDS_VALUE_APPLY_METHOD,
+        async params => await this.#mutations.run(async () => await this.#runtime!.applyFieldsValue!(params)))
       peer.expose(
         META_PROCESS_EXECUTION_READ_METHOD,
         async (params) => await this.#runtime!.readProcessExecution(params),

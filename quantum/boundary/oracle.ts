@@ -4,6 +4,7 @@ import {
 } from "shared/protocol/boundary/initial"
 import {
   BOUNDARY_FIELD_VALUE_PLAN_METHOD,
+  BOUNDARY_FIELDS_VALUE_PLAN_METHOD,
   BOUNDARY_GRAPH_PROJECTION_METHOD,
   BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
 } from "shared/protocol/boundary/runtime"
@@ -41,6 +42,7 @@ export class BoundaryOracle {
       BOUNDARY_FIELD_VALUE_PLAN_METHOD,
       async (params) => await this.#runtime.planFieldValue(params),
     )
+    peer.expose(BOUNDARY_FIELDS_VALUE_PLAN_METHOD, async params => await this.#runtime.planFieldsValue(params))
     peer.expose(
       BOUNDARY_PROCESS_EXECUTION_PROJECT_METHOD,
       async (params) => await this.#runtime.projectProcessExecution(params),
