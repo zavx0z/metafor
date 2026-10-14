@@ -1,11 +1,68 @@
 import {client, methods, PROTOCOL_VERSION, type SessionNotification, type SessionConfigOption} from "@agentclientprotocol/sdk"
 import peer from "@zavx0z/provider-tech-peer"
 import type {PeerConnection, PeerNetwork} from "@zavx0z/provider-tech-peer/types"
-import type {ProviderDriver as ChatDriver, ProviderConnection as ChatConnection} from "./runtime-types"
+import type {ProviderDriver as ChatDriver, ProviderConnection as ChatConnection, ProviderRecoveryResult} from "./runtime-types"
 import type {ProviderBinding as ChatProviderBinding} from "@metafor/types/metafor/providers"
 
 /** Host supplies an assigned network lease; this driver never discovers another host or executable. */
 export type ChatPeerNetworkLease = Readonly<{network: PeerNetwork; close?(): Promise<void>}>
+
+const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
+const recoveryKey = "zavx0z.provider.browser.recovery"
+function recoveryResult(value: unknown, expected: {sessionId: string; prompt: string}): ProviderRecoveryResult {
+  const keys = ["schema", "version", "service", "sessionId", "turnId", "turnCount", "prompt", "response", "conversationId", "requestId", "userId", "assistantId", "attachments", "complete"]
+  const reference = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 4096 && !/[\s\u0000-\u001f\u007f]/u.test(value) && !/^(blob|data):/i.test(value)
+  if (!object(value) || Object.keys(value).length !== keys.length || !keys.every(key => Object.hasOwn(value, key)) ||
+      value.schema !== "provider/browser-recovery/v1" || value.version !== 1 || value.service !== "qwen" || value.complete !== true ||
+      value.sessionId !== expected.sessionId || value.prompt !== expected.prompt || typeof value.response !== "string" || !value.response.trim() ||
+      !Number.isSafeInteger(value.turnCount) || (value.turnCount as number) < 1 ||
+      new TextEncoder().encode(value.response).byteLength > 8 * 1024 * 1024 || !Array.isArray(value.attachments) || value.attachments.length !== 0 ||
+      ![value.turnId, value.conversationId, value.requestId, value.userId, value.assistantId].every(reference) || value.userId === value.assistantId) {
+    throw new Error("Provider не подтвердил strict native receipt исходной отправки")
+  }
+  return {sessionId: expected.sessionId, prompt: expected.prompt, response: value.response,
+    native: {turnId: value.turnId as string, turnCount: value.turnCount as number, conversationId: value.conversationId as string, requestId: value.requestId as string,
+      userId: value.userId as string, assistantId: value.assistantId as string}}
+}
+
+/** Один admission прежней session и один load; replay chunks не являются recovery receipt. */
+async function recoverPeerProvider(options: {binding: ChatProviderBinding; connect(signal: AbortSignal): Promise<ChatPeerNetworkLease>},
+  input: {sessionId: string; prompt: string; signal: AbortSignal}): Promise<ProviderRecoveryResult> {
+  input.signal.throwIfAborted()
+  if (options.binding.service !== "qwen" || !input.sessionId || !input.prompt.trim()) throw new Error("Provider не предоставляет recovery этого назначения")
+  const lease = await options.connect(input.signal)
+  const remote = peer.createPeerClient(lease.network)
+  let port: PeerConnection | undefined
+  let connection: ReturnType<ReturnType<typeof client>["connect"]> | undefined
+  let failure: Error | undefined
+  let disposed = false
+  const abort = () => connection?.close(input.signal.reason)
+  try {
+    port = await remote.open({peerId: options.binding.remotePeerId, executorId: options.binding.executorId,
+      ...(options.binding.assignmentId === undefined ? {} : {assignmentId: options.binding.assignmentId}),
+      previousSessionId: input.sessionId, signal: input.signal})
+    connection = client({name: "metafor-provider-recovery"})
+      .onRequest(methods.client.session.requestPermission, async () => ({outcome: {outcome: "cancelled" as const}}))
+      .onNotification(methods.client.session.update, ({params}) => {
+        if (params.sessionId !== input.sessionId) {failure = new Error("Provider recovery прислал чужую native session"); connection?.close(failure)}
+      }).connect(port.stream)
+    const active = connection
+    void port.closed.then(() => {if (!disposed) {failure = new Error("Provider recovery connection потеряно"); active.close(failure)}})
+    input.signal.addEventListener("abort", abort, {once: true})
+    input.signal.throwIfAborted()
+    const initialized = await active.agent.request(methods.agent.initialize, {protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}}, {cancellationSignal: input.signal})
+    if (initialized.protocolVersion !== PROTOCOL_VERSION || initialized.agentCapabilities?.loadSession !== true) throw new Error("Provider не предоставляет strict session/load")
+    const loaded = await active.agent.request(methods.agent.session.load, {sessionId: input.sessionId, cwd: "/", mcpServers: []}, {cancellationSignal: input.signal})
+    input.signal.throwIfAborted()
+    if (failure) throw failure
+    return recoveryResult(loaded._meta?.[recoveryKey], input)
+  } finally {
+    disposed = true
+    input.signal.removeEventListener("abort", abort)
+    connection?.close()
+    try {await port?.dispose()} finally {try {await remote.close()} finally {await lease.close?.()}}
+  }
+}
 
 /** Finite ACP admission/initialize only: no native session is created and no model is prompted. */
 export async function checkPeerProvider(options: {binding: ChatProviderBinding; connect(signal: AbortSignal): Promise<ChatPeerNetworkLease>}, signal: AbortSignal): Promise<void> {
@@ -46,7 +103,7 @@ values, flattens groups for presentation and never prompts. [Owner](README.md); 
 */
 export function createPeerChatDriver(options: {binding: ChatProviderBinding; connect(signal: AbortSignal): Promise<ChatPeerNetworkLease>}): ChatDriver {
   const binding = Object.freeze(structuredClone(options.binding))
-  return {binding, async open(input): Promise<ChatConnection> {
+  return {binding, ...(binding.service === "qwen" ? {recover: (input: {sessionId: string; prompt: string; signal: AbortSignal}) => recoverPeerProvider({...options, binding}, input)} : {}), async open(input): Promise<ChatConnection> {
     input.signal.throwIfAborted()
     let lease: ChatPeerNetworkLease | undefined
     let remote: ReturnType<typeof peer.createPeerClient> | undefined

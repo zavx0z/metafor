@@ -57,12 +57,40 @@ export default async function turn(input: ProviderTurnInput): Promise<ProviderTu
     if (previous && (previous.request.operation !== task.operation || JSON.stringify(previous.request.selection) !== JSON.stringify(task.selection) || previous.request.prompt !== task.prompt || previous.request.sessionId !== task.sessionId || previous.request.providerRef !== task.providerRef || !sameBinding(previous.request.expectedBinding, task.expectedBinding)))
       return receipt("not-sent", null, "Provider request identity already belongs to different content", state.sessionId)
     if (previous?.result) return structuredClone(previous.result)
-    if (state.requests.some(row => (row.phase === "prompting" || row.phase === "configuring"))) return receipt("uncertain", null, "Provider prompt outcome is uncertain; automatic resend is forbidden", state.sessionId)
     const save = async () => {
       input.signal.throwIfAborted()
       if (Buffer.byteLength(JSON.stringify(state)) > 8 * 1024 * 1024) throw new Error("Provider turn ledger exceeds its limit")
       await handle.write(state)
       input.signal.throwIfAborted()
+    }
+    if (state.requests.some(row => row.phase === "prompting" || row.phase === "configuring")) {
+      if (!previous || previous !== state.requests.at(-1) || previous.phase !== "prompting" || task.operation !== undefined ||
+          state.requests.slice(0, -1).some(row => row.phase !== "completed" && row.phase !== "failed") ||
+          !state.sessionId || !state.binding || task.providerRef !== providerRef) {
+        return receipt("uncertain", null, "Provider prompt outcome is uncertain; automatic resend is forbidden", state.sessionId)
+      }
+      try {
+        const registry = parseProviderRegistry(JSON.parse(await input.mass.registry.readText() || "null"))
+        const selected = input.binding ?? registry.settings.selectedId
+        if (!selected) throw new Error("Provider has no selected canonical assignment")
+        const current = resolveProviderBinding(registry, selected)
+        if (!sameBinding(state.binding, current) || task.expectedBinding !== null && !sameBinding(task.expectedBinding, current)) throw new Error("Recovery Provider binding changed")
+        const driver = input.driver ?? await authorizedProviderDriver(current)
+        if (driver.binding && !sameBinding(driver.binding, current) || !driver.recover) throw new Error("Provider has no strict read recovery capability")
+        const result = await driver.recover({sessionId: state.sessionId, prompt: task.prompt, signal: input.signal})
+        input.signal.throwIfAborted()
+        if (result.sessionId !== state.sessionId || result.prompt !== task.prompt || typeof result.response !== "string" || !result.response.trim() ||
+            result.native.turnCount !== state.requests.filter(row => row.phase === "completed" && row.request.operation === undefined).length + 1 ||
+            ![result.native.turnId, result.native.conversationId, result.native.requestId, result.native.userId, result.native.assistantId].every(identity) ||
+            result.native.userId === result.native.assistantId) throw new Error("Provider recovery receipt does not match the retained turn")
+        previous.phase = "completed"
+        previous.result = receipt("completed", result.response, null, state.sessionId)
+        await save()
+        return structuredClone(previous.result)
+      } catch (error) {
+        input.signal.throwIfAborted()
+        return receipt("uncertain", null, error instanceof Error ? error.message : "Provider recovery remains uncertain", state.sessionId)
+      }
     }
     for (const row of state.requests) if (row.phase === "opening") {
       row.phase = "failed"

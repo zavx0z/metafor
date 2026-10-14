@@ -9,6 +9,17 @@ import {parseProviderDiscoveryRequest, sameProviderBinding} from "./protocol"
 
 type RegistryMass = {readText(): Promise<string>, write(value: unknown): Promise<void>}
 
+const backgroundObservation = (request: {id: string, register?: unknown, configure?: unknown, configureHash?: string, check?: string}): boolean =>
+  /^peer-event:[0-9]+:[0-9]+$/.test(request.id) && request.register === undefined && request.configure === undefined &&
+  request.configureHash === undefined && request.check === undefined
+
+/** Только read-only peer receipts вытесняются; command identity и их replay остаются в Mass. */
+function compactBackgroundObservations(registry: ProviderRegistry, incomingBackground: boolean): void {
+  const retained = registry.requests.filter(request => !backgroundObservation(request)).length
+  let remaining = Math.max(0, Math.min(incomingBackground ? 63 : 64, 1023 - retained))
+  registry.requests = [...registry.requests].reverse().filter(request => !backgroundObservation(request) || remaining-- > 0).reverse()
+}
+
 /** A trusted admission adapter supplies only public Oracle observations, never telemetry. */
 export interface ProviderDiscoverySource {
   read(signal: AbortSignal): Promise<{peers: readonly ProviderPeerObservation[], remoteGraphs: Array<{peerId: string, graph: Graph}>}>
@@ -66,6 +77,7 @@ export default async function discoverProviders(input: ProviderDiscoverInput) {
       if (!sameProviderBinding(previous.register ?? null, request.register ?? null) || previous.configureHash !== configureHash || previous.check !== request.check) throw new Error("Provider discovery request identity conflicts with earlier content")
       return {...receipt(discoveryAckId, previous.revision, registry), providerRef}
     }
+    compactBackgroundObservations(registry, backgroundObservation(request))
     if (registry.requests.length >= 1024) throw new Error("Provider discovery request ledger is full")
     if (request.configure || request.check) {
       if (request.configure && request.configure.revision !== (registry.settings.configuration?.revision ?? 0)) throw new Error("Конфигурация Provider изменилась; обновите настройки")

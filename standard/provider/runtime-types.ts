@@ -11,6 +11,15 @@ export interface ProviderDriver {
   readonly binding?: ProviderBinding
   open(input: {sessionId: string | null; signal: AbortSignal}): Promise<ProviderConnection>
   check?(signal: AbortSignal): Promise<void>
+  /** Только чтение прежней native сессии с полной server receipt, без prompt/new/resume. Встроенный peer adapter предоставляет Qwen recovery. */
+  recover?(input: {sessionId: string; prompt: string; signal: AbortSignal}): Promise<ProviderRecoveryResult>
+}
+/** Подтверждённый native owner результат; transcript без этих anchors недостаточен для recovery. */
+export interface ProviderRecoveryResult {
+  sessionId: string
+  prompt: string
+  response: string
+  native: {turnId: string; turnCount: number; conversationId: string; requestId: string; userId: string; assistantId: string}
 }
 export type ProviderEnergy = {connection?: ProviderConnection}
 export interface ProviderTurnInput {

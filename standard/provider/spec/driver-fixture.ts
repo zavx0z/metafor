@@ -3,7 +3,7 @@ import {agent,methods,PROTOCOL_VERSION,type AnyMessage} from "@agentclientprotoc
 import peer from "@zavx0z/provider-tech-peer"
 import browserPeer from "@zavx0z/provider-tech-peer/browser"
 import type {PeerNetwork} from "@metafor/tech-peer"
-import {mkdtemp,writeFile,rm} from "node:fs/promises"
+import {mkdtemp,writeFile,readFile,rm} from "node:fs/promises"
 import {tmpdir} from "node:os"
 import {join} from "node:path"
 
@@ -64,9 +64,9 @@ const browser=browserPeer.createBrowserPeerHost({network:hostNetwork,authorize:(
 const directory=await mkdtemp(join(tmpdir(),"provider-native-link-"))
 const config=join(directory,"providers.json"),token=join(directory,"token")
 await writeFile(token,"fixture-only-owner-private-token",{mode:0o600})
-await writeFile(config,JSON.stringify({version:1,hosts:{assigned:{peerId:"host",network:{peerId:"consumer",viewerPeerId:"viewer",signalingUrl:"ws://127.0.0.1:9/peer",tokenFile:token,relay:true}}},bindings:{selected:{service:"chatgpt",host:"assigned",executorId:"browser",connection:{id:"selected",provider:"capsule",label:"Assigned Capsule",enabled:true,endpoint:{url:`http://127.0.0.1:${native.port}`,profile:"assigned",service:"chatgpt"}}}}}),{mode:0o600})
+await writeFile(config,JSON.stringify({version:1,hosts:{assigned:{peerId:"host",network:{peerId:"consumer",viewerPeerId:"viewer",conversationPeerId:"conversations",signalingUrl:"ws://127.0.0.1:9/peer",tokenFile:token,relay:true}}},bindings:{selected:{service:"chatgpt",host:"assigned",executorId:"browser",connection:{id:"selected",provider:"capsule",label:"Assigned Capsule",enabled:true,endpoint:{url:`http://127.0.0.1:${native.port}`,profile:"assigned",service:"chatgpt"}}}}}),{mode:0o600})
 process.env.ORACLE_AGENT_PROVIDER_CONFIG=config
-const {checkProviderBinding,checkProviderRegistration,authorizedProviderBrowserClient,resolveConfiguredProvider}=await import("../driver")
+const {checkProviderBinding,checkProviderRegistration,authorizedProviderBrowserClient,authorizedProviderPeerLease,parseNativeProviderCapabilities,resolveConfiguredProvider}=await import("../driver")
 const binding={id:"selected",service:"chatgpt",host:"assigned",remotePeerId:"host",executorId:"browser"}
 try{
   const which=process.argv[2]
@@ -109,6 +109,35 @@ try{
     expect(factories).toBe(1)
     expect(initializations).toBe(1)
     expect(closes).toEqual(["consumer"])
+  }else if(which==="conversation-policy"){
+    const configured=JSON.parse(await readFile(config,"utf8"))
+    for(const conversationPeerId of ["consumer","viewer","host","invalid identity"]){
+      const altered=structuredClone(configured)
+      altered.hosts.assigned.network.conversationPeerId=conversationPeerId
+      expect(()=>parseNativeProviderCapabilities(altered)).toThrow()
+    }
+    delete configured.hosts.assigned.network.conversationPeerId
+    expect(parseNativeProviderCapabilities(configured).hosts.assigned!.network.peerId).toBe("consumer")
+    await writeFile(config,JSON.stringify(configured))
+    await expect(authorizedProviderPeerLease(binding,AbortSignal.timeout(2000))).rejects.toThrow("separate native conversation identity")
+    expect(factories).toBe(0)
+  }else if(which==="conversation"){
+    let finish!:()=>void
+    initializeBarrier=new Promise<void>(resolve=>{finish=resolve})
+    const checking=checkProviderBinding(binding,AbortSignal.timeout(2000))
+    await wait(()=>initializations===1)
+    const first=await authorizedProviderPeerLease(binding,AbortSignal.timeout(2000))
+    const second=await authorizedProviderPeerLease(binding,AbortSignal.timeout(2000))
+    expect(first.network.id).toBe("conversations")
+    expect(second.network).toBe(first.network)
+    expect(connects).toEqual(["consumer:host","conversations:host","conversations:host"])
+    await first.close()
+    expect(closes).toEqual([])
+    await second.close()
+    expect(closes).toEqual(["conversations"])
+    finish()
+    await checking
+    expect(closes).toEqual(["conversations","consumer"])
   }else if(which==="viewer"){
     let finish!:()=>void
     initializeBarrier=new Promise<void>(resolve=>{finish=resolve})

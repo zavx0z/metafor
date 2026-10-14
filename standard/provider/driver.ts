@@ -11,7 +11,7 @@ import {parseProviderExecutionSettings} from "@metafor/types/metafor/provider-va
 import {createOllamaDriver, readOllamaOptions, type OllamaInstallation} from "./ollama-driver"
 import {codexDriver} from "./codex-driver"
 
-type Network = {peerId: string; viewerPeerId?: string; signalingUrl: string; tokenFile: string; relay?: boolean; rtc?: {ipv4?: boolean; ipv6?: boolean}; iceServers?: IceServer[]}
+type Network = {peerId: string; viewerPeerId?: string; conversationPeerId?: string; signalingUrl: string; tokenFile: string; relay?: boolean; rtc?: {ipv4?: boolean; ipv6?: boolean}; iceServers?: IceServer[]}
 type Host = {peerId: string; network: Network}
 export type NativeProviderCapabilities = {version: 1; ollama?: OllamaInstallation; hosts: Record<string, Host>; bindings: Record<string, {service: string; host: string; executorId: string; assignmentId?: string; connection?: ProviderConnection}>}
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
@@ -34,10 +34,11 @@ export function parseNativeProviderCapabilities(value: unknown): NativeProviderC
     if (!id(name) || !object(host) || !id(host.peerId) || !object(host.network)) throw new Error("Invalid native Provider host")
     only(host, ["peerId", "network"])
     const network = host.network
-    only(network, ["peerId", "viewerPeerId", "signalingUrl", "tokenFile", "relay", "rtc", "iceServers"])
+    only(network, ["peerId", "viewerPeerId", "conversationPeerId", "signalingUrl", "tokenFile", "relay", "rtc", "iceServers"])
     if (!id(network.peerId) || network.peerId === host.peerId || typeof network.tokenFile !== "string" || !isAbsolute(network.tokenFile) ||
         typeof network.signalingUrl !== "string" || network.relay !== undefined && typeof network.relay !== "boolean") throw new Error("Invalid native Provider network")
     if (network.viewerPeerId !== undefined && (!id(network.viewerPeerId) || network.viewerPeerId === network.peerId || network.viewerPeerId === host.peerId)) throw new Error("Invalid assigned native viewer identity")
+    if (network.conversationPeerId !== undefined && (!id(network.conversationPeerId) || [network.peerId, network.viewerPeerId, host.peerId].includes(network.conversationPeerId))) throw new Error("Invalid assigned native conversation identity")
     const url = new URL(network.signalingUrl)
     if (!["ws:", "wss:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error("Invalid native Provider signaling URL")
     if (network.rtc !== undefined) {
@@ -140,7 +141,7 @@ async function acquire(host: Host, signal: AbortSignal) {
 }
 
 /** Authorizes an existing canonical binding against the assigned native file; never selects a catalog entry. */
-async function peerOptions(binding: ProviderBinding, viewer = false) {
+async function peerOptions(binding: ProviderBinding, purpose: "operation" | "viewer" | "conversation" = "operation") {
   const bindingId = binding.id
   if (!id(bindingId)) throw new Error("Invalid Chat provider binding ID")
   const path = process.env.ORACLE_AGENT_PROVIDER_CONFIG
@@ -154,9 +155,13 @@ async function peerOptions(binding: ProviderBinding, viewer = false) {
   const expected: ChatProviderBinding = {id: bindingId, service: selected.service, host: selected.host, remotePeerId: host.peerId, executorId: selected.executorId,
     ...(selected.assignmentId === undefined ? {} : {assignmentId: selected.assignmentId})}
   if (["id", "service", "host", "remotePeerId", "executorId", "assignmentId"].some(key => expected[key as keyof ProviderBinding] !== binding[key as keyof ProviderBinding])) throw new Error("Canonical Provider binding is outside its assigned native transport capability")
-  if (viewer) {
+  if (purpose === "viewer") {
     if (!host.network.viewerPeerId) throw new Error("Host has not assigned a separate native viewer identity")
     host = {...host, network: {...host.network, peerId: host.network.viewerPeerId}}
+  }
+  if (purpose === "conversation") {
+    if (!host.network.conversationPeerId) throw new Error("Host has not assigned a separate native conversation identity")
+    host = {...host, network: {...host.network, peerId: host.network.conversationPeerId}}
   }
   return {binding: structuredClone(binding), async connect(signal: AbortSignal) {
     const lease = await acquire(host, signal)
@@ -185,6 +190,17 @@ export async function authorizedProviderDriver(binding: ProviderBinding): Promis
   }
   const {createPeerChatDriver} = await import("./peer-driver")
   return createPeerChatDriver(await peerOptions(binding))
+}
+
+/**
+ * Выдаёт общую peer-сеть бесед только для уже назначенной native capability.
+ * Отдельная conversationPeerId не конкурирует с Energy discovery или viewer другого процесса.
+ * Caller освобождает lease после собственных ACP streams; соседние сессии
+ * сохраняют свои leases. Credentials и native parsing остаются у Provider.
+ * @see README.md
+ */
+export async function authorizedProviderPeerLease(binding: ProviderBinding, signal: AbortSignal) {
+  return (await peerOptions(binding, "conversation")).connect(signal)
 }
 
 /** Transport admission is a current observation; it never claims a successful model response or login. */
@@ -237,7 +253,7 @@ export async function authorizedProviderBrowserClient(binding: ProviderBinding, 
 }
 
 async function assignedBrowserClient(binding: ProviderBinding, signal: AbortSignal, viewer: boolean) {
-  const options = await peerOptions(binding, viewer)
+  const options = await peerOptions(binding, viewer ? "viewer" : "operation")
   const lease = await options.connect(signal)
   let client: import("@zavx0z/provider-tech-peer/browser-types").BrowserPeerClient
   try {
