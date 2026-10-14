@@ -1,7 +1,17 @@
+import type {ClientWorkspaceSubscription} from "@metafor/types/cosmos/client"
+import type {CosmosRoomScope} from "@metafor/types/cosmos/conversation-groups"
+import {createConversationExecutionResolver} from "./conversation-execution"
+import {createCosmosConversations} from "./conversations"
+import {COSMOS_CONVERSATIONS_PATH} from "../shared/conversations"
+import type {CosmosAgentScope} from "../shared/agent-profile"
 import {providerConnectionOptions} from "./provider-options"
 import {providerConnections} from "./provider-connections"
 import {parseProviderExecutionSettings} from "@metafor/types/metafor/provider-validation"
 import {providerSettings} from "./provider-settings"
+import {AtomFieldEditError, createAtomFieldBridge} from "./atom-fields"
+import {ATOM_FIELD_EDIT_PATH, ATOM_FIELDS_EDIT_PATH} from "../shared/atom-fields"
+import {createAtomFieldsBatchBridge} from "./atom-fields-batch"
+import {recoverAgentChat} from "./agent-chat-recovery"
 /**
 Release-owned local browser adapter for readAgents, readGraph, own Chat Mass,
 explicit slot connection, initial Provider selection and assigned profile intent.
@@ -119,13 +129,15 @@ function chatBindingLocked(read: EnergyMassResultReadReceipt | null): boolean {
 Only a user POST admits an intention. A slot connection changes only its declared
 enabled Field; profile lifecycle stays with the assigned Energy Oracle. Reads
 share one in-flight observation and do not start a provider. The revision is
-accepted history position, not a cache key for
-ordinary Graph/Mass reads: consumers keep observing while a task is active.
-There is no public Photon subscription in this slice; polling is labelled.
+accepted history position, not a cache key for independent Graph/Mass reads.
+Window invalidation observes owning world changes; it does not expose Photon
+payloads or turn independent projections into one retained causal snapshot.
 [Checks](../spec/agents-connection-profile.spec.ts) cover explicit connection,
 duplicate admission, exact owning profile targets and absence of automatic work.
 */
-export function createAgentUiBridge(options: {peer: Peer, admitted?: () => boolean, verseId?: string | null | undefined}) {
+export function createAgentUiBridge(options: {peer: Peer, admitted?: () => boolean, verseId?: string | null | undefined, legacyHistory?: boolean}) {
+  const fields = createAtomFieldBridge(options)
+  const fieldBatches = createAtomFieldsBatchBridge(options)
   const verseId = options.verseId ?? null
   if (!isAgentUiVerseId(verseId)) throw new Error("Invalid assigned COSMOS_VERSE_ID address")
   let closed = false
@@ -134,9 +146,9 @@ export function createAgentUiBridge(options: {peer: Peer, admitted?: () => boole
   const stopped = Promise.withResolvers<never>()
   void stopped.promise.catch(() => {})
   const ready = () => {if (closed || options.admitted?.() === false) throw unavailable()}
-  const bounded = async <T>(work: Promise<T>): Promise<T> => {
+  const bounded = async <T>(work: Promise<T>, waitMs = 10_000, expired: () => Error = unavailable): Promise<T> => {
     let timeout: ReturnType<typeof setTimeout> | undefined
-    try {return await Promise.race([work, stopped.promise, new Promise<never>((_resolve, reject) => {timeout = setTimeout(() => reject(unavailable()), 10_000)})])}
+    try {return await Promise.race([work, stopped.promise, new Promise<never>((_resolve, reject) => {timeout = setTimeout(() => reject(expired()), waitMs)})])}
     finally {clearTimeout(timeout)}
   }
   const frontier = async () => (await options.peer.call<DarkForceHistoryReadReceipt>("dark", DARK_FORCE_HISTORY_READ_METHOD, {contractVersion: 1, query: {kind: "frontier"}})).frontier
@@ -178,7 +190,7 @@ export function createAgentUiBridge(options: {peer: Peer, admitted?: () => boole
       if (!atom || atom.meta !== observed.meta) throw unavailable()
       let chatSession: EnergyMassResultReadReceipt | null = null
       let chatError: string | null = null
-      if (observed.chat?.session) {
+      if (options.legacyHistory !== false && observed.chat?.session) {
         const chat = observed.chat
         try {
           chatSession = await options.peer.call<EnergyMassResultReadReceipt>("energy", ENERGY_MASS_RESULT_READ_METHOD,
@@ -287,12 +299,24 @@ export function createAgentUiBridge(options: {peer: Peer, admitted?: () => boole
     } finally {tasks.delete(ref)}
   }
 
-  return {close() {if (closed) return; closed = true; stopped.reject(unavailable())}, async fetch(request: Request, host: Host): Promise<Response> {
+  return {close() {if (closed) return; closed = true; fields.close(); fieldBatches.close(); stopped.reject(unavailable())}, async fetch(request: Request, host: Host): Promise<Response> {
     try {
       const path = new URL(request.url).pathname
-      if (path !== AGENT_UI_PATH && path !== AGENT_UI_PROVIDER_PATH && path !== AGENT_UI_CONNECT_PATH && path !== AGENT_UI_PROFILE_PATH && path !== AGENT_UI_CONNECTIONS_PATH && path !== "/agents/settings") return new Response(null, {status: 404})
+      if (path !== AGENT_UI_PATH && path !== AGENT_UI_PROVIDER_PATH && path !== AGENT_UI_CONNECT_PATH && path !== AGENT_UI_PROFILE_PATH && path !== AGENT_UI_CONNECTIONS_PATH && path !== ATOM_FIELD_EDIT_PATH && path !== ATOM_FIELDS_EDIT_PATH && path !== "/agents/settings" && path !== "/agents/recover") return new Response(null, {status: 404})
       authorizeAgentRequest(request, host)
       if (new URL(request.url).search) throw invalid()
+      if (path === ATOM_FIELDS_EDIT_PATH) return request.method === "POST"
+        ? Response.json(await bounded(fieldBatches.saveFields(await readAgentBody(request)), 60_000,
+          () => new AtomFieldEditError(503, "admission_unknown", "Сохранение не подтверждено; обновите состояние перед решением о повторе")), {headers: {"cache-control": "no-store"}})
+        : new Response(null, {status: 405})
+      if (path === "/agents/recover") {
+        if (request.method !== "POST") return new Response(null, {status: 405})
+        ready()
+        return Response.json(await bounded(recoverAgentChat(options.peer, await readAgentBody(request))), {status: 202, headers: {"cache-control": "no-store"}})
+      }
+      if (path === ATOM_FIELD_EDIT_PATH) return request.method === "POST"
+        ? Response.json(await bounded(fields.editField(await readAgentBody(request))), {status: 202, headers: {"cache-control": "no-store"}})
+        : new Response(null, {status: 405})
       if (path === AGENT_UI_CONNECTIONS_PATH) {
         if (request.method !== "POST") return new Response(null, {status: 405})
         const value = await readAgentBody(request)
@@ -342,6 +366,7 @@ export function createAgentUiBridge(options: {peer: Peer, admitted?: () => boole
       if (request.method === "POST") return Response.json(await bounded(submit(taskRequest(await readAgentBody(request)))), {status: 202, headers: {"cache-control": "no-store"}})
       return new Response(null, {status: 405, headers: {Allow: "GET, POST"}})
     } catch (error) {
+      if (error instanceof AtomFieldEditError) return Response.json({error: {code: error.code, message: error.message}}, {status: error.status, headers: {"cache-control": "no-store"}})
       const failure = error instanceof AgentUiError ? error
         : request.method === "POST" && new URL(request.url).pathname === AGENT_UI_PROFILE_PATH &&
           error instanceof OracleRpcRemoteError && error.code === "admission_refused" && isProfileIntentRefusal(error.data)
@@ -353,16 +378,78 @@ export function createAgentUiBridge(options: {peer: Peer, admitted?: () => boole
 }
 
 /** Caller injects this existing Oracle channel into its one Quantum runtime. */
-export function createAgentUiOracle(options: {admitted?: () => boolean, verseId?: string | null | undefined} = {}) {
+export function createAgentUiOracle(options: {admitted?: () => boolean, verseId?: string | null | undefined, conversationsDirectory?: string} = {}) {
   if (!isAgentUiVerseId(options.verseId ?? null)) throw new Error("Invalid assigned COSMOS_VERSE_ID address")
   const local = createLocalOracleChannelPair("cosmos-agent-ui", () => [])
   const peer = new OracleRpcPeer(local.peer)
-  const bridge = createAgentUiBridge({peer, ...options})
+  const bridge = createAgentUiBridge({peer, ...options, legacyHistory: !options.conversationsDirectory})
   const browser = createAgentBrowserBridge({peer, ...options})
+  let conversationGraph: Promise<Graph> | undefined
+  let conversationAgents: Promise<ReadAgentsReceipt> | undefined
+  const conversationWorld = async (scope: Pick<CosmosAgentScope, "verseId" | "atomRef">) => {
+    if (options.admitted?.() === false || scope.verseId !== options.verseId) throw denied()
+    const graph = await (conversationGraph ??= peer.call<Graph>("dark", READ_GRAPH_METHOD, {})
+      .finally(() => {conversationGraph = undefined}))
+    if (!validateGraph(graph).ok || options.admitted?.() === false) throw unavailable()
+    const atom = atoms(graph).get(scope.atomRef)
+    if (!atom) throw denied()
+    return {graph, atom}
+  }
+  const workspaceListeners = new Set<Parameters<ClientWorkspaceSubscription>[0]>()
+  const workspaceRooms = new Map<string, CosmosRoomScope>()
+  let workspaceGlobal = false, workspaceClosed = false
+  let workspaceTimer: ReturnType<typeof setTimeout> | undefined
+  const notifyWorkspace = (room?: CosmosRoomScope) => {
+    if (workspaceClosed) return
+    if (!room || workspaceRooms.size >= 16) {workspaceGlobal = true; workspaceRooms.clear()}
+    else if (!workspaceGlobal) workspaceRooms.set(JSON.stringify([room.verseId, room.atomRef]), {...room})
+    workspaceTimer ??= setTimeout(() => {
+      workspaceTimer = undefined
+      const hints = workspaceGlobal ? [undefined] : [...workspaceRooms.values()]
+      workspaceGlobal = false; workspaceRooms.clear()
+      for (const hint of hints) for (const listener of workspaceListeners) {try {listener(hint)} catch {}}
+    }, 0)
+  }
+  const observeWorkspace: ClientWorkspaceSubscription = listener => {
+    if (workspaceClosed) throw new Error("Workspace observer is closed")
+    workspaceListeners.add(listener)
+    listener()
+    return () => {workspaceListeners.delete(listener)}
+  }
+  const conversations = options.conversationsDirectory ? createCosmosConversations({directory: options.conversationsDirectory, onDirectoryChange: notifyWorkspace,
+    authorize() {},
+    async validAtom(scope) {await conversationWorld(scope); return true},
+    async validParticipant(scope) {
+      const {graph, atom} = await conversationWorld(scope)
+      const descendants = atoms({...graph, runtime: {...graph.runtime, roots: [atom]}})
+      const agent = descendants.get(scope.agentRef)
+      if (agent?.meta !== STANDARD_AGENT_META) return null
+      const observed = await (conversationAgents ??= peer.call<ReadAgentsReceipt>("dark", READ_AGENTS_METHOD, {})
+        .finally(() => {conversationAgents = undefined}))
+      if (observed.root !== graph.root || options.admitted?.() === false) throw unavailable()
+      const declared = observed.agents.find(value => value.ref === scope.agentRef)
+      const configuration = declared?.configuration.resolution === "exact" ? declared.configuration.value : null
+      return declared ? {name: configuration?.id ?? scope.agentRef} : null
+    },
+    resolveExecution: createConversationExecutionResolver(peer, conversationWorld),
+  }) : undefined
   let closing: Promise<void> | undefined
-  return {channel: local.router, owns: browser.owns, websocket: browser.websocket, fetch(request: Request, host: Parameters<typeof browser.fetch>[1]) {
+  return {observeWorkspace, notifyWorldChanged: () => notifyWorkspace(), observeConversation: conversations?.subscribe, channel: local.router, owns: browser.owns, websocket: browser.websocket, async fetch(request: Request, host: Parameters<typeof browser.fetch>[1]) {
+    if (new URL(request.url).pathname === COSMOS_CONVERSATIONS_PATH) {
+      if (!conversations) return new Response(null, {status: 404})
+      try {authorizeAgentRequest(request, host)} catch {return Response.json({ok: false, error: {code: "forbidden", message: "Беседы доступны только локальной текущей странице"}}, {status: 403})}
+      return (await conversations.handleRequest(request))!
+    }
     return new URL(request.url).pathname.startsWith(AGENT_BROWSER_PATH + "/") ? browser.fetch(request, host) : bridge.fetch(request, host)
   }, close() {
-    return closing ??= (async () => {bridge.close(); await browser.close(); peer.close(); await local.peer.close(); await local.router.close()})()
+    return closing ??= (async () => {
+      bridge.close()
+      workspaceClosed = true; clearTimeout(workspaceTimer); workspaceListeners.clear(); workspaceRooms.clear()
+      const failures: unknown[] = []
+      for (const release of [() => conversations?.dispose(), () => browser.close(), () => peer.close(), () => local.peer.close(), () => local.router.close()]) {
+        try {await release()} catch (error) {failures.push(error)}
+      }
+      if (failures.length) throw new AggregateError(failures, "Agent UI shutdown failed")
+    })()
   }}
 }

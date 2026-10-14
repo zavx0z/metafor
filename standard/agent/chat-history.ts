@@ -8,7 +8,11 @@ type Evidence = NonNullable<StorybookChatView.Timeline["history"]["rows"][number
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
 const same = (left: AtomChatMessage | undefined, right: AtomChatMessage) => left?.id === right.id && left.role === right.role && left.content === right.content && JSON.stringify(left.tool) === JSON.stringify(right.tool)
 
-/** Frontend pages уже полученного Chat Mass; tool bodies читаются только по раскрытию, backend не выдумывается. */
+/**
+Bounded frontend проекция уже полученной Chat-истории, включая read-only архив
+Cosmos. Источник принадлежит вызывающему host; helper не читает Mass/Store и
+не запускает native continuation. Tool bodies читаются только по раскрытию.
+*/
 export function createAgentChatHistory() {
   let messages: readonly AtomChatMessage[] = [], revision = 0
   let previousTimelineSource: unknown, previousTimeline: StorybookChatView.Timeline | undefined

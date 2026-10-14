@@ -53,7 +53,7 @@ export function createClientControls(
       .slice(0, MAX_CONTROLS).map(element => describe(element as HTMLElement))
     const text = (options.textRoot?.() ?? presentation.document.getElementById("agent-control-display"))?.textContent ?? ""
     return {mode: state.mode, status: state.input.status, error: state.input.error ?? null,
-      selected: selected ? {officeId: selected.officeId, agentRef: selected.atom.ref} : null,
+      selected: selected ? {officeId: selected.officeId, agentRef: selected.scope?.agentRef ?? selected.atom?.ref ?? selected.id} : null,
       offices: state.offices.map(({office}) => ({id: office.id, label: office.label, agents: office.agents.map(agent => agent.id)})),
       text: text.slice(0, MAX_TEXT), controls, ...(options.annotations ? {annotations: options.annotations.getSnapshot()} : {})}
   }
@@ -64,7 +64,7 @@ export function createClientControls(
       else if (action.view === "network") workspace.showNetwork()
       else throw new Error("Unsupported client view")
     } else if (action.type === "agent.select") {
-      const agent = workspace.getSnapshot().agents.find(agent => agent.officeId === action.officeId && agent.atom.ref === action.agentRef)
+      const agent = workspace.getSnapshot().agents.find(agent => agent.officeId === action.officeId && (agent.scope?.agentRef ?? agent.atom?.ref) === action.agentRef)
       if (!agent) throw new Error("Agent is absent from this client view")
       workspace.select(agent.key)
     } else if (action.type === "atom.select") {

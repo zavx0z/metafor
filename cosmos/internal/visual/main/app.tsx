@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useState, useSyncExternalStore} from "@zavx0z/immersive/XReact"
+import {HTMLElement} from "@zavx0z/immersive"
 import {Button, Tab, Typography} from "@zavx0z/immersive/ui"
 import {AnnotationControl, AnnotationHUD} from "./annotation-hud"
 import type {ProductAnnotationState} from "./product-annotation-state"
@@ -10,10 +11,14 @@ import {ProviderHUD} from "./provider-hud"
 import type {AtomSceneModel} from "./atom-scene"
 import type {AgentWorkspaceModel} from "./agent-workspace"
 import {INITIAL_VIEW_POINT} from "./view-state.ts"
+import {RoomActions} from "./room-actions"
+import {RoomContextMenu, RoomInfoWindow, RoomNavigationHUD} from "./room-navigation-hud"
+import {RoomChatWindow} from "./room-chat-window"
 
 /** Одна сеть в одном Space и Document; свет, HUD и ввод разделяют общий lifecycle. */
 export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined}>) {
   const network = useMemo(() => props.network ?? createNetworkSpace(), [props.network])
+  const [context, setContext] = useState<{x: number; y: number} | null>(null)
   useEffect(() => () => {
     props.scene?.dispose()
     props.annotations?.dispose()
@@ -25,7 +30,12 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
       rel="stylesheet"
       href={`/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`}
     />
-    <space style={css`
+    <space onContextMenu={event => {
+      if (event.defaultPrevented || props.scene?.getSnapshot().mode !== "atoms") return
+      if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return
+      event.preventDefault()
+      setContext({x: event.clientX, y: event.clientY})
+    }} style={css`
       font-family: var(--font-family);
       color: var(--widget-regular-content);
       --chat-surface-background: transparent;
@@ -83,6 +93,13 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
       <hud>
         {props.scene ? <AtomNavigation scene={props.scene} workspace={props.workspace!} annotations={props.annotations} /> : <NetworkNavigation network={network} workspace={props.workspace} annotations={props.annotations} />}
         {props.workspace ? <AgentProviderHUD workspace={props.workspace} scene={props.scene} /> : null}
+        {props.workspace && props.scene ? <AgentRoomHUD workspace={props.workspace} scene={props.scene} /> : null}
+        {props.workspace && props.scene ? <RoomExperience
+          workspace={props.workspace}
+          scene={props.scene}
+          context={context}
+          onCloseContext={() => setContext(null)}
+        /> : null}
         {props.workspace ? <AgentParking workspace={props.workspace} /> : null}
         {props.annotations ? <AnnotationHUD model={props.annotations} workspace={props.workspace} /> : null}
       </hud>
@@ -96,6 +113,112 @@ function AtomSceneView(props: Readonly<{scene: AtomSceneModel; network: NetworkS
     <SpatialTree source={props.scene.spatial} />
     <AtomOffices scene={props.scene} workspace={props.workspace} bot={props.bot} />
     {state.mode === "networks" ? <NetworkSpace model={props.network} /> : null}
+  </>
+}
+
+function AgentRoomHUD(props: Readonly<{scene: AtomSceneModel; workspace: AgentWorkspaceModel}>) {
+  const scene = useSyncExternalStore(props.scene.subscribe, props.scene.getSnapshot)
+  const workspace = useSyncExternalStore(props.workspace.subscribe, props.workspace.getSnapshot)
+  const roomScope = scene.selectedAtom && workspace.input.verseId ? {verseId: workspace.input.verseId, atomRef: scene.selectedAtom.ref} : null
+  const actors = workspace.agents.flatMap(agent => agent.scope && agent.profile && agent.scope.atomRef === roomScope?.atomRef
+    ? [{scope: agent.scope, profile: agent.profile}] : [])
+  const selected = workspace.agents.find(agent => agent.key === workspace.selected)
+  return <RoomActions
+    roomScope={roomScope}
+    actors={actors}
+    providerAccess={{atom: selected?.atom ?? null, registries: workspace.input.providerRegistries, profiles: workspace.input.profiles?.targets}}
+    connections={workspace.input.providerRegistries?.flatMap(owner => owner.registry.settings.configuration?.connections ?? [])
+      .filter((connection, index, all) => all.findIndex(other => other.id === connection.id) === index)
+      .map(connection => ({id: connection.id, label: connection.label ?? connection.id, enabled: connection.enabled})) ?? []}
+    clientDirectory={props.workspace.conversations ?? null}
+    visible={scene.mode === "atoms" && roomScope !== null && workspace.input.status === "ready"}
+    selectedAgentRef={selected?.scope?.agentRef}
+    onCreated={async value => {
+      const scope = value.kind === "agent" ? value.agent.scope : value.groups.scope
+      await props.workspace.refreshRoom(scope.atomRef as import("@metafor/types/metafor/graph").AtomRef)
+      if (value.kind === "agent") props.workspace.select(JSON.stringify([scope.atomRef, value.agent.scope.agentRef]))
+    }}
+    onCreateAgent={(scope, name, connectionId) => props.workspace.createAgent(scope, name, connectionId)}
+    onCreateChat={(scope, label) => {
+      if (props.scene.getSnapshot().view !== "room") props.scene.enterRoom()
+      return props.workspace.createChat(scope, label)
+    }}
+  />
+}
+
+function RoomExperience(props: Readonly<{
+  workspace: AgentWorkspaceModel
+  scene: AtomSceneModel
+  context: {x: number; y: number} | null
+  onCloseContext(): void
+}>) {
+  const scene = useSyncExternalStore(props.scene.subscribe, props.scene.getSnapshot)
+  const workspace = useSyncExternalStore(props.workspace.subscribe, props.workspace.getSnapshot)
+  const [info, setInfo] = useState(false)
+  const ref = scene.selectedAtom?.ref
+  const roomLabel = scene.selectedAtom ? scene.source.graph?.template[scene.selectedAtom.meta]?.name ?? scene.selectedAtom.meta : null
+  const offices = new Set(scene.offices.filter(value => value.office.owner === ref).map(value => value.office.id))
+  const agents = workspace.agents.filter(agent => offices.has(agent.officeId)).map(agent => ({key: agent.key, name: agent.label}))
+  const chat = agents.find(agent => agent.key === workspace.focusedChat)
+  const observationError = scene.source.status === "error" ? scene.message ?? "Не удалось обновить мир" : undefined
+  useEffect(() => {
+    props.onCloseContext()
+    setInfo(false)
+    if (scene.view !== "room" || !chat) props.workspace.closeChat(false)
+  }, [ref, scene.view])
+  const back = () => {if (chat) props.workspace.closeChat(); else props.scene.back()}
+  const display = () => {
+    props.workspace.closeChat(false)
+    if (ref) props.scene.select(ref, true)
+  }
+  return <>
+    <section hidden={scene.mode !== "atoms"} style={css`
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      max-width: 100%;
+      &[hidden] {display: none;}
+    `}>
+      <RoomNavigationHUD
+        view={scene.view}
+        canGoBack={scene.canGoBack}
+        roomLabel={roomLabel}
+        agents={agents}
+        selectedAgentKey={workspace.selected ?? undefined}
+        chatOpen={chat !== undefined}
+        error={observationError}
+        onBack={back}
+        onEnter={() => {props.scene.enterRoom()}}
+        onAgent={key => props.workspace.openChat(key)}
+        onInfo={() => setInfo(true)}
+        onDisplay={display}
+      />
+    </section>
+    <RoomChatWindow
+      workspace={props.workspace}
+      open={chat !== undefined && scene.view === "room"}
+      title={`${roomLabel ?? "Комната"} · ${chat?.name ?? "Чат"}${observationError ? " · Наблюдение недоступно" : ""}`}
+      onBack={() => props.workspace.closeChat()}
+    />
+    <RoomContextMenu
+      open={scene.mode === "atoms" && props.context !== null}
+      x={props.context?.x ?? 0}
+      y={props.context?.y ?? 0}
+      roomLabel={roomLabel ?? "Текущая комната"}
+      canGoBack={scene.canGoBack || chat !== undefined}
+      onClose={props.onCloseContext}
+      onBack={back}
+      onEnter={() => {props.scene.enterRoom()}}
+      onDisplay={display}
+      onInfo={() => setInfo(true)}
+    />
+    <RoomInfoWindow
+      open={info && scene.mode === "atoms"}
+      onOpenChange={setInfo}
+      roomLabel={roomLabel ?? "Atom"}
+      atom={scene.selectedAtom}
+      agents={agents}
+    />
   </>
 }
 

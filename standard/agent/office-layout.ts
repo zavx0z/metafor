@@ -6,19 +6,24 @@ export type OfficeSize = Readonly<{width: number; depth: number; height: number}
 export type OfficeBounds = Readonly<{min: Readonly<{x: number; y: number; z: number}>; max: Readonly<{x: number; y: number; z: number}>}>
 /** Собственные физические размеры устройства до общего fit scale. */
 export type OfficeDisplay = Readonly<{id: string; width: number; height: number; depth?: number}>
-/** Один declared Agent и принадлежащие ему устройства. */
-export type OfficeAgent = Readonly<{id: string; displays: readonly OfficeDisplay[]}>
+/** Один declared Agent и его устройства; humanoid уточняет bounds подготовленного варианта персонажа. */
+export type OfficeAgent = Readonly<{id: string; displays: readonly OfficeDisplay[]; humanoid?: OfficeBounds}>
 export type OfficeWall = "north" | "south" | "east" | "west"
 
 /**
 Офис всегда получает explicit roomBounds. Размер не вычисляется из N участников.
 Humanoid bounds принадлежат общему исходному asset; placements выражены локально
 относительно офиса, поворот вокруг +Z задан в радианах.
+`humanoid` может быть общим envelope вариантов; `agents[].humanoid` выбирает точные
+bounds экземпляра. Подготовленный персонаж смотрит вдоль локальной +Y.
 */
 export type OfficeLayoutInput = Readonly<{
   roomBounds: OfficeBounds
   agents: readonly OfficeAgent[]
   humanoid: OfficeBounds
+  /** Выбранный Display над головой; его полный поворот к камере резервируется сферическим envelope.
+  Без опции сохраняется размещение всех устройств у стены. Avatar в этом режиме смотрит из своего места в центр комнаты. */
+  overheadDisplayId?: string
   wallInset?: number
   verticalClearance?: number
   workplaceGap?: number
@@ -48,12 +53,17 @@ Prefix assignment сохраняет невозрастание scale при д�
 применяется к каждому avatar и всем его devices. Bounding boxes рабочих мест
 не пересекаются внутренностями, исходные размеры и roomBounds не изменяются.
 Edges показывают принадлежность экранов, не transport и не Force.
+В режиме overheadDisplayId общий fit включает полный объём поворота надголовного
+Display. Результат billboard сообщает намерение представлению; layout не вращает
+экран вслед за камерой и не управляет её lifecycle.
 Инварианты — [office tests](./test/office-layout.test.ts).
 */
 export function layoutAgentOffice(input: OfficeLayoutInput) {
   const room = input.roomBounds
   const size = sizeOf(room, "Office")
-  const body = sizeOf(input.humanoid, "Humanoid")
+  sizeOf(input.humanoid, "Humanoid")
+  const overheadMode = input.overheadDisplayId !== undefined
+  if (overheadMode && !input.overheadDisplayId!.trim()) throw new TypeError("Overhead display требует непустую identity")
   const shortest = Math.min(size.width, size.depth)
   const inset = positive(input.wallInset ?? Math.min(40, shortest / 100), "Wall inset")
   const vertical = positive(input.verticalClearance ?? Math.min(80, size.height / 30), "Vertical clearance")
@@ -65,21 +75,32 @@ export function layoutAgentOffice(input: OfficeLayoutInput) {
   const agents = input.agents.map(agent => {
     if (!agent.id.trim() || ids.has(agent.id)) throw new TypeError("Office Agent требует уникальную identity")
     ids.add(agent.id)
+    const humanoid = agent.humanoid ?? input.humanoid
+    const body = sizeOf(humanoid, "Humanoid")
+    const overhead = agent.displays.find(display => display.id === input.overheadDisplayId)
+    const overheadRadius = overhead ? Math.hypot(positive(overhead.width, "Display width"), positive(overhead.height, "Display height"),
+      positive(overhead.depth ?? 10, "Display depth")) / 2 : 0
+    const bodyRadius = overheadMode ? Math.hypot(body.width, body.depth) / 2 : body.depth / 2
     const displays = new Set<string>()
     let wallWidth = 0, tallest = 0, thickest = 0
     for (const display of agent.displays) {
       if (!display.id.trim() || displays.has(display.id)) throw new TypeError("Office display требует уникальную identity в своём Agent")
       displays.add(display.id)
+      if (display === overhead) continue
       wallWidth += positive(display.width, "Display width")
       tallest = Math.max(tallest, positive(display.height, "Display height"))
       thickest = Math.max(thickest, positive(display.depth ?? 10, "Display depth"))
     }
-    wallWidth += Math.max(0, agent.displays.length - 1) * displayGap
+    const wallCount = agent.displays.length - (overhead ? 1 : 0)
+    wallWidth += Math.max(0, wallCount - 1) * displayGap
     const screenZ = Math.max(body.height, tallest / 2 + gap)
-    return {agent, wallWidth, thickest, screenZ,
-      width: positive(Math.max(body.width, wallWidth), "Workplace width"),
-      depth: positive(thickest + aisle + body.depth, "Workplace depth"),
-      height: positive(Math.max(body.height, screenZ + tallest / 2, agent.displays.length ? screenZ + 40 : 0), "Workplace height")}
+    const bodyY = Math.max(thickest + aisle + bodyRadius, overheadRadius)
+    const overheadZ = body.height + displayGap + overheadRadius
+    return {agent, humanoid, body, bodyY, overhead, overheadRadius, overheadZ, wallWidth, thickest, screenZ,
+      width: positive(Math.max(overheadMode ? bodyRadius * 2 : body.width, wallWidth, overheadRadius * 2), "Workplace width"),
+      depth: positive(Math.max(thickest + aisle + bodyRadius * 2, bodyY + overheadRadius), "Workplace depth"),
+      height: positive(Math.max(body.height, wallCount ? screenZ + Math.max(tallest / 2, 40) : 0,
+        overhead ? overheadZ + Math.max(overheadRadius, 40) : 0), "Workplace height")}
   }).sort((a, b) => a.agent.id < b.agent.id ? -1 : a.agent.id > b.agent.id ? 1 : 0)
   const walls: readonly OfficeWall[] = ["north", "south", "east", "west"]
   const lengths: Record<OfficeWall, number> = {north: size.width - 2 * inset, south: size.width - 2 * inset,
@@ -150,7 +171,7 @@ export function layoutAgentOffice(input: OfficeLayoutInput) {
       : wall === "south" ? {x: room.min.x + along, y: room.min.y + inset}
       : wall === "east" ? {x: room.max.x - inset, y: room.min.y + along}
       : {x: room.min.x + inset, y: room.min.y + along}
-    const rotationZ = wall === "north" ? Math.PI : wall === "south" ? 0 : wall === "east" ? Math.PI / 2 : -Math.PI / 2
+    const wallRotationZ = wall === "north" ? Math.PI : wall === "south" ? 0 : wall === "east" ? Math.PI / 2 : -Math.PI / 2
     const point = ({x, y, z}: Readonly<{x: number; y: number; z: number}>) => ({
       x: anchor.x + scale * (wall === "north" ? -x : wall === "south" ? x : wall === "east" ? -y : y),
       y: anchor.y + scale * (wall === "north" ? -y : wall === "south" ? y : wall === "east" ? x : -x),
@@ -161,21 +182,41 @@ export function layoutAgentOffice(input: OfficeLayoutInput) {
       return {min: {x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), z: Math.min(a.z, b.z)},
         max: {x: Math.max(a.x, b.x), y: Math.max(a.y, b.y), z: Math.max(a.z, b.z)}}
     }
-    const bodyY = value.thickest + aisle + body.depth / 2
+    const {body, bodyY, humanoid} = value
+    const bodyCenter = point({x: 0, y: bodyY, z: 0})
+    const rotationZ = overheadMode ? Math.atan2((room.min.y + room.max.y) / 2 - bodyCenter.y,
+      (room.min.x + room.max.x) / 2 - bodyCenter.x) - Math.PI / 2 : wallRotationZ
     let cursor = -value.wallWidth / 2
     const displays = value.agent.displays.map(display => {
       const depth = display.depth ?? 10
+      if (display === value.overhead) {
+        const radius = value.overheadRadius
+        return {id: display.id, scale, rotationZ: wallRotationZ, billboard: true,
+          sourceSize: {width: display.width, height: display.height, depth},
+          width: display.width * scale, height: display.height * scale, depth: depth * scale,
+          position: point({x: 0, y: bodyY, z: value.overheadZ}),
+          bounds: bounds({x: -radius, y: bodyY - radius, z: value.overheadZ - radius},
+            {x: radius, y: bodyY + radius, z: value.overheadZ + radius})}
+      }
       const x = cursor + display.width / 2
       cursor += display.width + displayGap
-      return {id: display.id, scale, rotationZ, sourceSize: {width: display.width, height: display.height, depth},
+      return {id: display.id, scale, rotationZ: wallRotationZ, ...(overheadMode ? {billboard: false} : {}), sourceSize: {width: display.width, height: display.height, depth},
         width: display.width * scale, height: display.height * scale, depth: depth * scale,
         position: point({x, y: depth / 2, z: value.screenZ}),
         bounds: bounds({x: x - display.width / 2, y: 0, z: value.screenZ - display.height / 2},
           {x: x + display.width / 2, y: depth, z: value.screenZ + display.height / 2})}
     })
+    const cosine = Math.cos(rotationZ), sine = Math.sin(rotationZ)
+    const halfWidth = scale * (Math.abs(cosine) * body.width + Math.abs(sine) * body.depth) / 2
+    const halfDepth = scale * (Math.abs(sine) * body.width + Math.abs(cosine) * body.depth) / 2
+    const localCenter = {x: humanoid.min.x + body.width / 2, y: humanoid.min.y + body.depth / 2}
     return {id: value.agent.id, wall, slot, scale, rotationZ,
-      position: point({x: -(input.humanoid.min.x + body.width / 2), y: bodyY - (input.humanoid.min.y + body.depth / 2), z: -input.humanoid.min.z}),
-      bounds: bounds({x: -body.width / 2, y: bodyY - body.depth / 2, z: 0}, {x: body.width / 2, y: bodyY + body.depth / 2, z: body.height}),
+      position: overheadMode ? {x: bodyCenter.x - scale * (localCenter.x * cosine - localCenter.y * sine),
+        y: bodyCenter.y - scale * (localCenter.x * sine + localCenter.y * cosine), z: bodyCenter.z - humanoid.min.z * scale}
+        : point({x: -localCenter.x, y: bodyY - localCenter.y, z: -humanoid.min.z}),
+      bounds: overheadMode ? {min: {x: bodyCenter.x - halfWidth, y: bodyCenter.y - halfDepth, z: bodyCenter.z},
+        max: {x: bodyCenter.x + halfWidth, y: bodyCenter.y + halfDepth, z: bodyCenter.z + body.height * scale}}
+        : bounds({x: -body.width / 2, y: bodyY - body.depth / 2, z: 0}, {x: body.width / 2, y: bodyY + body.depth / 2, z: body.height}),
       workplaceBounds: bounds({x: -value.width / 2, y: 0, z: 0}, {x: value.width / 2, y: value.depth, z: value.height}),
       head: point({x: 0, y: bodyY, z: body.height}), displays}
   })

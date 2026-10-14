@@ -1,3 +1,6 @@
+import type {CosmosRoomScope} from "@metafor/types/cosmos/conversation-groups"
+import type {CosmosAgentScope} from "@metafor/types/cosmos/agent-profile"
+import type {CosmosConversationSnapshot} from "@metafor/types/cosmos/conversations"
 /** Ограниченный same-origin transport Window; публичными моделями владеет @metafor/types. @packageDocumentation */
 import {parseAgentFeedbackRequest} from "@metafor/types/metafor/agents"
 import type {ClientAnnotationFeedback, ClientFeedbackReceipt, ClientCapability, ClientDescriptor, ClientFailure, ClientInspection, ClientSelector, ClientStatus, ClientViewAction, ClientCommandValue, ClientDiagnostics, ClientDiagnosticsOptions, ClientCapture} from "@metafor/types/cosmos/client"
@@ -11,6 +14,7 @@ export const CLIENT_LOGS_METHOD = "cosmos.client.logs"
 export const CLIENT_EVENTS_METHOD = "cosmos.client.events"
 export const CLIENT_DIAGNOSTICS_METHOD = "cosmos.client.diagnostics"
 export const CLIENT_CAPTURE_METHOD = "cosmos.client.capture"
+export const CLIENT_CONVERSATION_MAX_SUBSCRIPTIONS = 16
 export const CLIENT_WIRE_MAX_BYTES = 256 * 1024
 export const CLIENT_CAPTURE_MAX_BYTES = 8 * 1024 * 1024
 export const CLIENT_CAPTURE_CHUNK_CHARS = 48 * 1024
@@ -21,6 +25,10 @@ export type ClientOperation = "inspect" | "logs" | "cache" | "act" | "diagnostic
 export type ClientCaptureMetadata = Omit<ClientCapture, "pngBase64">
 export type ClientHello = {type: "hello", version: 1, clientId: string | null, kind: "Window", capabilities: ClientCapability[], status: ClientStatus}
 export type ClientInbound = ClientHello
+  | {type: "workspace.subscribe", connectionId: string}
+  | {type: "workspace.unsubscribe", connectionId: string}
+  | {type: "conversation.subscribe", connectionId: string, subscriptionId: string, scope: CosmosAgentScope, sessionId?: string}
+  | {type: "conversation.unsubscribe", connectionId: string, subscriptionId: string}
   | {type: "feedback", connectionId: string, feedback: ClientAnnotationFeedback}
   | {type: "heartbeat", connectionId: string, status: ClientStatus}
   | {type: "activity", connectionId: string, event: "focus" | "observed-focus" | "pointer" | "keyboard", status: ClientStatus}
@@ -29,6 +37,10 @@ export type ClientInbound = ClientHello
   | {type: "capture-end", connectionId: string, requestId: string}
   | ({type: "reply", connectionId: string, requestId: string} & ({ok: true, value: ClientCommandValue} | {ok: false, error: ClientFailure}))
 export type ClientOutbound = {type: "registered", version: 1, client: ClientDescriptor}
+  | {type: "workspace.changed", connectionId: string, room?: CosmosRoomScope}
+  | {type: "workspace.error", connectionId: string, error: ClientFailure}
+  | {type: "conversation.snapshot", connectionId: string, subscriptionId: string, snapshot: CosmosConversationSnapshot}
+  | {type: "conversation.error", connectionId: string, subscriptionId: string, error: ClientFailure}
   | ({type: "feedback-receipt", connectionId: string} & ClientFeedbackReceipt)
   | ({type: "command", connectionId: string, requestId: string, deadline: number} & ({operation: "inspect"} | {operation: "capture"} | ({operation: "diagnostics"} & ClientDiagnosticsOptions) | {operation: "logs", afterSequence?: number, limit?: number, source?: "window" | "service", producerId?: string} | {operation: "cache", afterIndex?: number, limit?: number, hash?: boolean} | {operation: "act", action: ClientViewAction}))
   | {type: "cancel", connectionId: string, requestId: string, reason: "timeout" | "closing"}
@@ -53,8 +65,14 @@ export function isClientDiagnosticsOptions(value: unknown): value is ClientDiagn
 }
 
 export function isClientDiagnostics(value: unknown): value is ClientDiagnostics {
-  if (!clientRecord(value, ["schema", "version", "durationMs", "viewport", "semantic", "projections", "projectionsComplete", "boxes", "page", "sample", "resources", "resourcesTruncated", "availability", "timings"]) ||
+  if (!clientRecord(value, ["schema", "version", "durationMs", "viewport", "semantic", "projections", "projectionsComplete", "boxes", "page", "sample", "resources", "resourcesTruncated", "availability", "timings"], ["camera"]) ||
       value.schema !== "cosmos/client-diagnostics/v1" || value.version !== 1 || !finite(value.durationMs) || !viewport(value.viewport, true)) return false
+  if (value.camera !== undefined && value.camera !== null) {
+    const camera = value.camera
+    const vector = (point: unknown) => clientRecord(point, ["x", "y", "z"]) && Object.values(point).every(value => typeof value === "number" && Number.isFinite(value))
+    if (!clientRecord(camera, ["position", "target", "fov", "near", "far"]) || !vector(camera.position) || !vector(camera.target) ||
+        ![camera.fov, camera.near, camera.far].every(value => typeof value === "number" && Number.isFinite(value))) return false
+  }
   if (!clientRecord(value.semantic, ["nodes", "elements", "displays", "huds", "complete", "scanLimit"]) ||
       ![value.semantic.nodes, value.semantic.elements, value.semantic.displays, value.semantic.huds, value.semantic.scanLimit].every(integer) ||
       (value.semantic.nodes as number) > 50_000 || value.semantic.scanLimit !== 50_000 || typeof value.semantic.complete !== "boolean") return false
@@ -108,7 +126,7 @@ export function isClientStatus(value: unknown): value is ClientStatus {
 export function isClientAction(value: unknown): value is ClientViewAction {
   if (!record(value)) return false
   if (value.type === "view.change") return clientRecord(value, ["type", "view"]) && ["network", "agents", "offices"].includes(String(value.view))
-  if (value.type === "agent.select") return clientRecord(value, ["type", "officeId", "agentRef"]) && clientId(value.officeId) && clientText(value.agentRef, 256) && /^atom:[A-Za-z0-9._:-]+$/u.test(value.agentRef)
+  if (value.type === "agent.select") return clientRecord(value, ["type", "officeId", "agentRef"]) && clientId(value.officeId) && clientText(value.agentRef, 256) && /^(?:atom:[A-Za-z0-9._:-]+|agent:[a-f0-9-]{36})$/u.test(value.agentRef)
   if (value.type === "atom.select") return clientRecord(value, ["type", "atomRef"]) && clientText(value.atomRef, 256) && /^atom:[1-9]\d*$/u.test(value.atomRef)
   if (value.type === "control.activate") return clientRecord(value, ["type", "controlId"]) && clientId(value.controlId)
   return value.type === "control.input" && clientRecord(value, ["type", "controlId", "value"]) && clientId(value.controlId) && clientText(value.value, 65_536)
@@ -157,6 +175,13 @@ export function parseClientFeedback(value: unknown): ClientAnnotationFeedback | 
 }
 export function parseClientInbound(value: unknown): ClientInbound | null {
   if (!record(value)) return null
+  if (value.type === "workspace.subscribe" || value.type === "workspace.unsubscribe") return clientRecord(value, ["type", "connectionId"]) && clientId(value.connectionId)
+    ? value as Extract<ClientInbound, {type: "workspace.subscribe" | "workspace.unsubscribe"}> : null
+  if (value.type === "conversation.subscribe") return clientRecord(value, ["type", "connectionId", "subscriptionId", "scope"], ["sessionId"]) &&
+    clientId(value.connectionId) && clientId(value.subscriptionId) && isClientConversationScope(value.scope) &&
+    (value.sessionId === undefined || clientId(value.sessionId)) ? value as Extract<ClientInbound, {type: "conversation.subscribe"}> : null
+  if (value.type === "conversation.unsubscribe") return clientRecord(value, ["type", "connectionId", "subscriptionId"]) && clientId(value.connectionId) && clientId(value.subscriptionId)
+    ? value as Extract<ClientInbound, {type: "conversation.unsubscribe"}> : null
   if (value.type === "capture-start") return clientRecord(value, ["type", "connectionId", "requestId", "metadata", "characters"]) && clientId(value.connectionId) && clientId(value.requestId) &&
     isClientCaptureMetadata(value.metadata) && integer(value.characters) && value.characters === Math.ceil(value.metadata.byteLength / 3) * 4 ? value as Extract<ClientInbound, {type: "capture-start"}> : null
   if (value.type === "capture-chunk") return clientRecord(value, ["type", "connectionId", "requestId", "offset", "data"]) && clientId(value.connectionId) && clientId(value.requestId) && integer(value.offset) &&
@@ -170,4 +195,22 @@ export function parseClientInbound(value: unknown): ClientInbound | null {
   if (value.type !== "reply" || !clientId(value.connectionId) || !clientId(value.requestId) || typeof value.ok !== "boolean") return null
   if (value.ok) return clientRecord(value, ["type", "connectionId", "requestId", "ok", "value"]) ? value as Extract<ClientInbound, {type: "reply"}> : null
   return clientRecord(value, ["type", "connectionId", "requestId", "ok", "error"]) && clientRecord(value.error, ["code", "message"]) && ["unsupported", "client_error", "stale_control", "cancelled", "timeout", "invalid_reply", "conflict"].includes(String(value.error.code)) && clientText(value.error.message, 4096) ? value as Extract<ClientInbound, {type: "reply"}> : null
+}
+
+/** Wire shape проверяется до owning service; live Graph/participant проверяет только service. */
+export function isClientConversationScope(value: unknown): value is CosmosAgentScope {
+  return clientRecord(value, ["verseId", "atomRef", "agentRef"]) && [value.verseId, value.atomRef, value.agentRef].every(value =>
+    typeof value === "string" && value.length > 0 && value.length <= 2048 && !/[\u0000-\u001f\u007f]/u.test(value))
+}
+/** Компактное управляющее состояние Session, без копии тел истории. Размер проверяет транспорт. */
+export function isClientConversationSnapshot(value: unknown): value is CosmosConversationSnapshot {
+  return record(value) && clientId(value.id) && value.sessionId === value.id && clientId(value.executorId) && integer(value.version) &&
+    ["idle", "connecting", "running", "failed"].includes(String(value.status)) && (value.error === null || typeof value.error === "string") &&
+    typeof value.address === "string" && typeof value.label === "string" && typeof value.executorLabel === "string" && typeof value.sessionLabel === "string" &&
+    record(value.history) && !Array.isArray(value.history) && Array.isArray(value.pending) && value.pending.every(item => typeof item === "string") &&
+    Array.isArray(value.permissions) && !Object.hasOwn(value, "messages")
+}
+
+export function isClientWorkspaceRoom(value: unknown): value is CosmosRoomScope {
+  return clientRecord(value, ["verseId", "atomRef"]) && [value.verseId, value.atomRef].every(item => typeof item === "string" && item.length > 0 && item.length <= 2048 && !/[\u0000-\u001f\u007f]/u.test(item))
 }

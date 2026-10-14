@@ -39,6 +39,8 @@ export default MetaFor("Intel macOS Chrome Studio", {desc: "Рабочее ок�
     browserError: field.string.optional(),
     browserProviderBinding: field.string.optional(),
     localBrowserAgentEnabled: field.boolean.required(false),
+    qwenAgentEnabled: field.boolean.required(false),
+    deepseekAgentEnabled: field.boolean.required(false),
   }))
   .lifecycle({started: {field: "input", value: "started"}, stopping: {field: "input", value: "stopping"}})
   .superposition({

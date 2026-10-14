@@ -1,5 +1,6 @@
 {
   "name": "@metafor/types",
+  "version": "0.1.0",
   "label": "Модель MetaFor",
   "type": "module",
   "private": true,
@@ -28,6 +29,12 @@
     "./boundary/atom": "./boundary/atom.ts",
     "./boundary/value": "./boundary/value.ts",
     "./boundary/topology": "./boundary/topology.ts",
-    "./bulk/manifest": "./bulk/manifest.ts"
+    "./bulk/manifest": "./bulk/manifest.ts",
+    "./cosmos/agent-profile": "./cosmos/agent-profile.ts",
+    "./cosmos/conversations": "./cosmos/conversations.ts",
+    "./cosmos/conversation-groups": "./cosmos/conversation-groups.ts"
+  },
+  "dependencies": {
+    "@zavx0z/storybook-chat-session": "^0.0.0"
   }
 }

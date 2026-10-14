@@ -218,3 +218,78 @@ test("unknown/unavailable route never selects first Agent; cleanup releases owne
   expect(f.model.spatial.getSnapshot()).toBeNull()
   expect(() => f.model.applyRoute({kind: "networks"})).toThrow("disposed")
 })
+
+test("room navigation uses one retained Display, native focus/back, and hides the roof after fly-through", async () => {
+  const f = fixture()
+  let now = performance.now()
+  const clock = spyOn(performance, "now").mockImplementation(() => now)
+  const finishFocus = async () => {
+    now += 400
+    f.root.render()
+    await flush()
+  }
+  try {
+    f.model.applyRoute({kind: "atom", ref: "atom:root"})
+    f.model.attach(f.root, f.network)
+    await finishFocus()
+    const display = f.hosts.get("atom:root")!
+    const content = f.model.spatial.getSnapshot()!.contentById.get("atom:root")
+    const r = f.model.getSnapshot().geometryNodes.find(node => node.id === "atom:root")!.rect
+    expect(f.model.getSnapshot().view).toBe("display")
+    expect(display.getAttribute("data-metafor-display-fitted")).toBe("true")
+    expect(f.model.enterRoom()).toBeTrue()
+    expect(f.model.getSnapshot().view).toBe("room")
+    expect(display.hidden).toBeTrue()
+    expect(display.getAttribute("data-metafor-display-fitted")).toBeNull()
+    expect(f.viewPoint.z).toBeGreaterThan(r.z - 180)
+    expect(f.viewPoint.z).toBeLessThan(r.z)
+    expect(f.viewPoint.y).toBeGreaterThan(r.y)
+    expect(f.viewPoint.targetY).toBeLessThan(r.y + r.height)
+    expect(f.viewPoint.targetY).toBeGreaterThan(f.viewPoint.y)
+    expect(f.viewPoint.targetZ).toBe(f.viewPoint.z)
+    expect(f.model.enterRoom()).toBeFalse()
+    expect(f.model.back()).toBeTrue()
+    // Первый presented tick ещё под крышей: намеренный возврат не становится новым входом.
+    f.root.render()
+    expect(f.model.getSnapshot().view).toBe("display")
+    await finishFocus()
+    expect(display.hidden).toBeFalse()
+    expect(display.getAttribute("data-metafor-display-fitted")).toBe("true")
+    expect(f.model.back()).toBeTrue()
+    expect(f.model.getSnapshot().view).toBe("overview")
+    expect(f.model.getSnapshot().canGoBack).toBeFalse()
+    expect(display.hidden).toBeTrue()
+    expect(f.model.back()).toBeFalse()
+    await finishFocus()
+    expect(f.model.spatial.getSnapshot()!.contentById.get("atom:root") === content).toBeTrue()
+    f.model.spatial.getSnapshot()!.onActivate("atom:root", true)
+    expect(f.navigation).toEqual([{ref: "atom:root", focus: true}])
+    expect(f.model.getSnapshot().view).toBe("overview")
+    f.model.applyRoute({kind: "atom", ref: "atom:root"})
+    await finishFocus()
+    const confirmedContent = f.model.spatial.getSnapshot()!.contentById.get("atom:root")
+    expect(f.model.getSnapshot().view).toBe("display")
+    expect(display.getAttribute("data-metafor-display-fitted")).toBe("true")
+    f.document.transaction(() => {
+      f.viewPoint.x = r.x + r.width / 2
+      f.viewPoint.y = r.y + r.height / 2
+      // Fly может за один tick пересечь весь тонкий body; Display всё равно скрывается.
+      f.viewPoint.z = r.z - 181
+    })
+    expect(f.model.getSnapshot().view).toBe("room")
+    expect(display.hidden).toBeTrue()
+    expect(display.getAttribute("data-metafor-display-fitted")).toBeNull()
+    f.update(f.current)
+    expect(f.hosts.get("atom:root")).toBe(display)
+    expect(f.model.spatial.getSnapshot()!.contentById.get("atom:root") === confirmedContent).toBeTrue()
+    expect(display.ownerDocument).toBe(f.document)
+    expect(f.model.getSnapshot().selectedAtom?.ref).toBe("atom:root")
+    expect(f.navigation).toHaveLength(1)
+    f.model.applyRoute({kind: "atom", ref: "atom:child"})
+    f.model.applyRoute({kind: "atom", ref: "atom:root"})
+    expect(f.model.getSnapshot().view).toBe("display")
+    await finishFocus()
+    expect(f.model.getSnapshot().view).toBe("display")
+    expect(f.hosts.get("atom:root")?.getAttribute("data-metafor-display-fitted")).toBe("true")
+  } finally {clock.mockRestore(); f.dispose()}
+})

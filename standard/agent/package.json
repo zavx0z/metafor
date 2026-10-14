@@ -15,6 +15,9 @@
     },
     "./actions": "./actions.ts",
     "./atom": "./atom.ts",
+    "./chat-history": {
+      "metafor:main": "./chat-history.ts"
+    },
     "./presentation": "./presentation.ts",
     "./office-layout": "./office-layout.ts",
     "./office-instances": "./office-instances.ts",

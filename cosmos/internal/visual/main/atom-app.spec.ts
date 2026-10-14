@@ -2,7 +2,8 @@ import {afterAll, beforeAll, expect, spyOn, test} from "bun:test"
 import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import {createDocument, createDomRoot, HTMLTextAreaElement, HTMLButtonElement, InputEvent, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
+import {createDocument, createDomRoot, HTMLTextAreaElement, HTMLButtonElement, InputEvent, subscribeDocumentCompiledStyleSheets, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
+import {readDisplayStyle} from "@zavx0z/immersive/renderer/html"
 import {ViewPoint} from "@zavx0z/immersive/engine"
 import {createSpaceElementFactories, readSpaceTree, XRAssetElement} from "@zavx0z/immersive/space"
 import type {AtomContext, AtomViewSnapshot} from "@metafor/agent/atom"
@@ -22,6 +23,7 @@ let AtomSurface: DOMComponentConstructor<{atom: RuntimeAtom; workspace: AgentWor
 let createWorkspace: typeof import("./agent-workspace").createAgentWorkspace
 let createScene: typeof import("./atom-scene").createAtomScene
 let createNetwork: typeof import("./network-space").createNetworkSpace
+let agentsForAtom: typeof import("./atom-surface").agentsForAtom
 beforeAll(async () => {
   directory = await mkdtemp(join(import.meta.dir, ".compiled-atoms-"))
   await symlink(resolve(import.meta.dir, "../node_modules"), join(directory, "node_modules"), "dir")
@@ -38,6 +40,7 @@ beforeAll(async () => {
   const load = (file: string) => import(pathToFileURL(join(directory, file)).href)
   App = (await load("app.js")).App
   AtomSurface = (await load("atom-surface.js")).AtomSurface
+  agentsForAtom = (await load("atom-surface.js")).agentsForAtom
   createWorkspace = (await load("agent-workspace.js")).createAgentWorkspace
   createScene = (await load("atom-scene.js")).createAtomScene
   createNetwork = (await load("network-space.js")).createNetworkSpace
@@ -46,7 +49,7 @@ beforeAll(async () => {
 }, 30_000)
 afterAll(async () => {if (directory) await rm(directory, {recursive: true, force: true})})
 
-function fixture(initialViewport = {width: 1200, height: 800}) {
+function fixture(initialViewport = {width: 1200, height: 800}, actorCount = 1) {
   const document = createDocument({elementFactories: createSpaceElementFactories()}), html = document.createElement("html"), body = document.createElement("body")
   html.append(body); document.append(html)
   const root = createDomRoot(body), workspace = createWorkspace({externalNavigation: true}), network = createNetwork()
@@ -57,33 +60,48 @@ function fixture(initialViewport = {width: 1200, height: 800}) {
     tools: [], displays: []}, chat: [{id: "hello", role: "assistant", content: "Беседа сохраняется"}], provider: null, operations: [], context: {scope: actorRef}}
   const actor: AtomContext = {ref: actorRef, getSnapshot: () => actorSnapshot, subscribe: () => () => {}, actions: {async sendMessage() {}}}
   const graph = agentWorkspaceGraph()
-  const input: AgentWorkspaceSnapshot = {status: "ready", graph, verseId: "fixture-verse", observedWorld: {root: graph.root, cutId: "one"}, offices: [
-    {id: "office-root", owner: "atom:1", label: "Environment", bounds: {min: {x: -4500, y: -3500, z: 0}, max: {x: 4500, y: 3500, z: 2600}}, agents: [{id: "assistant", atom: actor}]},
+  const secondSnapshot: AtomViewSnapshot = {...actorSnapshot, ref: "atom:3", configuration: {...actorSnapshot.configuration, id: "second"}}
+  const second: AtomContext = {ref: "atom:3", getSnapshot: () => secondSnapshot, subscribe: () => () => {}, actions: {async sendMessage() {}}}
+  let input: AgentWorkspaceSnapshot = {status: "ready", graph, verseId: "fixture-verse", observedWorld: {root: graph.root, cutId: "one"}, offices: [
+    {id: "office-root", owner: "atom:1", label: "Environment", bounds: {min: {x: -4500, y: -3500, z: 0}, max: {x: 4500, y: 3500, z: 2600}}, agents: [{id: "assistant", atom: actor}, ...(actorCount > 1 ? [{id: "second", atom: second}] : [])]},
   ]}
-  workspace.connect({getSnapshot: () => input, subscribe: () => () => {}})
+  const sourceListeners = new Set<() => void>()
+  workspace.connect({getSnapshot: () => input, subscribe(listener) {sourceListeners.add(listener); return () => {sourceListeners.delete(listener)}}})
   root.render(App, {network, workspace, scene, bot})
   const tree = readSpaceTree(document), presented = new Set<() => void>(), viewport = {...initialViewport}
+  let pausedFrames = false
   const presentation = {document, space: tree.space, viewPoint: tree.viewPoint, canvas: {getBoundingClientRect: () => ({left: 0, top: 0, ...viewport})},
     getProjection: () => ({frustumPlanes: () => [], projectPoint: (p: {x: number; y: number}) => ({x: p.x * 4, y: p.y * 4}), fly() {}}),
     subscribePresented(listener: () => void) {presented.add(listener); return () => {presented.delete(listener)}}, invalidate() {},
-    render() {root.flush(); for (const listener of [...presented]) listener()},
+    render() {root.flush(); if (!pausedFrames) for (const listener of [...presented]) listener()},
   } as unknown as Presentation
   workspace.attach(presentation, network); scene.attach(presentation, network)
   let previous: AtomSceneRoute | undefined
   const confirmRoute = (value: AtomSceneRoute) => {
     if (JSON.stringify(previous) !== JSON.stringify(value)) workspace.parkViews()
     previous = value
-    if (value.kind === "atom" && ["atom:1", "atom:2"].includes(value.ref)) workspace.select(workspace.getSnapshot().agents[0]!.key)
-    else workspace.clearSelection()
+    if (value.kind === "atom") {
+      const scoped = agentsForAtom(workspace, value.ref)
+      if (!scoped.some(agent => agent.key === workspace.getSnapshot().selected)) {
+        if (scoped.length) workspace.select(scoped[0]!.key)
+        else workspace.clearSelection()
+      }
+    } else workspace.clearSelection()
     scene.applyRoute(value)
   }
   const entries = ["/fixture-verse/1"], events = new EventTarget()
   let entry = 0, historyState: unknown = null, routeApplications = 0
-  const router = createProductRouter({source: {getSnapshot: () => ({status: "ready", verseId: input.verseId, graph: input.graph}), subscribe: () => () => {}},
+  const router = createProductRouter({source: {getSnapshot: () => ({status: input.status === "error" ? "unavailable" : input.status, verseId: input.verseId, graph: input.graph,
+    ...(input.observedWorld ? {observedWorld: input.observedWorld} : {}), ...(input.error ? {error: input.error} : {})}),
+    subscribe(listener) {sourceListeners.add(listener); return () => {sourceListeners.delete(listener)}}},
     platform: {events, location: {get pathname() {return entries[entry]!}}, history: {get state() {return historyState},
       pushState(value, _unused, url) {historyState = value; entries.splice(++entry); entries.push(String(url))},
       replaceState(value, _unused, url) {historyState = value; entries[entry] = String(url)}}},
-    applyRoute(value) {routeApplications++; confirmRoute(value.kind === "atom" ? {kind: "atom", ref: value.ref} : value.kind === "networks" ? value : {kind: "unavailable", message: value.kind})},
+    applyRoute(value, application) {
+      routeApplications++
+      if (application.preservePresentation) return
+      confirmRoute(value.kind === "atom" ? {kind: "atom", ref: value.ref} : value.kind === "networks" ? value : {kind: "unavailable", message: value.kind})
+    },
   })
   scene.setNavigation({atom(ref) {router.navigate({kind: "atom", verseId: "fixture-verse", atomId: ref.slice(5)})}, networks() {router.navigate({kind: "networks"})}})
   const display = () => [...document.querySelectorAll("[data-spatial-node-id]")].find(node => node.getAttribute("data-spatial-node-id") === scene.getSnapshot().selectedAtom?.ref)
@@ -97,14 +115,18 @@ function fixture(initialViewport = {width: 1200, height: 800}) {
     else if (value.kind === "networks") router.navigate(value)
     else confirmRoute(value)
   }
-  const settle = async () => {for (let index = 0; index < 8; index++) {root.flush(); for (const listener of [...presented]) listener(); await Promise.resolve()} root.flush()}
+  const settle = async () => {for (let index = 0; index < 8; index++) {root.flush(); if (!pausedFrames) for (const listener of [...presented]) listener(); await Promise.resolve()} root.flush()}
   const fitSelected = () => {
     const node = scene.getSnapshot().geometryNodes.find(node => node.id === scene.getSnapshot().selectedAtom?.ref)!
     const r = node.rect, vp = tree.viewPoint
     const pose = ViewPoint.fitPoseForBounds({min: {x: r.x, y: r.y, z: r.z - .001}, max: {x: r.x + r.width, y: r.y + r.height, z: r.z}}, {x: 0, y: 0, z: 1}, {fov: vp.fov, aspect: viewport.width / viewport.height})
     document.transaction(() => {vp.x = pose.position.x; vp.y = pose.position.y; vp.z = pose.position.z; vp.targetX = pose.target.x; vp.targetY = pose.target.y; vp.targetZ = pose.target.z})
   }
-  return {document, root, workspace, scene, network, tree, route, settle, fitSelected, input, viewport,
+  return {document, root, workspace, scene, network, tree, route, settle, fitSelected, viewport,
+    get input() {return input},
+    get routeResolution() {return router.getSnapshot()},
+    update(next: AgentWorkspaceSnapshot) {input = next; for (const listener of sourceListeners) listener()},
+    pausePresented() {pausedFrames = true},
     get routeApplications() {return routeApplications},
     back() {if (entry > 0) {entry--; events.dispatchEvent(new Event("popstate"))}},
     get pathname() {return entries[entry]}, dispose() {router.dispose(); stopFocus(); root.unmount()}}
@@ -122,7 +144,8 @@ test("compiled Atom App has one Document/Space, all Matter geometry, only visite
     expect(displays).toEqual(["atom:1"])
     expect(f.scene.getSnapshot().geometryNodes).toHaveLength(4)
     expect(f.document.querySelector("hud #storybook-execution-settings")).not.toBeNull()
-    expect(f.document.querySelectorAll('[data-agent-atom="atom:2"]')).toHaveLength(1)
+    expect(f.document.querySelectorAll('[data-agent-atom="atom:2"]')).toHaveLength(0)
+    expect(f.document.querySelector('[data-spatial-node-id="atom:1"] [aria-label="Инспектор Atom"]')).not.toBeNull()
     const office = f.scene.getSnapshot().offices[0]!, r = f.scene.getSnapshot().geometryNodes.find(node => node.id === "atom:1")!.rect
     expect(office.office.bounds.max.z).toBe(180)
     expect(office.office.bounds.max.x - office.office.bounds.min.x).toBe(r.width)
@@ -136,71 +159,124 @@ test("compiled Atom App has one Document/Space, all Matter geometry, only visite
     if (!(provider instanceof HTMLButtonElement)) throw new Error("Provider HUD dock missing")
     provider.click(); await f.settle()
     expect(f.document.querySelector("hud #storybook-execution-settings")?.getAttribute("hidden")).toBeNull()
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
+    expect(f.document.querySelectorAll('[data-agent-atom="atom:2"]')).toHaveLength(1)
     expect([...f.document.querySelectorAll('[data-agent-atom="atom:2"] button')].some(button => button.getAttribute("aria-label") === "Провайдер")).toBeFalse()
   } finally {f.dispose()}
 })
 
-test("one compiled Chat moves between fitted upper Display, room and parking while draft survives route/back", async () => {
+test("one compiled Chat stays with its Agent while Atom inspector and route change", async () => {
   const f = fixture()
   try {
     await f.settle(); f.fitSelected(); await f.settle()
     expect(f.pathname).toBe("/fixture-verse/1")
+    expect(f.document.querySelector('[data-agent-atom="atom:2"]')).toBeNull()
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
     const chat = f.document.querySelector('[data-agent-atom="atom:2"]')!, draft = chat.querySelector('textarea[aria-label="Сообщение"]')
     if (!(draft instanceof HTMLTextAreaElement)) throw new Error("Shared Chat Composer missing")
-    expect(chat.parentElement?.getAttribute("data-agent-common-host")).toBe("true")
+    expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
     draft.value = "Черновик одного Chat"; draft.dispatchEvent(new InputEvent("input", {bubbles: true})); await f.settle()
     f.tree.viewPoint.z += 250; await f.settle()
     expect(f.workspace.getSnapshot().mode).toBe("offices")
     expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
     expect(chat.querySelector("textarea")).toBe(draft)
+    expect(f.scene.back()).toBeTrue()
+    await f.settle()
     f.fitSelected(); await f.settle()
-    expect(chat.parentElement?.getAttribute("data-agent-common-host")).toBe("true")
+    expect(chat.parentElement?.getAttribute("data-agent-parking")).toBe("true")
+    expect(chat.querySelector("textarea")).toBe(draft)
+    expect(draft.value).toBe("Черновик одного Chat")
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
+    expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
     f.route({kind: "atom", ref: "atom:4"}); await f.settle()
     expect(chat.parentElement?.getAttribute("data-agent-parking")).toBe("true")
     expect(f.document.querySelectorAll('[data-agent-atom="atom:2"]')).toHaveLength(1)
     f.back(); await f.settle(); f.fitSelected(); await f.settle()
     expect(f.pathname).toBe("/fixture-verse/1")
+    expect(chat.parentElement?.getAttribute("data-agent-parking")).toBe("true")
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
     expect(f.document.querySelector('[data-agent-atom="atom:2"]')).toBe(chat)
     expect(chat.querySelector("textarea")).toBe(draft)
     expect(draft.value).toBe("Черновик одного Chat")
-    expect(chat.parentElement?.getAttribute("data-agent-common-host")).toBe("true")
+    expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
     expect(chat.ownerDocument).toBe(f.document)
   } finally {f.dispose()}
 })
 
-test("late old common-host cleanup preserves the new host and one Chat on Root→Agent→History Back", async () => {
+test("Office Display remains valid at CSS and DOM publication while the same Chat moves to parking", async () => {
+  const f = fixture()
+  let displays = readSpaceTree(f.document).displays
+  const failures: string[] = []
+  let publications = 0
+  const inspect = () => {
+    publications++
+    for (const display of displays) {
+      try {readDisplayStyle(f.document, display)}
+      catch (error) {failures.push(`${display.getAttribute("data-display-id") ?? display.id}: ${String(error)}`)}
+    }
+  }
+  const stopStyles = subscribeDocumentCompiledStyleSheets(f.document, inspect)
+  const stopMutations = f.document.subscribeMutations(() => {displays = readSpaceTree(f.document).displays; inspect()})
+  try {
+    await f.settle()
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
+    const chat = f.document.querySelector('[data-agent-atom="atom:2"]')!
+    const draft = chat.querySelector('textarea[aria-label="Сообщение"]')
+    if (!(draft instanceof HTMLTextAreaElement)) throw new Error("Shared Chat Composer missing")
+    draft.value = "Draft survives Display teardown"
+    draft.dispatchEvent(new InputEvent("input", {bubbles: true}))
+    await f.settle()
+    f.route({kind: "atom", ref: "atom:4"})
+    await f.settle()
+    f.back()
+    await f.settle()
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
+    expect(publications).toBeGreaterThan(0)
+    expect(failures).toEqual([])
+    expect(f.document.querySelector('[data-agent-atom="atom:2"]')).toBe(chat)
+    expect(chat.querySelector('textarea[aria-label="Сообщение"]')).toBe(draft)
+    expect(draft.value).toBe("Draft survives Display teardown")
+    expect(chat.ownerDocument).toBe(f.document)
+    expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
+  } finally {stopStyles(); stopMutations(); f.dispose()}
+})
+
+test("root and Agent Atom use the same inspector while their one Chat retains its draft", async () => {
   const f = fixture()
   try {
     await f.settle(); f.fitSelected(); await f.settle()
+    expect(f.document.querySelector('[data-spatial-node-id="atom:1"] [aria-label="Инспектор Atom"]')).not.toBeNull()
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
     const chat = f.document.querySelector('[data-agent-atom="atom:2"]')!, draft = chat.querySelector('textarea[aria-label="Сообщение"]')
     if (!(draft instanceof HTMLTextAreaElement)) throw new Error("Shared Chat Composer missing")
-    const rootHost = chat.parentElement!
-    expect(rootHost.getAttribute("data-agent-common-host")).toBe("true")
-    expect(rootHost.closest("[data-spatial-node-id]")?.getAttribute("data-spatial-node-id")).toBe("atom:1")
-    draft.value = "Один draft для двух Agent Surface"; draft.dispatchEvent(new InputEvent("input", {bubbles: true})); await f.settle()
+    expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
+    expect(f.document.querySelector('[data-spatial-node-id="atom:1"] [aria-label="Инспектор Atom"]')).not.toBeNull()
+    expect(f.document.querySelector('[data-spatial-node-id="atom:1"] [data-agent-common-host]')).toBeNull()
+    draft.value = "Один draft при навигации"; draft.dispatchEvent(new InputEvent("input", {bubbles: true})); await f.settle()
 
     f.route({kind: "atom", ref: "atom:2"}); await f.settle(); f.fitSelected(); await f.settle()
-    const agentHost = chat.parentElement!
-    expect(agentHost).not.toBe(rootHost)
-    expect(agentHost.closest("[data-spatial-node-id]")?.getAttribute("data-spatial-node-id")).toBe("atom:2")
-    f.workspace.releaseCommon(rootHost)
-    await f.settle()
-    expect(chat.parentElement).toBe(agentHost)
+    expect(f.document.querySelector('[data-spatial-node-id="atom:2"] [aria-label="Инспектор Atom"]')).not.toBeNull()
+    expect(f.document.querySelector('[data-spatial-node-id="atom:2"] [data-agent-common-host]')).toBeNull()
+    expect(chat.parentElement?.getAttribute("data-agent-parking")).toBe("true")
     expect(chat.querySelector('textarea[aria-label="Сообщение"]')).toBe(draft)
-    expect(draft.value).toBe("Один draft для двух Agent Surface")
-    expect(f.document.querySelectorAll('[data-agent-atom="atom:2"]')).toHaveLength(1)
+    expect(draft.value).toBe("Один draft при навигации")
 
     f.back(); await f.settle(); f.fitSelected(); await f.settle()
-    const restoredHost = chat.parentElement!
     expect(f.pathname).toBe("/fixture-verse/1")
-    expect(restoredHost.closest("[data-spatial-node-id]")?.getAttribute("data-spatial-node-id")).toBe("atom:1")
-    f.workspace.releaseCommon(agentHost)
+    expect(chat.parentElement?.getAttribute("data-agent-parking")).toBe("true")
+    expect(f.scene.enterRoom()).toBeTrue()
     await f.settle()
-    expect(chat.parentElement).toBe(restoredHost)
-    expect(restoredHost.getAttribute("data-agent-common-host")).toBe("true")
+    expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
     expect(f.document.querySelector('[data-agent-atom="atom:2"]')).toBe(chat)
     expect(chat.querySelector('textarea[aria-label="Сообщение"]')).toBe(draft)
-    expect(draft.value).toBe("Один draft для двух Agent Surface")
+    expect(draft.value).toBe("Один draft при навигации")
     expect(f.document.querySelectorAll('[data-agent-atom="atom:2"]')).toHaveLength(1)
   } finally {f.dispose()}
 })
@@ -212,9 +288,16 @@ test("portrait Display and Room follow native resize, keep fitted view and retai
   try {
     await f.settle(); f.fitSelected(); await f.settle()
     expect(f.scene.getSnapshot().geometryNodes.every(node => node.viewport.width === 390 && node.viewport.height === 844)).toBeTrue()
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
     const chat = f.document.querySelector('[data-agent-atom="atom:2"]')!, draft = chat.querySelector('textarea[aria-label="Сообщение"]')
     if (!(draft instanceof HTMLTextAreaElement)) throw new Error("Shared Chat Composer missing")
     draft.value = "Черновик portrait viewport"; draft.dispatchEvent(new InputEvent("input", {bubbles: true})); await f.settle()
+    expect(f.scene.back()).toBeTrue()
+    await f.settle()
+    f.fitSelected()
+    await f.settle()
+    expect(chat.parentElement?.getAttribute("data-agent-parking")).toBe("true")
     const beforeRoute = f.routeApplications, beforeGeometry = f.scene.spatial.getSnapshot()!.geometryRevision
     f.viewport.width = 430; f.viewport.height = 932
     await f.settle()
@@ -229,8 +312,112 @@ test("portrait Display and Room follow native resize, keep fitted view and retai
     expect(f.document.querySelector('[data-agent-atom="atom:2"]')).toBe(chat)
     expect(chat.querySelector('textarea[aria-label="Сообщение"]')).toBe(draft)
     expect(draft.value).toBe("Черновик portrait viewport")
-    expect(chat.parentElement?.getAttribute("data-agent-common-host")).toBe("true")
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
+    expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
     expect(f.pathname).toBe("/fixture-verse/1")
     expect(f.routeApplications).toBe(beforeRoute)
   } finally {clock.mockRestore(); f.dispose()}
+})
+
+test("room opens the same Chat in a fill Window and Back restores its head and draft", async () => {
+  const f = fixture()
+  let now = performance.now()
+  const clock = spyOn(performance, "now").mockImplementation(() => now)
+  const pulse = async () => {
+    for (let step = 0; step < 25; step++) {
+      now += 16
+      await f.settle()
+    }
+  }
+  const pose = () => [f.tree.viewPoint.x, f.tree.viewPoint.y, f.tree.viewPoint.z,
+    f.tree.viewPoint.targetX, f.tree.viewPoint.targetY, f.tree.viewPoint.targetZ]
+  try {
+    await f.settle()
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
+    const chat = f.document.querySelector('[data-agent-atom="atom:2"]')!
+    const draft = chat.querySelector('textarea[aria-label="Сообщение"]')
+    if (!(draft instanceof HTMLTextAreaElement)) throw new Error("Shared Chat Composer missing")
+    draft.value = "Один Chat на весь viewport"
+    draft.dispatchEvent(new InputEvent("input", {bubbles: true}))
+    await f.settle()
+    const roomPose = pose()
+    const key = f.workspace.getSnapshot().agents[0]!.key
+    f.workspace.openChat(key)
+    await pulse()
+    expect(f.workspace.getSnapshot().focusedChat).toBe(key)
+    expect(f.scene.getSnapshot().view).toBe("room")
+    expect(chat.closest("[data-room-chat-host]")).not.toBeNull()
+    expect(chat.closest("[data-window]")?.getAttribute("data-layout")).toBe("fill")
+    expect(f.document.querySelectorAll('[data-agent-atom="atom:2"]')).toHaveLength(1)
+    expect(chat.querySelector('textarea[aria-label="Сообщение"]')).toBe(draft)
+    expect(draft.value).toBe("Один Chat на весь viewport")
+    expect(f.document.querySelectorAll("canvas")).toHaveLength(0)
+    f.workspace.closeChat()
+    await pulse()
+    expect(f.workspace.getSnapshot().focusedChat).toBeNull()
+    expect(f.scene.getSnapshot().view).toBe("room")
+    expect(chat.parentElement?.getAttribute("data-agent-wall-host")).toBe("assistant")
+    expect(f.document.querySelector('[data-agent-atom="atom:2"]')).toBe(chat)
+    expect(chat.querySelector('textarea[aria-label="Сообщение"]')).toBe(draft)
+    expect(draft.value).toBe("Один Chat на весь viewport")
+    expect(chat.ownerDocument).toBe(f.document)
+    expect(pose()).toEqual(roomPose)
+    expect(f.pathname).toBe("/fixture-verse/1")
+  } finally {clock.mockRestore(); f.dispose()}
+})
+
+test("hidden room keeps its selected fullscreen Chat through transient source errors and same-world refresh", async () => {
+  const f = fixture({width: 1142, height: 1088}, 2)
+  try {
+    await f.settle()
+    expect(f.scene.enterRoom()).toBeTrue()
+    await f.settle()
+    f.pausePresented()
+    const selected = f.workspace.getSnapshot().agents.find(agent => agent.id === "second")!.key
+    const chat = f.document.querySelector('[data-agent-atom="atom:3"]')!
+    const draft = chat.querySelector('textarea[aria-label="Сообщение"]')
+    if (!(draft instanceof HTMLTextAreaElement)) throw new Error("Second Chat Composer missing")
+    draft.value = "Сохранить выбранный Qwen при ошибке наблюдения"
+    draft.dispatchEvent(new InputEvent("input", {bubbles: true}))
+    f.workspace.openChat(selected)
+    await f.settle()
+    expect(chat.closest("[data-room-chat-host]")).not.toBeNull()
+    const pose = () => [f.tree.viewPoint.x, f.tree.viewPoint.y, f.tree.viewPoint.z,
+      f.tree.viewPoint.targetX, f.tree.viewPoint.targetY, f.tree.viewPoint.targetZ]
+    const before = pose()
+    const assertRetained = () => {
+      expect(f.scene.getSnapshot().view).toBe("room")
+      expect(f.workspace.getSnapshot().selected).toBe(selected)
+      expect(f.workspace.getSnapshot().focusedChat).toBe(selected)
+      expect(f.document.querySelector('[data-agent-atom="atom:3"]') === chat).toBeTrue()
+      expect(chat.closest("[data-room-chat-host]")).not.toBeNull()
+      expect(chat.querySelector('textarea[aria-label="Сообщение"]') === draft).toBeTrue()
+      expect(draft.value).toBe("Сохранить выбранный Qwen при ошибке наблюдения")
+      expect(pose()).toEqual(before)
+      expect(f.pathname).toBe("/fixture-verse/1")
+    }
+    f.update({...f.input, graph: structuredClone(f.input.graph)})
+    await f.settle()
+    assertRetained()
+    for (const error of ["Failed to fetch", "Observation temporarily unavailable"]) {
+      f.update({...f.input, status: "error", error})
+      await f.settle()
+      expect(f.workspace.getSnapshot().input.status).toBe("error")
+      expect(f.workspace.getSnapshot().input.error).toBe(error)
+      expect(f.scene.getSnapshot().message).toBe(error)
+      expect(f.routeResolution).toMatchObject({kind: "unavailable", error})
+      expect(f.document.querySelector("#metafor-room-chat [data-window-title]")?.textContent).toContain("Наблюдение недоступно")
+      assertRetained()
+    }
+    f.update({...f.input, status: "ready", error: null, graph: structuredClone(f.input.graph)})
+    await f.settle()
+    assertRetained()
+    expect(f.document.querySelector("#metafor-room-chat [data-window-title]")?.textContent).not.toContain("Наблюдение недоступно")
+    f.update({...f.input, status: "error", error: "Another world", observedWorld: {...f.input.observedWorld!, cutId: "two"}})
+    await f.settle()
+    expect(f.scene.getSnapshot().mode).toBe("unavailable")
+    expect(f.workspace.getSnapshot().focusedChat).toBeNull()
+  } finally {f.dispose()}
 })

@@ -1,7 +1,7 @@
 {
   "name": "@cosmos/release",
   "label": "Релизы Cosmos",
-  "version": "0.3.17",
+  "version": "0.3.29",
   "private": true,
   "type": "module",
   "exports": {
@@ -25,13 +25,16 @@
     "@metafor/agent": "workspace:*",
     "@metafor/provider": "workspace:*",
     "@zavx0z/provider-tech-peer": "^0.0.0",
+    "@zavx0z/storybook-chat-session": "^0.0.0",
+    "@zavx0z/storybook-tech-acp": "^0.0.0",
     "@zavx0z/immersive": "^0.0.0",
     "@internal/visual": "workspace:^0.3.0",
     "@metafor/tech-build": "workspace:*",
     "@metafor/tech-peer": "workspace:*",
     "@metafor/tech-release": "workspace:*",
     "werift": "0.23.0",
-    "reflect-metadata": "0.2.2"
+    "reflect-metadata": "0.2.2",
+    "@zavx0z/storybook-app-settings": "^0.0.0"
   },
   "devDependencies": {
     "boundary": "workspace:*",

@@ -14,7 +14,7 @@ const ORIGIN = "http://127.0.0.1:4444"
 const local = {requestIP: () => ({address: "127.0.0.1"})}
 const task: AgentUiTaskRequest = {agentRef: "atom:2", task: {id: "conversation-1", text: "Привет", mode: "conversation"}}
 
-function fixture(verseId?: string | null) {
+function fixture(verseId?: string | null, legacyHistory?: boolean) {
   const actor: RuntimeAtom = {ref: "atom:2", kind: "atom", meta: AGENT, declaration: "#/template/@metafor~1environment/matter/0", state: "idle",
     values: {task: null, status: "idle", error: null, activeTaskId: null}, mass: []}
   const graph: Graph = {schema: GRAPH_SCHEMA, root: ROOT, template: {
@@ -53,7 +53,7 @@ function fixture(verseId?: string | null) {
     }
     throw new Error("Unexpected operation")
   }}
-  const bridge = createAgentUiBridge({peer, admitted: () => admitted, verseId})
+  const bridge = createAgentUiBridge({peer, admitted: () => admitted, verseId, ...(legacyHistory === undefined ? {} : {legacyHistory})})
   return {bridge, actor, graph, observation, session, calls, setGate(value: Promise<void>) {gate = value},
     enableProviders() {
       actor.values.providerBinding = null
@@ -255,4 +255,19 @@ test("startup admission and close revoke observation without admitting a model o
   expect(f.calls).toEqual([])
   f.bridge.close()
   expect((await f.bridge.fetch(get(), local)).status).toBe(503)
+})
+
+
+test("Cosmos surface отключает автоматическое чтение старой Chat Mass, сохраняя её исходник", async () => {
+  const f = fixture("test-verse", false)
+  const before = structuredClone(f.session)
+  try {
+    const response = await f.bridge.fetch(get(), local)
+    expect(response.status).toBe(200)
+    const snapshot = await response.json() as AgentUiSnapshot
+    expect(snapshot.agents[0]!.chatSession).toBeNull()
+    expect(snapshot.agents[0]!.chatError).toBeNull()
+    expect(f.calls.filter(call => call.method === ENERGY_MASS_RESULT_READ_METHOD && (call.params as {key?: string}).key === "session")).toEqual([])
+    expect(f.session).toEqual(before)
+  } finally {f.bridge.close()}
 })

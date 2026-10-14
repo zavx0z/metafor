@@ -1,7 +1,7 @@
 {
   "name": "@internal/visual",
   "label": "Визуальная среда Cosmos",
-  "version": "0.3.14",
+  "version": "0.3.25",
   "private": true,
   "type": "module",
   "exports": {
@@ -25,11 +25,15 @@
     "build:server": "bun build ./server/index.ts --conditions=internal:server --target=bun --packages=external --production --minify --drop console.debug --outfile=dist/server.js"
   },
   "dependencies": {
+    "@zavx0z/chat": "^0.0.0",
+    "@zavx0z/storybook-chat-view": "^0.0.0",
+    "@zavx0z/storybook-chat-session": "^0.0.0",
     "@metafor/types": "workspace:*",
     "@metafor/agent": "workspace:*",
     "@zavx0z/immersive": "^0.0.0",
     "@zavx0z/immersive-nodes": "^0.0.0",
-    "@zavx0z/storybook-app-web-page-shell-execution-settings": "^0.0.0"
+    "@zavx0z/storybook-app-web-page-shell-execution-settings": "^0.0.0",
+    "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview": "^0.0.0"
   },
   "devDependencies": {
     "@metafor/tech-build": "workspace:*"

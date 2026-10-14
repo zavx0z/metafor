@@ -22,7 +22,7 @@ export type ProductRouteResolution =
   | {kind: "noSuchAtom"; verseId: string; atomId: string | null}
   | {kind: "invalidRoute"; pathname: string}
 
-const services = new Set(["agents", "oracle", "release", "assets", "code", "sw", "peer", "force", "health", "ws", "clients", "_quantum", "networks", "manifest.webmanifest", "favicon.ico"])
+const services = new Set(["agents", "conversations", "oracle", "release", "assets", "code", "sw", "peer", "force", "health", "ws", "clients", "_quantum", "networks", "manifest.webmanifest", "favicon.ico"])
 const opaque = (value: string) => value.length > 0 && value.length <= 256 && value.trim() === value &&
   value !== "." && value !== ".." && !/[\u0000-\u0020\u007f/\\]/u.test(value)
 const verse = (value: string) => opaque(value) && !services.has(value) && !value.startsWith("@")

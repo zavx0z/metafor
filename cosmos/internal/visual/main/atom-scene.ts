@@ -14,11 +14,15 @@ type Network = Pick<NetworkSpaceModel, "attach" | "suspend" | "fit" | "zoom" | "
 
 /** Подтверждённый адрес от release router; визуальный выбор сам не меняет URL. */
 export type AtomSceneRoute = {kind: "atom"; ref: AtomRef} | {kind: "networks"} | {kind: "unavailable"; message: string}
+/** Локальная ступень навигации; адрес Atom и canonical Graph не меняются. */
+export type AtomSceneView = "overview" | "display" | "room"
 /** Snapshot содержит только наблюдаемое содержимое и фактическую геометрию SpatialTree. */
 export interface AtomSceneSnapshot {
   readonly mode: "atoms" | "networks" | "unavailable"
   readonly message: string | null
   readonly selectedAtom: RuntimeAtom | null
+  readonly view: AtomSceneView
+  readonly canGoBack: boolean
   readonly source: AgentWorkspaceSnapshot
   readonly geometryNodes: readonly GeometryNode[]
   readonly offices: readonly {office: AgentOfficeSnapshot; position: {x: number; y: number; z: number}}[]
@@ -36,6 +40,8 @@ export interface AtomSceneSnapshot {
  * комнат остаётся в SpatialTree без их интерфейсов и подписок представления.
  * Selection запрашивает navigation, applyRoute подтверждает адрес. Сети получают
  * камеру только по явному маршруту; adapter не создаёт Document/canvas/frame loop.
+ * Back возвращает room → display → overview. Display остаётся в том же Document:
+ * вне его режима скрывается через public hidden, сохраняя content identity.
  * @see ../README.md; atom-scene.spec.ts.
  */
 export function createAtomScene(options: Readonly<{
@@ -53,8 +59,11 @@ export function createAtomScene(options: Readonly<{
   let deferredFocus = false
   let navigation: {atom(ref: AtomRef, focus?: boolean): void; networks(): void} | null = null
   let pendingFocus: {ref: AtomRef; focus: boolean} | null = null
+  let view: AtomSceneView = "display"
+  let openingDisplay = false
+  let stopCamera = () => {}
   const residents = new Set<AtomRef>()
-  let snapshot: AtomSceneSnapshot = {mode: "unavailable", message: route.message, selectedAtom: null, source, geometryNodes: [], offices: []}
+  let snapshot: AtomSceneSnapshot = {mode: "unavailable", message: route.message, selectedAtom: null, view, canGoBack: false, source, geometryNodes: [], offices: []}
   const assertActive = () => {if (disposed) throw new Error("Atom scene is disposed")}
   const viewport = () => {
     const rect = root?.canvas.getBoundingClientRect()
@@ -64,7 +73,12 @@ export function createAtomScene(options: Readonly<{
   }
   const derive = () => {
     const selectedAtom = route.kind === "atom" ? projection?.lookupRuntimeAtom(route.ref) ?? null : null
-    const available = source.status === "ready" && source.graph !== null
+    const previous = snapshot.source
+    const retained = source.status === "error" && snapshot.mode === "atoms" && source.graph !== null && source.graph === previous.graph &&
+      source.verseId === previous.verseId && source.observedWorld !== null && source.observedWorld !== undefined &&
+      previous.observedWorld !== null && previous.observedWorld !== undefined && source.observedWorld.root === previous.observedWorld.root &&
+      source.observedWorld.cutId === previous.observedWorld.cutId
+    const available = (source.status === "ready" || retained) && source.graph !== null
     const mode = route.kind === "networks" ? "networks" : route.kind === "atom" && available && selectedAtom ? "atoms" : "unavailable"
     const geometryNodes = mode === "atoms" ? spatial.getSnapshot()?.geometryNodes ?? spatial.getSnapshot()?.nodes ?? [] : []
     const byRef = new Map(geometryNodes.map(node => [node.id, node]))
@@ -76,14 +90,41 @@ export function createAtomScene(options: Readonly<{
       offices.push({office: {...office, bounds: {min: {x: -r.width / 2, y: -r.height / 2, z: 0}, max: {x: r.width / 2, y: r.height / 2, z: BODY_DEPTH}}},
         position: {x: r.x + r.width / 2, y: r.y + r.height / 2, z: r.z - BODY_DEPTH}})
     }
-    snapshot = {mode, message: mode === "unavailable" ? route.kind === "unavailable" ? route.message : source.error ?? "Выбранный Atom недоступен" : null,
-      selectedAtom: mode === "atoms" ? selectedAtom : null, source, geometryNodes, offices}
+    snapshot = {mode, message: source.status === "error" ? source.error ?? "Наблюдение мира недоступно" : mode === "unavailable" ? route.kind === "unavailable" ? route.message : "Выбранный Atom недоступен" : null,
+      selectedAtom: mode === "atoms" ? selectedAtom : null, view, canGoBack: mode === "atoms" && view !== "overview", source, geometryNodes, offices}
     for (const listener of listeners) listener()
   }
   const displayFor = (id: string): DisplayElement | null => {
     for (const element of root?.document.querySelectorAll("[data-spatial-node-id]") ?? [])
       if (element instanceof DisplayElement && element.getAttribute("data-spatial-node-id") === id) return element
     return null
+  }
+  const updateVisibility = () => {
+    if (route.kind !== "atom") return
+    const display = displayFor(route.ref)
+    if (display && display.hidden !== (view !== "display")) display.hidden = view !== "display"
+    glass?.update()
+  }
+  const onHost: SpatialTreeSnapshot["onHost"] = (id, display) => {
+    spatial.getSnapshot()?.onHost(id, display)
+    if (display) display.hidden = view !== "display" || route.kind !== "atom" || route.ref !== id
+  }
+  const observeRoom = () => {
+    if (!root || view !== "display" || route.kind !== "atom") return
+    const ref = route.ref
+    const node = snapshot.geometryNodes.find(node => node.id === ref)
+    if (!node) return
+    const r = node.rect, eye = root.viewPoint
+    if (openingDisplay) {
+      if (eye.z >= r.z) openingDisplay = false
+      else return
+    }
+    if (eye.z < r.z && eye.x >= r.x && eye.x <= r.x + r.width && eye.y >= r.y && eye.y <= r.y + r.height) {
+      controller?.select(ref, false)
+      view = "room"
+      updateVisibility()
+      derive()
+    }
   }
   const releaseAtoms = () => {
     glass?.dispose(); glass = null
@@ -122,7 +163,7 @@ export function createAtomScene(options: Readonly<{
     const resized = geometryViewport !== null && (size.width !== geometryViewport.width || size.height !== geometryViewport.height)
     const wasFitted = selected !== null && displayFor(selected)?.getAttribute("data-metafor-display-fitted") === "true"
     if (!controller) {
-      controller = createSpatialTreeController({root, state: spatial, preserveViewPoint: true, showGrid: false,
+      controller = createSpatialTreeController({root, state: spatial, preserveViewPoint: true, minimumNear: 1, showGrid: false,
         layout: {bodyDepth: BODY_DEPTH, layerGap: 600}, getViewport: viewport})
       glass = bindAtomDisplayGlass({root, source: spatial, displayFor})
     }
@@ -144,12 +185,15 @@ export function createAtomScene(options: Readonly<{
     if (route.kind === "atom") {
       content(route.ref)
       controller.ensureDisplay(route.ref)
-      const fit = focus || resized && wasFitted
-      if (selected !== route.ref || fit) controller.select(route.ref, fit)
+      const fit = view === "display" && (focus || resized && wasFitted)
+      if (selected !== route.ref || fit) {
+        openingDisplay = fit
+        controller.select(route.ref, fit)
+      }
       selected = route.ref
     }
     glass?.updateViewport(size)
-    glass?.update()
+    updateVisibility()
     derive()
   }
   const stopSpatial = spatial.subscribe(() => {
@@ -157,6 +201,7 @@ export function createAtomScene(options: Readonly<{
     const ref = route.kind === "atom" ? route.ref : null
     visible.publish(value ? {...value,
       nodes: value.nodes.filter(node => node.id === ref),
+      onHost,
       disabledHitIds: new Set(value.selectedId === ref && value.selectedVolumeId ? [value.selectedVolumeId] : []),
     } : null)
     derive()
@@ -175,6 +220,9 @@ export function createAtomScene(options: Readonly<{
       if (root === value) return
       if (root) throw new Error("Atom scene already belongs to another Presentation")
       root = value; network = networkModel
+      stopCamera = root.document.subscribeMutations(batch => {
+        if (batch.records.some(record => record.target === value.viewPoint)) observeRoom()
+      })
       stopPresented = root.subscribePresented(() => {
         if (disposed || snapshot.mode !== "atoms") return
         const size = viewport()
@@ -188,7 +236,8 @@ export function createAtomScene(options: Readonly<{
           })
           return
         }
-        glass?.update()
+        observeRoom()
+        updateVisibility()
       })
       if (route.kind === "networks") {network.attach(root); network.fit()} else refresh(true)
     },
@@ -197,6 +246,12 @@ export function createAtomScene(options: Readonly<{
       const changed = next.kind !== route.kind || next.kind === "atom" && (route.kind !== "atom" || next.ref !== route.ref)
       route = next
       const focus = next.kind === "atom" && pendingFocus?.ref === next.ref ? pendingFocus.focus : changed
+      if (next.kind === "atom" && focus) {
+        view = "display"
+        // refresh может синхронно вызвать Root.render до controller.select.
+        // Прежняя room pose ещё под крышей, но новый маршрут уже требует focus.
+        openingDisplay = true
+      }
       pendingFocus = null
       if (next.kind === "networks") {
         releaseAtoms()
@@ -207,11 +262,65 @@ export function createAtomScene(options: Readonly<{
     setNavigation(value: NonNullable<typeof navigation>) {assertActive(); navigation = value},
     select: requestSelect,
     navigateNetworks() {assertActive(); navigation?.networks()},
-    fit() {assertActive(); if (snapshot.mode === "atoms") controller?.fit(); else if (snapshot.mode === "networks") network?.fit()},
+    /** Общий обзор через существующий SpatialTree controller; адрес сохраняется. */
+    fit() {
+      assertActive()
+      if (snapshot.mode === "atoms") {
+        view = "overview"
+        updateVisibility()
+        derive()
+        controller?.fit()
+      } else if (snapshot.mode === "networks") network?.fit()
+    },
+    /** Вход в фактические bounds комнаты одной записью public ViewPoint. */
+    enterRoom() {
+      assertActive()
+      if (!root || !controller || snapshot.mode !== "atoms" || route.kind !== "atom" || view !== "display") return false
+      const ref = route.ref
+      const node = snapshot.geometryNodes.find(node => node.id === ref)
+      if (!node) return false
+      controller.select(ref, false)
+      openingDisplay = false
+      view = "room"
+      const r = node.rect, eye = root.viewPoint
+      root.document.transaction(() => {
+        eye.x = r.x + r.width / 2
+        eye.y = r.y + r.height * .15
+        eye.z = r.z - BODY_DEPTH * .45
+        eye.targetX = eye.x
+        eye.targetY = r.y + r.height * .75
+        eye.targetZ = eye.z
+        eye.controls = true
+        eye.navigation = "fly"
+        eye.flySpeed = BODY_DEPTH / 40
+        updateVisibility()
+      })
+      derive()
+      root.invalidate()
+      return true
+    },
+    /** Две ступени Back используют тот же SpatialTree focus/overview lifecycle. */
+    back() {
+      assertActive()
+      if (!controller || snapshot.mode !== "atoms" || route.kind !== "atom" || view === "overview") return false
+      if (view === "room") {
+        view = "display"
+        openingDisplay = true
+        updateVisibility()
+        derive()
+        controller.select(route.ref, true)
+      } else {
+        view = "overview"
+        updateVisibility()
+        derive()
+        controller.fit()
+      }
+      return true
+    },
     zoom(factor: number) {assertActive(); if (snapshot.mode === "atoms") controller?.zoom(factor); else if (snapshot.mode === "networks") network?.zoom(factor)},
     dispose() {
       if (disposed) return
-      disposed = true; stopSource(); stopSpatial(); stopPresented(); releaseAtoms(); network?.suspend(); spatial.publish(null); visible.publish(null); listeners.clear(); root = null; network = null
+      disposed = true; stopSource(); stopSpatial(); stopPresented(); stopCamera(); releaseAtoms(); network?.suspend(); spatial.publish(null); visible.publish(null); listeners.clear(); root = null; network = null
     },
   }
 }

@@ -100,6 +100,9 @@
     "space:build": "bun build create-metafor/dsl/metafor.ts --outdir ./dist --sourcemap=linked"
   },
   "overrides": {
+    "@zavx0z/storybook-app-settings": "link:@zavx0z/storybook-app-settings",
+    "@zavx0z/storybook-chat-session": "link:@zavx0z/storybook-chat-session",
+    "@zavx0z/storybook-tech-acp": "link:@zavx0z/storybook-tech-acp",
     "@zavx0z/chat": "link:@zavx0z/chat",
     "@zavx0z/storybook-chat-preferences": "link:@zavx0z/storybook-chat-preferences",
     "@zavx0z/storybook-chat-view": "link:@zavx0z/storybook-chat-view",
@@ -133,7 +136,8 @@
     "@zavx0z/storybook-app-web-page-shell-execution-settings": "link:@zavx0z/storybook-app-web-page-shell-execution-settings",
     "@zavx0z/provider-model-ollama": "link:@zavx0z/provider-model-ollama",
     "@zavx0z/provider-session-ollama": "link:@zavx0z/provider-session-ollama",
-    "@zavx0z/provider-configuration-ollama": "link:@zavx0z/provider-configuration-ollama"
+    "@zavx0z/provider-configuration-ollama": "link:@zavx0z/provider-configuration-ollama",
+    "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview": "link:@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview"
   },
   "exports": {
     ".": "./cosmos/cli.ts",

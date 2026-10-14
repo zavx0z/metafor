@@ -3,7 +3,7 @@ import type {ClientCapture, ClientDiagnostics, ClientDiagnosticsOptions} from "@
 
 const NODE_LIMIT = 50_000, PROJECTION_LIMIT = 32, RECORD_LIMIT = 128, RESOURCE_LIMIT = 64, INTERVAL_LIMIT = 240, LONG_TASK_LIMIT = 64
 const CAPTURE_BYTES = 8 * 1024 * 1024
-type ReadyPresentation = Pick<Presentation, "document" | "getProjection" | "subscribePresented" | "presentedFrame" | "captureLastPresentedFramePng" | "disposed">
+type ReadyPresentation = Pick<Presentation, "document" | "viewPoint" | "getProjection" | "subscribePresented" | "presentedFrame" | "captureLastPresentedFramePng" | "disposed">
 type PerformanceSource = Pick<Performance, "now" | "getEntriesByType">
 type Observer = {observe(options: PerformanceObserverInit): void; disconnect(): void}
 type ObserverFactory = (callback: (entries: Array<{startTime: number; duration: number}>) => void) => Observer
@@ -17,7 +17,10 @@ const unsupported = (message: string) => Object.assign(new Error(message), {code
 Подписки живут только во время запрошенного sample и снимаются при abort/dispose.
 Capture использует только captureLastPresentedFramePng; нового render, RAF,
 Inspector loader, OS capture или private renderer fields здесь нет.
+Камера читается один раз из public viewPoint до sample, без округления и привязки
+к кадру. Nonfinite значение даёт null вместо вымышленной позы.
 Владение — [Visual](../README.md#совместная-работа-с-клиентом).
+[Проверка](./client-diagnostics.spec.ts) сохраняет точный clip range без нового кадра.
 */
 export function createClientDiagnostics(presentation: ReadyPresentation, options: {
   viewport?: () => {width: number; height: number; devicePixelRatio: number}
@@ -45,6 +48,11 @@ export function createClientDiagnostics(presentation: ReadyPresentation, options
       const signal = AbortSignal.any([inputSignal, lifetime.signal]);check(signal)
       const started = now(), limit = request.limit ?? 64, after = request.afterIndex ?? 0, sampleMs = request.sampleMs ?? 0
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > RECORD_LIMIT || !Number.isSafeInteger(after) || after < 0 || after > 1_000_000 || !Number.isSafeInteger(sampleMs) || sampleMs !== 0 && (sampleMs < 1000 || sampleMs > 3000)) throw new Error("Invalid bounded diagnostics request")
+      const viewPoint = presentation.viewPoint
+      const observedCamera = {position: {x: viewPoint.x, y: viewPoint.y, z: viewPoint.z},
+        target: {x: viewPoint.targetX, y: viewPoint.targetY, z: viewPoint.targetZ}, fov: viewPoint.fov, near: viewPoint.near, far: viewPoint.far}
+      const camera = [...Object.values(observedCamera.position), ...Object.values(observedCamera.target), observedCamera.fov, observedCamera.near, observedCamera.far].every(Number.isFinite)
+        ? observedCamera : null
       const semantic = {nodes: 0, elements: 0, displays: 0, huds: 0, complete: true, scanLimit: NODE_LIMIT}
       const owners: Array<DisplayElement | HUDElement> = []
       const stack: Array<{node: Node; children: readonly Node[]; index: number; entered: boolean}> = [{node: presentation.document, children: presentation.document.childNodes, index: 0, entered: false}]
@@ -116,7 +124,7 @@ export function createClientDiagnostics(presentation: ReadyPresentation, options
       check(signal)
       const actual = viewport()
       return {schema: "cosmos/client-diagnostics/v1", version: 1, durationMs: bounded(now() - started),
-        viewport: {width: bounded(actual.width), height: bounded(actual.height), devicePixelRatio: bounded(actual.devicePixelRatio)}, semantic,
+        viewport: {width: bounded(actual.width), height: bounded(actual.height), devicePixelRatio: bounded(actual.devicePixelRatio)}, camera, semantic,
         projections, projectionsComplete: semantic.complete && semantic.displays + semantic.huds <= PROJECTION_LIMIT,
         boxes, page: {cursor: Math.min(total, after + boxes.length), total, truncated: after + boxes.length < total}, sample, resources, resourcesTruncated,
         availability: {presentedIntervals: {available: true, reason: null}, longTasks: {available: longTasksAvailable, reason: longTasksAvailable ? null : "Browser Long Tasks API is unavailable"},

@@ -8,13 +8,15 @@ import plugin from "../build/template.plugin"
 
 let compiledDirectory = ""
 let compiledHUD: typeof import("./provider-hud")
+let compiledLogin: typeof import("./provider-browser-login")
 beforeAll(async () => {
   compiledDirectory = await mkdtemp(join(import.meta.dir, ".compiled-provider-hud-"))
   await symlink(resolve(import.meta.dir, "../node_modules"), join(compiledDirectory, "node_modules"), "dir")
-  const built = await Bun.build({entrypoints: [join(import.meta.dir, "provider-hud.tsx")], outdir: compiledDirectory, target: "bun", conditions: ["metafor:main"],
+  const built = await Bun.build({entrypoints: [join(import.meta.dir, "provider-hud.tsx"), join(import.meta.dir, "provider-browser-login.tsx")], splitting: true, outdir: compiledDirectory, target: "bun", conditions: ["metafor:main"],
     external: ["@zavx0z/immersive", "@zavx0z/immersive/*"], plugins: [plugin]})
   if (!built.success) throw new AggregateError(built.logs, "Provider HUD did not compile")
   compiledHUD = await import(pathToFileURL(join(compiledDirectory, "provider-hud.js")).href)
+  compiledLogin = await import(pathToFileURL(join(compiledDirectory, "provider-browser-login.js")).href)
 }, 30000)
 afterAll(async () => {if (compiledDirectory) await rm(compiledDirectory, {recursive: true, force: true})})
 
@@ -221,3 +223,88 @@ test("Ollama HUD retains the assigned server and requests real per-model options
     expect(requests.every(row => !row.agentRef && !row.task && !row.prompt)).toBe(true)
   } finally {globalThis.fetch = originalFetch}
 }, 30000)
+
+test("inline sign-in uses the public Browser widget before any Agent or native model session exists", async () => {
+  const {createProviderRegistry} = await import("@metafor/types/metafor/provider-validation")
+  const registry = createProviderRegistry([{id: "auth-only", service: "chatgpt", host: "codespace", remotePeerId: "peer", executorId: "browser",
+    source: {kind: "native-bootstrap", assignmentId: "auth-only", remoteGraph: "unknown"}, resolution: "exact", connection: "connected",
+    capabilities: {modelTurn: true, browserPreview: true, browserControl: true}, checks: {status: "unknown", checkedAt: 1, message: null}}])
+  const View = compiledLogin.ProviderBrowserLogin as unknown as DOMComponentConstructor<import("./provider-browser-login").ProviderBrowserLoginProps>
+  const document = createDocument(), host = document.createElement("div")
+  document.append(host)
+  const root = createDomRoot(host), originalFetch = globalThis.fetch
+  const requests: unknown[] = []
+  try {
+    globalThis.fetch = Object.assign(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(url).toBe("/agents/browser/bootstrap")
+      requests.push(JSON.parse(String(init?.body)))
+      return Response.json({error: "Viewer deliberately unavailable"}, {status: 409})
+    }, {preconnect: originalFetch.preconnect})
+    root.render(View, {access: {atom: null, registries: [{ref: "atom:4", registry}]}, connectionId: "auth-only", visible: true})
+    const settle = async () => {for (let count = 0; count < 8; count++) {root.flush(); await Bun.sleep(0)}}
+    await settle()
+    expect(requests).toEqual([])
+    const signIn = [...host.querySelectorAll("button")].find(value => value.textContent === "Войти")
+    if (!(signIn instanceof HTMLButtonElement)) throw new Error("Inline sign-in is absent")
+    signIn.click()
+    await settle()
+    expect(requests).toEqual([{agentRef: null, providerRef: "atom:4", entryId: "auth-only"}])
+    expect(host.querySelector("[data-browser-preview]")).not.toBeNull()
+    expect(host.textContent).toContain("Oracle не подтвердил просмотр Provider")
+    expect(host.querySelectorAll("canvas")).toHaveLength(0)
+    const close = [...host.querySelectorAll("button")].find(value => value.textContent === "Закрыть браузер входа")
+    if (!(close instanceof HTMLButtonElement)) throw new Error("Inline browser close is absent")
+    close.click()
+    await settle()
+    expect(host.querySelector("[data-browser-preview]")).toBeNull()
+    expect(requests).toHaveLength(1)
+  } finally {root.unmount(); globalThis.fetch = originalFetch}
+}, 30000)
+
+test("explicit browser opening singleflights missing admission and uses the newly confirmed binding without preparing a model", async () => {
+  const {createProviderRegistry} = await import("@metafor/types/metafor/provider-validation")
+  const entry = {id: "native-before", service: "chatgpt", host: "codespace", remotePeerId: "peer", executorId: "browser",
+    source: {kind: "native-bootstrap" as const, assignmentId: "assigned", remoteGraph: "unknown" as const}, resolution: "exact" as const,
+    connection: "unknown" as const, capabilities: {modelTurn: true, browserPreview: true, browserControl: false}, checks: {status: "unknown" as const, checkedAt: null, message: null}}
+  const registry = createProviderRegistry([entry])
+  registry.settings = {selectedId: entry.id, configuration: {schemaVersion: 1, revision: 1, connections: [{id: "login", label: "ChatGPT", enabled: true,
+    provider: "capsule", peer: {peerId: "peer", executorId: "browser"}, endpoint: {url: "", profile: "assigned", service: "chatgpt"}}], general: {connectionId: "login"}, types: {}},
+    connectionBindings: {login: entry.id}, connectionChecks: {login: entry.checks}}
+  const confirmed = structuredClone(registry)
+  confirmed.revision = 1
+  confirmed.entries = [{...entry, id: "native-after", connection: "connected", checks: {status: "unknown", checkedAt: 123, message: null}}]
+  confirmed.settings.selectedId = "native-after"
+  confirmed.settings.connectionBindings = {login: "native-after"}
+  confirmed.settings.connectionChecks = {login: {status: "unknown", checkedAt: 123, message: null}}
+  const originalFetch = globalThis.fetch
+  const scope = new AbortController(), viewer = new AbortController()
+  const requests: string[] = []
+  let refuse = false, opened = 0
+  try {
+    globalThis.fetch = Object.assign(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      if (init?.method === "DELETE") return new Response(null, {status: 204})
+      if (url === "/agents/connections") {
+        requests.push("check")
+        expect(JSON.parse(String(init?.body))).toEqual({providerRef: "atom:4", check: "login"})
+        await Bun.sleep(0)
+        const checked = structuredClone(confirmed)
+        if (refuse) checked.settings.connectionChecks = {login: {status: "failed", checkedAt: 124, message: "Assigned host refused transport admission"}}
+        return Response.json({ref: "atom:4", registry: checked})
+      }
+      expect(url).toBe("/agents/browser/bootstrap")
+      const input = JSON.parse(String(init?.body))
+      expect(input).toEqual({agentRef: null, providerRef: "atom:4", entryId: "native-after"})
+      requests.push(`bootstrap:${input.entryId}`)
+      return Response.json({ticket: `grant-${++opened}`, description: {instanceId: "instance", profile: "assigned", controlEnabled: false}, iceServers: []})
+    }, {preconnect: originalFetch.preconnect})
+    const props = () => ({atom: null, open: true, onOpenChange() {}, registries: [{ref: "atom:4" as const, registry}]})
+    const client = compiledHUD.createProviderSettingsClient(props, scope.signal)
+    const descriptors = await Promise.all([client.openBrowserViewer("login", viewer.signal), client.openBrowserViewer("login", viewer.signal)])
+    expect(requests).toEqual(["check", "bootstrap:native-after", "bootstrap:native-after"])
+    expect(descriptors.map(value => value.controlEnabled)).toEqual([false, false])
+    refuse = true
+    const refused = compiledHUD.createProviderSettingsClient(props, scope.signal)
+    await expect(refused.openBrowserViewer("login", viewer.signal)).rejects.toThrow("Assigned host refused transport admission")
+    expect(opened).toBe(2)
+  } finally {viewer.abort(); scope.abort(); globalThis.fetch = originalFetch}
+})

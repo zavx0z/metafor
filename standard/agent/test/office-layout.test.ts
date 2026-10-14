@@ -117,3 +117,40 @@ test("неиспользуемая боковая стена в shallow room с�
   expect(result.walls.west.available).toBe(0)
   for (const wall of Object.values(result.walls)) expect(wall.available).toBeGreaterThanOrEqual(0)
 })
+
+test("надголовная группа целиком вписывается при разных вариантах и N в узкую комнату, не пересекает соседей и смотрит в центр", () => {
+  const beta: OfficeBounds = {min: {x: -280, y: -190, z: 50}, max: {x: 280, y: 190, z: 1950}}
+  for (const room of [roomBounds, {min: {x: 100, y: -130, z: 200}, max: {x: 580, y: 130, z: 2400}}]) {
+    let previousScale = Infinity
+    for (const count of [1, 4, 24, 64]) {
+      const input = {roomBounds: room, humanoid, overheadDisplayId: "chat", agents: agents(count).map((agent, index) => ({
+        ...agent, humanoid: index % 2 ? beta : humanoid,
+      }))}
+      const before = structuredClone(input)
+      const result = layoutAgentOffice(input)
+      expect(input).toEqual(before)
+      expect(result.scale).toBeLessThanOrEqual(previousScale)
+      previousScale = result.scale
+      for (const agent of result.agents) {
+        inside(agent.bounds, agent.workplaceBounds)
+        inside(agent.workplaceBounds, room)
+        const chat = agent.displays.find(display => display.id === "chat")!
+        expect(chat.billboard).toBe(true)
+        expect(chat.scale).toBe(agent.scale)
+        expect(chat.position.x).toBeCloseTo(agent.head.x, 8)
+        expect(chat.position.y).toBeCloseTo(agent.head.y, 8)
+        expect(chat.bounds.min.z).toBeGreaterThan(agent.bounds.max.z)
+        const diameter = Math.hypot(chat.sourceSize.width, chat.sourceSize.height, chat.sourceSize.depth) * result.scale
+        for (const axis of ["x", "y", "z"] as const) expect(chat.bounds.max[axis] - chat.bounds.min[axis]).toBeCloseTo(diameter, 8)
+        for (const display of agent.displays) inside(display.bounds, agent.workplaceBounds)
+        const center = {x: (room.min.x + room.max.x) / 2 - agent.head.x, y: (room.min.y + room.max.y) / 2 - agent.head.y}
+        const distance = Math.hypot(center.x, center.y)
+        if (distance > 1e-8) expect((-Math.sin(agent.rotationZ) * center.x + Math.cos(agent.rotationZ) * center.y) / distance).toBeCloseTo(1, 12)
+      }
+      for (let a = 0; a < result.agents.length; a++) for (let b = a + 1; b < result.agents.length; b++) {
+        expect(overlap(result.agents[a]!.workplaceBounds, result.agents[b]!.workplaceBounds)).toBe(false)
+      }
+      expect(JSON.stringify(result)).not.toMatch(/null|Infinity|NaN/u)
+    }
+  }
+})

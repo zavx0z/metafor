@@ -3,6 +3,10 @@ import {createAgentWorkspace} from "../main/agents"
 import {AGENT_UI_SCHEMA, AGENT_UI_TASK_SCHEMA, type AgentUiSnapshot} from "../shared/agents"
 import {parseMetaAddress} from "@metafor/types/metafor/graph"
 import {agentWorkspaceGraph} from "./agent-graph-fixture"
+import type {CosmosConversationDirectoryClient} from "@internal/visual"
+import type {CosmosAgentProfile, CosmosAgentScope} from "@metafor/types/cosmos/agent-profile"
+import type {CosmosConversationAgent, CosmosAtomConversationScope} from "@metafor/types/cosmos/conversations"
+import type {ClientWorkspaceObserver} from "@metafor/types/cosmos/client"
 
 const configuration = {id: "assistant", atom: {kind: "atom", scope: "owner"},
   presentation: {kind: "agent-inspector", defaultTab: "chat", tabs: ["chat", "provider", "tools", "context"]},
@@ -39,7 +43,78 @@ function host(data = fixture()) {
   }})
   return {model, calls, set(value: AgentUiSnapshot) {latest = value}, offline(value: boolean) {failure = value}, admission(value: typeof admission) {admission = value}}
 }
-const firstAtom = (model: ReturnType<typeof createAgentWorkspace>) => model.getSnapshot().offices[0]!.agents[0]!.atom
+const firstAtom = (model: ReturnType<typeof createAgentWorkspace>) => {
+  const atom = model.getSnapshot().offices[0]!.agents[0]!.atom
+  if (!atom) throw new Error("Fixture Quantum Agent is absent")
+  return atom
+}
+
+test("Cosmos участники занимают каждый Atom без фиктивного Quantum Agent и без подключения модели", async () => {
+  const actors = new Map<string, CosmosConversationAgent[]>()
+  const profiles = new Map<string, CosmosAgentProfile>()
+  const key = (scope: CosmosAgentScope) => JSON.stringify(scope)
+  const profile = (scope: CosmosAgentScope, name = "Ассистент"): CosmosAgentProfile => {
+    let value = profiles.get(key(scope))
+    if (!value) {value = {version: 1, scope, revision: 1, name, gender: "female"}; profiles.set(key(scope), value)}
+    return value
+  }
+  const create = async (room: CosmosAtomConversationScope, name: string): Promise<CosmosConversationAgent> => {
+    const scope = {...room, agentRef: `agent:${crypto.randomUUID()}`}
+    const actor = {scope, profile: profile(scope, name)}
+    actors.set(room.atomRef, [...actors.get(room.atomRef) ?? [], actor])
+    return actor
+  }
+  const unused = (): never => {throw new Error("Неожиданное исполнение модели либо работа группы")}
+  const directory: CosmosConversationDirectoryClient = {
+    listAgents: async room => actors.get(room.atomRef) ?? [], createAgent: create,
+    ensureAgent: async (room, name) => actors.get(room.atomRef)?.[0] ?? create(room, name),
+    readProfile: async scope => profile(scope),
+    updateProfile: async (scope, update) => {
+      const next = {...profile(scope), name: update.name, gender: update.gender, revision: update.expectedRevision + 1}
+      profiles.set(key(scope), next)
+      return next
+    },
+    forActor: unused, listGroups: unused, createGroup: unused, updateGroup: unused, readLegacy: unused, legacy: unused, dispose() {},
+  }
+  let changed: Parameters<ClientWorkspaceObserver>[0] = () => {}
+  let graphReads = 0
+  const model = createAgentWorkspace({conversations: directory, observeChanges: listener => {changed = listener; return () => {}}, fetch: async (_url, init) => {
+    expect(init?.method).toBe("GET")
+    graphReads++
+    return Response.json(fixture())
+  }})
+  let stop = () => {}, timer: ReturnType<typeof setTimeout> | undefined
+  const filled = new Promise<void>((resolve, reject) => {
+    timer = setTimeout(() => reject(new Error("Комнаты не получили участников")), 1000)
+    stop = model.subscribe(() => {
+      const rooms = model.getSnapshot().offices
+      if (rooms.length === 4 && rooms.every(room => room.agents.length > 0 && room.agents.every(agent => agent.profile))) resolve()
+    })
+  })
+  try {
+    model.start()
+    await filled
+    expect(model.getSnapshot().graph!.runtime.roots[0]!.children).toHaveLength(2)
+    const office = model.getSnapshot().offices.find(room => room.owner === "atom:4")!
+    expect(office.agents[0]!.atom).toBeUndefined()
+    expect(office.agents[0]!.scope?.atomRef).toBe("atom:4")
+    const actor = office.agents[0]!
+    await model.saveAgentProfile(actor.scope!, {expectedRevision: 1, name: "Саша", gender: "male"})
+    expect(model.getSnapshot().offices.find(room => room.owner === "atom:4")!.agents[0]!.profile?.name).toBe("Саша")
+    await model.createAgent("atom:4", "Второй")
+    expect(model.getSnapshot().offices.find(room => room.owner === "atom:4")!.agents).toHaveLength(2)
+    await create({verseId: "assigned-verse", atomRef: "atom:4"}, "Из другого окна")
+    const refreshed = new Promise<void>(resolve => {
+      const unsubscribe = model.subscribe(() => {
+        if (model.getSnapshot().offices.find(room => room.owner === "atom:4")!.agents.length === 3) {unsubscribe(); resolve()}
+      })
+    })
+    changed({verseId: "assigned-verse", atomRef: "atom:4"})
+    await refreshed
+    expect(graphReads).toBe(1)
+    expect(model.getSnapshot().offices.find(room => room.owner === "atom:1")!.agents[0]!.atom).toBeDefined()
+  } finally {stop(); clearTimeout(timer); model.dispose()}
+})
 
 test("workspace exposes all public Atoms without Agents and retains Graph identity and last-good data through failure", async () => {
   const data = fixture(), f = host(data)
@@ -314,20 +389,48 @@ test("reads coalesce, disposal aborts owned work, and a late response cannot rev
   expect(() => model.start()).toThrow("освобождён")
 })
 
-test("active and idle polls use bounded read-only intervals, never automatic POST", async () => {
+test("workspace reads only on change and coalesces invalidations during a pending read", async () => {
   const timer = spyOn(globalThis, "setTimeout")
-  const f = host()
-  f.model.start()
+  let changed: Parameters<ClientWorkspaceObserver>[0] = () => {}
+  let reads = 0, detached = 0, release: (() => void) | undefined
+  const model = createAgentWorkspace({
+    observeChanges(listener) {changed = listener; return () => {detached++}},
+    fetch: async (_url, init) => {
+      expect(init?.method).toBe("GET")
+      reads++
+      if (reads === 2) await new Promise<void>(resolve => {release = resolve})
+      return Response.json(fixture())
+    },
+  })
+  const stop = model.start()
   try {
-    await f.model.refresh()
-    expect(timer.mock.calls.some(call => call[1] === 3000)).toBeTrue()
-    const busy = fixture()
-    busy.agents[0]!.busy = true
-    f.set(busy)
-    await f.model.refresh()
-    expect(timer.mock.calls.some(call => call[1] === 1000)).toBeTrue()
-    expect(f.calls.every(call => call.method === "GET")).toBeTrue()
-  } finally {f.model.dispose(); timer.mockRestore()}
+    await model.refresh()
+    expect(reads).toBe(1)
+    expect(timer.mock.calls).toHaveLength(0)
+    changed()
+    changed()
+    await Bun.sleep(5)
+    expect(reads).toBe(2)
+    changed()
+    changed()
+    expect(reads).toBe(2)
+    release!()
+    await model.refresh()
+    await Bun.sleep(5)
+    expect(reads).toBe(3)
+    await Bun.sleep(10)
+    expect(reads).toBe(3)
+    expect(timer.mock.calls.every(call => call[1] === 0)).toBeTrue()
+    stop()
+    expect(detached).toBe(1)
+    changed()
+    await Bun.sleep(5)
+    expect(reads).toBe(3)
+    model.start()
+    await model.refresh()
+    expect(reads).toBe(4)
+  } finally {release?.(); model.dispose(); timer.mockRestore()}
+  expect(detached).toBe(2)
 })
 
 test("ambiguous admission is not automatically retried; a definitive busy refusal can recover by reading", async () => {

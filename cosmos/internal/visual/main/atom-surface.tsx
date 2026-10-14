@@ -1,44 +1,34 @@
 import {useEffect, useMemo, useState, useSyncExternalStore} from "@zavx0z/immersive/XReact"
-import {Button, Inspector, SelectField, Typography} from "@zavx0z/immersive/ui"
+import {Button, Inspector, Typography} from "@zavx0z/immersive/ui"
+import {iconSvg} from "@zavx0z/immersive/ui/icons"
 import type {AtomRef, RuntimeAtom, RuntimeNode} from "@metafor/types/metafor/graph"
 import type {AgentWorkspaceModel} from "./agent-workspace"
 import type {AtomSceneModel} from "./atom-scene"
+import {AtomFieldNode} from "./atom-field-node"
+
+const stateIcon = iconSvg('<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="10" cy="18" r="2"/>')
+const matterIcon = iconSvg('<path d="M12 4v6M5 16v-6h14v6"/><rect x="8" y="1" width="8" height="4"/><rect x="1" y="16" width="8" height="6"/><rect x="15" y="16" width="8" height="6"/>')
+const massIcon = iconSvg('<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/>')
 
 /** Agent принадлежит owning Atom либо сам является адресованным Atom. */
 export function agentsForAtom(workspace: AgentWorkspaceModel, ref: AtomRef) {
   const snapshot = workspace.getSnapshot()
-  return snapshot.agents.filter(agent => agent.atom.ref === ref || snapshot.input.offices.some(office => office.id === agent.officeId && office.owner === ref))
+  return snapshot.agents.filter(agent => agent.atom?.ref === ref || snapshot.input.offices.some(office => office.id === agent.officeId && office.owner === ref))
 }
 
 /** Содержимое готового SpatialTree Display; состояние и связи берутся из наблюдаемого Atom. */
 export function AtomSurface(props: Readonly<{atom: RuntimeAtom; workspace: AgentWorkspaceModel; scene: AtomSceneModel}>) {
   const scene = useSyncExternalStore(props.scene.subscribe, props.scene.getSnapshot)
-  const current = useSyncExternalStore(props.workspace.subscribe, props.workspace.getSnapshot)
   const active = scene.mode === "atoms" && scene.selectedAtom?.ref === props.atom.ref
-  const agents = agentsForAtom(props.workspace, props.atom.ref)
-  return <section data-atom-ref={props.atom.ref} style={css`display: flex; flex-direction: column; height: 100%; min-height: 0; background: transparent;`}>
-    {active && agents.length > 0 ? <AtomAgentSurface atom={props.atom} workspace={props.workspace} selected={current.selected} /> : <AtomInspector atom={props.atom} scene={props.scene} workspace={props.workspace} active={active} />}
-  </section>
-}
-
-function AtomAgentSurface(props: Readonly<{atom: RuntimeAtom; workspace: AgentWorkspaceModel; selected: string | null}>) {
-  const agents = agentsForAtom(props.workspace, props.atom.ref)
-  const host = useMemo(() => ({current: null as unknown}), [props.workspace])
-  const bind = useMemo(() => (value: unknown) => {
-    if (value === null) {props.workspace.releaseCommon(host.current); host.current = null}
-    else {host.current = value; props.workspace.bindCommon(value)}
-  }, [props.workspace, host])
-  useEffect(() => () => props.workspace.releaseCommon(host.current), [props.workspace, host])
-  return <section aria-label="Агенты выбранного Atom" style={css`display: flex; flex-direction: column; flex: 1; height: 100%; min-height: 0; background: transparent;`}>
-    <div hidden={agents.length < 2}>
-      <SelectField
-        label="Агент"
-        value={agents.some(agent => agent.key === props.selected) ? props.selected! : ""}
-        options={agents.map(agent => ({key: agent.key, value: agent.key, label: agent.atom.getSnapshot().configuration.id}))}
-        onChange={key => {if (agents.some(agent => agent.key === key)) props.workspace.select(key)}}
-      />
-    </div>
-    <div ref={bind} data-agent-common-host="true" style={css`display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;`} />
+  return <section data-atom-ref={props.atom.ref} style={css`
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background: transparent;
+  `}>
+    {active ? <AtomInspector atom={props.atom} scene={props.scene} workspace={props.workspace} active={active} /> : null}
   </section>
 }
 
@@ -48,19 +38,31 @@ function AtomInspector(props: Readonly<{atom: RuntimeAtom; scene: AtomSceneModel
   const lifetime = useMemo(() => new AbortController(), [props.atom.ref])
   useEffect(() => () => lifetime.abort(), [lifetime])
   return <Inspector ariaLabel="Инспектор Atom" categoriesLabel="Панели Atom" selectedCategoryId={panel} onCategoryChange={setPanel} query="" showSearch={false}
-    categories={[{id: "state", label: "Состояние", panelIds: ["state"]}, {id: "matter", label: "Matter", panelIds: ["matter"]}, {id: "mass", label: "Mass", panelIds: ["mass"]}]}>
+    style={css`
+      flex: 1;
+      height: auto;
+      min-height: 0;
+    `}
+    categories={[{id: "state", label: "Состояние", iconSrc: stateIcon, panelIds: ["state"]}, {id: "matter", label: "Matter", iconSrc: matterIcon, panelIds: ["matter"]}, {id: "mass", label: "Mass", iconSrc: massIcon, panelIds: ["mass"]}]}>
     <AtomInspectorPanels atom={props.atom} scene={props.scene} workspace={props.workspace} active={props.active} panel={panel} notice={notice} setNotice={setNotice} signal={lifetime.signal} />
   </Inspector>
 }
 
 function AtomInspectorPanels(props: Readonly<{atom: RuntimeAtom; scene: AtomSceneModel; workspace: AgentWorkspaceModel; active: boolean; panel: string; notice: string; setNotice(value: string): void; signal: AbortSignal}>) {
-  const slots = props.workspace.getSnapshot().input.connectableSlots?.filter(slot => slot.owner?.ref === props.atom.ref && !slot.enabled) ?? []
+  const input = props.workspace.getSnapshot().input
+  const slots = input.connectableSlots?.filter(slot => slot.owner?.ref === props.atom.ref && !slot.enabled) ?? []
   return (
     <div style={css`display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; padding: var(--spacing-12);`}>
       <section hidden={props.panel !== "state"} style={css`&[hidden] {display: none;}`}>
         <Typography text={`${props.atom.meta} · ${props.atom.ref}`} />
         <Typography text={`Состояние: ${props.atom.state ?? "не наблюдается"}`} />
-        {Object.entries(props.atom.values).map(([key, value]) => <AtomField key={key} name={key} value={value} />)}
+        <AtomFieldNode
+          key={JSON.stringify([input.verseId, input.observedWorld?.root, input.observedWorld?.cutId, props.atom.ref])}
+          atom={props.atom}
+          fields={input.graph?.template[props.atom.meta]?.fields ?? []}
+          workspace={props.workspace}
+          signal={props.signal}
+        />
         {slots.map(slot => <Button key={slot.ref} label="Подключить агента" disabled={!props.active} onClick={() => {
           void props.workspace.connectSlot(slot.ref, props.signal).then(() => props.setNotice("Подключение передано окружению"), error => {if (!props.signal.aborted) props.setNotice(error instanceof Error ? error.message : "Подключение не подтверждено")})
         }} />)}
@@ -75,10 +77,6 @@ function AtomInspectorPanels(props: Readonly<{atom: RuntimeAtom; scene: AtomScen
       </section>
     </div>
   )
-}
-
-function AtomField(props: Readonly<{name: string; value: unknown}>) {
-  return <div style={css`padding: 4px 0; overflow-wrap: anywhere;`}><Typography text={`${props.name}: ${typeof props.value === "string" ? props.value.slice(0, 800) : JSON.stringify(props.value)}`} /></div>
 }
 
 function AtomMatterEntry(props: Readonly<{node: RuntimeNode; scene: AtomSceneModel}>) {

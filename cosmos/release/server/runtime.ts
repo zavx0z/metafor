@@ -25,9 +25,11 @@ import {readReleaseNodeConfiguration, readReleaseNodeToken, startReleaseNode, ty
 import {createPublishedReleaseSource} from "@metafor/tech-release"
 import {resolveRootMetaSource} from "shared/metafor/source"
 import {loadMeta} from "../../../quantum/dark/load"
+import {COSMOS_CONVERSATIONS_PATH} from "../shared/conversations"
 import {createAgentUiOracle} from "./agents"
 import {AGENT_UI_PATH, AGENT_UI_PROVIDER_PATH, AGENT_UI_CONNECT_PATH, AGENT_UI_PROFILE_PATH, AGENT_UI_CONNECTIONS_PATH} from "../shared/agents"
 import {AGENT_BROWSER_PATH} from "../shared/agents-browser"
+import {ATOM_FIELD_EDIT_PATH, ATOM_FIELDS_EDIT_PATH} from "../shared/atom-fields"
 import type {AgentBrowserSocketData} from "./agents-browser"
 import {configuredCodespaceHostOracle} from "./codespace-oracle"
 import {createClientOracle, type ClientSocketData} from "./clients"
@@ -62,10 +64,11 @@ export async function startReleaseServer(
   const signaling = options.signalingToken ? createRendezvousHandler({token: options.signalingToken, relay: true}) : null
   let agentReady = false
   const nativeRepl = options.quantum ? await configuredNativeReplOracle(Bun.env, () => agentReady) : null
-  const agentUi = options.quantum ? createAgentUiOracle({admitted: () => agentReady, verseId: Bun.env.COSMOS_VERSE_ID}) : undefined
-  const clients = options.quantum ? createClientOracle({admitted: () => agentReady}) : undefined
+  const agentUi = options.quantum ? createAgentUiOracle({admitted: () => agentReady, verseId: Bun.env.COSMOS_VERSE_ID, conversationsDirectory: resolve(Bun.env.COSMOS_CONVERSATIONS_PATH ?? join(options.quantum.stateRoot, "cosmos", "conversations"))}) : undefined
+  const clients = options.quantum ? createClientOracle({admitted: () => agentReady, observeConversation: agentUi!.observeConversation, observeWorkspace: agentUi!.observeWorkspace}) : undefined
   const codespaceHost = options.quantum ? configuredCodespaceHostOracle(Bun.env, () => agentReady) : null
   const quantum = options.quantum ? await prepareQuantumRuntime({...options.quantum,
+    onWorldChange: acceptance => {try {return options.quantum!.onWorldChange?.(acceptance)} finally {agentUi!.notifyWorldChanged()}},
     localOracleChannels: [...(options.quantum.localOracleChannels ?? []), agentUi!.channel, clients!.channel, ...(nativeRepl ? [nativeRepl.channel] : []), ...(codespaceHost ? [codespaceHost.channel] : [])],
   }).catch(async error => {await agentUi?.close(); await clients?.close(); await nativeRepl?.close(); await codespaceHost?.close(); throw error}) : undefined
   const observations = createNetworkObservationSurface({...(quantum ? {local:()=>quantum.observeDomains(),authorizePublisher:(request,server)=>quantum.authorizeObservation(request,server)} : {})})
@@ -116,6 +119,8 @@ export async function startReleaseServer(
       "/ws": domainRoute,
       "/oracle/*": domainRoute,
       [CLIENT_SOCKET_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) => clients ? clients.fetch(request, current) : new Response(null, {status: 404}),
+      [COSMOS_CONVERSATIONS_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
       [AGENT_UI_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
         agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
       [AGENT_UI_PROVIDER_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
@@ -127,6 +132,12 @@ export async function startReleaseServer(
       [AGENT_UI_CONNECTIONS_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
         agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
       "/agents/settings": (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      [ATOM_FIELD_EDIT_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      [ATOM_FIELDS_EDIT_PATH]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
+        agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
+      "/agents/recover": (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
         agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),
       [`${AGENT_BROWSER_PATH}/*`]: (request: Request, current: Bun.Server<ReleaseServerSocketData>) =>
         agentUi ? agentUi.fetch(request, current) : new Response(null, {status: 404}),

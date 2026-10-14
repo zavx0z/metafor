@@ -61,7 +61,7 @@ export function createProductAnnotationState() {
   let enabled = false, disposed = false
   let message: string | null = null
   let state: ClientAnnotations = {enabled, selected: null, active: null, textSelection: "", message}
-  let feedback: {workspace: Pick<AgentWorkspaceModel, "getSnapshot">; source(): ClientDescriptor | null; send(input: ClientAnnotationFeedback, signal: AbortSignal): Promise<AgentFeedbackReceipt>; lifetime: AbortController} | null = null
+  let feedback: {workspace: Pick<AgentWorkspaceModel, "getSnapshot"> & Partial<Pick<AgentWorkspaceModel, "conversations">>; source(): ClientDescriptor | null; send(input: ClientAnnotationFeedback, signal: AbortSignal): Promise<AgentFeedbackReceipt>; lifetime: AbortController} | null = null
   let feedbackId: string | null = null
   const listeners = new Set<() => void>()
   const cleanups: (() => void)[] = []
@@ -120,7 +120,7 @@ export function createProductAnnotationState() {
     const workspaceState = bridge?.workspace.getSnapshot()
     const agent = workspaceState?.agents.find(value => value.key === workspaceState.selected)
     const source = bridge?.source()
-    if (!bridge || !item || !agent || !source) {message = "Служебная обратная связь недоступна"; refresh(); presentation.invalidate(); return}
+    if (!bridge || !item || !agent?.atom || !source || bridge.workspace.conversations) {message = "Аннотация выбрана"; refresh(); presentation.invalidate(); return}
     const id = `annotation:${crypto.randomUUID()}`
     feedbackId = id
     const input: ClientAnnotationFeedback = {agentRef: agent.atom.ref, world: structuredClone(source.world), request: {id,
@@ -163,7 +163,7 @@ export function createProductAnnotationState() {
       refresh()
       presentation?.invalidate()
     },
-    connectFeedback(workspace: Pick<AgentWorkspaceModel, "getSnapshot">, bridge: {source(): ClientDescriptor | null; send(input: ClientAnnotationFeedback, signal: AbortSignal): Promise<AgentFeedbackReceipt>}) {
+    connectFeedback(workspace: Pick<AgentWorkspaceModel, "getSnapshot"> & Partial<Pick<AgentWorkspaceModel, "conversations">>, bridge: {source(): ClientDescriptor | null; send(input: ClientAnnotationFeedback, signal: AbortSignal): Promise<AgentFeedbackReceipt>}) {
       if (disposed || feedback) throw new Error("Annotation feedback already bound or disposed")
       const binding = {...bridge, workspace, lifetime: new AbortController()}
       feedback = binding

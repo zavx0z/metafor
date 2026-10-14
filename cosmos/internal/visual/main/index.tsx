@@ -29,7 +29,9 @@ import {AtomSurface, agentsForAtom} from "./atom-surface"
 import type {ClientViewAction} from "@metafor/types/cosmos/client"
 import type {InfrastructureProjection} from "./infrastructure-model.ts"
 
-export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentConnectableSlot} from "./agent-workspace-types"
+export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentOfficeActor, AgentConnectableSlot, AgentFieldValue, AgentFieldUpdate,
+  CosmosConversationClient, CosmosConversationDirectoryClient, CosmosConversationSnapshot, CosmosConversationSelection} from "./agent-workspace-types"
+export {CosmosAgentChat, type CosmosAgentChatProps} from "./cosmos-agent-chat"
 export type {InfrastructureProjection} from "./infrastructure-model.ts"
 
 /** Точный browser environment этого platform entrypoint. */

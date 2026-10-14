@@ -18,10 +18,16 @@ export type ProviderHUDProps = Readonly<{
   profileError?: string | null | undefined
   profileIntent?: ((request: ProfileIntentRequest, signal: AbortSignal) => Promise<void>) | undefined
 }>
+/** Read-only назначение Provider для входа в существующий браузер до создания native session. */
+export type ProviderBrowserAccess = Pick<ProviderHUDProps, "atom" | "registries" | "profiles">
 type Client = ReturnType<NonNullable<Settings.Input["clientFactory"]>>
 type Document = Awaited<ReturnType<Client["read"]>>
 
-/** Adapter сохраняет настройки в owning Provider через ordinary Force intent и читает подтверждённую Mass. */
+/**
+Adapter сохраняет настройки owning Provider через ordinary Force intent и читает подтверждённую Mass.
+Только явное открытие браузера восстанавливает недостающее transport admission
+одной общей проверкой; чтение UI не запускает её и не создаёт model session.
+*/
 export function createProviderSettingsClient(props: () => ProviderHUDProps, signal: AbortSignal): Client {
   const owned = new Map<string, {iceServers: Array<{urls: string | string[]; username?: string; credential?: string}>}>()
   let confirmed: {ref: string, registry: ProviderRegistry} | undefined
@@ -113,11 +119,25 @@ export function createProviderSettingsClient(props: () => ProviderHUDProps, sign
       ]
     },
     async openBrowserViewer(connectionId, viewerSignal) {
-      const document = await read()
+      viewerSignal.throwIfAborted()
+      let document = await read()
       if (!document.connections.some(row => row.id === connectionId && row.enabled)) throw new Error("Подключение выключено или удалено")
-      const binding = bindingId(connectionId)
-      const row = rows().find(row => row.entry.id === binding)
-      if (!row) throw new Error("Provider отсутствует в наблюдаемом реестре")
+      let row = rows().find(row => row.entry.id === bindingId(connectionId))
+      const registry = owner().registry
+      const admission = registry.settings.configuration ? registry.settings.connectionChecks?.[connectionId] : row?.entry.checks
+      if (!row || row.entry.resolution !== "exact" || row.entry.connection !== "connected" || !row.entry.capabilities.browserPreview || admission?.checkedAt == null || admission.status === "failed") {
+        await checkConnection(connectionId)
+        viewerSignal.throwIfAborted()
+        document = await read()
+        if (!document.connections.some(connection => connection.id === connectionId && connection.enabled)) throw new Error("Подключение выключено или удалено")
+        row = rows().find(candidate => candidate.entry.id === bindingId(connectionId))
+        const checked = owner().registry
+        const result = checked.settings.configuration ? checked.settings.connectionChecks?.[connectionId] : row?.entry.checks
+        if (result?.status === "failed" || result?.checkedAt == null || !row || row.entry.resolution !== "exact" || row.entry.connection !== "connected" || !row.entry.capabilities.browserPreview) {
+          throw new Error(result?.message ?? "Назначение браузера не подтверждено")
+        }
+      }
+      viewerSignal.throwIfAborted()
       const response = await fetch("/agents/browser/bootstrap", {method: "POST", headers: {"content-type": "application/json"},
         body: JSON.stringify({agentRef: null, providerRef: row.owner.ref, entryId: row.entry.id}), signal: AbortSignal.any([signal, viewerSignal])})
       if (!response.ok) throw new Error("Oracle не подтвердил просмотр Provider")

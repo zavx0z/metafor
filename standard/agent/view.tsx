@@ -25,7 +25,7 @@ backend этот adapter не объявляет. Provider pane размещае
 Компонент не создаёт Canvas, transport или canonical Store; slots не выдают capabilities.
 Сценарии compilation/mount — [view tests](./test/view.test.ts).
 */
-export function AgentView(props: Readonly<{atom: AtomContext}>): JSX.Element<{
+export function AgentView(props: Readonly<{atom: AtomContext; chatOnly?: boolean}>): JSX.Element<{
   chat: JSX.Element
   tools: JSX.Element
   context: JSX.Element
@@ -60,7 +60,7 @@ export function AgentView(props: Readonly<{atom: AtomContext}>): JSX.Element<{
     `}
   >
     <Typography text={`${presentation.id} · ${snapshot.state ?? "состояние не наблюдается"}`} />
-    <Inspector
+    {props.chatOnly ? <AgentChatSurface atom={atom} snapshot={snapshot} /> : <Inspector
       ariaLabel="Инспектор Agent"
       categoriesLabel="Панели"
       categories={presentation.tabs.filter(item => item !== "provider").map(item => ({id: item, label: labels[item], iconSrc: icons[item], panelIds: [item]}))}
@@ -79,9 +79,20 @@ export function AgentView(props: Readonly<{atom: AtomContext}>): JSX.Element<{
         <slot name="tools" slot="tools"><AgentTools atom={atom} snapshot={snapshot} /></slot>
         <slot name="context" slot="context"><AgentContextDetails snapshot={snapshot} /></slot>
       </AgentInspectorPanels>
-    </Inspector>
+    </Inspector>}
 
   </section>
+}
+
+function AgentChatSurface(props: Readonly<{atom: AtomContext; snapshot: AtomViewSnapshot}>) {
+  return <div style={css`
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  `}>
+    <AgentChat atom={props.atom} snapshot={props.snapshot} />
+  </div>
 }
 
 function AgentInspectorPanels(props: Readonly<{atom: AtomContext; snapshot: AtomViewSnapshot; tab: AgentViewTab}>): JSX.Element<{chat: JSX.Element; tools: JSX.Element; context: JSX.Element}> {
@@ -147,7 +158,25 @@ function AgentConversationContent(props: Readonly<{atom: AtomContext; snapshot: 
   const [settingsError, setSettingsError] = useState("")
   const lifetime = useMemo(() => new AbortController(), [props.atom])
   useEffect(() => () => lifetime.abort(), [lifetime])
-  return <StorybookChatView
+  return <div style={css`
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  `}>
+    {props.atom.actions.recoverChat ? <Button
+      label="Восстановить ответ"
+      disabled={preparing || props.busy || props.snapshot.busy}
+      onClick={() => {
+        if (preparing || !props.atom.actions.recoverChat) return
+        setPreparing(true)
+        setSettingsError("")
+        void props.atom.actions.recoverChat(lifetime.signal).catch(error => {
+          if (!lifetime.signal.aborted) setSettingsError(error instanceof Error ? error.message : "Восстановление не подтверждено")
+        }).finally(() => {if (!lifetime.signal.aborted) setPreparing(false)})
+      }}
+    /> : null}
+    <StorybookChatView
     history={timeline.history}
     onHistoryViewport={timeline.onHistoryViewport}
     onHistoryVisible={timeline.onHistoryVisible}
@@ -158,11 +187,11 @@ function AgentConversationContent(props: Readonly<{atom: AtomContext; snapshot: 
     onHistoryTail={timeline.onHistoryTail}
     address={props.atom.ref}
     label={props.snapshot.configuration.id}
-    status={props.busy ? "connecting" : "idle"}
+    status={props.busy || props.snapshot.busy ? "connecting" : "idle"}
     draft={props.draft}
     sending={props.busy}
     settings={preferences.settings}
-    error={settingsError || props.notice || undefined}
+    error={settingsError || props.notice || props.snapshot.error || undefined}
     configuring={preparing}
     onPrepareSettings={props.atom.actions.prepareProviderSettings ? () => {
       if (preparing) return
@@ -184,7 +213,8 @@ function AgentConversationContent(props: Readonly<{atom: AtomContext; snapshot: 
         if (!lifetime.signal.aborted) setSettingsError(error instanceof Error ? error.message : "Настройки не подтверждены")
       }).finally(() => {if (!lifetime.signal.aborted) setPreparing(false)})
     } : undefined}
-  />
+    />
+  </div>
 }
 
 function AgentTools(props: Readonly<{atom: AtomContext; snapshot: AtomViewSnapshot}>) {

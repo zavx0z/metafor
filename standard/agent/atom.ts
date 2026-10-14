@@ -51,6 +51,8 @@ export type AtomViewSnapshot = Readonly<{
   ref: AtomRef
   revision: string
   state: string | null
+  error?: string | null
+  busy?: boolean
   configuration: AgentConfiguration
   chat: readonly AtomChatMessage[]
   provider: AtomProviderSnapshot | null
@@ -69,6 +71,8 @@ export type AtomViewActions = Readonly<{
   selectProvider?(entryId: string, signal: AbortSignal): Promise<void>
   profileIntent?(request: ProfileIntentRequest, signal: AbortSignal): Promise<void>
   sendMessage?(text: string, signal: AbortSignal): Promise<void>
+  /** Чтение подтверждённого результата прежнего запроса без повторной отправки модели. */
+  recoverChat?(signal: AbortSignal): Promise<void>
   /** Сохраняет служебный контекст без изменения draft, task или запуска модельного turn. */
   feedback?(request: AgentFeedbackRequest, signal: AbortSignal): Promise<AgentFeedbackReceipt>
   /** Явная задача разработки с назначенным Bun; обычный sendMessage остаётся беседой. */

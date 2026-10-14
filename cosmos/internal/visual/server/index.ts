@@ -11,4 +11,5 @@ server-визуализации.
 /** Точный Bun environment этого platform entrypoint. */
 export const environment = "server" as const
 
-export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentConnectableSlot} from "../main/agent-workspace-types"
+export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentOfficeActor, AgentConnectableSlot, AgentFieldValue, AgentFieldUpdate,
+  CosmosConversationClient, CosmosConversationDirectoryClient, CosmosConversationSnapshot, CosmosConversationSelection} from "../main/agent-workspace-types"

@@ -4,11 +4,16 @@ import {projectAgentChatMessages} from "./agent-chat"
 import type {AgentJsonValue, AgentToolReference} from "@metafor/types/metafor/agents"
 import {observeAgentConfiguration} from "@metafor/types/metafor/agent-observation"
 import {validateGraph, type AtomRef} from "@metafor/types/metafor/graph"
-import type {AgentWorkspaceSnapshot, AgentOfficeSnapshot} from "@internal/visual"
+import type {AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentOfficeActor, AgentFieldUpdate, CosmosConversationDirectoryClient} from "@internal/visual"
+import type {CosmosAgentProfile, CosmosAgentScope, CosmosAgentProfileUpdate} from "@metafor/types/cosmos/agent-profile"
+import type {CosmosConversationAgent} from "@metafor/types/cosmos/conversations"
+import type {ClientWorkspaceObserver} from "@metafor/types/cosmos/client"
 import {AGENT_UI_PATH, AGENT_UI_SCHEMA, AGENT_UI_TASK_SCHEMA, AGENT_UI_PROVIDER_SCHEMA, AGENT_UI_CONNECT_SCHEMA, isAgentUiVerseId, providerRegistryOwners, type AgentUiSnapshot, type AgentUiItem, type AgentUiTask} from "../shared/agents"
 import {connectAgentBrowser} from "./agents-browser"
 import {parseProviderRegistry} from "@metafor/types/metafor/provider-validation"
 import type {ProfileIntentRequest} from "@metafor/types/metafor/profile-intent"
+import {ATOM_FIELD_EDIT_SCHEMA, ATOM_FIELDS_EDIT_SCHEMA} from "../shared/atom-fields"
+import type {MetaCausalFrontier, MetaRuntimeFieldValue} from "shared/protocol/metafor/observation"
 
 type Transport = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 type Actions = {-readonly [K in keyof AtomViewActions]: AtomViewActions[K]}
@@ -24,7 +29,8 @@ const sameGraphData = (left: unknown, right: unknown): boolean => {
 }
 const sameOffice = (left: AgentOfficeSnapshot | undefined, right: AgentOfficeSnapshot) => left !== undefined &&
   left.id === right.id && left.owner === right.owner && left.label === right.label && sameJson(left.bounds, right.bounds) &&
-  left.agents.length === right.agents.length && left.agents.every((agent, index) => agent.id === right.agents[index]?.id && agent.atom === right.agents[index]?.atom)
+  left.agents.length === right.agents.length && left.agents.every((agent, index) => agent.id === right.agents[index]?.id && agent.atom === right.agents[index]?.atom &&
+    agent.profile === right.agents[index]?.profile && sameJson(agent.scope, right.agents[index]?.scope))
 const bounds = {min: {x: -4500, y: -3500, z: 0}, max: {x: 4500, y: 3500, z: 2600}}
 const developmentTool = (tool: AgentToolReference) => tool.name === "bun.evaluate" && tool.owner?.meta === "@metafor/repl" && object(tool.input) && Object.keys(tool.input).length === 0
 const supported = (tool: AgentToolReference) => object(tool.input) && (
@@ -100,18 +106,18 @@ function snapshotValue(value: unknown): AgentUiSnapshot {
 }
 
 /**
-Creates a Visual-compatible source with stable Agent AtomContext identity.
-`start` reads immediately and returns a restartable stop; `dispose` ends this
-source permanently. GETs coalesce, ordinary polls continue even at unchanged
-history revision (1s active, 3s idle, 15s hidden), and teardown aborts owned work.
-Actions return admission only. Conversation identity comes from the Agent's own
-Chat Mass; catalog and assigned profile targets come from public owner projections.
-Explicit connection also works before any Agent exists. Initial Provider selection
-does not transfer an existing native session. No settings API, Photon subscription
-or mutation retry is invented.
-[Wire](../shared/agents.ts); [tests](../spec/agent-view-model.spec.ts).
-*/
-export function createAgentWorkspace(options: {url?: string; fetch?: Transport; taskId?: () => string} = {}) {
+ * Проекция рабочего пространства со стабильной identity Agent AtomContext.
+ * `start` читает начальный снимок и подписывается на уведомления существующего
+ * Window connection. Глобальное уведомление объединяет чтения публичного Oracle,
+ * уведомление комнаты обновляет только её каталог Cosmos. Периодического опроса
+ * нет; после восстановления соединения сервер запрашивает новое наблюдение.
+ * `stop` освобождает подписку и прерывает собственные чтения, `dispose` завершает
+ * источник. Действия возвращают admission и никогда автоматически не повторяются.
+ * Беседы принадлежат Cosmos, старые Quantum Chat доступны как отдельная проекция.
+ * [Контракт рабочего пространства](../README.md),
+ * [проверки](../spec/agent-view-model.spec.ts).
+ */
+export function createAgentWorkspace(options: {url?: string; fetch?: Transport; taskId?: () => string; conversations?: CosmosConversationDirectoryClient; observeChanges?: ClientWorkspaceObserver} = {}) {
   const transport = options.fetch ?? globalThis.fetch.bind(globalThis)
   const url = options.url ?? AGENT_UI_PATH
   const entries = new Map<AtomRef, Entry>()
@@ -120,22 +126,82 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
   const requests = new Set<AbortController>()
   const providerBrowsers = new Map<AbortController, {target: ProviderBrowserTarget; binding: unknown; world: unknown}>()
   let state: AgentWorkspaceSnapshot = {status: "loading", error: null, offices: [], graph: null, verseId: null, observedWorld: null, providerRegistries: [], providerRegistryErrors: []}
+  let frontier: MetaCausalFrontier | null = null
   let running = false, disposed = false, available = false, observed = false, generation = 0, queued = false
   let timer: ReturnType<typeof setTimeout> | undefined
+  let unsubscribeChanges: (() => void) | undefined
   let inflight: Promise<void> | undefined
+  let latest: AgentUiSnapshot | null = null
+  const appearances = new Map<string, CosmosAgentProfile>()
+  const roomActors = new Map<AtomRef, readonly CosmosConversationAgent[]>()
+  const roomErrors = new Map<AtomRef, string>()
+  const loadedRooms = new Set<AtomRef>(), pendingRooms = new Set<AtomRef>()
+  let loadingRooms = false
+  const scopeKey = (scope: CosmosAgentScope) => JSON.stringify([scope.verseId, scope.atomRef, scope.agentRef])
+  const refreshRoom = async (atomRef: AtomRef) => {
+    const directory = options.conversations, snapshot = latest
+    if (!directory || !snapshot?.verseId || disposed || !running) return
+    const scope = {verseId: snapshot.verseId, atomRef}
+    const legacy = snapshot.agents.filter(agent => agent.owner?.ref === atomRef)
+    let actors = await directory.listAgents(scope)
+    if (actors.length === 0 && legacy.length === 0) actors = [await directory.ensureAgent(scope, "Ассистент")]
+    const profiles = await Promise.all(legacy.map(agent => directory.readProfile({...scope, agentRef: agent.ref})))
+    if (disposed || !running || !sameJson(snapshot.observedWorld, latest?.observedWorld)) return
+    roomActors.set(atomRef, actors)
+    roomErrors.delete(atomRef)
+    for (const profile of [...profiles, ...actors.map(actor => actor.profile)]) appearances.set(scopeKey(profile.scope), profile)
+    loadedRooms.add(atomRef)
+    apply(latest!)
+  }
+  const loadRooms = async () => {
+    if (loadingRooms || !options.conversations || disposed) return
+    loadingRooms = true
+    try {
+      while (running && !disposed && pendingRooms.size) {
+        const ref = pendingRooms.values().next().value!
+        pendingRooms.delete(ref)
+        loadedRooms.add(ref)
+        try {await refreshRoom(ref)} catch (error) {
+          roomErrors.set(ref, error instanceof Error ? error.message : "Агенты комнаты недоступны")
+          if (latest && !disposed && running) apply(latest)
+        }
+      }
+    } finally {loadingRooms = false}
+  }
   const notify = (workspaceChanged = true) => {if (workspaceChanged) for (const listener of listeners) listener(); for (const entry of entries.values()) for (const listener of entry.listeners) listener()}
   const canAct = (entry: Entry) => running && !disposed && available && entry.item !== null && !entry.item.busy && entry.pending === null && !entry.selecting && entry.item.chatError === null && entry.item.providerError == null
   const updateActions = (entry: Entry) => {
     delete entry.actions.prepareProviderSettings
     delete entry.actions.configureProvider
     delete entry.actions.sendMessage
+    delete entry.actions.recoverChat
     delete entry.actions.runDevelopment
     delete entry.actions.invokeTool
     delete entry.actions.connectBrowser
     delete entry.actions.selectProvider
     delete entry.actions.profileIntent
     const selectedBinding = entry.item?.providers?.registry.entries.find(binding => binding.id === entry.item?.providerBinding?.id)
-    if (canAct(entry) && selectedBinding?.resolution === "exact" && selectedBinding.connection === "connected" && selectedBinding.capabilities.modelTurn && selectedBinding.checks.status !== "failed" && entry.value.provider?.sessionId) {
+    const retained = entry.item ? session(entry.item) : null
+    const lastRequest = Array.isArray(retained?.requests) ? retained.requests.at(-1) : null
+    if (canAct(entry) && selectedBinding?.service === "qwen" && selectedBinding.connection === "connected" && retained?.sessionId && object(lastRequest) && lastRequest.state === "pending" && typeof lastRequest.id === "string") {
+      const requestId = lastRequest.id
+      entry.actions.recoverChat = async signal => {
+        signal.throwIfAborted()
+        if (!canAct(entry)) throw new Error("Agent занят")
+        const controller = new AbortController()
+        requests.add(controller)
+        entry.selecting = true
+        publish(false)
+        try {
+          await responseValue(await transport(url.replace(/\/$/, "") + "/recover", {
+            method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
+            body: JSON.stringify({agentRef: entry.atom.ref, requestId}),
+            signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(15_000)]),
+          }))
+        } finally {requests.delete(controller); entry.selecting = false; publish(false); refreshAfterIntent()}
+      }
+    }
+    if (canAct(entry) && !entry.item?.error && selectedBinding?.resolution === "exact" && selectedBinding.connection === "connected" && selectedBinding.capabilities.modelTurn && selectedBinding.checks.status !== "failed" && entry.value.provider?.sessionId) {
       const configure = async (selection: {model?: string; reasoning?: string}, signal: AbortSignal) => {
         if (!canAct(entry)) throw new Error("Agent занят")
         const sessionId = entry.value.provider!.sessionId!, controller = new AbortController()
@@ -215,10 +281,13 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
     publish(changed)
   }
   const apply = (data: AgentUiSnapshot) => {
-    if (state.observedWorld && !sameJson(state.observedWorld, data.observedWorld)) settings.clear()
-    const offices = new Map<string, {id: string; owner: AtomRef; label: string; bounds: typeof bounds; agents: Array<{id: string; atom: AtomContext}>}>()
+    if (state.observedWorld && !sameJson(state.observedWorld, data.observedWorld)) {
+      settings.clear(); appearances.clear(); roomActors.clear(); roomErrors.clear(); loadedRooms.clear(); pendingRooms.clear()
+    }
+    latest = data
+    const offices = new Map<string, {id: string; owner: AtomRef; label: string; bounds: typeof bounds; agents: AgentOfficeActor[]}>()
     const seen = new Set<AtomRef>()
-    const errors: string[] = []
+    const errors: string[] = [...new Set(roomErrors.values())]
     const profiles = data.profiles ?? (data.profileError ? state.profiles ?? null : null)
     const prepared = data.agents.map(item => {
       const configuration = observeAgentConfiguration(JSON.stringify(item.configuration.value))
@@ -228,7 +297,7 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
       const provider = stored?.provider
       const providerData = object(provider) ? provider : null
       const providerId = typeof provider === "string" ? provider : typeof providerData?.id === "string" ? providerData.id : null
-      const value: AtomViewSnapshot = {ref: item.ref, revision: `${data.revision.cutId}:${data.revision.throughSequence}`, state: item.state,
+      const value: AtomViewSnapshot = {ref: item.ref, revision: `${data.revision.cutId}:${data.revision.throughSequence}`, state: item.state, error: item.error, busy: item.busy,
         configuration: configuration.value, chat: item.chatError ? previous?.chat ?? [] : projectAgentChatMessages(stored), provider: item.chatError ? previous?.provider ?? null : providerId ? {id: providerId,
           sessionId: typeof stored?.sessionId === "string" ? stored.sessionId : null,
           model: typeof providerData?.model === "string" ? providerData.model : typeof stored?.model === "string" ? stored.model : null,
@@ -254,10 +323,24 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
       entry.item = item
       if (entry.pending && (item.activeTaskId === entry.pending || Array.isArray(stored?.requests) && stored.requests.some(request => object(request) && request.id === `${entry.pending}:conversation`))) entry.pending = null
       seen.add(item.ref)
-      if (item.error || item.chatError || item.providerError) errors.push(`${configuration.value.id}: ${item.error ?? item.chatError ?? item.providerError}`)
+      if (!options.conversations && (item.error || item.chatError || item.providerError)) errors.push(`${configuration.value.id}: ${item.error ?? item.chatError ?? item.providerError}`)
       let office = offices.get(owner.ref)
       if (!office) {office = {id: owner.ref, owner: owner.ref, label: owner.meta, bounds, agents: []}; offices.set(owner.ref, office)}
-      office.agents.push({id: item.ref, atom: entry.atom})
+      const scope = data.verseId ? {verseId: data.verseId, atomRef: owner.ref, agentRef: item.ref} : undefined
+      const profile = scope ? appearances.get(scopeKey(scope)) : undefined
+      office.agents.push({id: item.ref, atom: entry.atom, ...(scope ? {scope} : {}), ...(profile ? {profile} : {})})
+    }
+    if (options.conversations && data.verseId) {
+      const nodes = [...data.graph.runtime.roots]
+      for (const node of nodes) {
+        nodes.push(...node.children ?? [])
+        if (node.kind !== "atom") continue
+        let office = offices.get(node.ref)
+        if (!office) {office = {id: node.ref, owner: node.ref, label: node.meta, bounds, agents: []}; offices.set(node.ref, office)}
+        for (const actor of roomActors.get(node.ref) ?? []) office.agents.push({id: actor.scope.agentRef, scope: actor.scope,
+          profile: appearances.get(scopeKey(actor.scope)) ?? actor.profile})
+        if (!loadedRooms.has(node.ref) || office.agents.length === 0 && roomActors.has(node.ref) && !roomErrors.has(node.ref)) pendingRooms.add(node.ref)
+      }
     }
     for (const [ref, entry] of entries) if (!seen.has(ref)) {
       for (const controller of entry.browsers) controller.abort()
@@ -269,6 +352,7 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
     }
     available = true
     observed = true
+    frontier = data.revision
     const previousOffices = new Map(state.offices.map(office => [office.id, office]))
     const nextOffices = [...offices.values()].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0).map(office =>
       sameOffice(previousOffices.get(office.id), office) ? previousOffices.get(office.id)! : office)
@@ -294,13 +378,12 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
       if (!entry || !sameJson(browserTuple(entry), grant.binding) || !sameJson(state.observedWorld, grant.world) || state.providerRegistryErrors?.some(value => value.ref === grant.target.providerRef) || entry.connection !== "connected" || entry.resolution !== "exact" || !entry.capabilities.browserPreview) controller.abort(new Error("Provider scope retired"))
     }
     publish(changed)
+    void loadRooms()
   }
-  const schedule = (immediate = false) => {
+  const schedule = () => {
     clearTimeout(timer)
     if (!running || disposed) return
-    const active = [...entries.values()].some(entry => entry.item?.busy || entry.pending !== null)
-    const hidden = typeof document !== "undefined" && document.visibilityState === "hidden"
-    timer = setTimeout(() => {void refresh().catch(() => {})}, immediate ? 0 : hidden ? 15_000 : active ? 1000 : 3000)
+    timer = setTimeout(() => {void refresh().catch(() => {})}, 0)
   }
   const refresh = (): Promise<void> => {
     if (!running || disposed) return Promise.reject(new Error("Наблюдение Agent остановлено"))
@@ -319,7 +402,7 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
         throw error
       } finally {
         requests.delete(controller)
-        if (inflight === work) {inflight = undefined; const again = queued; queued = false; schedule(again)}
+        if (inflight === work) {inflight = undefined; const again = queued; queued = false; if (again) schedule()}
       }
     })
     inflight = work
@@ -350,6 +433,16 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
   }
   const visible = () => {if (typeof document !== "undefined" && document.visibilityState !== "hidden") {if (inflight) queued = true; else void refresh().catch(() => {})}}
   const refreshAfterIntent = () => {if (running && !disposed) {if (inflight) queued = true; else void refresh().catch(() => {})}}
+  const changed: Parameters<ClientWorkspaceObserver>[0] = room => {
+    if (!running || disposed) return
+    if (room) {
+      const office = state.offices.find(office => office.owner === room.atomRef)
+      if (room.verseId !== latest?.verseId || !office) return
+      pendingRooms.add(office.owner)
+      void loadRooms()
+    } else if (inflight) queued = true
+    else schedule()
+  }
   const profileIntent = async (request: ProfileIntentRequest, signal: AbortSignal) => {
     signal.throwIfAborted()
     if (!running || disposed || !available || state.profileError) throw new Error("Среда недоступна")
@@ -364,6 +457,45 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
     } finally {requests.delete(controller); refreshAfterIntent()}
   }
   const connecting = new Set<string>()
+  const saveFields = async (atomRef: AtomRef, updates: readonly AgentFieldUpdate[], signal: AbortSignal) => {
+    signal.throwIfAborted()
+    if (!running || disposed || !available || !frontier || !state.observedWorld) throw new Error("Среда недоступна")
+    const world = state.observedWorld
+    const epoch = generation
+    const controller = new AbortController()
+    requests.add(controller)
+    try {
+      const result = await responseValue(await transport(url.replace(/\/$/, "") + "/fields", {
+        method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
+        body: JSON.stringify({atomRef, updates, expectedFrontier: frontier}),
+        signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(15_000)]),
+      }))
+      signal.throwIfAborted()
+      if (epoch !== generation || !sameJson(world, state.observedWorld)) throw new Error("Мир изменился во время сохранения")
+      const savedFields = object(result) && Array.isArray(result.fields) ? result.fields : null
+      if (!object(result) || result.schema !== ATOM_FIELDS_EDIT_SCHEMA || result.version !== 1 || result.atomRef !== atomRef || result.committed !== true ||
+          !savedFields || savedFields.length !== updates.length || !updates.every(update => savedFields.includes(update.field)) ||
+          !object(result.observedFrontier) || result.observedFrontier.cutId !== world.cutId)
+        throw new Error("Общая запись полей не подтверждена; обновите состояние")
+      if (inflight) await inflight.catch(() => {})
+      await refresh()
+    } finally {requests.delete(controller); refreshAfterIntent()}
+  }
+  const editField = async (atomRef: AtomRef, field: string, value: MetaRuntimeFieldValue, expectedValue: MetaRuntimeFieldValue, signal: AbortSignal) => {
+    signal.throwIfAborted()
+    if (!running || disposed || !available || !frontier) throw new Error("Среда недоступна")
+    const controller = new AbortController()
+    requests.add(controller)
+    try {
+      const result = await responseValue(await transport(url.replace(/\/$/, "") + "/field", {
+        method: "POST", credentials: "same-origin", headers: {"content-type": "application/json"},
+        body: JSON.stringify({atomRef, field, value, expectedValue, expectedFrontier: frontier}),
+        signal: AbortSignal.any([signal, controller.signal, AbortSignal.timeout(15_000)]),
+      }))
+      if (!object(result) || result.schema !== ATOM_FIELD_EDIT_SCHEMA || result.atomRef !== atomRef || result.field !== field || result.value !== value)
+        throw new Error("Изменение поля не подтверждено; обновите наблюдение")
+    } finally {requests.delete(controller); refreshAfterIntent()}
+  }
   const browserTuple = (entry: import("@metafor/types/metafor/providers").ProviderBinding) => [entry.id, entry.service, entry.host, entry.remotePeerId, entry.executorId, entry.assignmentId ?? null]
   const connectProviderBrowser = async (target: ProviderBrowserTarget, signal: AbortSignal): Promise<AtomBrowserConnection> => {
     signal.throwIfAborted()
@@ -402,6 +534,8 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
     available = false
     generation++
     clearTimeout(timer)
+    unsubscribeChanges?.()
+    unsubscribeChanges = undefined
     for (const controller of requests) controller.abort()
     requests.clear()
     inflight = undefined
@@ -411,6 +545,19 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
   }
   return {
     getSnapshot: () => state,
+    ...(options.conversations ? {conversations: options.conversations} : {}),
+    refreshRoom,
+    async saveAgentProfile(scope: CosmosAgentScope, update: CosmosAgentProfileUpdate) {
+      if (!options.conversations || scope.verseId !== state.verseId) throw new Error("Профиль агента недоступен")
+      const profile = await options.conversations.updateProfile(scope, update)
+      if (!disposed && latest && scope.verseId === state.verseId) {appearances.set(scopeKey(scope), profile); apply(latest)}
+      return profile
+    },
+    async createAgent(atomRef: AtomRef, name: string) {
+      if (!options.conversations || !state.verseId) throw new Error("Создание агента недоступно")
+      await options.conversations.createAgent({verseId: state.verseId, atomRef}, name)
+      await refreshRoom(atomRef)
+    },
     connectProviderBrowser,
     subscribe(listener: () => void) {if (disposed) throw new Error("Agent workspace освобождён"); listeners.add(listener); return () => {listeners.delete(listener)}},
     start() {
@@ -421,14 +568,17 @@ export function createAgentWorkspace(options: {url?: string; fetch?: Transport; 
         if (!observed) state = {...state, status: "loading", error: null}
         publish(!observed)
         if (typeof document !== "undefined") document.addEventListener("visibilitychange", visible)
+        unsubscribeChanges = options.observeChanges?.(changed, error => {if (running && !disposed) fail(error)})
         void refresh().catch(() => {})
       }
       return stop
     },
     refresh,
+    editField,
+    saveFields,
     connectSlot,
     profileIntent,
-    dispose() {if (disposed) return; stop(); disposed = true; listeners.clear(); for (const entry of entries.values()) entry.listeners.clear(); entries.clear()},
+    dispose() {if (disposed) return; stop(); disposed = true; options.conversations?.dispose(); pendingRooms.clear(); listeners.clear(); for (const entry of entries.values()) entry.listeners.clear(); entries.clear()},
   }
 }
 

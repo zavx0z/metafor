@@ -1,30 +1,47 @@
-import {GLTFLoader, Matrix4, SkinnedMesh, Vector3, type Object3D, type AnimationClip} from "@zavx0z/immersive/engine"
+import {GLTFLoader, Matrix4, Object3D, SkinnedMesh, Vector3, type AnimationClip} from "@zavx0z/immersive/engine"
 import type {OfficeBounds} from "@metafor/agent/office-layout"
 import type {OfficeAvatarPrimitive} from "@metafor/agent/office-instances"
 
 /** Готовые фабрики одного персонажа для Asset и его общего Animation lifecycle. */
-export interface Bot {
+export interface BotVariant {
   readonly object: () => Object3D
   readonly animation: () => AnimationClip
   readonly bounds: OfficeBounds
   readonly primitives: readonly OfficeAvatarPrimitive[]
 }
 
-/** Загружает Alpha из исходного bots.glb; координаты и скелет преобразует GLTFLoader. */
+/** Оба варианта используют собственную геометрию и общие batches своего варианта. */
+export interface Bot extends BotVariant {
+  readonly variants: Readonly<{male: BotVariant; female: BotVariant}>
+}
+
+/** Загружает оба гуманоида одним GLTFLoader, сохраняя их собственные скелеты. */
 export async function loadBot(url: string): Promise<Bot> {
   const model = await new GLTFLoader().load(url)
   const alpha = model.scene.getObjectByName("Armature")
   const beta = model.scene.getObjectByName("Armature.001")
-  const clip = model.animations.find(animation => animation.name === "Armature|mixamo.com|Layer0.001")
-  if (!alpha || !beta || !clip) throw new Error("Bot asset is missing Alpha or its animation")
-  beta.parent?.remove(beta)
-  alpha.position.set(0, 0, 0)
+  const alphaClip = model.animations.find(animation => animation.name === "Armature|mixamo.com|Layer0.001")
+  const betaClip = model.animations.find(animation => animation.name === "Armature.001|mixamo.com|Layer0")
+  if (!alpha || !beta || !alphaClip || !betaClip) throw new Error("Bot asset is missing a humanoid or its animation")
   model.scene.updateWorldMatrix(true)
+  const prepare = (armature: Object3D, clip: AnimationClip): BotVariant => {
+    const root = new Object3D()
+    armature.parent!.matrixWorld.decompose(root.position, root.quaternion, root.scale)
+    armature.position.set(0, 0, 0)
+    root.add(armature)
+    return prepareVariant(root, clip)
+  }
+  const male = prepare(alpha, alphaClip), female = prepare(beta, betaClip)
+  return {...male, variants: {male, female}}
+}
+
+function prepareVariant(root: Object3D, clip: AnimationClip): BotVariant {
+  root.updateWorldMatrix(true)
   const primitives: OfficeAvatarPrimitive[] = []
   const min = {x: Infinity, y: Infinity, z: Infinity}
   const max = {x: -Infinity, y: -Infinity, z: -Infinity}
   const point = new Vector3(), weighted = new Vector3(), posed = new Vector3()
-  model.scene.traverse(object => {
+  root.traverse(object => {
     if (!(object instanceof SkinnedMesh)) return
     const transform = new Matrix4().copy(object.matrixWorld)
     primitives.push({mesh: object, transform})
@@ -55,5 +72,5 @@ export async function loadBot(url: string): Promise<Bot> {
     }
   })
   if (!primitives.length || Object.values(min).some(value => !Number.isFinite(value)) || max.z <= min.z) throw new Error("Bot asset имеет недопустимые bounds")
-  return {object: () => model.scene, animation: () => clip, bounds: {min, max}, primitives}
+  return {object: () => root, animation: () => clip, bounds: {min, max}, primitives}
 }

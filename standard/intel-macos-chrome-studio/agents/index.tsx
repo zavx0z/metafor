@@ -18,6 +18,8 @@ type Context = Readonly<{
     browserError: AgentFieldReference<string | null>
     browserProviderBinding: AgentFieldReference<string | null>
     localBrowserAgentEnabled: AgentFieldReference<boolean | null>
+    qwenAgentEnabled: AgentFieldReference<boolean | null>
+    deepseekAgentEnabled: AgentFieldReference<boolean | null>
   }>
   mass: Readonly<{providerRegistry: AgentMassReference}>
 }>
@@ -77,6 +79,32 @@ export default ({atom, value, mass, oracle}: Context) => (
         oracle.tool("codespace.status", {}, {meta: "@metafor/codespace"}),
         oracle.tool("codespace.start", {}, {meta: "@metafor/codespace"}),
       ]}
+    >
+      <display id="providers" source={mass.providerRegistry} />
+    </agent>
+    <agent
+      id="qwen-ai-srv"
+      atom={atom}
+      enabled={value.qwenAgentEnabled}
+      task={null}
+      answer={null}
+      status="idle"
+      error={null}
+      providerBinding="ai-srv-qwen"
+      providerRegistry={mass.providerRegistry}
+    >
+      <display id="providers" source={mass.providerRegistry} />
+    </agent>
+    <agent
+      id="deepseek-ai-srv"
+      atom={atom}
+      enabled={value.deepseekAgentEnabled}
+      task={null}
+      answer={null}
+      status="idle"
+      error={null}
+      providerBinding="ai-srv-deepseek"
+      providerRegistry={mass.providerRegistry}
     >
       <display id="providers" source={mass.providerRegistry} />
     </agent>

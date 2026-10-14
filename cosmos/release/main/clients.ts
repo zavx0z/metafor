@@ -1,5 +1,8 @@
+import type {ClientConversationObserver, ClientWorkspaceObserver} from "@metafor/types/cosmos/client"
+import type {CosmosAgentScope} from "@metafor/types/cosmos/agent-profile"
+import type {CosmosConversationSnapshot} from "@metafor/types/cosmos/conversations"
 import type {ClientInbound, ClientOutbound} from "../shared/clients"
-import {CLIENT_CAPABILITIES, CLIENT_SOCKET_PATH, CLIENT_WIRE_MAX_BYTES, CLIENT_CAPTURE_CHUNK_CHARS, isClientCapture, isClientAction, clientId} from "../shared/clients"
+import {CLIENT_CAPABILITIES, CLIENT_SOCKET_PATH, CLIENT_WIRE_MAX_BYTES, CLIENT_CAPTURE_CHUNK_CHARS, CLIENT_CONVERSATION_MAX_SUBSCRIPTIONS, isClientConversationScope, isClientConversationSnapshot, isClientWorkspaceRoom, clientRecord, isClientCapture, isClientAction, clientId} from "../shared/clients"
 import type {ClientAnnotationFeedback, ClientCacheInventory, ClientDescriptor, ClientInspection, ClientLogs, ClientViewActionResult, ClientFailureCode, ClientStatus, ClientTrace, ClientViewAction, ClientViewInspection, ClientDiagnosticsOptions, ClientDiagnostics, ClientCapture, ClientCommandValue} from "@metafor/types/cosmos/client"
 import {createServiceDiagnosticsClient, readClientCache} from "./service-diagnostics"
 import {createClientLogRecorder} from "./client-logs"
@@ -29,7 +32,9 @@ const action = isClientAction
 закрытые команды; identity соединения закрепляет ответы и отмену. Начальное
 наблюдение focus передаётся один раз за Document; trusted activity, heartbeat
 и действия агентов различаются. Pagehide/disconnect отменяют pending callbacks;
-BFCache resume получает новую incarnation соединения. Журнал начинается только
+BFCache resume получает новую incarnation соединения. Read-only подписки бесед
+сохраняют scope и восстанавливаются после регистрации нового соединения;
+их unsubscribe не отправляет cancel модели. Журнал начинается только
 после установки entrypoint. Проверки: [browser-clients.spec.ts](../spec/browser-clients.spec.ts).
 */
 export function createBrowserClient(options: BrowserClientOptions) {
@@ -67,6 +72,50 @@ export function createBrowserClient(options: BrowserClientOptions) {
         work.reject(new Error("Pinned feedback client/world changed")); work.cleanup(); feedbackPending.delete(work.input.request.id); continue
       }
       if (work.sentConnection !== registered.connectionId && send({type: "feedback", connectionId: registered.connectionId, feedback: work.input})) work.sentConnection = registered.connectionId
+    }
+  }
+  const conversations = new Map<string, {scope: CosmosAgentScope; sessionId?: string; listener(snapshot: CosmosConversationSnapshot): void; onError(error: Error): void; sentConnection?: string}>()
+  const conversationError = (work: {onError(error: Error): void}, error: Error) => {
+    try {work.onError(error)} catch (failure) {logs.record("error", ["Conversation observer error callback failed", failure])}
+  }
+  const transmitConversations = () => {
+    if (!registered) return
+    for (const [subscriptionId, work] of conversations) {
+      if (work.sentConnection === registered.connectionId) continue
+      if (send({type: "conversation.subscribe", connectionId: registered.connectionId, subscriptionId, scope: work.scope,
+        ...(work.sessionId === undefined ? {} : {sessionId: work.sessionId})})) work.sentConnection = registered.connectionId
+    }
+  }
+  const observeConversation: ClientConversationObserver = (scope, sessionId, listener, onError) => {
+    if (disposed) throw new Error("Window conversation observer is closed")
+    if (!isClientConversationScope(scope) || sessionId !== undefined && !id(sessionId)) throw new Error("Invalid conversation observer scope")
+    if (conversations.size >= CLIENT_CONVERSATION_MAX_SUBSCRIPTIONS) {onError(new Error("Conversation subscription capacity exceeded")); return () => {}}
+    const subscriptionId = crypto.randomUUID()
+    conversations.set(subscriptionId, {scope: structuredClone(scope), ...(sessionId === undefined ? {} : {sessionId}), listener, onError})
+    transmitConversations()
+    return () => {
+      const work = conversations.get(subscriptionId)
+      if (!work) return
+      conversations.delete(subscriptionId)
+      if (registered && work.sentConnection === registered.connectionId) send({type: "conversation.unsubscribe", connectionId: registered.connectionId, subscriptionId})
+    }
+  }
+  const workspaceObservers = new Set<{listener: Parameters<ClientWorkspaceObserver>[0]; onError(error: Error): void}>()
+  let workspaceConnection: string | undefined
+  const transmitWorkspace = () => {
+    if (registered && workspaceObservers.size && workspaceConnection !== registered.connectionId && send({type: "workspace.subscribe", connectionId: registered.connectionId})) workspaceConnection = registered.connectionId
+  }
+  const observeWorkspace: ClientWorkspaceObserver = (listener, onError) => {
+    if (disposed) throw new Error("Window workspace observer is closed")
+    const observer = {listener, onError}
+    workspaceObservers.add(observer)
+    transmitWorkspace()
+    return () => {
+      workspaceObservers.delete(observer)
+      if (!workspaceObservers.size) {
+        if (registered && workspaceConnection === registered.connectionId) send({type: "workspace.unsubscribe", connectionId: registered.connectionId})
+        workspaceConnection = undefined
+      }
     }
   }
   const completed = new Set<string>()
@@ -181,6 +230,31 @@ export function createBrowserClient(options: BrowserClientOptions) {
       return
     }
     if (!object(message)) return
+    if ((message.type === "workspace.changed" || message.type === "workspace.error") && registered && message.connectionId === registered.connectionId && workspaceConnection === registered.connectionId) {
+      const valid = message.type === "workspace.changed"
+        ? clientRecord(message, ["type", "connectionId"], ["room"]) && (message.room === undefined || isClientWorkspaceRoom(message.room))
+        : clientRecord(message, ["type", "connectionId", "error"]) && object(message.error) && typeof message.error.message === "string"
+      for (const observer of workspaceObservers) {
+        if (!valid || message.type === "workspace.error") conversationError(observer, new Error(valid && object(message.error) ? String(message.error.message).slice(0, 512) : "Invalid workspace hint"))
+        else {try {observer.listener(message.room as Parameters<Parameters<ClientWorkspaceObserver>[0]>[0])} catch (error) {logs.record("error", ["Workspace observer listener failed", error])}}
+      }
+      return
+    }
+    if ((message.type === "conversation.snapshot" || message.type === "conversation.error") && registered && message.connectionId === registered.connectionId && id(message.subscriptionId)) {
+      const work = conversations.get(message.subscriptionId)
+      if (!work || work.sentConnection !== registered.connectionId) return
+      if (!clientRecord(message, ["type", "connectionId", "subscriptionId", message.type === "conversation.error" ? "error" : "snapshot"])) {
+        conversationError(work, new Error("Invalid conversation stream frame")); return
+      }
+      if (message.type === "conversation.error") {
+        conversationError(work, new Error(object(message.error) && typeof message.error.message === "string" ? message.error.message.slice(0, 512) : "Conversation observer failed"))
+      } else if (!isClientConversationSnapshot(message.snapshot) || work.sessionId !== undefined && message.snapshot.id !== work.sessionId) {
+        conversationError(work, new Error("Invalid scoped conversation snapshot"))
+      } else {
+        try {work.listener(message.snapshot)} catch (error) {logs.record("error", ["Conversation observer listener failed", error])}
+      }
+      return
+    }
     if (message.type === "feedback-receipt" && registered && message.connectionId === registered.connectionId && typeof message.id === "string") {
       const work = feedbackPending.get(message.id)
       if (!work) return
@@ -202,6 +276,8 @@ export function createBrowserClient(options: BrowserClientOptions) {
       clientId = registered.id
       trace("registered")
       transmitFeedback()
+      transmitConversations()
+      transmitWorkspace()
       if (initialRegistration) {
         initialRegistration = false
         if (page.hasFocus() && page.visibilityState === "visible") activity("observed-focus")
@@ -232,7 +308,7 @@ export function createBrowserClient(options: BrowserClientOptions) {
     socket.addEventListener("open", () => {
       if (current !== socket || !running) return
       send({type: "hello", version: 1, clientId, kind: "Window", capabilities: CLIENT_CAPABILITIES.filter(capability => capability !== "diagnostics" && capability !== "capture" || capability === "diagnostics" && !!options.diagnostics || capability === "capture" && !!options.capture), status: status()})
-      heartbeat = setInterval(() => {if (registered) {send({type: "heartbeat", connectionId: registered.connectionId, status: status()}); transmitFeedback()}}, options.heartbeatMs ?? 10000)
+      heartbeat = setInterval(() => {if (registered) {send({type: "heartbeat", connectionId: registered.connectionId, status: status()}); transmitFeedback(); transmitConversations(); transmitWorkspace()}}, options.heartbeatMs ?? 10000)
     })
     socket.addEventListener("message", event => {if (current === socket) receive(event as MessageEvent)})
     socket.addEventListener("error", () => {if (current === socket) trace("socket.error")})
@@ -244,6 +320,8 @@ export function createBrowserClient(options: BrowserClientOptions) {
       clearTimeout(handshake)
       clearPending()
       trace("disconnect")
+      for (const work of conversations.values()) conversationError(work, new Error("Conversation stream disconnected; reconnecting"))
+      for (const observer of workspaceObservers) conversationError(observer, new Error("Workspace stream disconnected; reconnecting"))
       if (running && !disposed) retry = setTimeout(connect, options.reconnectMs ?? 1000)
     })
   }
@@ -301,7 +379,7 @@ export function createBrowserClient(options: BrowserClientOptions) {
   const listeners: [Surface, string, EventListener][] = [[view, "pointerdown", pointer], [view, "pointermove", pointer], [view, "keydown", keyboard], [view, "focus", focus],
     [view, "pageshow", pageshow], [view, "pagehide", pagehide], [view, "error", errored], [view, "unhandledrejection", rejected], [page, "visibilitychange", visibility]]
   for (const [target, name, listener] of listeners) target.addEventListener(name, listener)
-  return {start, stop, trace, getStatus: status, logs: logs.read,
+  return {start, stop, trace, observeConversation, observeWorkspace, getStatus: status, logs: logs.read,
     getDescriptor: () => registered ? structuredClone(registered) : null,
     feedback(input: ClientAnnotationFeedback, signal: AbortSignal) {
       signal.throwIfAborted()
@@ -339,6 +417,8 @@ export function createBrowserClient(options: BrowserClientOptions) {
       service.dispose()
       for (const work of feedbackPending.values()) {work.cleanup(); work.reject(new Error("Window feedback delivery closed; accepted outcome may be unknown"))}
       feedbackPending.clear()
+      conversations.clear()
+      workspaceObservers.clear()
     },
   }
 }

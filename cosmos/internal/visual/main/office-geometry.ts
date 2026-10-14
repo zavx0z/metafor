@@ -1,4 +1,4 @@
-import {BoxGeometry, Mesh, MeshLambertMaterial, type SkinnedMesh} from "@zavx0z/immersive/engine"
+import {BoxGeometry, Mesh, MeshLambertMaterial, Object3D, type SkinnedMesh} from "@zavx0z/immersive/engine"
 import type {SpatialEdge} from "@zavx0z/immersive/space"
 import {createOfficeInstances, type OfficeInstancesLayout} from "@metafor/agent/office-instances"
 import {layoutAgentOffice, type OfficeBounds, type OfficeLayout} from "@metafor/agent/office-layout"
@@ -7,30 +7,24 @@ import type {Bot} from "./bot"
 
 const capacity = (count: number) => 2 ** Math.ceil(Math.log2(Math.max(32, count)))
 
-/** Public asset adapter: один shared batch на primitive, borrowed Alpha и один shared корпус всех экранов. */
+/** Layout выбирает габариты подготовленного варианта и единственный надголовный Chat; чтение Quantum-конфигурации не требуется. */
 export function prepareOfficeGeometry(office: AgentOfficeSnapshot, bot: Bot) {
-  return layoutAgentOffice({roomBounds: office.bounds, humanoid: bot.bounds,
-    agents: office.agents.map(agent => ({id: agent.id, displays: [
-      {id: "chat", width: 900, height: 600, depth: 20},
-      ...agent.atom.getSnapshot().configuration.displays.filter(display => display.id !== "chat")
-        .map(display => ({id: display.id, width: 900, height: 600, depth: 20})),
-    ]}))})
+  return layoutAgentOffice({roomBounds: office.bounds, humanoid: bot.bounds, overheadDisplayId: "chat",
+    agents: office.agents.map(agent => ({id: agent.id, humanoid: bot.variants[agent.profile?.gender ?? "male"].bounds,
+      displays: [{id: "chat", width: 900, height: 600, depth: 20}],
+    }))})
 }
 
 /** Root owns rendering; this adapter owns only its batches, and never creates an independent scene or frame loop. */
-export function createOfficeGeometry(layout: OfficeLayout, bot: Bot) {
-  const material = new MeshLambertMaterial()
-  material.color.setHex(0x263847)
-  const mesh = new Mesh(new BoxGeometry({width: 2, height: 2, depth: 2}), material)
-  return createOfficeInstances({layout, avatars: bot.primitives,
-    device: {mesh, bounds: {min: {x: -1, y: -1, z: -1}, max: {x: 1, y: 1, z: 1}}},
-    avatarCapacity: capacity(layout.agents.length),
-    deviceCapacity: capacity(layout.agents.reduce((sum, agent) => sum + agent.displays.length, 0)),
-  })
+export function createOfficeGeometry(layout: OfficeLayout, bot: Bot, genders?: ReadonlyMap<string, OfficeAvatarGender>) {
+  return createOfficeSceneGeometry([{id: "office", layout, position: {x: 0, y: 0, z: 0}, ...(genders ? {genders} : {})}], bot)
 }
 
+/** Подготовленный вариант геометрии; выбор не меняет identity участника. */
+export type OfficeAvatarGender = "male" | "female"
+
 /** Офис уже размещён своим владельцем; position — мировой перенос без новой layout-семантики. */
-export type OfficeSceneRoom = Readonly<{id: string; layout: OfficeLayout; position: Readonly<{x: number; y: number; z: number}>}>
+export type OfficeSceneRoom = Readonly<{id: string; layout: OfficeLayout; position: Readonly<{x: number; y: number; z: number}>; genders?: ReadonlyMap<string, OfficeAvatarGender>}>
 /** Derived native instance key остаётся связанным с точными локальными identity. */
 export type OfficeSceneIdentity = Readonly<{id: string; officeId: string; agentId: string}>
 
@@ -58,7 +52,8 @@ export function flattenOfficeSceneGeometry(rooms: readonly OfficeSceneRoom[]): O
 /**
  * Один глобальный asset для всех объявленных офисов в существующем Space.
  * Переводит только готовые world placements в public instance batches: один
- * skinned batch на primitive и один device batch независимо от числа комнат.
+ * skinned batch на primitive каждого варианта независимо от числа комнат.
+ * Надголовный billboard использует собственный Display без native корпуса.
  * Asset размещается в Space origin; локальные Room/Display остаются у composition.
  * Update сохраняет batches в заданной capacity, источники и poses заимствуются.
  * @see ../README.md; office-geometry.spec.ts.
@@ -70,30 +65,61 @@ export function createOfficeSceneGeometry(rooms: readonly OfficeSceneRoom[], bot
 }> = {}) {
   let prepared = flattenOfficeSceneGeometry(rooms)
   let identities = new Map(prepared.identities.map(value => [value.id, value]))
+  const gendersFor = (input: readonly OfficeSceneRoom[]) => new Map(input.flatMap(room => room.layout.agents.map(agent =>
+    [JSON.stringify([room.id, agent.id]), room.genders?.get(agent.id) ?? "male"] as const)))
+  let genders = gendersFor(rooms)
   const avatarCapacity = options.avatarCapacity ?? capacity(prepared.agents.length)
   const deviceCapacity = options.deviceCapacity ?? capacity(prepared.agents.reduce((sum, agent) => sum + agent.displays.length, 0))
   const material = new MeshLambertMaterial()
   material.color.setHex(0x263847)
   const mesh = new Mesh(new BoxGeometry({width: 2, height: 2, depth: 2}), material)
-  const instances = createOfficeInstances({layout: prepared, avatars: bot.primitives,
-    device: {mesh, bounds: {min: {x: -1, y: -1, z: -1}, max: {x: 1, y: 1, z: 1}}}, avatarCapacity, deviceCapacity,
+  const renderDevices = prepared.agents.some(agent => agent.displays.some(display => !display.billboard))
+  const subset = (gender: OfficeAvatarGender, layout: OfficeInstancesLayout) => ({agents: layout.agents.filter(agent => genders.get(agent.id) === gender)
+    .map(agent => ({...agent, displays: agent.displays.filter(display => !display.billboard)}))})
+  const variants = (["male", "female"] as const).map(gender => ({gender, instances: createOfficeInstances({
+    layout: subset(gender, prepared), avatars: bot.variants[gender].primitives,
+    ...(renderDevices ? {device: {mesh, bounds: {min: {x: -1, y: -1, z: -1}, max: {x: 1, y: 1, z: 1}}}} : {}),
+    avatarCapacity, deviceCapacity,
     ...(options.pose ? {pose: (id: string, primitive: number) => {const identity = identities.get(id)!; return options.pose!(identity.officeId, identity.agentId, primitive)}} : {}),
-  })
+  })}))
+  const object = new Object3D()
+  object.name = "Office variant instance batches"
+  for (const variant of variants) {
+    variant.instances.object().visible = subset(variant.gender, prepared).agents.length > 0
+    object.add(variant.instances.object())
+  }
   let disposed = false
   return {
-    object: instances.object,
-    avatarBatches: instances.avatarBatches,
-    deviceBatch: instances.deviceBatch,
+    object: () => object,
+    avatarBatches: variants.flatMap(variant => variant.instances.avatarBatches),
+    variantBatches: {male: variants[0]!.instances.avatarBatches, female: variants[1]!.instances.avatarBatches},
+    deviceBatch: variants[0]!.instances.deviceBatch,
+    deviceBatches: variants.flatMap(variant => variant.instances.deviceBatch ? [variant.instances.deviceBatch] : []),
     get identities() {return prepared.identities},
     update(next: readonly OfficeSceneRoom[]) {
       if (disposed) throw new Error("Office scene instances are disposed")
       const value = flattenOfficeSceneGeometry(next)
-      if (value.agents.length > avatarCapacity || value.agents.reduce((sum, agent) => sum + agent.displays.length, 0) > deviceCapacity) throw new RangeError("Office scene instances exceed assigned capacity")
+      if (value.agents.length > avatarCapacity || value.agents.reduce((sum, agent) => sum + agent.displays.filter(display => !display.billboard).length, 0) > deviceCapacity) throw new RangeError("Office scene instances exceed assigned capacity")
+      if (!renderDevices && value.agents.some(agent => agent.displays.some(display => !display.billboard))) throw new Error("Office scene requires a prepared device batch")
       identities = new Map(value.identities.map(identity => [identity.id, identity]))
-      instances.update(value)
+      genders = gendersFor(next)
+      for (const variant of variants) {
+        const members = subset(variant.gender, value)
+        variant.instances.update(members)
+        variant.instances.object().visible = members.agents.length > 0
+      }
       prepared = value
     },
-    dispose() {if (disposed) return; disposed = true; instances.dispose(); identities.clear()},
+    dispose() {
+      if (disposed) return
+      disposed = true
+      for (const variant of variants) {
+        variant.instances.dispose()
+        object.remove(variant.instances.object())
+      }
+      identities.clear()
+      genders.clear()
+    },
   }
 }
 

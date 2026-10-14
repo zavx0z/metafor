@@ -19,9 +19,11 @@ import {startReleaseNode, type ReleaseNode, type ReleaseNodeConfiguration} from 
 import {createInstalledMetaMapping, findInstalledRootMeta} from "./metas"
 import {createMetaSourceResolver} from "shared/metafor/source"
 import {loadMeta} from "../../../../quantum/dark/load"
+import {COSMOS_CONVERSATIONS_PATH} from "../../shared/conversations"
 import {createAgentUiOracle} from "../agents"
 import {AGENT_UI_PATH, AGENT_UI_PROVIDER_PATH, AGENT_UI_CONNECT_PATH, AGENT_UI_PROFILE_PATH, AGENT_UI_CONNECTIONS_PATH} from "../../shared/agents"
 import {AGENT_BROWSER_PATH} from "../../shared/agents-browser"
+import {ATOM_FIELD_EDIT_PATH, ATOM_FIELDS_EDIT_PATH} from "../../shared/atom-fields"
 import type {AgentBrowserSocketData} from "../agents-browser"
 import {configuredCodespaceHostOracle} from "../codespace-oracle"
 import {createClientOracle, type ClientSocketData} from "../clients"
@@ -145,7 +147,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       if (current.upgrade(request, {data})) return
       return new Response("WebSocket upgrade required", {status: 426})
     }
-    if ([AGENT_UI_PATH, AGENT_UI_PROVIDER_PATH, AGENT_UI_CONNECT_PATH, AGENT_UI_PROFILE_PATH, AGENT_UI_CONNECTIONS_PATH, "/agents/settings"].some(path => path === url.pathname) || url.pathname.startsWith(`${AGENT_BROWSER_PATH}/`))
+    if ([COSMOS_CONVERSATIONS_PATH, AGENT_UI_PATH, AGENT_UI_PROVIDER_PATH, AGENT_UI_CONNECT_PATH, AGENT_UI_PROFILE_PATH, AGENT_UI_CONNECTIONS_PATH, ATOM_FIELD_EDIT_PATH, ATOM_FIELDS_EDIT_PATH, "/agents/settings", "/agents/recover"].some(path => path === url.pathname) || url.pathname.startsWith(`${AGENT_BROWSER_PATH}/`))
       return agentUi ? await agentUi.fetch(request, current) : new Response(null, {status: 404})
     if (url.pathname === "/release/state") {
       if (!authorized(request)) return new Response(null, {status: 403})
@@ -301,10 +303,11 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       if (destroyed || server) throw new Error("Installed server cannot bind")
       if (quantumOptions) {
         nativeRepl = await configuredNativeReplOracle(Bun.env, () => admitting && !destroyed)
-        agentUi = createAgentUiOracle({admitted: () => admitting && !destroyed, verseId: Bun.env.COSMOS_VERSE_ID})
-        clients = createClientOracle({admitted: () => admitting && !destroyed})
+        agentUi = createAgentUiOracle({admitted: () => admitting && !destroyed, verseId: Bun.env.COSMOS_VERSE_ID, conversationsDirectory: resolve(Bun.env.COSMOS_CONVERSATIONS_PATH ?? join(quantumOptions.stateRoot, "cosmos", "conversations"))})
+        clients = createClientOracle({admitted: () => admitting && !destroyed, observeConversation: agentUi.observeConversation, observeWorkspace: agentUi.observeWorkspace})
         codespaceHost = configuredCodespaceHostOracle(Bun.env, () => admitting && !destroyed)
         quantum = await prepareQuantumRuntime({...quantumOptions,
+          onWorldChange: acceptance => {try {return quantumOptions!.onWorldChange?.(acceptance)} finally {agentUi!.notifyWorldChanged()}},
           localOracleChannels: [...(quantumOptions.localOracleChannels ?? []), agentUi.channel, clients.channel, ...(nativeRepl ? [nativeRepl.channel] : []), ...(codespaceHost ? [codespaceHost.channel] : [])],
         }).catch(async error => {await agentUi?.close(); await clients?.close(); await nativeRepl?.close(); await codespaceHost?.close(); throw error})
       }

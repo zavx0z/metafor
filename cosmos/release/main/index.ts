@@ -16,6 +16,7 @@ import {createBrowserClient} from "./clients"
 import type {ClientViewAction, ClientViewInspection} from "@metafor/types/cosmos/client"
 import {observeBrowserNetwork} from "./network"
 import {createAgentWorkspace} from "./agents"
+import {createCosmosConversationDirectoryClient} from "./conversations"
 import {createProductRouter} from "./router"
 
 let controls: {inspect(): ClientViewInspection; act(action: ClientViewAction): unknown} | null = null
@@ -51,7 +52,10 @@ try {
   controls = clientControls
   diagnostics = clientDiagnostics
   const disconnectFeedback = connectAnnotationFeedback({source: client.getDescriptor, send: client.feedback})
-  const agents = createAgentWorkspace()
+  const agents = createAgentWorkspace({
+    conversations: createCosmosConversationDirectoryClient({observeConversation: client.observeConversation}),
+    observeChanges: client.observeWorkspace,
+  })
   const disconnectAgents = connectAgents(agents)
   const router = createProductRouter({source: {
     getSnapshot() {
@@ -61,7 +65,7 @@ try {
     },
     subscribe: agents.subscribe,
   }, applyRoute(route, context) {
-    if (context.cause === "presentation") return
+    if (context.cause === "presentation" || context.preservePresentation) return
     if (route.kind === "atom") presentAtomRoute({kind: "atom", ref: route.ref})
     else if (route.kind === "networks") presentAtomRoute(route)
     else presentAtomRoute({kind: "unavailable", message: route.kind === "loading" ? "Загрузка Verse…" : route.kind === "noSuchAtom" ? `Atom ${route.atomId ?? ""} не найден в Verse` : route.kind === "noSuchVerse" ? `Verse ${route.verseId} не подключена` : route.kind === "unavailable" ? route.error : "Адрес не соответствует Verse и Atom"})

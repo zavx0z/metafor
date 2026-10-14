@@ -1,11 +1,13 @@
-import {HTMLElement, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
+import {HTMLElement, type DisplayElement, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
 import {ViewPoint} from "@zavx0z/immersive/engine"
 import {AgentView} from "@metafor/agent/view"
 import type {AtomContext} from "@metafor/agent/atom"
 import type {OfficeBounds} from "@metafor/agent/office-layout"
-import type {AgentWorkspaceSnapshot, AgentWorkspaceSource} from "./agent-workspace-types"
-export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentConnectableSlot} from "./agent-workspace-types"
+import type {AgentWorkspaceSnapshot, AgentWorkspaceSource, CosmosConversationClient} from "./agent-workspace-types"
+export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentConnectableSlot, AgentFieldValue, AgentFieldUpdate} from "./agent-workspace-types"
 import type {NetworkSpaceModel} from "./network-space"
+import {CosmosAgentChat, type CosmosAgentChatProps} from "./cosmos-agent-chat"
+import {createOfficeDisplayView, type OfficeDisplayGeometry} from "./office-display-view"
 
 const empty: AgentWorkspaceSnapshot = {status: "loading", offices: [], graph: null, verseId: null, observedWorld: null}
 const keyOf = (office: string, agent: string) => JSON.stringify([office, agent])
@@ -44,7 +46,7 @@ function arrange(snapshot: AgentWorkspaceSnapshot) {
     max[axis] = Math.max(max[axis], office.bounds.max[axis] + position[axis])
   }
   const control = {x: (min.x + max.x) / 2, y: min.y - 1600, z: max.z + 900}
-  const agents = placed.flatMap(({office}) => office.agents.map(agent => ({...agent, officeId: office.id, label: `${office.label} · ${agent.id}`, key: keyOf(office.id, agent.id)})))
+  const agents = placed.flatMap(({office}) => office.agents.map(agent => ({...agent, officeId: office.id, label: agent.profile?.name ?? `${office.label} · ${agent.id}`, key: keyOf(office.id, agent.id)})))
   return {offices: placed, agents, bounds: {min, max}, control}
 }
 
@@ -55,16 +57,30 @@ constructor на Agent перемещается append между wall и common
 Document; смена камеры не создаёт новый Chat и не remount UI.
 */
 export function createAgentWorkspace(options: Readonly<{externalNavigation?: boolean}> = {}) {
+  let focusedChat: string | null = null
+  const officeDisplays = createOfficeDisplayView({onFocusChange(key) {
+    if (disposed) return
+    const agent = key === null ? undefined : geometry.agents.find(agent => JSON.stringify([agent.officeId, agent.id, "chat"]) === key)
+    const next = agent?.key ?? null
+    if (next === focusedChat) return
+    focusedChat = next
+    if (agent) {selected = agent.key; mode = "agents"}
+    publish()
+  }})
   let input = empty
   let geometry = arrange(input)
   let selected: string | null = null
   let mode: "agents" | "offices" | "network" = "agents"
-  let state: {input: AgentWorkspaceSnapshot; selected: string | null; mode: "agents" | "offices" | "network"} & ReturnType<typeof arrange> = {input, ...geometry, selected, mode}
+  let state: {input: AgentWorkspaceSnapshot; selected: string | null; focusedChat: string | null; mode: "agents" | "offices" | "network"} & ReturnType<typeof arrange> = {input, ...geometry, selected, focusedChat, mode}
   const listeners = new Set<() => void>()
   const hosts = new Map<string, HTMLElement>()
-  const viewAtoms = new Map<string, AtomContext>()
-  const views = new Map<string, InstanceType<DOMComponentConstructor<{atom: AtomContext}>>>()
+  type LegacyView = InstanceType<DOMComponentConstructor<{atom: AtomContext; chatOnly: boolean}>>
+  type CosmosView = InstanceType<DOMComponentConstructor<CosmosAgentChatProps>>
+  type MountedChat = {kind: "legacy"; view: LegacyView; atom: AtomContext} | {kind: "cosmos"; view: CosmosView; client: CosmosConversationClient}
+  const views = new Map<string, MountedChat>()
+  const selectedSessions = new Map<string, string>()
   let common: HTMLElement | null = null
+  let commonForced = false
   let parking: HTMLElement | null = null
   let parked = false
   let root: Presentation | null = null
@@ -73,41 +89,59 @@ export function createAgentWorkspace(options: Readonly<{externalNavigation?: boo
   let unsubscribe = () => {}
   let disposed = false
   let followedInitial = false
-  const Constructor = AgentView as unknown as DOMComponentConstructor<{atom: AtomContext}>
+  const Constructor = AgentView as unknown as DOMComponentConstructor<{atom: AtomContext; chatOnly: boolean}>
+  const CosmosConstructor = CosmosAgentChat as unknown as DOMComponentConstructor<CosmosAgentChatProps>
+  const releaseView = (mounted: MountedChat) => {
+    mounted.view.dispose()
+    if (mounted.kind === "cosmos") mounted.client.dispose()
+  }
   const syncViews = () => {
     if (root === null || disposed) return
     const active = new Set(geometry.agents.map(agent => agent.key))
     let changed = false
-    for (const [key, view] of views) if (!active.has(key)) {
-      view.dispose()
+    for (const [key, mounted] of views) if (!active.has(key)) {
+      releaseView(mounted)
       views.delete(key)
-      viewAtoms.delete(key)
       hosts.delete(key)
       changed = true
     }
+    const connections = input.providerRegistries?.flatMap(owner => owner.registry.settings.configuration?.connections ?? [])
+      .filter((connection, index, all) => all.findIndex(other => other.id === connection.id) === index)
+      .map(connection => ({id: connection.id, label: connection.label ?? connection.id, enabled: connection.enabled})) ?? []
     for (const agent of geometry.agents) {
-      let view = views.get(agent.key)
-      const host = (parked ? null : mode === "agents" && selected === agent.key ? common : hosts.get(agent.key)) ?? (view ? parking : null)
-      if (view !== undefined && viewAtoms.get(agent.key) !== agent.atom) {
-        view.update({atom: agent.atom})
-        viewAtoms.set(agent.key, agent.atom)
-        changed = true
-      }
+      let mounted = views.get(agent.key)
+      const directory = source?.conversations
+      if (directory && (!agent.scope || !agent.profile)) continue
+      const kind = directory ? "cosmos" : "legacy"
+      if (mounted && mounted.kind !== kind) {releaseView(mounted); views.delete(agent.key); mounted = undefined}
+      const host = (parked ? null : (mode === "agents" || commonForced) && selected === agent.key && common !== null ? common : hosts.get(agent.key)) ?? (mounted ? parking : null)
       if (host === undefined || host === null) continue
       if (host.ownerDocument !== root.document) throw new Error("Agent host принадлежит другому Document")
-      if (view === undefined) {
-        view = new Constructor(root.document, {atom: agent.atom})
-        views.set(agent.key, view)
-        viewAtoms.set(agent.key, agent.atom)
-        changed = true
+      if (directory && agent.scope && agent.profile) {
+        const actorScope = agent.scope
+        const client = mounted?.kind === "cosmos" ? mounted.client : directory.forActor(actorScope)
+        const props: CosmosAgentChatProps = {actorScope, client, profile: agent.profile, connections,
+          providerAccess: {atom: agent.atom ?? null, registries: input.providerRegistries, profiles: input.profiles?.targets},
+          selectedSessionId: selectedSessions.get(agent.key),
+          visible: !parked && host !== parking,
+          nativePreparationActive: !parked && common !== null && host === common && selected === agent.key,
+          ...(source?.saveAgentProfile ? {onProfileChange: update => source!.saveAgentProfile!(actorScope, update)} : {})}
+        if (mounted?.kind === "cosmos") mounted.view.update(props)
+        else {mounted = {kind: "cosmos", client, view: new CosmosConstructor(root.document, props)}; views.set(agent.key, mounted)}
+      } else if (agent.atom) {
+        if (mounted?.kind === "legacy") {
+          if (mounted.atom !== agent.atom) {mounted.view.update({atom: agent.atom, chatOnly: true}); mounted.atom = agent.atom}
+        } else {mounted = {kind: "legacy", atom: agent.atom, view: new Constructor(root.document, {atom: agent.atom, chatOnly: true})}; views.set(agent.key, mounted)}
       }
-      if (!(view instanceof HTMLElement)) throw new Error("AgentView должен предоставлять свой native root Element")
+      if (!mounted) continue
+      const view = mounted.view
+      if (!(view instanceof HTMLElement)) throw new Error("Chat должен предоставлять свой native root Element")
       if (view.parentElement !== host) {host.append(view); changed = true}
     }
     if (changed) root.invalidate()
   }
   const publish = () => {
-    state = {input, ...geometry, selected, mode}
+    state = {input, ...geometry, selected, focusedChat, mode}
     for (const listener of listeners) listener()
     syncViews()
   }
@@ -124,7 +158,7 @@ export function createAgentWorkspace(options: Readonly<{externalNavigation?: boo
       root!.viewPoint.targetX = pose.target.x
       root!.viewPoint.targetY = pose.target.y
       root!.viewPoint.targetZ = pose.target.z
-      root!.viewPoint.near = range?.near ?? 1
+      root!.viewPoint.near = Math.max(1, range?.near ?? 1)
       root!.viewPoint.far = Math.max(range?.far ?? 100000, 100000)
       root!.viewPoint.controls = true
       root!.viewPoint.navigation = "orbit"
@@ -139,7 +173,48 @@ export function createAgentWorkspace(options: Readonly<{externalNavigation?: boo
   }
   return {
     get disposed() {return disposed},
+    get conversations() {return source?.conversations},
+    async refreshRoom(atomRef: import("@metafor/types/metafor/graph").AtomRef) {
+      if (!source?.refreshRoom) throw new Error("Комната недоступна")
+      await source.refreshRoom(atomRef)
+    },
+    async createAgent(scope: import("@metafor/types/cosmos/conversation-groups").CosmosRoomScope, name: string, connectionId: string) {
+      const directory = source?.conversations
+      const connection = input.providerRegistries?.flatMap(owner => owner.registry.settings.configuration?.connections ?? [])
+        .find(connection => connection.id === connectionId && connection.enabled)
+      if (!directory || scope.verseId !== input.verseId || !connection) throw new Error("Выберите доступное подключение агента")
+      const agent = await directory.createAgent(scope, name)
+      const client = directory.forActor(agent.scope)
+      let configurationError: string | undefined
+      try {
+        const session = await client.read()
+        await client.configureExecution(session.sessionId, {connectionId})
+        selectedSessions.set(keyOf(scope.atomRef, agent.scope.agentRef), session.sessionId)
+      } catch (error) {
+        configurationError = `Агент создан. Подключение пока не сохранено: ${error instanceof Error ? error.message : String(error)}. Откройте настройки этого агента.`
+      } finally {client.dispose()}
+      return {agent, ...(configurationError ? {configurationError} : {})}
+    },
+    async createChat(scope: import("@metafor/types/cosmos/agent-profile").CosmosAgentScope, label?: string) {
+      const directory = source?.conversations
+      const agent = geometry.agents.find(agent => agent.scope?.verseId === scope.verseId && agent.scope.atomRef === scope.atomRef && agent.scope.agentRef === scope.agentRef)
+      if (!directory || !agent) throw new Error("Выбранный агент отсутствует в комнате")
+      const client = directory.forActor(scope)
+      try {
+        const session = await client.create(label)
+        selectedSessions.set(agent.key, session.sessionId)
+        selected = agent.key
+        publish()
+        officeDisplays.focus(JSON.stringify([agent.officeId, agent.id, "chat"]))
+      } finally {client.dispose()}
+    },
     getSnapshot: () => state,
+    openChat(key: string) {
+      const agent = geometry.agents.find(agent => agent.key === key)
+      if (!agent) throw new Error("Агент отсутствует в этой комнате")
+      officeDisplays.focus(JSON.stringify([agent.officeId, agent.id, "chat"]))
+    },
+    closeChat(restore = true) {officeDisplays.back(restore)},
     clearSelection() {if (selected === null) return; selected = null; publish()},
     parkViews() {parked = true; common = null; syncViews()},
     setDisplayFocused(focused: boolean) {
@@ -160,6 +235,7 @@ export function createAgentWorkspace(options: Readonly<{externalNavigation?: boo
     attach(presentation: Presentation, networkModel: NetworkSpaceModel) {
       if (disposed || root !== null && root !== presentation) throw new Error("Agent workspace уже имеет другой Root")
       root = presentation
+      officeDisplays.attach(presentation)
       network = networkModel
       syncViews()
       agentsCamera()
@@ -197,22 +273,27 @@ export function createAgentWorkspace(options: Readonly<{externalNavigation?: boo
         publish()
       }
     },
+    bindAgentDisplay(key: string, element: DisplayElement | null, geometry: OfficeDisplayGeometry, onRotation: (value: string) => void) {
+      officeDisplays.bind(key, element, geometry, onRotation)
+    },
     bindWall(office: string, agent: string, value: unknown) {
       const key = keyOf(office, agent)
       if (value === null) hosts.delete(key)
-      else if (value instanceof HTMLElement) hosts.set(key, value)
+      else if (value instanceof HTMLElement) {hosts.set(key, value); parked = false}
       else throw new TypeError("Agent Display host должен быть native Element")
       syncViews()
     },
-    bindCommon(value: unknown) {
+    bindCommon(value: unknown, force = false) {
       if (value !== null && !(value instanceof HTMLElement)) throw new TypeError("Agent common host должен быть native Element")
       common = value
+      commonForced = value !== null && force
       if (value !== null) parked = false
       syncViews()
     },
     releaseCommon(value: unknown) {
       if (value === null || common !== value) return
       common = null
+      commonForced = false
       syncViews()
     },
     select(key: string) {
@@ -232,6 +313,16 @@ export function createAgentWorkspace(options: Readonly<{externalNavigation?: boo
       const slot = input.connectableSlots?.find(slot => slot.ref === slotRef)
       if (disposed || !source?.connectSlot || !slot || slot.enabled) throw new Error("Объявленный слот недоступен для подключения")
       await source.connectSlot(slotRef, signal)
+    },
+    async editField(atomRef: import("@metafor/types/metafor/graph").AtomRef, field: string, value: string | number | boolean | null, expectedValue: string | number | boolean | null, signal: AbortSignal) {
+      signal.throwIfAborted()
+      if (disposed || !source?.editField) throw new Error("Изменение полей недоступно")
+      await source.editField(atomRef, field, value, expectedValue, signal)
+    },
+    async saveFields(atomRef: import("@metafor/types/metafor/graph").AtomRef, updates: readonly import("./agent-workspace-types").AgentFieldUpdate[], signal: AbortSignal) {
+      signal.throwIfAborted()
+      if (disposed || !source?.saveFields) throw new Error("Сохранение полей недоступно")
+      await source.saveFields(atomRef, updates, signal)
     },
     async profileIntent(request: import("@metafor/types/metafor/profile-intent").ProfileIntentRequest, signal: AbortSignal) {
       signal.throwIfAborted()
@@ -268,10 +359,11 @@ export function createAgentWorkspace(options: Readonly<{externalNavigation?: boo
     dispose() {
       if (disposed) return
       disposed = true
+      officeDisplays.dispose()
       unsubscribe()
-      for (const view of views.values()) view.dispose()
+      for (const view of views.values()) releaseView(view)
       views.clear()
-      viewAtoms.clear()
+      selectedSessions.clear()
       hosts.clear()
       listeners.clear()
       root = null

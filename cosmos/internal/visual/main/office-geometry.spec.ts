@@ -1,8 +1,9 @@
 import {beforeAll, expect, test} from "bun:test"
 import {InstancedMesh, InstancedSkinnedMesh, Matrix4, Vector3} from "@zavx0z/immersive/engine"
 import {layoutAgentOffice, type OfficeBounds} from "@metafor/agent/office-layout"
-import {createOfficeSceneGeometry, flattenOfficeSceneGeometry, type OfficeSceneRoom} from "./office-geometry"
+import {createOfficeSceneGeometry, flattenOfficeSceneGeometry, prepareOfficeGeometry, type OfficeSceneRoom} from "./office-geometry"
 import {loadBot, type Bot} from "./bot"
+import type {AgentOfficeSnapshot} from "./agent-workspace-types"
 
 let bot: Bot
 beforeAll(async () => {
@@ -11,9 +12,10 @@ beforeAll(async () => {
 })
 function rooms(count: number): OfficeSceneRoom[] {
   return Array.from({length: count}, (_, index) => ({id: `office-${index}`,
+    genders: new Map([["assistant", "male"], ["reviewer", "female"]]),
     position: {x: 1100 * (index % 3), y: -900 * Math.floor(index / 3), z: 600 * index + 50},
     layout: layoutAgentOffice({roomBounds: {min: {x: -300, y: -200, z: 0}, max: {x: 300, y: 200, z: 180}}, humanoid: bot.bounds,
-      agents: ["assistant", "reviewer"].map(id => ({id, displays: [{id: "chat", width: 900, height: 600, depth: 20}, {id: "context", width: 900, height: 600, depth: 20}]}))}),
+      agents: ["assistant", "reviewer"].map(id => ({id, humanoid: bot.variants[id === "assistant" ? "male" : "female"].bounds, displays: [{id: "chat", width: 900, height: 600, depth: 20}, {id: "context", width: 900, height: 600, depth: 20}]}))}),
   }))
 }
 const translate = (value: {x: number; y: number; z: number}, by: {x: number; y: number; z: number}) => ({x: value.x + by.x, y: value.y + by.y, z: value.z + by.z})
@@ -42,14 +44,15 @@ test("all rooms flatten existing local identities and fit scales without mutatin
   expect(() => flattenOfficeSceneGeometry([{...input[0]!, position: {x: NaN, y: 0, z: 0}}])).toThrow("finite positions")
 })
 
-test("N rooms retain one public batch per primitive and one device batch with actual posed world vertices and device bounds", () => {
+test("N rooms retain shared variant batches with actual posed world vertices and device bounds", () => {
   const input = rooms(9), poseCalls: string[] = []
   const instances = createOfficeSceneGeometry(input.slice(0, 2), bot, {avatarCapacity: 32, deviceCapacity: 64,
-    pose(office, agent, primitive) {poseCalls.push(JSON.stringify([office, agent, primitive])); return bot.primitives[primitive]!.mesh},
+    pose(office, agent, primitive) {poseCalls.push(JSON.stringify([office, agent, primitive])); return bot.variants[agent === "assistant" ? "male" : "female"].primitives[primitive]!.mesh},
   })
   const native = instances.object(), batches = [...native.children]
   try {
-    expect(native.children).toHaveLength(bot.primitives.length + 1)
+    expect(native.children).toHaveLength(2)
+    expect(instances.avatarBatches).toHaveLength(bot.variants.male.primitives.length + bot.variants.female.primitives.length)
     expect(instances.avatarBatches.every(batch => batch instanceof InstancedSkinnedMesh)).toBeTrue()
     expect(instances.deviceBatch).toBeInstanceOf(InstancedMesh)
     for (const count of [9, 1, 0, 6]) {
@@ -57,18 +60,22 @@ test("N rooms retain one public batch per primitive and one device batch with ac
       instances.update(current)
       expect(instances.object()).toBe(native)
       expect(native.children).toEqual(batches)
-      expect(instances.avatarBatches.every(batch => batch.count === count * 2)).toBeTrue()
-      expect(instances.deviceBatch!.count).toBe(count * 4)
-      let slot = 0, deviceSlot = 0
+      expect(instances.avatarBatches.every(batch => batch.count === count)).toBeTrue()
+      expect(instances.deviceBatches.map(batch => batch.count)).toEqual([count * 2, count * 2])
+      let slot = 0
+      const variantSlots = {male: 0, female: 0}
+      const deviceSlots = {male: 0, female: 0}
       for (const room of current) for (const agent of room.layout.agents) {
         expect(instances.identities[slot]).toMatchObject({officeId: room.id, agentId: agent.id})
-        for (const [primitiveIndex, primitive] of bot.primitives.entries()) {
-          const batch = instances.avatarBatches[primitiveIndex]!, pose = batch.getPoseAt(slot)
+        const gender = agent.id === "assistant" ? "male" : "female"
+        const variantSlot = variantSlots[gender]++
+        for (const [primitiveIndex, primitive] of bot.variants[gender].primitives.entries()) {
+          const batch = instances.variantBatches[gender][primitiveIndex]!, pose = batch.getPoseAt(variantSlot)
           expect(pose).toBe(primitive.mesh)
           const inverse = new Matrix4().copy(pose.matrixWorld).invert()
           const palette = pose.skeleton.bones.map((bone, index) => new Matrix4().multiplyMatrices(inverse, bone.matrixWorld).multiply(pose.skeleton.boneInverses[index]!))
           const positions = pose.geometry.attributes.position!, joints = pose.geometry.attributes.skinIndex!, weights = pose.geometry.attributes.skinWeight!
-          const matrix = new Matrix4(); batch.getMatrixAt(slot, matrix)
+          const matrix = new Matrix4(); batch.getMatrixAt(variantSlot, matrix)
           for (const vertex of [0, Math.floor(positions.count / 2), positions.count - 1]) {
             const point = new Vector3(positions.array[vertex * 3]!, positions.array[vertex * 3 + 1]!, positions.array[vertex * 3 + 2]!), posed = new Vector3()
             for (let influence = 0; influence < 4; influence++) {
@@ -84,7 +91,7 @@ test("N rooms retain one public batch per primitive and one device batch with ac
           }
         }
         for (const display of agent.displays) {
-          const matrix = new Matrix4(); instances.deviceBatch!.getMatrixAt(deviceSlot++, matrix)
+          const matrix = new Matrix4(); instances.deviceBatches[gender === "male" ? 0 : 1]!.getMatrixAt(deviceSlots[gender]++, matrix)
           const bounds = deviceBounds(matrix)
           for (const bound of ["min", "max"] as const) for (const axis of ["x", "y", "z"] as const)
             expect(bounds[bound][axis]).toBeCloseTo(display.bounds[bound][axis] + room.position[axis], 2)
@@ -101,4 +108,39 @@ test("N rooms retain one public batch per primitive and one device batch with ac
   expect(native.children).toEqual([])
   expect(bot.primitives.every(primitive => primitive.mesh.geometry.attributes.position !== undefined)).toBeTrue()
   expect(() => instances.update(input)).toThrow("disposed")
+})
+
+test("обычный офис показывает только надголовный чат и меняет gender subsets в тех же shared batches", () => {
+  const profile = (id: string, gender: "male" | "female") => ({version: 1 as const, scope: {verseId: "verse", atomRef: "atom:owner", agentRef: id},
+    revision: 1, name: id, gender})
+  let office: AgentOfficeSnapshot = {id: "room", owner: "atom:owner", label: "Room",
+    bounds: {min: {x: -450, y: -350, z: 0}, max: {x: 450, y: 350, z: 260}},
+    agents: [{id: "male", profile: profile("male", "male")}, {id: "female", profile: profile("female", "female")}, {id: "loading"}]}
+  const scene = (): OfficeSceneRoom[] => [{id: office.id, layout: prepareOfficeGeometry(office, bot), position: {x: 300, y: 400, z: 500},
+    genders: new Map(office.agents.map(agent => [agent.id, agent.profile?.gender ?? "male"] as const))}]
+  const initial = scene()
+  expect(initial[0]!.layout.agents.every(agent => agent.displays.length === 1 && agent.displays[0]!.id === "chat" && agent.displays[0]!.billboard)).toBe(true)
+  const instances = createOfficeSceneGeometry(initial, bot, {avatarCapacity: 32})
+  const root = instances.object(), groups = [...root.children], batches = [...instances.avatarBatches]
+  try {
+    expect(instances.variantBatches.male.every(batch => batch.count === 2)).toBe(true)
+    expect(instances.variantBatches.female.every(batch => batch.count === 1)).toBe(true)
+    expect(instances.deviceBatches).toEqual([])
+    for (const gender of ["male", "female"] as const) {
+      for (const [index, batch] of instances.variantBatches[gender].entries()) {
+        expect(batch.geometry.attributes.position).toBe(bot.variants[gender].primitives[index]!.mesh.geometry.attributes.position)
+        expect(batch.getPoseAt(0)).toBe(bot.variants[gender].primitives[index]!.mesh)
+      }
+    }
+    office = {...office, agents: office.agents.map(agent => ({...agent, profile: profile(agent.id, "female")}))}
+    instances.update(scene())
+    expect(instances.object()).toBe(root)
+    expect(root.children).toEqual(groups)
+    expect(instances.avatarBatches).toEqual(batches)
+    expect(instances.variantBatches.male.every(batch => batch.count === 0)).toBe(true)
+    expect(instances.variantBatches.female.every(batch => batch.count === 3)).toBe(true)
+    let originals = 0
+    root.traverse(object => {if (object instanceof InstancedMesh && !(object instanceof InstancedSkinnedMesh)) originals++})
+    expect(originals).toBe(0)
+  } finally {instances.dispose()}
 })

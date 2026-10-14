@@ -1,3 +1,6 @@
+import type {CosmosRoomScope} from "./conversation-groups"
+import type {CosmosAgentScope} from "./agent-profile"
+import type {CosmosConversationSnapshot} from "./conversations"
 import type {AgentFeedbackRequest, AgentFeedbackReceipt} from "../metafor/agents"
 import type {AtomRef} from "../metafor/graph"
 /** Временные наблюдения Window и закрытые действия его Document без полномочий ОС, Quantum Energy или user identity. @packageDocumentation */
@@ -97,10 +100,24 @@ export interface ClientCacheInventory {
 /** Ограниченная страница существующих projection boxes; sample не вызывает render/RAF. */
 export interface ClientDiagnosticsOptions {afterIndex?: number; limit?: number; sampleMs?: number}
 export interface ClientFeatureAvailability {available: boolean; reason: string | null}
+/**
+Точные текущие координаты и clip planes public Presentation.viewPoint в мм;
+fov в радианах. Не привязан к presented frame.
+Владение — [Visual](../../cosmos/internal/visual/README.md#совместная-работа-с-клиентом).
+*/
+export interface ClientCameraSnapshot {
+  position: {x: number; y: number; z: number}
+  target: {x: number; y: number; z: number}
+  fov: number
+  near: number
+  far: number
+}
 export interface ClientDiagnostics {
   schema: "cosmos/client-diagnostics/v1"; version: 1
   durationMs: number
   viewport: {width: number; height: number; devicePixelRatio: number}
+  /** Один detached снимок при запросе; null при nonfinite значении, отсутствие допустимо у прежнего клиента. */
+  camera?: ClientCameraSnapshot | null
   semantic: {nodes: number; elements: number; displays: number; huds: number; complete: boolean; scanLimit: number}
   projections: Array<{index: number; kind: "display" | "hud"; id: string | null; available: boolean; revision: number | null; viewport: {width: number; height: number} | null;
     boxes: number; displayItems: number; hits: number; scrolls: number}>
@@ -125,3 +142,15 @@ export interface ClientCapture {
   presentedBefore: number; presentedAfter: number; durationMs: number
 }
 export type ClientCommandValue = ClientInspection | ClientViewActionResult | ClientLogs | ClientCacheInventory | ClientDiagnostics | ClientCapture
+
+/** Read-only подписка текущего Window; её закрытие не отменяет ход модели. */
+export type ClientConversationObserver = (scope: CosmosAgentScope, sessionId: string | undefined,
+  listener: (snapshot: CosmosConversationSnapshot) => void, onError: (error: Error) => void) => () => void
+/** Доверенный server delegation к владельцу бесед после проверки scope. */
+export type ClientConversationSubscription = (scope: CosmosAgentScope, sessionId: string | undefined,
+  listener: (snapshot: CosmosConversationSnapshot) => void) => Promise<() => void>
+
+/** Hint invalidation текущего workspace; отсутствие room требует свежего Graph, room — только его Cosmos metadata. */
+export type ClientWorkspaceObserver = (listener: (room?: CosmosRoomScope) => void, onError: (error: Error) => void) => () => void
+/** Server-owned hints не содержат Graph и не начинают чтение либо модельный ход. */
+export type ClientWorkspaceSubscription = (listener: (room?: CosmosRoomScope) => void) => () => void

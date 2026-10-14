@@ -12,6 +12,8 @@ export interface ProductRouterPlatform {
 export interface ProductRouteApplication {
   cause: "initial" | "navigate" | "history" | "source" | "presentation"
   presentation: JsonValue | null
+  /** Временная ошибка того же retained Graph не меняет UI selection/pose; resolution остаётся unavailable. */
+  preservePresentation?: boolean
 }
 
 export interface ProductRouterOptions {
@@ -37,6 +39,7 @@ export function createProductRouter(options: ProductRouterOptions) {
   let active = false, disposed = false
   let unsubscribe: (() => void) | undefined
   let snapshot: ProductRouteResolution = {kind: "loading"}
+  let lastProjection: {pathname: string; context: ProductRouteContext} | undefined
   const currentUrl = () => `${platform.location.pathname}${platform.location.search ?? ""}${platform.location.hash ?? ""}`
   const presentation = (): JsonValue | null => {
     const state: unknown = platform.history.state
@@ -50,13 +53,20 @@ export function createProductRouter(options: ProductRouterOptions) {
   }
   function apply(cause: ProductRouteApplication["cause"]) {
     if (!active) return
-    const path = platform.location.pathname, route = parseProductRoute(path)
-    snapshot = resolveProductRoute(route, options.source.getSnapshot(), path)
+    const path = platform.location.pathname, route = parseProductRoute(path), context = options.source.getSnapshot()
+    snapshot = resolveProductRoute(route, context, path)
     if (route?.kind === "root" && snapshot.kind === "atom") {
       const next = productRoutePath(snapshot)
       platform.history.replaceState(state(next, presentation()), "", `${next}${platform.location.search ?? ""}${platform.location.hash ?? ""}`)
     }
-    options.applyRoute(snapshot, {cause, presentation: presentation()})
+    const previous = lastProjection?.context
+    const preservePresentation = cause === "source" && snapshot.kind === "unavailable" && context.status === "unavailable" &&
+      lastProjection?.pathname === path && previous !== undefined && context.graph !== null && context.graph === previous.graph && context.verseId === previous.verseId &&
+      context.observedWorld !== undefined && previous.observedWorld !== undefined && context.observedWorld.root === previous.observedWorld.root &&
+      context.observedWorld.cutId === previous.observedWorld.cutId
+    if (snapshot.kind === "atom") lastProjection = {pathname: platform.location.pathname, context}
+    else if (!preservePresentation) lastProjection = undefined
+    options.applyRoute(snapshot, {cause, presentation: presentation(), ...(preservePresentation ? {preservePresentation: true} : {})})
     for (const listener of listeners) listener()
   }
   const popstate = () => apply("history")

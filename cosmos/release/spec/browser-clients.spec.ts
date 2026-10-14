@@ -240,3 +240,66 @@ test("service feedback reconnect keeps its id, payload, original correlation and
     expect(socket.messages.filter(message => message.type === "activity")).toHaveLength(0)
   } finally {lifetime.abort(); f.runtime.dispose()}
 })
+
+test("conversation observers reuse Window socket, replay read subscriptions after reconnect and reject stale frames", async () => {
+  const f = fixture()
+  const scope = {verseId: "test-verse", atomRef: "atom:1", agentRef: "atom:6"}
+  const updates: number[] = [], errors: string[] = []
+  const snapshot = {id: "session-1", sessionId: "session-1", executorId: "executor-1", executorLabel: "Agent", sessionLabel: "Chat", address: "scope", label: "Agent",
+    history: {total: 0}, pending: [], permissions: [], status: "idle", error: null, version: 1}
+  try {
+    const stop = f.runtime.observeConversation(scope, "session-1", value => updates.push(value.version), error => errors.push(error.message))
+    const first = f.socket.messages.find(message => message.type === "conversation.subscribe")!
+    expect(first).toMatchObject({scope, sessionId: "session-1", connectionId: "connection-1"})
+    const event = {type: "conversation.snapshot", connectionId: "connection-1", subscriptionId: first.subscriptionId, snapshot}
+    f.socket.receive(event)
+    expect(updates).toEqual([1])
+    f.socket.close()
+    expect(errors).toContain("Conversation stream disconnected; reconnecting")
+    await Bun.sleep(15)
+    const socket = f.sockets[1]!
+    socket.open(); f.register(socket, "connection-2")
+    expect(socket.messages.find(message => message.type === "conversation.subscribe")).toEqual({...first, connectionId: "connection-2"})
+    socket.receive({...event, snapshot: {...snapshot, version: 2}})
+    expect(updates).toEqual([1])
+    socket.receive({...event, connectionId: "connection-2", snapshot: {...snapshot, version: 3}})
+    expect(updates).toEqual([1, 3])
+    socket.receive({...event, connectionId: "connection-2", snapshot: {...snapshot, id: "foreign", sessionId: "foreign"}})
+    expect(errors).toContain("Invalid scoped conversation snapshot")
+    stop()
+    expect(socket.messages.at(-1)).toMatchObject({type: "conversation.unsubscribe", connectionId: "connection-2", subscriptionId: first.subscriptionId})
+    socket.receive({...event, connectionId: "connection-2", snapshot: {...snapshot, version: 4}})
+    expect(updates).toEqual([1, 3])
+    expect(socket.messages.some(message => message.type === "prompt")).toBe(false)
+    expect(parseClientInbound({...first, scope: {...scope, extra: true}})).toBeNull()
+  } finally {f.runtime.dispose()}
+})
+
+test("workspace observers share one subscription, replay on reconnect and accept only current bounded hints", async () => {
+  const f = fixture()
+  const updates: Array<unknown> = [], errors: string[] = []
+  const room = {verseId: "test-verse", atomRef: "atom:1"}
+  try {
+    const first = f.runtime.observeWorkspace(value => updates.push(value), error => errors.push(error.message))
+    const second = f.runtime.observeWorkspace(() => {}, () => {})
+    expect(f.socket.messages.filter(value => value.type === "workspace.subscribe")).toHaveLength(1)
+    f.socket.receive({type: "workspace.changed", connectionId: "connection-1", room})
+    f.socket.receive({type: "workspace.changed", connectionId: "connection-1"})
+    expect(updates).toEqual([room, undefined])
+    f.socket.receive({type: "workspace.changed", connectionId: "connection-1", room: {...room, graph: {}}})
+    expect(updates).toHaveLength(2)
+    expect(errors).toContain("Invalid workspace hint")
+    first()
+    expect(f.socket.messages.filter(value => value.type === "workspace.unsubscribe")).toHaveLength(0)
+    f.socket.close()
+    await Bun.sleep(15)
+    const socket = f.sockets[1]!
+    socket.open()
+    f.register(socket, "connection-2")
+    expect(socket.messages.filter(value => value.type === "workspace.subscribe")).toEqual([{type: "workspace.subscribe", connectionId: "connection-2"}])
+    second()
+    expect(socket.messages.at(-1)).toEqual({type: "workspace.unsubscribe", connectionId: "connection-2"})
+    expect(socket.messages.some(value => value.type === "activity")).toBe(false)
+    expect(parseClientInbound({type: "workspace.subscribe", connectionId: "connection-2", room})).toBeNull()
+  } finally {f.runtime.dispose()}
+})
