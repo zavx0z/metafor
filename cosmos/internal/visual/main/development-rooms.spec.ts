@@ -2,12 +2,22 @@ import {afterAll, beforeAll, expect, test} from "bun:test"
 import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import {createDocument, createDocumentClipboardController, createDomRoot, Event as DomEvent, flushDocumentLayoutObservers, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
+import {createDocument, createDocumentClipboardController, createDomRoot, Event as DomEvent, flushDocumentLayoutObservers,
+  readDocumentCompiledStyleSheets,
+  subscribeDocumentCompiledStyleSheets, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
 import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/immersive/renderer/html"
+import {ViewPoint} from "@zavx0z/immersive/engine"
 import {createSpaceElementFactories, readSpaceTree, XRAssetElement} from "@zavx0z/immersive/space"
 import type {DevelopmentCatalog} from "../../../release/shared/development"
 import type {DevelopmentRoomAgentsModel} from "./development-room-agents"
 import type {DevelopmentRoomSceneModel} from "./development-room-scene"
+import type {NetworkSpaceModel} from "./network-space"
+import type {AtomSceneModel} from "./atom-scene"
+import type {AgentWorkspaceModel, AgentWorkspaceSnapshot} from "./agent-workspace"
+import type {AtomContext, AtomViewSnapshot} from "@metafor/agent/atom"
+import {DEFAULT_AGENT_PRESENTATION} from "@metafor/agent/presentation"
+import type {RuntimeAtom} from "@metafor/types/metafor/graph"
+import {agentWorkspaceGraph} from "../../../release/spec/agent-graph-fixture"
 import {loadBot, type Bot} from "./bot"
 import {createDevelopmentCatalog} from "../../../release/server/development-catalog"
 import visualTemplatePlugin from "../build/template.plugin"
@@ -18,6 +28,14 @@ let createScene: typeof import("./development-room-scene").createDevelopmentRoom
 let createAgents: typeof import("./development-room-agents").createDevelopmentRoomAgents
 let createSurface: typeof import("@zavx0z/storybook-app-web-page-shell/surface").createEmbeddedSurface
 let createContent: typeof import("@zavx0z/storybook-app-web-page-package/content").createSourcePackageContent
+let App: DOMComponentConstructor<{network: NetworkSpaceModel; bot: Bot; development: {active: boolean};
+  developmentScene: DevelopmentRoomSceneModel; developmentAgents: DevelopmentRoomAgentsModel;
+  workspace: AgentWorkspaceModel; scene: AtomSceneModel; onDevelopment(): void; onQuantum(): void;
+  onSelectDevelopmentPackage(name: string): void}>
+let createNetworkSpace: typeof import("./network-space").createNetworkSpace
+let createWorkspace: typeof import("./agent-workspace").createAgentWorkspace
+let createAtomScene: typeof import("./atom-scene").createAtomScene
+let AtomSurface: DOMComponentConstructor<{atom: RuntimeAtom; workspace: AgentWorkspaceModel; scene: AtomSceneModel}>
 let projectCatalog: typeof import("./development-room-minimap").sourcePackageCatalog
 let roomCatalogItems: typeof import("./development-room-catalog").developmentRoomCatalogItems
 let actualRootCatalog: DevelopmentCatalog
@@ -25,7 +43,8 @@ beforeAll(async () => {
   directory = await mkdtemp(join(import.meta.dir, ".compiled-development-rooms-"))
   await symlink(resolve(import.meta.dir, "../node_modules"), join(directory, "node_modules"), "dir")
   const result = await Bun.build({
-    entrypoints: ["development-rooms.fixture.tsx", "development-room-scene.ts", "development-room-agents.ts"].map(file => join(import.meta.dir, file)),
+    entrypoints: ["development-rooms.fixture.tsx", "development-room-scene.ts", "development-room-agents.ts",
+      "app.tsx", "network-space.tsx", "agent-workspace.ts", "atom-scene.ts", "atom-surface.tsx"].map(file => join(import.meta.dir, file)),
     outdir: directory, target: "bun", conditions: ["metafor:main"], format: "esm", splitting: true,
     external: ["@zavx0z/immersive", "@zavx0z/immersive/*"],
     plugins: [visualTemplatePlugin],
@@ -40,6 +59,11 @@ beforeAll(async () => {
   roomCatalogItems = fixtureModule.developmentRoomCatalogItems
   createScene = (await load("development-room-scene.js")).createDevelopmentRoomScene
   createAgents = (await load("development-room-agents.js")).createDevelopmentRoomAgents
+  App = (await load("app.js")).App
+  createNetworkSpace = (await load("network-space.js")).createNetworkSpace
+  createWorkspace = (await load("agent-workspace.js")).createAgentWorkspace
+  createAtomScene = (await load("atom-scene.js")).createAtomScene
+  AtomSurface = (await load("atom-surface.js")).AtomSurface
   const bytes = await Bun.file(new URL("./bots.glb", import.meta.url)).arrayBuffer()
   bot = await loadBot(`data:model/gltf-binary;base64,${Buffer.from(bytes).toString("base64")}`)
   const assignedRoot = await createDevelopmentCatalog({id: "fixture", rootPackage: "metafor",
@@ -295,6 +319,26 @@ test("actual renderer keeps one Space and package Display, enters nested room wi
     agents.close()
     await settle()
     expect(first.closest("[data-development-chat-wall]")).not.toBeNull()
+    document.transaction(() => {
+      scene.setActive(false)
+      agents.setActive(false)
+      root.render(Fixture, {active: false, scene, agents, bot, onSelectPackage: selectPackage})
+    })
+    await settle()
+    expect(document.querySelectorAll("[data-development-actor]")).toHaveLength(2)
+    for (const screen of document.querySelectorAll("[data-development-actor]")) {
+      expect(readDisplayStyle(document, screen as import("@zavx0z/immersive").DisplayElement).pixels).toEqual({width: 900, height: 600})
+    }
+    document.transaction(() => {
+      scene.setActive(true)
+      agents.setActive(true)
+      root.render(Fixture, {active: true, scene, agents, bot, onSelectPackage: selectPackage})
+    })
+    await settle()
+    expect(first.closest("[data-development-chat-wall]")).not.toBeNull()
+    for (const screen of document.querySelectorAll("[data-development-actor]")) {
+      expect(readDisplayStyle(document, screen as import("@zavx0z/immersive").DisplayElement).pixels).toEqual({width: 900, height: 600})
+    }
     expect(scene.back()).toBe(true)
     await settle()
     expect(scene.getSnapshot().view).toBe("display")
@@ -318,6 +362,181 @@ test("actual renderer keeps one Space and package Display, enters nested room wi
     root.unmount()
     agents.dispose()
     scene.dispose()
+    clipboard.dispose()
+  }
+})
+
+test("full App mode tabs preserve an occupied Source room Display across Quantum and Cosmos", async () => {
+  const viewport = {width: 1142, height: 1088}
+  const document = createDocument({elementFactories: createSpaceElementFactories()}), html = document.createElement("html"), body = document.createElement("body")
+  html.append(body)
+  document.append(html)
+  const clipboard = createDocumentClipboardController(document)
+  const root = createDomRoot(body)
+  const network = createNetworkSpace()
+  const workspace = createWorkspace({externalNavigation: true})
+  let quantumScene: AtomSceneModel
+  quantumScene = createAtomScene({workspace, contentFor: atom => ({type: AtomSurface,
+    props: {atom, workspace, scene: quantumScene}, key: atom.ref})})
+  const actorSnapshot: AtomViewSnapshot = {ref: "atom:2", revision: "one", state: "idle",
+    configuration: {id: "assistant", atom: {kind: "atom", scope: "owner"}, presentation: DEFAULT_AGENT_PRESENTATION,
+      tools: [], displays: []}, chat: [], provider: null, operations: [], context: {scope: "atom:2"}}
+  const actor: AtomContext = {ref: "atom:2", getSnapshot: () => actorSnapshot, subscribe: () => () => {},
+    actions: {async sendMessage() {}}}
+  const graph = agentWorkspaceGraph()
+  const source: AgentWorkspaceSnapshot = {status: "ready", graph, verseId: "fixture-verse",
+    observedWorld: {root: graph.root, cutId: "one"}, offices: [{id: "office-root", owner: "atom:1", label: "Environment",
+      bounds: {min: {x: -4500, y: -3500, z: 0}, max: {x: 4500, y: 3500, z: 2600}},
+      agents: [{id: "assistant", atom: actor}]}]}
+  workspace.connect({getSnapshot: () => source, subscribe: () => () => {}})
+  let createdChats = 0
+  const agents = createAgents({
+    content: async () => {throw new Error("not used")},
+    agents: {list: async () => [{executorId: "one", label: "Первый"}], create: async () => {throw new Error("not used")}},
+    chat: () => {
+      createdChats++
+      const element = document.createElement("div")
+      element.setAttribute("data-live-chat", "one")
+      return {element, moveTo(host) {host.append(element)}, setVisible(value) {element.hidden = !value}, dispose() {element.remove()}}
+    },
+  }, name => catalog.packages.find(pkg => pkg.name === name)?.address ?? null)
+  const scene = createScene({navigate() {}, visit(name) {agents.setRoom(name); void agents.visit(name)},
+    createView(presentation, id, title, mount, display, release) {
+      const handle = createSurface({root: presentation, display, hudId: "cosmos-development-hud", title, mount, onRelease: release})
+      let content: ReturnType<typeof createContent> | null = null
+      const ready = handle.ready.then(surface => {
+        content = createContent({surface, content: {packageName: id,
+          node: {id: `package:${id}`, kind: "package", packageName: id, label: title, parentId: null, childIds: [], routePath: "", sourcePath: "package.json"},
+          revision: "one", overview: {label: title}, documentation: null, entries: [], contracts: [], dependencies: [],
+          scenarios: {sourcePaths: [], executable: false, reason: "not prepared"}}})
+      })
+      return {display, ready, dispose() {content?.dispose(); handle.dispose()}}
+    }})
+  scene.configure(catalog)
+  scene.applyRoute("@fixture/child")
+  scene.setActive(true)
+  agents.setActive(true)
+  let active = true
+  const render = () => root.render(App, {network, bot, workspace, scene: quantumScene, development: {active},
+    developmentScene: scene, developmentAgents: agents,
+    onSelectDevelopmentPackage(name) {scene.applyRoute(name)},
+    onDevelopment() {active = true; quantumScene.setActive(false); render(); scene.setActive(true); agents.setActive(true);
+      agents.setRoom(null); scene.applyRoute(null)},
+    onQuantum() {active = false; scene.setActive(false); agents.setActive(false); quantumScene.setActive(true); render()},
+  })
+  render()
+  const tree = readSpaceTree(document), presented = new Set<() => void>()
+  const presentation = {document, space: tree.space, viewPoint: tree.viewPoint,
+    canvas: {getBoundingClientRect: () => ({left: 0, top: 0, ...viewport})},
+    getProjection: () => ({kind: "space", owner: tree.space, frustumPlanes: () => [],
+      projectPoint: (p: {x: number; y: number}) => ({x: p.x, y: p.y}), fly() {}}),
+    subscribePresented(listener: () => void) {presented.add(listener); return () => {presented.delete(listener)}},
+    invalidate() {}, render() {root.flush(); for (const listener of presented) listener()},
+  } as unknown as Presentation
+  network.attach(presentation)
+  workspace.attach(presentation, network)
+  quantumScene.attach(presentation, network)
+  quantumScene.applyRoute({kind: "atom", ref: "atom:1"})
+  quantumScene.setActive(false)
+  scene.attach(presentation)
+  agents.attach(presentation)
+  const renderer = createDocumentRenderer({document, root: tree.space, viewport})
+  const settle = async () => {for (let n = 0; n < 8; n++) {root.flush(); renderer.flush(); flushDocumentLayoutObservers(document); await Bun.sleep(0)}}
+  const modeButton = (label: string) => [...document.querySelectorAll("#cosmos-mode-dock button")]
+    .find(node => node.textContent?.trim() === label)
+  let displays = readSpaceTree(document).displays
+  const styleFailures: string[] = []
+  const inspectPublishedDisplays = () => {
+    for (const element of displays) {
+      try {readDisplayStyle(document, element)}
+      catch (error) {styleFailures.push(`${element.getAttribute("data-development-actor") ?? element.getAttribute("data-agent-screen") ?? element.id}: ${String(error)}`)}
+    }
+  }
+  const stopStyles = subscribeDocumentCompiledStyleSheets(document, inspectPublishedDisplays)
+  const stopMutations = document.subscribeMutations(() => {displays = readSpaceTree(document).displays; inspectPublishedDisplays()})
+  const validDisplays = () => {
+    for (const element of document.querySelectorAll("display")) {
+      try {readDisplayStyle(document, element as import("@zavx0z/immersive").DisplayElement)}
+      catch (error) {throw new Error(`Invalid Display ${element.getAttribute("data-spatial-node-id") ?? element.getAttribute("data-development-actor") ?? element.getAttribute("data-agent-screen") ?? "unknown"}`, {cause: error})}
+    }
+  }
+  try {
+    await settle()
+    expect(document.querySelector("[data-storybook-minimap]")).toBeNull()
+    expect(scene.showDisplay()).toBe(true)
+    const rect = scene.getSnapshot().geometryNodes.find(node => node.id === "@fixture/child")!.rect
+    const pose = ViewPoint.fitPoseForBounds({min: {x: rect.x, y: rect.y, z: rect.z - .001},
+      max: {x: rect.x + rect.width, y: rect.y + rect.height, z: rect.z}},
+    {x: 0, y: 0, z: 1}, {fov: tree.viewPoint.fov, aspect: viewport.width / viewport.height})
+    document.transaction(() => {
+      tree.viewPoint.x = pose.position.x
+      tree.viewPoint.y = pose.position.y
+      tree.viewPoint.z = pose.position.z
+      tree.viewPoint.targetX = pose.target.x
+      tree.viewPoint.targetY = pose.target.y
+      tree.viewPoint.targetZ = pose.target.z
+    })
+    await settle()
+    const packageDisplay = document.querySelector('[data-spatial-node-id="@fixture/child"]')!
+    expect(packageDisplay.getAttribute("data-storybook-display-fitted")).toBe("true")
+    expect(readDocumentCompiledStyleSheets(document).styleSheets.some(sheet =>
+      sheet.cssText.includes("data-storybook-display-fitted") && sheet.cssText.includes("blur(8px)"))).toBe(true)
+    expect(scene.enterRoom()).toBe(true)
+    await settle()
+    expect(document.querySelector("[data-storybook-minimap]")).toBeNull()
+    expect(document.querySelectorAll("[data-development-actor]")).toHaveLength(1)
+    const screen = document.querySelector("[data-development-actor]") as import("@zavx0z/immersive").DisplayElement
+    expect(readDisplayStyle(document, screen).pixels).toEqual({width: 900, height: 600})
+    agents.open("one")
+    await settle()
+    expect(document.querySelector("[data-live-chat]")?.closest("[data-development-chat-window]")).not.toBeNull()
+    agents.close()
+    await settle()
+    expect(document.querySelector("[data-live-chat]")?.closest("[data-development-chat-wall]")).not.toBeNull()
+    const chat = document.querySelector("[data-live-chat]")
+    expect(createdChats).toBe(1)
+    expect(modeButton("Quantum")).toBeDefined()
+    document.transaction(() => modeButton("Quantum")!.dispatchEvent(new DomEvent("click", {bubbles: true})))
+    await settle()
+    expect(screen.isConnected).toBe(true)
+    expect(createdChats).toBe(1)
+    expect(readDisplayStyle(document, screen).pixels).toEqual({width: 900, height: 600})
+    expect(readDisplayStyle(document, screen).transform.visible).toBe(false)
+    validDisplays()
+    expect(quantumScene.enterRoom()).toBe(true)
+    await settle()
+    expect(document.querySelectorAll("[data-agent-screen]")).toHaveLength(1)
+    expect(modeButton("Cosmos")).toBeDefined()
+    document.transaction(() => modeButton("Cosmos")!.dispatchEvent(new DomEvent("click", {bubbles: true})))
+    await settle()
+    expect(document.querySelector("[data-development-actor]")).toBeNull()
+    expect(scene.getSnapshot().view).toBe("overview")
+    validDisplays()
+    expect(document.querySelector("[data-live-chat]")?.closest("[data-development-chat-parking]")).not.toBeNull()
+    expect(createdChats).toBe(1)
+    expect(styleFailures).toEqual([])
+    const minimap = document.querySelector("[data-storybook-minimap]")!
+    expect(minimap).not.toBeNull()
+    const expand = minimap.querySelector('[aria-label="Развернуть всё дерево"]')!
+    expect(expand).not.toBeNull()
+    document.transaction(() => expand.dispatchEvent(new DomEvent("click", {bubbles: true})))
+    await settle()
+    const childRow = minimap.querySelector('[data-tree-id="@fixture/child"] [data-tree-row]')
+    expect(childRow).toBeDefined()
+    document.transaction(() => childRow!.dispatchEvent(new DomEvent("click", {bubbles: true})))
+    await settle()
+    expect(scene.enterRoom()).toBe(true)
+    await settle()
+    expect(createdChats).toBe(1)
+    expect(document.querySelectorAll("[data-live-chat]")).toHaveLength(1)
+    expect(document.querySelector("[data-live-chat]") === chat).toBe(true)
+    expect(chat?.closest("[data-development-chat-wall]")).not.toBeNull()
+    expect(styleFailures).toEqual([])
+  } finally {
+    stopStyles()
+    stopMutations()
+    renderer.dispose()
+    root.unmount()
     clipboard.dispose()
   }
 })

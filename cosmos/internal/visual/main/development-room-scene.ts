@@ -46,6 +46,8 @@ export function createDevelopmentRoomScene(options: Readonly<{
   let active = false
   let disposed = false
   let openingDisplay = false
+  let unresolvedRoute = false
+  let pendingInitialFocus = false
   let configuredKey = ""
   let sceneError: string | null = null
   let viewportSize: Viewport | null = null
@@ -93,6 +95,7 @@ export function createDevelopmentRoomScene(options: Readonly<{
     if (!node || !size) return false
     graph.select(selectedName, false)
     openingDisplay = false
+    pendingInitialFocus = false
     view = "room"
     const r = node.rect, eye = root.viewPoint
     const bounds = {min: {x: r.x, y: r.y, z: r.z - BODY_DEPTH}, max: {x: r.x + r.width, y: r.y + r.height, z: r.z}}
@@ -169,7 +172,10 @@ export function createDevelopmentRoomScene(options: Readonly<{
       }
       const resident = views.get(pkg.name)
       if (resident) {views.delete(pkg.name); views.set(pkg.name, resident)}
-      if (active) graph.select(pkg.name, focus)
+      if (active) {
+        graph.select(pkg.name, focus || pendingInitialFocus)
+        pendingInitialFocus = false
+      }
     } else {
       sceneError = null
       if (focus && active) graph.fit()
@@ -239,6 +245,13 @@ export function createDevelopmentRoomScene(options: Readonly<{
       assertActive()
       const initial = catalog === null
       catalog = next
+      if (unresolvedRoute) {
+        const sourcePackage = selectedPackage()?.resolution === "source"
+        view = sourcePackage ? "display" : "overview"
+        openingDisplay = sourcePackage
+        pendingInitialFocus = sourcePackage
+        unresolvedRoute = false
+      }
       refresh(initial && active && selectedName === null)
     },
     applyRoute(packageName: string | null) {
@@ -246,7 +259,13 @@ export function createDevelopmentRoomScene(options: Readonly<{
       const changed = selectedName !== packageName
       selectedName = packageName
       const sourcePackage = catalog?.packages.find(pkg => pkg.name === packageName)?.resolution === "source"
-      if (changed) {view = sourcePackage ? "display" : "overview"; openingDisplay = sourcePackage; sceneError = null}
+      if (changed) {
+        unresolvedRoute = catalog === null && packageName !== null
+        view = sourcePackage ? "display" : "overview"
+        openingDisplay = sourcePackage
+        pendingInitialFocus = sourcePackage
+        sceneError = null
+      }
       refresh(changed, !changed)
     },
     setActive(next: boolean) {
@@ -263,6 +282,7 @@ export function createDevelopmentRoomScene(options: Readonly<{
       if (!graph || !selectedName || selectedPackage()?.resolution !== "source") return false
       view = "display"
       openingDisplay = true
+      pendingInitialFocus = false
       graph.select(selectedName, true)
       updateVisibility()
       derive()
@@ -271,6 +291,8 @@ export function createDevelopmentRoomScene(options: Readonly<{
     fit() {
       assertActive()
       view = "overview"
+      unresolvedRoute = false
+      pendingInitialFocus = false
       updateVisibility()
       derive()
       graph?.fit()

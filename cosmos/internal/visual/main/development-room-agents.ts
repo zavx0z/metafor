@@ -137,6 +137,7 @@ export function createDevelopmentRoomAgents(ports: DevelopmentRoomPorts, address
       for (const item of chats.values()) ensureSettings(item)
     },
     bindDisplay(actorId: string, display: DisplayElement | null, geometry: OfficeDisplayGeometry, onRotation: (value: string) => void) {
+      if (disposed && display === null) return
       assertAlive()
       officeDisplays.bind(actorId, display, geometry, onRotation)
     },
@@ -179,13 +180,14 @@ export function createDevelopmentRoomAgents(ports: DevelopmentRoomPorts, address
     },
     close() {assertAlive(); chatOpen = false; place(); publish()},
     bindWall(actorId: string, element: HTMLElement | null) {
+      if (disposed && element === null) return
       assertAlive()
       if (element) walls.set(actorId, element)
       else walls.delete(actorId)
       place()
     },
-    bindWindow(element: HTMLElement | null) {assertAlive(); window = element; place()},
-    bindParking(element: HTMLElement | null) {assertAlive(); parking = element; place()},
+    bindWindow(element: HTMLElement | null) {if (disposed && element === null) return; assertAlive(); window = element; place()},
+    bindParking(element: HTMLElement | null) {if (disposed && element === null) return; assertAlive(); parking = element; place()},
     dispose() {
       if (disposed) return
       disposed = true

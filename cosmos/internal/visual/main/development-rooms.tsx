@@ -67,6 +67,7 @@ function DevelopmentRoomOffice(props: Readonly<{room: Room; bot: Bot; agents: De
     <xr-asset name={`Агенты ${room.package.label}`} factory={instances.object} visible={props.active} />
     {room.layout.agents.map(agent => <DevelopmentAgentScreens
       key={developmentActorId(room.package.name, agent.id)}
+      active={props.active}
       packageName={room.package.name}
       agent={agent}
       position={room.position}
@@ -77,6 +78,7 @@ function DevelopmentRoomOffice(props: Readonly<{room: Room; bot: Bot; agents: De
 }
 
 function DevelopmentAgentScreens(props: Readonly<{
+  active: boolean
   packageName: string
   agent: OfficeLayout["agents"][number]
   position: Readonly<{x: number; y: number; z: number}>
@@ -85,6 +87,7 @@ function DevelopmentAgentScreens(props: Readonly<{
 }>) {
   return <>{props.agent.displays.map(display => <DevelopmentAgentScreen
     key={display.id}
+    active={props.active}
     packageName={props.packageName}
     agent={props.agent}
     display={display}
@@ -95,6 +98,7 @@ function DevelopmentAgentScreens(props: Readonly<{
 }
 
 function DevelopmentAgentScreen(props: Readonly<{
+  active: boolean
   packageName: string
   agent: OfficeLayout["agents"][number]
   display: OfficeLayout["agents"][number]["displays"][number]
@@ -120,13 +124,17 @@ function DevelopmentAgentScreen(props: Readonly<{
     if (value !== null && !(value instanceof HTMLElement)) throw new Error("Development Chat wall requires an Element")
     props.agents.bindWall(actorId, value)
   }, [props.agents, actorId])
-  return <display
-    ref={bindDisplay}
-    data-development-actor={actorId}
-    data-package-name={props.packageName}
-    data-executor-id={props.agent.id}
+  // Полный стиль живёт у самого Display до его удаления из Document.
+  return <DevelopmentAgentScreenSurface
+    actorId={actorId}
+    packageName={props.packageName}
+    executorId={props.agent.id}
     width={d.width}
     height={d.height}
+    label={props.label}
+    bindDisplay={bindDisplay}
+    bindWall={bindWall}
+    onOpen={() => props.agents.open(props.agent.id)}
     style={css`
       width: 900px;
       height: 600px;
@@ -138,10 +146,36 @@ function DevelopmentAgentScreen(props: Readonly<{
       border: 1px solid var(--widget-box-outline);
       border-radius: var(--radius-large);
       background: rgb(var(--surface-900) / .18);
+      ${!props.active && css`
+        display: none;
+      `}
     `}
+  />
+}
+
+function DevelopmentAgentScreenSurface(props: Readonly<{
+  actorId: string
+  packageName: string
+  executorId: string
+  width: number
+  height: number
+  label: string
+  bindDisplay(value: unknown): void
+  bindWall(value: unknown): void
+  onOpen(): void
+  style: CssStyle
+}>) {
+  return <display
+    ref={props.bindDisplay}
+    data-development-actor={props.actorId}
+    data-package-name={props.packageName}
+    data-executor-id={props.executorId}
+    width={props.width}
+    height={props.height}
+    style={props.style}
   >
-    <Button label={`Беседа · ${props.label}`} onClick={() => props.agents.open(props.agent.id)} />
-    <div ref={bindWall} data-development-chat-wall={actorId} style={css`
+    <Button label={`Беседа · ${props.label}`} onClick={props.onOpen} />
+    <div ref={props.bindWall} data-development-chat-wall={props.actorId} style={css`
       display: flex;
       flex: 1;
       flex-direction: column;

@@ -62,6 +62,10 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
       --space-node-header-background: rgba(35, 44, 55, .3);
       & [data-spatial-node-id] {background: transparent; backdrop-filter: none; --spatial-node-surface-opacity: 0;}
       & [data-metafor-display-fitted="true"] {backdrop-filter: blur(8px); --spatial-node-surface-opacity: .16;}
+      & [data-storybook-display-fitted="true"] {
+        backdrop-filter: blur(8px);
+        --spatial-node-surface-opacity: .16;
+      }
     `}>
       <viewpoint
         x={INITIAL_VIEW_POINT.position.x}
@@ -168,7 +172,7 @@ function DevelopmentMinimapSlot(props: Readonly<{
   onSelectPackage(name: string): void
 }>) {
   const snapshot = useSyncExternalStore(props.scene.subscribe, props.scene.getSnapshot)
-  return <>{snapshot.catalog ? <DevelopmentRoomMinimap
+  return <>{snapshot.catalog && snapshot.view === "overview" && snapshot.selectedPackage?.resolution !== "external" ? <DevelopmentRoomMinimap
     catalog={snapshot.catalog}
     selectedPackage={snapshot.selectedPackage?.name ?? null}
     search={props.search}

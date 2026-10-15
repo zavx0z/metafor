@@ -77,6 +77,58 @@ test("failed Package creation reports an error and the same route can be retried
   } finally {f.dispose()}
 })
 
+test("direct Package URL resolves to its Display when the catalog arrives after the route", async () => {
+  const f = fixture()
+  try {
+    f.scene.applyRoute("@fixture/child")
+    f.scene.setActive(true)
+    f.scene.attach(f.root)
+    expect(f.scene.getSnapshot().selectedPackage).toBeNull()
+    f.scene.configure(catalog)
+    expect(f.scene.getSnapshot().selectedPackage?.name).toBe("@fixture/child")
+    expect(f.scene.getSnapshot().view).toBe("display")
+    expect(f.scene.spatial.getSnapshot()?.selectedId).toBe("@fixture/child")
+    expect(f.surfaces).toEqual(["@fixture/child"])
+    expect(f.hosts.get("@fixture/child")?.hidden).toBe(false)
+    await Bun.sleep(350)
+    f.root.render()
+    const rect = f.scene.getSnapshot().geometryNodes.find(node => node.id === "@fixture/child")!.rect
+    expect(f.root.viewPoint.targetX).toBeCloseTo(rect.x + rect.width / 2)
+    expect(f.root.viewPoint.targetY).toBeCloseTo(rect.y + rect.height / 2)
+  } finally {f.dispose()}
+})
+
+test("catalog arriving while inactive resolves the pending URL without resetting a later visited room", async () => {
+  const f = fixture()
+  try {
+    f.scene.applyRoute("@fixture/child")
+    f.scene.attach(f.root)
+    f.scene.configure(catalog)
+    expect(f.scene.getSnapshot().view).toBe("display")
+    const display = f.hosts.get("@fixture/child")!
+    expect(display.hidden).toBe(true)
+    expect(f.root.viewPoint.z).toBe(2500)
+    f.scene.setActive(true)
+    expect(display.hidden).toBe(false)
+    expect(f.scene.spatial.getSnapshot()?.selectedId).toBe("@fixture/child")
+    await Bun.sleep(350)
+    f.root.render()
+    const rect = f.scene.getSnapshot().geometryNodes.find(node => node.id === "@fixture/child")!.rect
+    expect(f.root.viewPoint.targetX).toBeCloseTo(rect.x + rect.width / 2)
+    expect(f.root.viewPoint.targetY).toBeCloseTo(rect.y + rect.height / 2)
+    expect(f.scene.enterRoom()).toBe(true)
+    const camera = [f.root.viewPoint.x, f.root.viewPoint.y, f.root.viewPoint.z]
+    f.scene.setActive(false)
+    f.scene.configure({...catalog, revision: "two"})
+    f.scene.setActive(true)
+    f.scene.applyRoute("@fixture/child")
+    expect(f.scene.getSnapshot().view).toBe("room")
+    expect(f.hosts.get("@fixture/child")).toBe(display)
+    expect([f.root.viewPoint.x, f.root.viewPoint.y, f.root.viewPoint.z]).toEqual(camera)
+    expect(f.visits).toEqual(["@fixture/child"])
+  } finally {f.dispose()}
+})
+
 test("nested Package rooms use exact names, one visited Surface and the Quantum room/back camera policy", () => {
   const f = fixture()
   try {
