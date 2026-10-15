@@ -306,6 +306,47 @@ test("52 сборки показывают полезные действия, а
   } finally {root.unmount()}
 }, 30_000)
 
+test.each(["complete", "failed"] as const)("сохранённый результат %s относится к своей сборке после холодного восстановления другой версии", async terminal => {
+  const previous = snapshot()
+  const current: ReleaseManagementSnapshot = {
+    ...previous,
+    active: {digest: "d".repeat(64), version: "1.0.3"},
+    revision: previous.revision + 2,
+    candidates: [
+      ...previous.candidates.map(candidate => ({...candidate, active: false})),
+      {...previous.candidates[0]!, digest: "d".repeat(64), version: "1.0.3", active: true},
+    ],
+    operation: {id: "earlier-attempt", kind: "activate", target: "c".repeat(64), state: terminal,
+      ...(terminal === "failed" ? {error: "Startup не подтвердил переключение"} : {})},
+  }
+  let requests = 0
+  const client: ReleaseSettingsClient = {read: async () => current, async request(input) {
+    requests++
+    return {operationId: input.operationId, state: "accepted"}
+  }}
+  const document = createDocument({elementFactories: createSpaceElementFactories()})
+  const html = document.createElement("html"), body = document.createElement("body")
+  document.append(html)
+  html.append(body)
+  const root = createDomRoot(body)
+  try {
+    root.render(compiled.ReleaseSettings as unknown as DOMComponentConstructor<{active: boolean; client: ReleaseSettingsClient}>, {active: true, client})
+    root.flush()
+    await Bun.sleep(0)
+    root.flush()
+    const section = document.querySelector('[data-release-settings]')!
+    expect(section.textContent).toContain("Текущая версия: 1.0.3")
+    expect(section.textContent).toContain(terminal === "failed"
+      ? "Попытка перейти на версию 1.0.2 завершилась ошибкой"
+      : "Подтверждён переход на версию 1.0.2")
+    expect(section.textContent).not.toContain("Смена сборки не выполнена")
+    expect(section.textContent).not.toContain("переход на версию 1.0.3")
+    expect(section.textContent).not.toContain("перейти на версию 1.0.3 завершилась ошибкой")
+    expect(section.textContent).not.toContain("c".repeat(64))
+    expect(requests).toBe(0)
+  } finally {root.unmount()}
+})
+
 test.each([
   {name: "первая рабочая версия", blocked: false, message: "После первого совместимого обновления текущая версия станет предыдущей рабочей"},
   {name: "несовместимый предшественник", blocked: true, message: "Совместимой точки возврата сейчас нет"},

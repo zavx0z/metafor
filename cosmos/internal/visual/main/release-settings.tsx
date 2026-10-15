@@ -172,9 +172,11 @@ function ReleaseSettingsContent(props: Readonly<{
     && compareVersions(candidate.version, snapshot?.active?.version ?? "") <= 0)
     .sort((left, right) => compareVersions(right.version, left.version))
   const archived = candidates.filter(candidate => !candidate.active && !compatible(candidate)).length
+  const attemptedVersion = candidates.find(candidate => candidate.digest === status?.target)?.version
+  const attemptedBuild = attemptedVersion ? `версию ${attemptedVersion}` : "выбранную сборку"
   const operationLabel = unknownOutcome || status?.state === "unknown" ? "Подтверждение этой операции не получено; выполняется только чтение состояния"
-    : status?.state === "complete" ? "Смена сборки завершена"
-    : status?.state === "failed" ? "Смена сборки не выполнена"
+    : status?.state === "complete" ? `Подтверждён переход на ${attemptedBuild}`
+    : status?.state === "failed" ? `Попытка перейти на ${attemptedBuild} завершилась ошибкой`
     : state.pending ? status?.state === "running" ? "Сборка меняется…" : "Запрос ожидает завершения…" : ""
   return <section style={css`
     display: flex;
