@@ -31,14 +31,14 @@ export function DevelopmentRoomsSpace(props: Readonly<{
   const spatial = useSpatialVisibility(props.scene.spatial, props.active)
   const roomNode = scene.geometryNodes.find(node => node.id === scene.selectedPackage?.name)
   const r = roomNode?.rect
-  const signature = JSON.stringify([scene.selectedPackage?.name, r, agents.agents.map(agent => [agent.executorId, agent.label])])
+  const signature = JSON.stringify([scene.selectedPackage?.name, r, agents.agents.map(agent => [agent.executorId, agent.label, agent.profile?.gender])])
   const room = useMemo<Room | null>(() => {
     if (!props.bot || !scene.selectedPackage || !r || agents.packageName !== scene.selectedPackage.name || scene.view !== "room") return null
     const bot = props.bot
     const bounds = {min: {x: -r.width / 2, y: -r.height / 2, z: 0}, max: {x: r.width / 2, y: r.height / 2, z: 180}}
     return {package: scene.selectedPackage, agents: agents.agents,
       layout: layoutAgentOffice({roomBounds: bounds, humanoid: bot.bounds, overheadDisplayId: "chat",
-        agents: agents.agents.map(agent => ({id: agent.executorId, humanoid: bot.variants.male.bounds,
+        agents: agents.agents.map(agent => ({id: agent.executorId, humanoid: bot.variants[agent.profile?.gender ?? "male"].bounds,
           displays: [{id: "chat", width: 900, height: 600, depth: 20}]}))}),
       position: {x: r.x + r.width / 2, y: r.y + r.height / 2, z: r.z - 180}}
   }, [signature, props.bot, scene.view, agents.packageName])
@@ -59,7 +59,8 @@ export function DevelopmentRoomsSpace(props: Readonly<{
 
 function DevelopmentRoomOffice(props: Readonly<{room: Room; bot: Bot; agents: DevelopmentRoomAgentsModel; active: boolean}>) {
   const room = props.room
-  const instances = useMemo(() => createOfficeSceneGeometry([{id: room.package.name, layout: room.layout, position: room.position}], props.bot),
+  const instances = useMemo(() => createOfficeSceneGeometry([{id: room.package.name, layout: room.layout, position: room.position,
+    genders: new Map(room.agents.map(agent => [agent.executorId, agent.profile?.gender ?? "male"] as const))}], props.bot),
     [props.bot, room.package.name, room.layout, room.position.x, room.position.y, room.position.z])
   useEffect(() => () => instances.dispose(), [instances])
   return <>

@@ -113,7 +113,7 @@
     },
     "cosmos/internal/visual": {
       "name": "@internal/visual",
-      "version": "0.3.33",
+      "version": "0.3.34",
       "dependencies": {
         "@metafor/agent": "workspace:*",
         "@metafor/types": "workspace:*",
@@ -143,7 +143,7 @@
     },
     "cosmos/release": {
       "name": "@cosmos/release",
-      "version": "0.3.38",
+      "version": "0.3.39",
       "dependencies": {
         "@internal/visual": "workspace:^0.3.0",
         "@metafor/agent": "workspace:*",

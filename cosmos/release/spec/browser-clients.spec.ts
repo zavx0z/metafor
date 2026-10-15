@@ -1,7 +1,7 @@
 import {expect, test} from "bun:test"
 import {createBrowserClient} from "../main/clients"
 import {createClientLogRecorder} from "../main/client-logs"
-import {isClientAction, isClientResult, parseClientInbound} from "../shared/clients"
+import {isClientAction, isClientInspection, isClientResult, parseClientInbound} from "../shared/clients"
 import type {ClientViewAction} from "@metafor/types/cosmos/client"
 
 class Surface extends EventTarget {
@@ -89,6 +89,31 @@ test("Atom selection is a closed canonical ref action advertised and dispatched 
     expect(unsupported.socket.messages.find(message => message.requestId === "no-scene")).toMatchObject({ok: false, error: {code: "unsupported"}})
     expect(unsupported.acts()).toBe(1)
   } finally {unsupported.runtime.dispose()}
+})
+
+test("Package selection is a closed exact-name action and Cosmos inspection is bounded", async () => {
+  const actions: ClientViewAction[] = []
+  const f = fixture(undefined, action => {actions.push(action)})
+  try {
+    expect(f.socket.messages[0]?.capabilities).toContain("package.select")
+    expect(isClientAction({type: "package.select", packageName: "@fixture/source"})).toBeTrue()
+    for (const action of [{type: "package.select", packageName: ""}, {type: "package.select", packageName: "bad name"},
+      {type: "package.select", packageName: "@fixture/source", url: "/elsewhere"},
+      {type: "package.select", packageName: "x".repeat(257)}]) expect(isClientAction(action)).toBeFalse()
+    f.command("select-source", {operation: "act", action: {type: "package.select", packageName: "@fixture/source"}})
+    await tick()
+    expect(actions).toEqual([{type: "package.select", packageName: "@fixture/source"}])
+    expect(f.socket.messages.find(message => message.requestId === "select-source")).toMatchObject({ok: true, value: {status: "dispatched"}})
+  } finally {f.runtime.dispose()}
+  const view = {mode: "cosmos", status: "ready", error: null, selected: null, offices: [], text: "Source", controls: [],
+    sourceRoom: {packageName: "@fixture/source", resolution: "source", view: "room", participants: [{executorId: "executor-1", label: "Агент"}], participantsTruncated: false}}
+  const inspection = {schema: "cosmos/client-inspection/v1", version: 1, status: {visible: true, focused: true, boot: {phase: "ready", trace: []}},
+    viewport: {width: 1200, height: 800, devicePixelRatio: 1}, view}
+  expect(isClientInspection(inspection)).toBeTrue()
+  expect(isClientInspection({...inspection, view: {...view, sourceRoom: {...view.sourceRoom, participants: Array(65).fill(view.sourceRoom.participants[0])}}})).toBeFalse()
+  expect(isClientInspection({...inspection, view: {...view, sourceRoom: {...view.sourceRoom, packageName: null}}})).toBeFalse()
+  expect(isClientInspection({...inspection, view: {...view, sourceRoom: {...view.sourceRoom, resolution: "external"}}})).toBeFalse()
+  expect(isClientInspection({...inspection, view: {...view, sourceRoom: undefined}})).toBeFalse()
 })
 
 test("early Window registers and inspects boot before Visual; only observed/trusted focus changes activity", async () => {

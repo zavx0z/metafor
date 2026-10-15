@@ -49,8 +49,11 @@ export function createClientControls(
     for (const [id, element] of elements) if (!connected(element)) elements.delete(id)
     const state = workspace.getSnapshot()
     const selected = state.agents.find(agent => agent.key === state.selected)
-    const controls = ["button", "input", "textarea"].flatMap(tag => [...presentation.document.querySelectorAll(tag)])
-      .slice(0, MAX_CONTROLS).map(element => describe(element as HTMLElement))
+    const candidates = ["input", "textarea", "button"].flatMap(tag => [...presentation.document.querySelectorAll(tag)])
+      .map(element => ({element: element as HTMLElement, hidden: hidden(element as HTMLElement)}))
+    // Сохранённые панели другого режима не вытесняют controls открытой комнаты.
+    const controls = [...candidates.filter(item => !item.hidden), ...candidates.filter(item => item.hidden)]
+      .slice(0, MAX_CONTROLS).map(({element}) => describe(element))
     const text = (options.textRoot?.() ?? presentation.document.getElementById("agent-control-display"))?.textContent ?? ""
     return {mode: state.mode, status: state.input.status, error: state.input.error ?? null,
       selected: selected ? {officeId: selected.officeId, agentRef: selected.scope?.agentRef ?? selected.atom?.ref ?? selected.id} : null,

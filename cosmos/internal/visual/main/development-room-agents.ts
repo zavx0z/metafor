@@ -1,7 +1,9 @@
-import type {DisplayElement, HTMLElement, Presentation} from "@zavx0z/immersive"
+import type {DisplayElement, Document, HTMLElement, Presentation} from "@zavx0z/immersive"
 import type {DevelopmentRoomAgent, DevelopmentRoomChatHost, DevelopmentRoomPorts} from "./development-room-ports"
 import {developmentActorId} from "./development-room-ports"
 import {createOfficeDisplayView, type OfficeDisplayGeometry} from "./office-display-view"
+import {createDevelopmentAgentSettings} from "./development-agent-settings"
+import type {DevelopmentAgentProfileUpdate} from "../../../release/shared/development-agent"
 
 type Room = {agents: readonly DevelopmentRoomAgent[]; loading: boolean; error: string | null}
 export type DevelopmentRoomAgentsSnapshot = Readonly<{
@@ -20,7 +22,9 @@ export type DevelopmentRoomAgentsSnapshot = Readonly<{
 export function createDevelopmentRoomAgents(ports: DevelopmentRoomPorts, addressFor: (packageName: string) => string | null) {
   const rooms = new Map<string, Room>()
   const pending = new Map<string, Promise<void>>()
-  const chats = new Map<string, {packageName: string; agent: DevelopmentRoomAgent; host: DevelopmentRoomChatHost; preparing: boolean}>()
+  type Chat = {packageName: string; agent: DevelopmentRoomAgent; host: DevelopmentRoomChatHost; preparing: boolean;
+    settings?: ReturnType<typeof createDevelopmentAgentSettings>}
+  const chats = new Map<string, Chat>()
   const walls = new Map<string, HTMLElement>()
   const listeners = new Set<() => void>()
   const officeDisplays = createOfficeDisplayView()
@@ -31,6 +35,7 @@ export function createDevelopmentRoomAgents(ports: DevelopmentRoomPorts, address
   let parking: HTMLElement | null = null
   let window: HTMLElement | null = null
   let disposed = false
+  let document: Document | null = null
   let snapshot: DevelopmentRoomAgentsSnapshot = {packageName, agents: [], loading: false, error: null, selectedActorId, chatOpen}
   const assertAlive = () => {if (disposed) throw new Error("Development room agents are disposed")}
   const publish = () => {
@@ -57,12 +62,35 @@ export function createDevelopmentRoomAgents(ports: DevelopmentRoomPorts, address
       }
     }
   }
+  const updateProfile = async (owner: string, executorId: string, update: DevelopmentAgentProfileUpdate) => {
+    if (!ports.agents.updateProfile) throw new Error("Настройки Source агента недоступны")
+    const profile = await ports.agents.updateProfile(owner, executorId, update)
+    if (disposed) return
+    if (profile.scope.packageName !== owner || profile.scope.executorId !== executorId) throw new Error("Identity профиля агента изменилась")
+    const room = rooms.get(owner)
+    if (!room) throw new Error("Source комната больше не доступна")
+    rooms.set(owner, {...room, agents: room.agents.map(agent => agent.executorId === executorId ? {...agent, label: profile.name, profile} : agent)})
+    const item = chats.get(developmentActorId(owner, executorId))
+    if (item) {item.agent = {...item.agent, label: profile.name, profile}; item.settings?.update(profile)}
+    publish()
+  }
+  const ensureSettings = (item: Chat) => {
+    const profile = item.agent.profile
+    if (!document || !profile || !ports.agents.updateProfile || !item.host.setAgentSettings) return
+    if (item.settings) {item.settings.update(profile); return}
+    item.settings = createDevelopmentAgentSettings(document, {profile,
+      onSave: update => updateProfile(item.packageName, item.agent.executorId, update)})
+    item.host.setAgentSettings(item.settings.element)
+  }
   const ensureChat = (owner: string, agent: DevelopmentRoomAgent) => {
     const id = developmentActorId(owner, agent.executorId)
-    if (chats.has(id)) return
+    const previous = chats.get(id)
+    if (previous) {previous.agent = agent; ensureSettings(previous); return}
     const address = addressFor(owner)
     if (!address) throw new Error("Development package address is unavailable")
-    chats.set(id, {packageName: owner, agent, host: ports.chat({address, label: agent.label, executorId: agent.executorId}), preparing: false})
+    const item: Chat = {packageName: owner, agent, host: ports.chat({address, label: agent.label, executorId: agent.executorId}), preparing: false}
+    chats.set(id, item)
+    ensureSettings(item)
     place()
   }
   const list = (owner: string) => {
@@ -70,7 +98,15 @@ export function createDevelopmentRoomAgents(ports: DevelopmentRoomPorts, address
     if (existing) return existing
     rooms.set(owner, {agents: rooms.get(owner)?.agents ?? [], loading: true, error: null})
     publish()
-    const task = ports.agents.list(owner).then(agents => {
+    const task = ports.agents.list(owner).then(async listed => {
+      const agents: DevelopmentRoomAgent[] = []
+      for (const agent of listed) {
+        if (disposed) return
+        // Отдельное явное prepare касается только уже посещённого actor; list остаётся чтением.
+        const profile = agent.profile ?? await ports.agents.prepareProfile?.(owner, agent.executorId)
+        if (profile && (profile.scope.packageName !== owner || profile.scope.executorId !== agent.executorId)) throw new Error("Identity профиля агента изменилась")
+        agents.push(profile ? {...agent, label: profile.name, profile} : agent)
+      }
       if (disposed) return
       const ids = new Set<string>()
       for (const agent of agents) {
@@ -93,7 +129,13 @@ export function createDevelopmentRoomAgents(ports: DevelopmentRoomPorts, address
   return {
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener)}},
-    attach(root: Presentation) {assertAlive(); officeDisplays.attach(root)},
+    attach(root: Presentation) {
+      assertAlive()
+      if (document && document !== root.document) throw new Error("Source agents require the same Document")
+      document = root.document
+      officeDisplays.attach(root)
+      for (const item of chats.values()) ensureSettings(item)
+    },
     bindDisplay(actorId: string, display: DisplayElement | null, geometry: OfficeDisplayGeometry, onRotation: (value: string) => void) {
       assertAlive()
       officeDisplays.bind(actorId, display, geometry, onRotation)
@@ -147,7 +189,7 @@ export function createDevelopmentRoomAgents(ports: DevelopmentRoomPorts, address
     dispose() {
       if (disposed) return
       disposed = true
-      for (const {host} of chats.values()) host.dispose()
+      for (const {host, settings} of chats.values()) {host.setAgentSettings?.(null); settings?.dispose(); host.dispose()}
       chats.clear()
       walls.clear()
       rooms.clear()

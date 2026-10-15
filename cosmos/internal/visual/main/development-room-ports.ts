@@ -1,10 +1,12 @@
 import type {HTMLElement} from "@zavx0z/immersive"
 import type {DevelopmentContent} from "../../../release/shared/development"
+import type {DevelopmentAgentProfile, DevelopmentAgentProfileUpdate} from "../../../release/shared/development-agent"
 
 /** Identity исполнителя в комнате задаёт Storybook Session, а не Quantum Atom. */
 export type DevelopmentRoomAgent = Readonly<{
   executorId: string
   label: string
+  profile?: DevelopmentAgentProfile
 }>
 
 /** Один Chat остаётся в том же Document при переносе между стеной и окном. */
@@ -13,6 +15,7 @@ export type DevelopmentRoomChatHost = Readonly<{
   moveTo(host: HTMLElement): void
   setVisible(visible: boolean): void
   setNativePreparationActive?(active: boolean): void
+  setAgentSettings?(element: HTMLElement | null): void
   dispose(): void
 }>
 
@@ -22,6 +25,8 @@ export type DevelopmentRoomPorts = Readonly<{
   agents: Readonly<{
     list(packageName: string): Promise<readonly DevelopmentRoomAgent[]>
     create(packageName: string, label: string): Promise<DevelopmentRoomAgent>
+    prepareProfile?(packageName: string, executorId: string): Promise<DevelopmentAgentProfile>
+    updateProfile?(packageName: string, executorId: string, update: DevelopmentAgentProfileUpdate): Promise<DevelopmentAgentProfile>
   }>
   chat(input: Readonly<{address: string; label: string; executorId: string}>): DevelopmentRoomChatHost
 }>

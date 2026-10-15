@@ -21,7 +21,7 @@ export const CLIENT_CAPTURE_MAX_BYTES = 8 * 1024 * 1024
 export const CLIENT_CAPTURE_CHUNK_CHARS = 48 * 1024
 export const CLIENT_CAPTURE_FRAME_MAX_BYTES = 64 * 1024
 export const CLIENT_CAPTURE_MAX_CHARACTERS = Math.ceil(CLIENT_CAPTURE_MAX_BYTES / 3) * 4
-export const CLIENT_CAPABILITIES: readonly ClientCapability[] = ["inspect", "logs", "cache", "view.change", "agent.select", "atom.select", "control.activate", "control.input", "diagnostics", "capture"]
+export const CLIENT_CAPABILITIES: readonly ClientCapability[] = ["inspect", "logs", "cache", "view.change", "agent.select", "atom.select", "package.select", "control.activate", "control.input", "diagnostics", "capture"]
 export type ClientOperation = "inspect" | "logs" | "cache" | "act" | "diagnostics" | "capture"
 export type ClientCaptureMetadata = Omit<ClientCapture, "pngBase64">
 export type ClientHello = {type: "hello", version: 1, clientId: string | null, kind: "Window", capabilities: ClientCapability[], status: ClientStatus}
@@ -133,6 +133,7 @@ export function isClientAction(value: unknown): value is ClientViewAction {
   if (value.type === "view.change") return clientRecord(value, ["type", "view"]) && ["network", "agents", "offices"].includes(String(value.view))
   if (value.type === "agent.select") return clientRecord(value, ["type", "officeId", "agentRef"]) && clientId(value.officeId) && clientText(value.agentRef, 256) && /^(?:atom:[A-Za-z0-9._:-]+|agent:[a-f0-9-]{36})$/u.test(value.agentRef)
   if (value.type === "atom.select") return clientRecord(value, ["type", "atomRef"]) && clientText(value.atomRef, 256) && /^atom:[1-9]\d*$/u.test(value.atomRef)
+  if (value.type === "package.select") return clientRecord(value, ["type", "packageName"]) && clientText(value.packageName, 256) && value.packageName.length > 0 && !/\s/u.test(value.packageName)
   if (value.type === "control.activate") return clientRecord(value, ["type", "controlId"]) && clientId(value.controlId)
   return value.type === "control.input" && clientRecord(value, ["type", "controlId", "value"]) && clientId(value.controlId) && clientText(value.value, 65_536)
 }
@@ -148,12 +149,23 @@ const annotationTarget = (value: unknown): boolean => value === null || clientRe
   (value.projection.status === "unknown" && value.projection.hudPoint === null || value.projection.status === "known" && value.projection.owner !== null && annotationPoint(value.projection.hudPoint, ["x", "y"]))
 const annotations = (value: unknown) => clientRecord(value, ["enabled", "selected", "active", "textSelection", "message"]) && typeof value.enabled === "boolean" &&
   annotationTarget(value.selected) && annotationTarget(value.active) && clientText(value.textSelection, 2048) && (value.message === null || clientText(value.message, 512))
+const sourceRoom = (value: unknown) => clientRecord(value, ["packageName", "resolution", "view", "participants", "participantsTruncated"]) &&
+  (value.packageName === null || clientText(value.packageName, 256) && value.packageName.length > 0 && !/\s/u.test(value.packageName)) &&
+  [null, "source", "external"].includes(value.resolution as null | string) &&
+  (value.packageName === null) === (value.resolution === null) &&
+  ["overview", "display", "room"].includes(String(value.view)) &&
+  Array.isArray(value.participants) && value.participants.length <= 64 &&
+  value.participants.every(participant => clientRecord(participant, ["executorId", "label"]) && clientId(participant.executorId) && clientText(participant.label, 512)) &&
+  typeof value.participantsTruncated === "boolean" &&
+  (value.resolution !== "external" || value.view === "overview" && value.participants.length === 0)
 export function isClientInspection(value: unknown): value is ClientInspection {
   if (!clientRecord(value, ["schema", "version", "status", "viewport", "view"]) || value.schema !== "cosmos/client-inspection/v1" || value.version !== 1 || !isClientStatus(value.status) ||
       !clientRecord(value.viewport, ["width", "height", "devicePixelRatio"]) || ![value.viewport.width, value.viewport.height, value.viewport.devicePixelRatio].every(n => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 65_536)) return false
   const view = value.view
   if (view === null) return true
-  return clientRecord(view, ["mode", "status", "error", "selected", "offices", "text", "controls"], ["annotations"]) && (view.annotations === undefined || annotations(view.annotations)) && ["agents", "offices", "network"].includes(String(view.mode)) && ["loading", "ready", "error"].includes(String(view.status)) &&
+  return clientRecord(view, ["mode", "status", "error", "selected", "offices", "text", "controls"], ["annotations", "sourceRoom"]) && (view.annotations === undefined || annotations(view.annotations)) &&
+    ["agents", "offices", "network", "cosmos"].includes(String(view.mode)) && (view.mode === "cosmos" ? sourceRoom(view.sourceRoom) : view.sourceRoom === undefined) &&
+    ["loading", "ready", "error"].includes(String(view.status)) &&
     (view.error === null || clientText(view.error, 4096)) && (view.selected === null || clientRecord(view.selected, ["officeId", "agentRef"]) && clientId(view.selected.officeId) && clientText(view.selected.agentRef)) &&
     Array.isArray(view.offices) && view.offices.length <= 128 && view.offices.every(office => clientRecord(office, ["id", "label", "agents"]) && clientId(office.id) && clientText(office.label) && Array.isArray(office.agents) && office.agents.length <= 128 && office.agents.every(id => clientText(id))) &&
     clientText(view.text, 16_384) && Array.isArray(view.controls) && view.controls.length <= 256 && view.controls.every(control =>

@@ -32,12 +32,13 @@ import type {InfrastructureProjection} from "./infrastructure-model.ts"
 import type {ReleaseSettingsClient} from "./release-settings"
 import {createDevelopmentRoomScene} from "./development-room-scene"
 import {createDevelopmentRoomAgents} from "./development-room-agents"
-import {createDevelopmentRoomClient} from "./development-room-client"
+import {createDevelopmentRoomClient, selectSourcePackage} from "./development-room-client"
 import {createDevelopmentSocket, developmentChatFetcher, developmentSourceClient, readDevelopmentCatalog} from "./development-client"
 import {createEmbeddedSurface} from "@zavx0z/storybook-app-web-page-shell/surface"
 import {createPinnedChatHost} from "@zavx0z/storybook-app-web-page-shell-workbench/chat"
 import {createSourcePackageContent} from "@zavx0z/storybook-app-web-page-package/content"
 import {createDevelopmentRoomPresentations} from "./development-room-presentations"
+import {inspectDevelopmentRoom} from "./development-room-inspection"
 
 export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentOfficeActor, AgentConnectableSlot, AgentFieldValue, AgentFieldUpdate,
   CosmosConversationClient, CosmosConversationDirectoryClient, CosmosConversationSnapshot, CosmosConversationSelection} from "./agent-workspace-types"
@@ -67,6 +68,10 @@ let releaseManagement: ReleaseSettingsClient | undefined
 let development: {active: boolean; packageName: string | null} | undefined
 let developmentNavigation: {open(): void; quantum(): void; navigate(name: string): void; observe: DevelopmentObserver} | undefined
 let developmentCatalog: DevelopmentCatalog | null = null
+function selectDevelopmentPackage(name: string) {
+  if (!developmentNavigation) throw Object.assign(new Error("Development navigation is not assigned"), {code: "unsupported"})
+  selectSourcePackage(developmentCatalog, name, developmentNavigation.navigate)
+}
 let developmentCatalogRequest: Promise<void> | null = null
 let developmentCatalogError: string | null = null
 const developmentDirty = new Map<string, boolean>()
@@ -178,6 +183,7 @@ function renderApp() {root.render(
     developmentAgents={developmentAgents}
     developmentError={developmentCatalogError}
     onRefreshDevelopmentCatalog={() => ensureDevelopmentCatalog(true)}
+    onSelectDevelopmentPackage={selectDevelopmentPackage}
     onDevelopment={developmentNavigation?.open}
     onQuantum={developmentNavigation?.quantum}
   />,
@@ -297,8 +303,17 @@ const stopFocus = runtime.document.subscribeMutations(batch => {
 /** Owning Window предоставляет этот же Document и его аннотации через client Oracle. */
 const controls = createClientControls(runtime, workspace, {identity: annotations.identity!, annotations, textRoot: () => selectedDisplay() ?? null})
 export const clientControls = {
-  inspect: controls.inspect,
+  inspect() {
+    const base = controls.inspect()
+    return development?.active
+      ? inspectDevelopmentRoom(base, developmentScene.getSnapshot(), developmentAgents.getSnapshot(), developmentCatalogError)
+      : base
+  },
   act(action: ClientViewAction) {
+    if (action.type === "package.select") {
+      selectDevelopmentPackage(action.packageName)
+      return {outcome: "dispatched" as const}
+    }
     if (action.type === "atom.select") {
       if (!scene.select(action.atomRef)) throw new Error("Atom is absent from this Verse")
       return {outcome: "dispatched" as const}

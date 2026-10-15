@@ -9,6 +9,7 @@ export type ClientViewAction =
   | {type: "view.change", view: ClientViewMode}
   | {type: "agent.select", officeId: string, agentRef: string}
   | {type: "atom.select", atomRef: AtomRef}
+  | {type: "package.select", packageName: string}
   | {type: "control.activate", controlId: string}
   | {type: "control.input", controlId: string, value: string}
 
@@ -25,8 +26,16 @@ export interface ClientViewControl {
 }
 
 /** Ограниченное фактическое представление; control IDs принадлежат текущему соединению клиента. */
+export interface ClientSourceRoomInspection {
+  packageName: string | null
+  resolution: "source" | "external" | null
+  view: "overview" | "display" | "room"
+  participants: Array<{executorId: string, label: string}>
+  participantsTruncated: boolean
+}
+
 export interface ClientViewInspection {
-  mode: ClientViewMode
+  mode: ClientViewMode | "cosmos"
   status: "loading" | "ready" | "error"
   error: string | null
   selected: {officeId: string, agentRef: string} | null
@@ -34,6 +43,8 @@ export interface ClientViewInspection {
   text: string
   controls: ClientViewControl[]
   annotations?: ClientAnnotations
+  /** Назначенная Source room; Quantum-поля остаются пустыми в этом режиме. */
+  sourceRoom?: ClientSourceRoomInspection
 }
 
 /** Наблюдение одного существующего semantic node и его текущей проекции. */

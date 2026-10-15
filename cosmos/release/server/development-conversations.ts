@@ -7,6 +7,8 @@ import type {DevelopmentConfiguration} from "../shared/development"
 import type {createDevelopmentCatalog} from "./development-catalog"
 import {createDevelopmentEnvironment, type DevelopmentEnvironmentHost} from "./development-environment"
 import {nativeConnect} from "./conversations"
+import {createDevelopmentAgentProfiles} from "./development-agent-profile"
+import type {DevelopmentAgentProfileUpdate} from "../shared/development-agent"
 
 type Catalog = Awaited<ReturnType<typeof createDevelopmentCatalog>>
 type Target = Parameters<StorybookChatSession.Output["read"]>[0]
@@ -56,6 +58,12 @@ export function createDevelopmentConversations(config: DevelopmentConfiguration,
     environment: input => createDevelopmentEnvironment(catalog, host, input),
     connect: options.connect ?? nativeConnect,
   })
+  const profiles = createDevelopmentAgentProfiles(config.stateDirectory)
+  const presentation = async (snapshot: Awaited<ReturnType<typeof sessions.read>>, create = false) => {
+    const scope = {packageName: catalog.subject(snapshot.address).name, executorId: snapshot.executorId}
+    const profile = create ? await profiles.ensure(scope) : await profiles.read(scope)
+    return {...snapshot, ...(profile ? {sourceProfile: {...profile, name: snapshot.executorLabel}} : {})}
+  }
   let probing = false
   const target = (body: Record<string, unknown>): Target => {
     if (typeof body.address !== "string") throw new Error("Development chat address is required")
@@ -76,6 +84,18 @@ export function createDevelopmentConversations(config: DevelopmentConfiguration,
       if (operation === "execution-settings") return {schemaVersion: 1, revision: 1, connections: config.execution.connections,
         general: {connectionId: config.execution.connectionId}, types: {}}
       const selected = target(body)
+      if (operation === "agent-profile-prepare" || operation === "agent-profile-update") {
+        if (typeof body.executorId !== "string") throw new Error("Нужен точный исполнитель Source комнаты")
+        const existing = (await sessions.list(body.address as string)).find(value => value.executorId === body.executorId)
+        if (!existing) throw new Error("Исполнитель не найден в Source комнате")
+        const scope = {packageName: catalog.subject(existing.address).name, executorId: existing.executorId}
+        if (operation === "agent-profile-prepare") return {...await profiles.ensure(scope), name: existing.executorLabel}
+        const update = body.profile as DevelopmentAgentProfileUpdate
+        if (!object(update) || typeof update.name !== "string" || !update.name.trim() || update.name.trim().length > 128 ||
+            typeof update.expectedName !== "string" || !update.expectedName.trim()) throw new Error("Нужны имя и исходное имя исполнителя")
+        const saved = await profiles.update(scope, update, () => sessions.renameExecutor({address: existing.address, executorId: existing.executorId}, update.name, update.expectedName))
+        return {...saved, name: update.name.trim()}
+      }
       if (typeof body.chatId === "string" && (await sessions.read(selected)).id !== body.chatId) throw new Error("Development chat identity changed")
       switch (operation) {
         case "session": return sessions.read(selected)
@@ -108,8 +128,8 @@ export function createDevelopmentConversations(config: DevelopmentConfiguration,
               options: option.options.flatMap(item => "options" in item ? item.options : [item]).map(item => ({value: item.value, name: item.name}))}])
           } finally {scope.abort(); try {await probe?.dispose()} finally {probing = false}}
         }
-        case "list": return sessions.list(body.address as string)
-        case "create": return sessions.create({address: body.address as string, label: body.label as string})
+        case "list": return Promise.all((await sessions.list(body.address as string)).map(snapshot => presentation(snapshot)))
+        case "create": return presentation(await sessions.create({address: body.address as string, label: body.label as string}), true)
         case "sessions": return sessions.listSessions(selected)
         case "session-create": return sessions.createSession(selected, body.label as string)
         case "session-rename": return sessions.renameSession(selected, body.label as string)
@@ -138,6 +158,6 @@ export function createDevelopmentConversations(config: DevelopmentConfiguration,
         default: throw new Error("Development operation is not implemented")
       }
     },
-    close: () => sessions.dispose(),
+    async close() {await profiles.close(); await sessions.dispose()},
   }
 }

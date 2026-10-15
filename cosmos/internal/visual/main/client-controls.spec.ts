@@ -84,3 +84,25 @@ test("client inspection does not expose password values or grant arbitrary input
   f.controls.act({type: "view.change", view: "network"})
   expect(f.controls.inspect().mode).toBe("network")
 })
+
+test("retained hidden panels do not consume the active room control budget", () => {
+  const f = fixture()
+  const parked = f.document.createElement("section")
+  parked.setAttribute("hidden", "")
+  for (let i = 0; i < 300; i++) {
+    const button = f.document.createElement("button")
+    button.textContent = `Скрытый параметр ${i}`
+    parked.append(button)
+  }
+  const message = f.document.createElement("textarea") as HTMLTextAreaElement
+  message.setAttribute("aria-label", "Сообщение Cosmos")
+  const back = f.document.createElement("button")
+  back.textContent = "Вернуться в комнату"
+  f.body.append(parked, message, back)
+  const view = f.controls.inspect()
+  expect(view.controls).toHaveLength(256)
+  expect(view.controls.slice(0, 2).map(item => item.label)).toEqual(["Сообщение Cosmos", "Вернуться в комнату"])
+  f.controls.act({type: "control.input", controlId: view.controls[0]!.id, value: "Черновик"})
+  expect(message.value).toBe("Черновик")
+  expect(() => f.controls.act({type: "control.activate", controlId: view.controls[2]!.id})).toThrow("unavailable")
+})

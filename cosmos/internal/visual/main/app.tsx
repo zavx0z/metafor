@@ -19,11 +19,16 @@ import type {ReleaseSettingsClient} from "./release-settings"
 import type {DevelopmentRoomSceneModel} from "./development-room-scene"
 import type {DevelopmentRoomAgentsModel} from "./development-room-agents"
 import {DevelopmentRoomsHUD, DevelopmentRoomsSpace} from "./development-rooms"
+import {DevelopmentRoomMinimap} from "./development-room-minimap"
+import type {StorybookAppWebPageShellMinimap} from "@zavx0z/storybook-app-web-page-shell-minimap"
 
 /** Одна сеть в одном Space и Document; свет, HUD и ввод разделяют общий lifecycle. */
-export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined; releaseManagement?: ReleaseSettingsClient | undefined; development?: Readonly<{active: boolean}> | undefined; developmentScene?: DevelopmentRoomSceneModel | undefined; developmentAgents?: DevelopmentRoomAgentsModel | undefined; developmentError?: string | null | undefined; onRefreshDevelopmentCatalog?: (() => void) | undefined; onDevelopment?: (() => void) | undefined; onQuantum?: (() => void) | undefined}>) {
+export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined; releaseManagement?: ReleaseSettingsClient | undefined; development?: Readonly<{active: boolean}> | undefined; developmentScene?: DevelopmentRoomSceneModel | undefined; developmentAgents?: DevelopmentRoomAgentsModel | undefined; developmentError?: string | null | undefined; onRefreshDevelopmentCatalog?: (() => void) | undefined; onSelectDevelopmentPackage?: ((name: string) => void) | undefined; onDevelopment?: (() => void) | undefined; onQuantum?: (() => void) | undefined}>) {
   const network = useMemo(() => props.network ?? createNetworkSpace(), [props.network])
   const developing = props.development?.active === true
+  const [packageSearch, setPackageSearch] = useState("")
+  const [collapsedPackageIds, setCollapsedPackageIds] = useState<readonly string[] | undefined>(undefined)
+  const [minimapState, setMinimapState] = useState<StorybookAppWebPageShellMinimap.Output | undefined>(undefined)
   const [context, setContext] = useState<{x: number; y: number} | null>(null)
   useEffect(() => () => {
     props.scene?.dispose()
@@ -136,10 +141,44 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
           context={context}
           onCloseContext={() => setContext(null)}
         /> : null}
+        {developing && props.developmentScene && props.onSelectDevelopmentPackage ? <DevelopmentMinimapSlot
+          scene={props.developmentScene}
+          search={packageSearch}
+          collapsedIds={collapsedPackageIds}
+          initialState={minimapState}
+          onSearch={setPackageSearch}
+          onCollapsedIds={setCollapsedPackageIds}
+          onStateChange={setMinimapState}
+          onSelectPackage={props.onSelectDevelopmentPackage}
+        /> : null}
         {props.workspace ? <AgentProviderHUD workspace={props.workspace} scene={props.scene} releaseManagement={props.releaseManagement} /> : null}
       </hud>
     </space>
   </>
+}
+
+function DevelopmentMinimapSlot(props: Readonly<{
+  scene: DevelopmentRoomSceneModel
+  search: string
+  collapsedIds: readonly string[] | undefined
+  initialState: StorybookAppWebPageShellMinimap.Output | undefined
+  onSearch(value: string): void
+  onCollapsedIds(ids: readonly string[]): void
+  onStateChange(state: StorybookAppWebPageShellMinimap.Output): void
+  onSelectPackage(name: string): void
+}>) {
+  const snapshot = useSyncExternalStore(props.scene.subscribe, props.scene.getSnapshot)
+  return <>{snapshot.catalog ? <DevelopmentRoomMinimap
+    catalog={snapshot.catalog}
+    selectedPackage={snapshot.selectedPackage?.name ?? null}
+    search={props.search}
+    collapsedIds={props.collapsedIds}
+    initialState={props.initialState}
+    onSearch={props.onSearch}
+    onCollapsedIds={props.onCollapsedIds}
+    onStateChange={props.onStateChange}
+    onSelectPackage={props.onSelectPackage}
+  /> : null}</>
 }
 
 function AtomSceneView(props: Readonly<{active: boolean; scene: AtomSceneModel; network: NetworkSpaceModel; workspace: AgentWorkspaceModel; bot?: Bot | undefined}>) {

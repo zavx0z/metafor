@@ -2,7 +2,7 @@ import {afterAll, beforeAll, expect, test} from "bun:test"
 import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import {createDocument, createDocumentClipboardController, createDomRoot, flushDocumentLayoutObservers, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
+import {createDocument, createDocumentClipboardController, createDomRoot, Event as DomEvent, flushDocumentLayoutObservers, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
 import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/immersive/renderer/html"
 import {createSpaceElementFactories, readSpaceTree, XRAssetElement} from "@zavx0z/immersive/space"
 import type {DevelopmentCatalog} from "../../../release/shared/development"
@@ -12,11 +12,12 @@ import {loadBot, type Bot} from "./bot"
 import visualTemplatePlugin from "../build/template.plugin"
 
 let directory = "", bot: Bot
-let Fixture: DOMComponentConstructor<{active: boolean; bot: Bot; scene: DevelopmentRoomSceneModel; agents: DevelopmentRoomAgentsModel}>
+let Fixture: DOMComponentConstructor<{active: boolean; bot: Bot; scene: DevelopmentRoomSceneModel; agents: DevelopmentRoomAgentsModel; onSelectPackage?(name: string): void}>
 let createScene: typeof import("./development-room-scene").createDevelopmentRoomScene
 let createAgents: typeof import("./development-room-agents").createDevelopmentRoomAgents
 let createSurface: typeof import("@zavx0z/storybook-app-web-page-shell/surface").createEmbeddedSurface
 let createContent: typeof import("@zavx0z/storybook-app-web-page-package/content").createSourcePackageContent
+let projectCatalog: typeof import("./development-room-minimap").sourcePackageCatalog
 beforeAll(async () => {
   directory = await mkdtemp(join(import.meta.dir, ".compiled-development-rooms-"))
   await symlink(resolve(import.meta.dir, "../node_modules"), join(directory, "node_modules"), "dir")
@@ -32,6 +33,7 @@ beforeAll(async () => {
   Fixture = fixtureModule.DevelopmentRoomsFixture
   createSurface = fixtureModule.createEmbeddedSurface
   createContent = fixtureModule.createSourcePackageContent
+  projectCatalog = fixtureModule.sourcePackageCatalog
   createScene = (await load("development-room-scene.js")).createDevelopmentRoomScene
   createAgents = (await load("development-room-agents.js")).createDevelopmentRoomAgents
   const bytes = await Bun.file(new URL("./bots.glb", import.meta.url)).arrayBuffer()
@@ -46,7 +48,22 @@ const catalog: DevelopmentCatalog = {schema: "cosmos:development/v1", workspaceI
     {name: "@fixture/storybook", label: "Storybook", address: "/storybook", owner: null, ownerName: null, resolution: "source", writable: true},
     {name: "@fixture/immersive", label: "Immersive", address: "/immersive", owner: null, ownerName: null, resolution: "source", writable: true},
     {name: "@fixture/highlighter", label: "Highlighter", address: "/highlighter", owner: null, ownerName: null, resolution: "source", writable: true},
+    {name: "external-lib", label: "External", address: "/external", owner: null, ownerName: null, resolution: "external", writable: false},
   ]}
+
+test("Minimap keeps all assigned source Package names in a bounded forest and excludes external metadata", () => {
+  const sources = Array.from({length: 437}, (_, index) => ({name: `@fixture/package-${index}`, label: `Package ${index}`,
+    address: `/package-${index}`, owner: null, ownerName: index < 4 ? null : `@fixture/package-${index % 4}`,
+    resolution: "source" as const, writable: true}))
+  const externals = Array.from({length: 58}, (_, index) => ({name: `external-${index}`, label: `External ${index}`,
+    address: `/external-${index}`, owner: null, ownerName: null, resolution: "external" as const, writable: false}))
+  const projected = projectCatalog({...catalog, packages: [...sources, ...externals]})
+  expect(projected.items).toHaveLength(437)
+  expect(projected.items.filter(item => !("parentId" in item))).toHaveLength(4)
+  expect(projected.items[4]).toMatchObject({id: "@fixture/package-4", parentId: "@fixture/package-0"})
+  expect(projected.names.has("@fixture/package-436")).toBe(true)
+  expect(projected.names.has("external-0")).toBe(false)
+})
 
 test("actual renderer keeps one Space and package Display, enters nested room with two overhead chats, opens one fullscreen and returns", async () => {
   const document = createDocument({elementFactories: createSpaceElementFactories()}), html = document.createElement("html"), body = document.createElement("body")
@@ -79,7 +96,9 @@ test("actual renderer keeps one Space and package Display, enters nested room wi
   scene.applyRoute(null)
   scene.setActive(true)
   agents.setActive(true)
-  root.render(Fixture, {active: true, scene, agents, bot})
+  const selections: string[] = []
+  const selectPackage = (name: string) => {selections.push(name); scene.applyRoute(name)}
+  root.render(Fixture, {active: true, scene, agents, bot, onSelectPackage: selectPackage})
   const tree = readSpaceTree(document), presented = new Set<() => void>()
   const presentation = {document, space: tree.space, viewPoint: tree.viewPoint,
     canvas: {getBoundingClientRect: () => ({left: 0, top: 0, width: 1200, height: 800})},
@@ -96,12 +115,25 @@ test("actual renderer keeps one Space and package Display, enters nested room wi
     expect(document.querySelectorAll("space")).toHaveLength(1)
     expect(document.querySelectorAll("viewpoint")).toHaveLength(1)
     expect(document.querySelectorAll("hud")).toHaveLength(1)
+    const hud = document.querySelector("hud")!
+    const minimap = hud.querySelector("[data-storybook-minimap]")!
+    expect(minimap).not.toBeNull()
+    expect(minimap.closest("[data-window-area]")?.parentElement).toBe(hud)
+    expect(minimap.textContent).toContain("Storybook")
+    expect(minimap.textContent).toContain("Immersive")
+    expect(minimap.textContent).toContain("Highlighter")
+    expect(minimap.textContent).not.toContain("External")
     expect(scene.getSnapshot().view).toBe("overview")
     expect(scene.getSnapshot().geometryNodes.map(node => [node.id, node.parentId ?? null])).toEqual([
       ["@fixture/root", null], ["@fixture/child", "@fixture/root"],
       ["@fixture/storybook", null], ["@fixture/immersive", null], ["@fixture/highlighter", null],
     ])
     expect(document.querySelectorAll("[data-storybook-workbench]")).toHaveLength(0)
+    const storybookRow = [...minimap.querySelectorAll('[role="treeitem"]')].find(node => node.textContent?.includes("Storybook")) as import("@zavx0z/immersive").HTMLElement | undefined
+    expect(storybookRow).toBeDefined()
+    storybookRow!.dispatchEvent(new DomEvent("click", {bubbles: true}))
+    await settle()
+    expect(selections).toEqual(["@fixture/storybook"])
     scene.applyRoute("@fixture/child")
     await settle()
     expect(document.querySelector('[data-spatial-node-id="@fixture/child"]')).not.toBeNull()
@@ -133,13 +165,14 @@ test("actual renderer keeps one Space and package Display, enters nested room wi
     expect(document.querySelector('[data-spatial-node-id="@fixture/child"] [data-storybook-workbench]')).not.toBeNull()
     scene.setActive(false)
     agents.setActive(false)
-    root.render(Fixture, {active: false, scene, agents, bot})
+    root.render(Fixture, {active: false, scene, agents, bot, onSelectPackage: selectPackage})
     await settle()
     expect(first.closest("[data-development-chat-parking]")).not.toBeNull()
     expect(document.querySelectorAll("space")).toHaveLength(1)
+    expect(hud.querySelector("[data-storybook-minimap]")).toBeNull()
     scene.setActive(true)
     agents.setActive(true)
-    root.render(Fixture, {active: true, scene, agents, bot})
+    root.render(Fixture, {active: true, scene, agents, bot, onSelectPackage: selectPackage})
     await settle()
     expect(document.querySelector('[data-spatial-node-id="@fixture/child"] [data-storybook-workbench]')).not.toBeNull()
     expect(document.querySelector('[data-chat-executor="one"]')).toBe(first)
