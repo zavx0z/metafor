@@ -1,18 +1,19 @@
 type Surface<Host, Scope> = {
   fetch(request: Request, host: Host): Promise<Response>
+  refreshCatalog?(): Promise<void>
   subscribe(scope: Scope, receive: (value: unknown) => void): Promise<() => void>
   close(): Promise<void>
 }
 
 /** Необязательное исходное окружение не владеет готовностью Core и Settings. */
-export async function createOptionalDevelopment<Host, Scope>(options: {
+export async function createOptionalDevelopment<Host extends {timeout?(request: Request, seconds: number): void}, Scope>(options: {
   initialize(): Promise<Surface<Host, Scope> | null>
   authorize(request: Request, host: Host): void
   failed?(error: unknown): void
 }) {
   let surface: Surface<Host, Scope> | null = null
   let state: "unassigned" | "ready" | "unavailable" = "unassigned"
-  let closed = false, initializing: Promise<void> | undefined
+  let closed = false, initializing: Promise<void> | undefined, refreshing: Promise<void> | undefined
   const unavailable = () => Response.json({error: {code: "workspace_unavailable",
     message: "Исходное окружение Cosmos недоступно. Исправьте назначение или manifests и явно обновите каталог. Настройки выпуска остаются доступны."}},
     {status: 503, headers: {"cache-control": "no-store"}})
@@ -27,6 +28,7 @@ export async function createOptionalDevelopment<Host, Scope>(options: {
       try {options.failed?.(error)} catch {}
     }
   })().finally(() => {initializing = undefined})
+  const refresh = () => refreshing ??= Promise.resolve().then(() => surface?.refreshCatalog?.()).finally(() => {refreshing = undefined})
   await initialize()
   return {
     async fetch(request: Request, host: Host): Promise<Response> {
@@ -52,7 +54,10 @@ export async function createOptionalDevelopment<Host, Scope>(options: {
           } finally {reader.releaseLock()}
           const body = new TextDecoder().decode(Buffer.concat(chunks))
           if (body.length > 64 || body.trim() !== "{}") return new Response(null, {status: 400})
+          host.timeout?.(request, 60)
           if (state !== "ready") await initialize()
+          else try {await refresh()}
+            catch {return unavailable()}
           if (state === "unavailable") return unavailable()
           return Response.json({ready: state === "ready"}, {headers: {"cache-control": "no-store"}})
         }

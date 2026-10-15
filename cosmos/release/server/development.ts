@@ -10,7 +10,7 @@ import {createDevelopmentConversations} from "./development-conversations"
 import {createDevelopmentMachineGrant} from "./development-machine"
 import {DEVELOPMENT_PATH, type DevelopmentSubscription, type DevelopmentChatScope} from "../shared/development"
 
-type Host = {requestIP(request: Request): {address: string} | null}
+type Host = {requestIP(request: Request): {address: string} | null; timeout?(request: Request, seconds: number): void}
 
 /** Ошибка source assignment не меняет готовность обязательных участников Core. */
 export function configuredOptionalDevelopment(environment: Readonly<Record<string, string | undefined>>, repl: ReturnType<typeof createNativeReplOracle> | null) {
@@ -33,7 +33,6 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
     contentNode: (name, nodeId) => observed.contentNode(name, nodeId),
   }
   let refreshing: Promise<void> | undefined
-  let catalogRequested = false
   const refresh = () => refreshing ??= createDevelopmentCatalog(config).then(value => {observed = value}).finally(() => {refreshing = undefined})
   const assignment = config.machine?.enabled ? await readNativeReplAssignment(environment) : null
   if (config.machine?.enabled && (!assignment || !repl)) throw new Error("Development machine was enabled without its native owner assignment")
@@ -49,6 +48,7 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
   const subscribe: DevelopmentSubscription = (scope, listener) => {ready(); return conversations.subscribe(scope, listener)}
   return {
     get catalog() {return catalog.snapshot},
+    refreshCatalog: refresh,
     subscribe,
     async fetch(request: Request, host: Host): Promise<Response> {
       try {
@@ -61,11 +61,8 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
           if (!name || !parts.length) return new Response(null, {status: 400})
           return sources.resource(decodeURIComponent(name), parts.map(decodeURIComponent).join("/"))
         }
-        if (url.pathname === `${DEVELOPMENT_PATH}/catalog` && request.method === "GET") {
-          if (catalogRequested) await refresh()
-          catalogRequested = true
+        if (url.pathname === `${DEVELOPMENT_PATH}/catalog` && request.method === "GET")
           return Response.json(catalog.snapshot, {headers: {"cache-control": "no-store"}})
-        }
         if (request.method !== "POST") return new Response(null, {status: 405})
         const body = await readAgentBody(request)
         if (url.pathname === `${DEVELOPMENT_PATH}/reader`) {
