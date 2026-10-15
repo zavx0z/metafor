@@ -22,6 +22,16 @@ export interface ReleaseManagementSnapshot {
   } | null
 }
 
+/**
+Чтение текущей activation и receipt без перечисления candidates и проверки их artifacts.
+GET существующего management endpoint выбирает эту проекцию заголовком
+X-Cosmos-Management-View: activation. Store identity остаётся в прежнем header,
+а X-Cosmos-Release подтверждает identity отвечающего admitted Core.
+*/
+export type ReleaseManagementStatus = Pick<ReleaseManagementSnapshot, "schemaVersion" | "revision" | "operation"> & Readonly<{
+  active: Readonly<{digest: string}> | null
+}>
+
 /** Одно явное намерение оператора. Потеря ответа разрешает только readback, не повтор эффекта. */
 export interface ReleaseManagementRequest {
   readonly operationId: string
@@ -39,3 +49,5 @@ export interface ReleaseManagementClient {
 }
 
 export const RELEASE_MANAGEMENT_PATH = "/release/manage"
+export const RELEASE_MANAGEMENT_VIEW_HEADER = "X-Cosmos-Management-View"
+export const RELEASE_MANAGEMENT_ACTIVATION_VIEW = "activation"

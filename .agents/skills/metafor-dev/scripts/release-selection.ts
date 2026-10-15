@@ -1,9 +1,9 @@
 import {resolve} from "node:path"
 import {loadOperatorInstance} from "./operator-instance"
 import {realpath} from "node:fs/promises"
-import {createInstalledReleaseStore} from "../../../../tech/release/installed"
+import {createInstalledReleaseStore, isReleaseDigest} from "../../../../tech/release/installed"
 import {decodeInstalledReleaseSelection, installedReleaseStoreIdentity, prepareInstalledReleaseSelection, type InstalledReleaseSelection} from "../../../../cosmos/selection"
-import type {ReleaseManagementSnapshot} from "../../../../cosmos/release/shared/management"
+import {RELEASE_MANAGEMENT_ACTIVATION_VIEW, RELEASE_MANAGEMENT_VIEW_HEADER, type ReleaseManagementStatus} from "../../../../cosmos/release/shared/management"
 
 /**
 CLI не останавливает живой owner: отправляет один intent в его serialized
@@ -20,17 +20,22 @@ export async function applyLiveReleaseSelection(selection: InstalledReleaseSelec
   const fetcher = options.fetcher ?? fetch
   const endpoint = new URL("/release/manage", origin)
   const storeIdentity = await installedReleaseStoreIdentity(selection.storeRoot)
-  const read = async (): Promise<ReleaseManagementSnapshot> => {
-    const response = await fetcher(endpoint, {redirect: "error", cache: "no-store", signal: AbortSignal.timeout(5_000)})
+  const store = createInstalledReleaseStore({root: selection.storeRoot})
+  const read = async () => {
+    // Старый Core игнорирует view header и возвращает полный совместимый snapshot.
+    // Этот HTTP read нужен только до intent и после terminal receipt, не при polling.
+    const response = await fetcher(endpoint, {redirect: "error", cache: "no-store", signal: AbortSignal.timeout(10_000),
+      headers: {[RELEASE_MANAGEMENT_VIEW_HEADER]: RELEASE_MANAGEMENT_ACTIVATION_VIEW}})
     if (!response.ok) throw new Error("Release management is unavailable")
     if (response.headers.get("X-Cosmos-Store-Identity") !== storeIdentity) throw new ReleaseOwnerMismatch()
-    const value = await response.json() as ReleaseManagementSnapshot
-    if (value.schemaVersion !== 1 || !Number.isSafeInteger(value.revision) || !Array.isArray(value.candidates))
+    const value = await response.json() as ReleaseManagementStatus
+    if (value.schemaVersion !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 ||
+        value.active !== null && !isReleaseDigest(value.active?.digest))
       throw new Error("Invalid release management snapshot")
-    return value
+    return {snapshot: value, runningDigest: response.headers.get("X-Cosmos-Release")}
   }
-  let before: ReleaseManagementSnapshot
-  try {before = await read()} catch (error) {if (error instanceof ReleaseOwnerMismatch) throw error; return false}
+  let before: ReleaseManagementStatus
+  try {before = (await read()).snapshot} catch (error) {if (error instanceof ReleaseOwnerMismatch) throw error; return false}
   if (before.active?.digest !== selection.expected.digest || before.revision !== selection.expected.revision)
     throw new Error("Installed activation changed; read the current release before retrying")
   const operationId = crypto.randomUUID()
@@ -50,16 +55,24 @@ export async function applyLiveReleaseSelection(selection: InstalledReleaseSelec
   if (rejected) throw new Error(rejected)
   const deadline = Date.now() + (options.timeoutMs ?? 180_000)
   do {
-    let snapshot: ReleaseManagementSnapshot | undefined
-    try {snapshot = await read()} catch (error) {
-      if (error instanceof ReleaseOwnerMismatch) throw new Error(`Release operation ${operationId} has unknown outcome: live store owner changed`)
-    }
-    const operation = snapshot?.operation
+    // Один ограниченный atomic record startup вместо повторного обхода всех candidates.
+    const activation = await store.readActivation().catch(() => null)
+    const operation = activation?.operation
     if (operation?.id === operationId) {
-      if (operation.target !== selection.target || operation.kind !== selection.kind) throw new Error("Release operation receipt differs")
+      if (operation.target !== selection.target || operation.kind !== selection.kind || operation.expected.digest !== selection.expected.digest ||
+          operation.expected.revision !== selection.expected.revision) throw new Error("Release operation receipt differs")
       if (operation.state === "failed") throw new Error(operation.error ?? "Release selection failed")
       if (operation.state === "complete") {
-        if (snapshot?.active?.digest !== selection.target) throw new Error("Completed selection is no longer the active release")
+        if (activation?.digest !== selection.target || activation.successful[0]?.digest !== selection.target || activation.revision <= selection.expected.revision)
+          throw new Error("Completed selection is no longer the admitted active release")
+        let observed: Awaited<ReturnType<typeof read>>
+        try {observed = await read()} catch (error) {
+          throw new Error(`Release operation ${operationId} has unknown outcome: ${error instanceof ReleaseOwnerMismatch ? "live store owner changed" : "terminal HTTP readback unavailable"}`)
+        }
+        const terminal = observed.snapshot.operation
+        if (observed.runningDigest !== selection.target || observed.snapshot.active?.digest !== selection.target || observed.snapshot.revision < activation.revision ||
+            terminal?.id !== operationId || terminal.target !== selection.target || terminal.kind !== selection.kind || terminal.state !== "complete")
+          throw new Error(`Release operation ${operationId} has unknown outcome: running release and terminal receipt differ`)
         return true
       }
     }

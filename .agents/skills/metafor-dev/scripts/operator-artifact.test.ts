@@ -164,7 +164,10 @@ control = await attachServerProcessControl({
   async bind() {server = Bun.serve({hostname: "127.0.0.1", port: Number(process.env.PORT), fetch(request) {
     if (!admitted) return new Response("not admitted", {status: 503})
     const path = new URL(request.url).pathname
-    if (path === "/release/manage") return management.fetch(request, server)
+    if (path === "/release/manage") return management.fetch(request, server).then(response => {
+      response.headers.set("X-Cosmos-Release", process.env.COSMOS_RELEASE_DIGEST)
+      return response
+    })
     if (path === "/identity") return Response.json({pid: process.pid, parent: process.ppid})
     if (path === "/code") return new Response("fixture", {headers: {"X-Cosmos-Release": process.env.COSMOS_RELEASE_DIGEST}})
     if (path === "/cosmos" && ${JSON.stringify(version)} === "1.0.1") return new Response("broken fixture UI", {status: 500})

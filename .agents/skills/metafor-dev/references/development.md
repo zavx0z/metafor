@@ -506,6 +506,16 @@ CLI привязывает HTTP owner к точному local store через o
 canonical root в `X-Cosmos-Store-Identity`: сверяет GET и передаёт identity в
 POST, который проверяет её до эффекта. Этот header не заменяет local operator
 guard и не раскрывает host path в browser snapshot.
+Ожидая операцию, CLI читает только bounded activation record установленного
+store. HTTP нужен до intent и после terminal receipt: `GET /release/manage`
+с `X-Cosmos-Management-View: activation` возвращает active/revision/operation
+без candidate inventory. Прежний Core может игнорировать header и вернуть
+полный совместимый snapshot; эти два чтения получают по 10 секунд, а полный
+состав не перечитывается в цикле ожидания. Успех требует того же store identity,
+complete receipt и active target, а также `X-Cosmos-Release`, равного target:
+прежний ещё живой Core не подтверждает новый выпуск одним чтением store.
+Недоступный или несовпадающий terminal HTTP readback остаётся unknown;
+POST и cold activation после возможного эффекта не повторяются.
 Обычный restart не повторяет этот selection и не читает bootstrap digest поверх
 сохранённого active. CLI проверяет новый digest через server response и receipt.
 

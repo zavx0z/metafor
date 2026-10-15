@@ -81,7 +81,11 @@ async function candidate(store: ReturnType<typeof createInstalledReleaseStore>, 
         server = Bun.serve({hostname: '127.0.0.1', port: Number(process.env.PORT), async fetch(request) {
           if (!admitted) return new Response('not admitted', {status: 503})
           const path = new URL(request.url).pathname
-          if (path === '/release/manage') return management.fetch(request, server)
+          if (path === '/release/manage') {
+            const response = await management.fetch(request, server)
+            response.headers.set('X-Cosmos-Release', process.env.COSMOS_RELEASE_DIGEST)
+            return response
+          }
           if (path === '/state') {
             const state = {}
             for (const file of ['world.json', 'profiles.json', 'conversations.json'])

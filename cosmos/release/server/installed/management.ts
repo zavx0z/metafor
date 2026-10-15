@@ -1,7 +1,7 @@
 import {createInstalledReleaseStore, isReleaseDigest} from "@metafor/tech-release/installed"
 import {installedReleaseStoreIdentity, prepareInstalledReleaseSelection, readInstalledStateCompatibility, verifyInstalledReleaseSelection, type InstalledReleaseSelection} from "../../../selection"
 import {authorizeAgentRequest} from "../agents"
-import type {ReleaseManagementRequest, ReleaseManagementSnapshot} from "../../shared/management"
+import {RELEASE_MANAGEMENT_ACTIVATION_VIEW, RELEASE_MANAGEMENT_VIEW_HEADER, type ReleaseManagementRequest, type ReleaseManagementSnapshot, type ReleaseManagementStatus} from "../../shared/management"
 
 type Host = Parameters<typeof authorizeAgentRequest>[1]
 
@@ -25,9 +25,22 @@ export function createReleaseManagement(options: {
     if (queued?.input.operationId === operation?.id && (operation?.state === "complete" || operation?.state === "failed")) queued = null
   }
 
+  function status(current: Awaited<ReturnType<typeof store.readActivation>>): ReleaseManagementStatus {
+    reconcile(current?.operation)
+    const operation = current?.operation
+    const pending = queued && operation?.id !== queued.input.operationId
+    return {schemaVersion: 1, active: current ? {digest: current.digest} : null, revision: current?.revision ?? 0,
+      operation: pending && queued ? {id: queued.input.operationId, kind: queued.input.kind, target: queued.selection.target,
+        state: queued.error ? "unknown" : "accepted", ...(queued.error ? {error: queued.error} : {})}
+        : operation ? {id: operation.id, kind: operation.kind, target: operation.target, state: operation.state,
+          ...(operation.error ? {error: publicFailure(operation.error)} : {})} : null}
+  }
+
+  async function readStatus(): Promise<ReleaseManagementStatus> {return status(await store.readActivation())}
+
   async function read(): Promise<ReleaseManagementSnapshot> {
     const current = await store.readActivation()
-    reconcile(current?.operation)
+    const activation = status(current)
     const candidates = await store.listCandidates()
     const previous = current?.successful.find(item => item.digest !== current.digest)
     const compatibility = new Map<string, string | null>()
@@ -55,20 +68,19 @@ export function createReleaseManagement(options: {
         downgrade: {allowed: !reason, ...(reason ? {reason} : {})}}
     }).sort((a, b) => Number(b.active) - Number(a.active) || Number(b.previousSuccessful) - Number(a.previousSuccessful) || a.digest.localeCompare(b.digest))
     const selected = items.find(item => item.active)
-    return {schemaVersion: 1, active: current ? {digest: current.digest, version: selected?.version ?? "—"} : null,
-      revision: current?.revision ?? 0, candidates: items,
-      operation: pending && queued ? {id: queued.input.operationId, kind: queued.input.kind, target: queued.selection.target,
-        state: queued.error ? "unknown" : "accepted", ...(queued.error ? {error: queued.error} : {})}
-        : operation ? {id: operation.id, kind: operation.kind, target: operation.target, state: operation.state,
-          ...(operation.error ? {error: publicFailure(operation.error)} : {})} : null}
+    return {...activation, active: current ? {digest: current.digest, version: selected?.version ?? "—"} : null, candidates: items}
   }
 
   async function fetch(request: Request, host: Host): Promise<Response> {
     try {authorizeAgentRequest(request, host)} catch {return new Response(null, {status: 403})}
     if (new URL(request.url).search) return new Response(null, {status: 400})
-    if (request.method === "GET") return Response.json(await read(), {headers: {
-      "Cache-Control": "no-store", "X-Cosmos-Store-Identity": await installedReleaseStoreIdentity(options.storeRoot),
-    }})
+    if (request.method === "GET") {
+      const view = request.headers.get(RELEASE_MANAGEMENT_VIEW_HEADER)
+      if (view !== null && view !== RELEASE_MANAGEMENT_ACTIVATION_VIEW) return new Response(null, {status: 400})
+      return Response.json(view === RELEASE_MANAGEMENT_ACTIVATION_VIEW ? await readStatus() : await read(), {headers: {
+        "Cache-Control": "no-store", "X-Cosmos-Store-Identity": await installedReleaseStoreIdentity(options.storeRoot),
+      }})
+    }
     if (request.method !== "POST") return new Response(null, {status: 405})
     const expectedStore = request.headers.get("X-Cosmos-Store-Identity")
     if (expectedStore !== null && expectedStore !== await installedReleaseStoreIdentity(options.storeRoot))
@@ -109,7 +121,7 @@ export function createReleaseManagement(options: {
       return Response.json({error: publicFailure(error instanceof Error ? error.message : String(error))}, {status: 409})
     } finally {accepting = false}
   }
-  return {read, fetch}
+  return {read, readStatus, fetch}
 }
 
 function accepted(operationId: string) {return Response.json({operationId, state: "accepted"}, {status: 202, headers: {"Cache-Control": "no-store"}})}
