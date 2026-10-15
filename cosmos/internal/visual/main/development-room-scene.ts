@@ -4,7 +4,8 @@ import {createSpatialTreeState, type SpatialTreeSnapshot} from "@zavx0z/immersiv
 import {createSubjectGraph} from "@zavx0z/storybook-app-web-page-shell/workspace"
 import type {DevelopmentCatalog, DevelopmentPackage} from "../../../release/shared/development"
 
-const BODY_DEPTH = 180
+/** Глубина Source комнаты согласована с её офисом и публичным SpatialTree. */
+export const DEVELOPMENT_ROOM_BODY_DEPTH = 180
 const MAX_VIEWS = 32
 type GeometryNode = SpatialTreeSnapshot["nodes"][number]
 type View = {display: DisplayElement; dispose(): void; ready?: Promise<void>; content?: Promise<void>; reload?(): Promise<void>}
@@ -98,7 +99,7 @@ export function createDevelopmentRoomScene(options: Readonly<{
     pendingInitialFocus = false
     view = "room"
     const r = node.rect, eye = root.viewPoint
-    const bounds = {min: {x: r.x, y: r.y, z: r.z - BODY_DEPTH}, max: {x: r.x + r.width, y: r.y + r.height, z: r.z}}
+    const bounds = {min: {x: r.x, y: r.y, z: r.z - DEVELOPMENT_ROOM_BODY_DEPTH}, max: {x: r.x + r.width, y: r.y + r.height, z: r.z}}
     const pose = ViewPoint.fitPoseForBounds(bounds, {x: 0, y: -1, z: 0}, {fov: eye.fov, aspect: size.width / size.height})
     const range = ViewPoint.depthRangeForBounds(bounds, pose)
     root.document.transaction(() => {
@@ -112,7 +113,7 @@ export function createDevelopmentRoomScene(options: Readonly<{
       eye.far = Math.max(100000, range?.far ?? 100000)
       eye.controls = true
       eye.navigation = "fly"
-      eye.flySpeed = BODY_DEPTH / 40
+      eye.flySpeed = DEVELOPMENT_ROOM_BODY_DEPTH / 40
       updateVisibility()
     })
     derive()
@@ -197,6 +198,7 @@ export function createDevelopmentRoomScene(options: Readonly<{
         root: value,
         source,
         preserveViewPoint: true,
+        layout: {bodyDepth: DEVELOPMENT_ROOM_BODY_DEPTH},
         getViewport: viewport,
         createView(id, title, mount, display, onRelease) {
           const release = () => {views.delete(id); pending.delete(id); onRelease()}

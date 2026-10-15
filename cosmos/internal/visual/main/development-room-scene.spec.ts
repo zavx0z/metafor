@@ -1,7 +1,7 @@
 import {expect, test} from "bun:test"
 import {createDocument, DisplayElement, SpaceElement, ViewPointElement, type Presentation} from "@zavx0z/immersive"
 import type {DevelopmentCatalog} from "../../../release/shared/development"
-import {createDevelopmentRoomScene} from "./development-room-scene"
+import {createDevelopmentRoomScene, DEVELOPMENT_ROOM_BODY_DEPTH} from "./development-room-scene"
 
 const catalog: DevelopmentCatalog = {
   schema: "cosmos:development/v1",
@@ -15,7 +15,7 @@ const catalog: DevelopmentCatalog = {
   dependencies: [],
 }
 
-function fixture(failFirstView = false) {
+function fixture(failFirstView = false, viewport = {width: 1200, height: 800}) {
   const document = createDocument(), space = new SpaceElement(document), viewPoint = new ViewPointElement(document)
   document.append(space)
   space.append(viewPoint)
@@ -53,13 +53,34 @@ function fixture(failFirstView = false) {
     previous = snapshot
   })
   const presented = new Set<(frame: number) => void>()
-  const root = {document, space, viewPoint, canvas: {getBoundingClientRect: () => ({left: 0, top: 0, width: 1200, height: 800})},
+  const root = {document, space, viewPoint, canvas: {getBoundingClientRect: () => ({left: 0, top: 0, ...viewport})},
     getProjection: () => ({kind: "space", owner: space, frustumPlanes: () => [], projectPoint: (p: {x: number; y: number}) => ({x: p.x, y: p.y}), fly() {}}),
     subscribePresented(listener: (frame: number) => void) {presented.add(listener); return () => {presented.delete(listener)}},
     invalidate() {}, render() {for (const listener of presented) listener(1)},
   } as unknown as Presentation
   return {document, scene, root, hosts, visits, navigation, surfaces, dispose() {scene.dispose(); stopHosts()}}
 }
+
+test("wide and portrait Source rooms place the office floor and camera inside the actual body volume", () => {
+  for (const viewport of [{width: 1200, height: 800}, {width: 681, height: 1079}]) {
+    const f = fixture(false, viewport)
+    try {
+      f.scene.configure(catalog)
+      f.scene.applyRoute("@fixture/child")
+      f.scene.setActive(true)
+      f.scene.attach(f.root)
+      const snapshot = f.scene.spatial.getSnapshot()!
+      const rect = snapshot.geometryNodes!.find(node => node.id === "@fixture/child")!.rect
+      const body = snapshot.bodyVolumes!.find(volume => volume.id === "prism-tree:stem:@fixture/child")!
+      if (!("z" in body.from) || !("z" in body.to)) throw new Error("Room body must have rectangular planes")
+      expect(body.from.z).toBe(rect.z)
+      expect(body.to.z).toBe(rect.z - DEVELOPMENT_ROOM_BODY_DEPTH)
+      expect(body.from.z - body.to.z).toBe(DEVELOPMENT_ROOM_BODY_DEPTH)
+      expect(f.scene.enterRoom()).toBe(true)
+      expect(f.root.viewPoint.targetZ).toBeCloseTo((body.from.z + body.to.z) / 2)
+    } finally {f.dispose()}
+  }
+})
 
 test("failed Package creation reports an error and the same route can be retried", () => {
   const f = fixture(true)

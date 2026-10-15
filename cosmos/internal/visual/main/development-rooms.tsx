@@ -7,7 +7,7 @@ import type {DevelopmentPackage} from "../../../release/shared/development"
 import {createOfficeSceneGeometry} from "./office-geometry"
 import type {Bot} from "./bot"
 import type {DevelopmentRoomAgentsModel} from "./development-room-agents"
-import type {DevelopmentRoomSceneModel} from "./development-room-scene"
+import {DEVELOPMENT_ROOM_BODY_DEPTH, type DevelopmentRoomSceneModel} from "./development-room-scene"
 import {developmentActorId, type DevelopmentRoomAgent} from "./development-room-ports"
 import {RoomContextMenu, RoomNavigationHUD} from "./room-navigation-hud"
 import {useSpatialVisibility} from "./spatial-visibility"
@@ -35,12 +35,12 @@ export function DevelopmentRoomsSpace(props: Readonly<{
   const room = useMemo<Room | null>(() => {
     if (!props.bot || !scene.selectedPackage || !r || agents.packageName !== scene.selectedPackage.name || scene.view !== "room") return null
     const bot = props.bot
-    const bounds = {min: {x: -r.width / 2, y: -r.height / 2, z: 0}, max: {x: r.width / 2, y: r.height / 2, z: 180}}
+    const bounds = {min: {x: -r.width / 2, y: -r.height / 2, z: 0}, max: {x: r.width / 2, y: r.height / 2, z: DEVELOPMENT_ROOM_BODY_DEPTH}}
     return {package: scene.selectedPackage, agents: agents.agents,
       layout: layoutAgentOffice({roomBounds: bounds, humanoid: bot.bounds, overheadDisplayId: "chat",
         agents: agents.agents.map(agent => ({id: agent.executorId, humanoid: bot.variants[agent.profile?.gender ?? "male"].bounds,
           displays: [{id: "chat", width: 900, height: 600, depth: 20}]}))}),
-      position: {x: r.x + r.width / 2, y: r.y + r.height / 2, z: r.z - 180}}
+      position: {x: r.x + r.width / 2, y: r.y + r.height / 2, z: r.z - DEVELOPMENT_ROOM_BODY_DEPTH}}
   }, [signature, props.bot, scene.view, agents.packageName])
   return <>
     <SpatialTree source={spatial} style={css`
