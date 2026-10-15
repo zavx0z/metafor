@@ -10,7 +10,7 @@ import {DEVELOPMENT_PATH, type DevelopmentContent} from "../shared/development"
 type Catalog = Pick<Awaited<ReturnType<typeof createDevelopmentCatalog>>, "source" | "contentNode" | "snapshot">
 
 /** Содержание реального public node: TSDoc и исходники контрактов; сценарии требуют отдельной prepared owner revision. */
-export function createDevelopmentContent(catalog: Catalog) {
+export function createDevelopmentContent(catalog: Catalog, sourceExecution: "available" | "unassigned" = "unassigned") {
   const files = createDevelopmentSources(catalog)
   return async (packageName: string, nodeId?: string): Promise<DevelopmentContent> => {
     const {source, node, metadata, manifest} = catalog.contentNode(packageName, nodeId)
@@ -47,6 +47,6 @@ export function createDevelopmentContent(catalog: Catalog) {
         .map(edge => ({name: edge.to, kind: edge.kind, range: edge.range})),
       scenarios: {sourcePaths: metadata.scenarioSpec?.sourcePaths.map(local) ?? [], executable: false as const,
         reason: "Для исполнения сценария нужна подготовленная ревизия его владельца; чтение исходников её не создаёт"}}
-    return {...value, revision: createHash("sha256").update(JSON.stringify(value)).digest("hex")}
+    return {...value, sourceExecution, revision: createHash("sha256").update(JSON.stringify({...value, sourceExecution})).digest("hex")}
   }
 }

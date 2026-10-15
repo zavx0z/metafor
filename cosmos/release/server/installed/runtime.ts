@@ -336,7 +336,20 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
             localOracleChannels: [...(boundOptions.localOracleChannels ?? []), owned.agentUi!.channel, owned.clients!.channel, ...(owned.nativeRepl ? [owned.nativeRepl.channel] : []), ...(owned.codespaceHost ? [owned.codespaceHost.channel] : [])],
           }))
         }
-        development = owned.development = await trace.step("optional-handle", () => configuredOptionalDevelopment(Bun.env, nativeRepl))
+        development = owned.development = await trace.step("optional-handle", () => configuredOptionalDevelopment(Bun.env, nativeRepl, {
+          storeRoot: options.storeRoot,
+          readStatus: management.read,
+          async adapterEntrypoint() {
+            const output = member!.environments.find(part => part.env === "server")?.outputs.find(output => output.artifact === "./build-adapter" && output.kind === "entry-point")
+            if (!output) throw new Error("Installed build adapter is unavailable")
+            return store.artifactPath(options.digest, {name: member!.name, version: member!.version, env: "server", ...output})
+          },
+          async scenarioPreloadEntrypoint() {
+            const output = member!.environments.find(part => part.env === "server")?.outputs.find(output => output.artifact === "./development-scenario-preload" && output.kind === "entry-point")
+            if (!output) throw new Error("Installed scenario runner is unavailable")
+            return store.artifactPath(options.digest, {name: member!.name, version: member!.version, env: "server", ...output})
+          },
+        }))
         if (destroyed) throw new Error("Installed server was destroyed during binding")
         const rendezvous = owned.signaling = options.signalingToken ? createRendezvousHandler({token: options.signalingToken, relay: true}) : null
         let current: Bun.Server<ReleaseServerSocketData>
@@ -479,7 +492,11 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       agentUi = undefined
       await clients?.close()
       clients = undefined
-      await development?.close(); development = null; await nativeRepl?.close()
+      const ownedDevelopment = development
+      development = null
+      const developmentClosing = ownedDevelopment?.close()
+      const developmentSettled = Promise.allSettled(developmentClosing ? [developmentClosing] : [])
+      await nativeRepl?.close()
       nativeRepl = null
       await codespaceHost?.close()
       codespaceHost = null
@@ -513,6 +530,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
         externalClosing,
         Promise.allSettled([...inFlight, ...background]),
       ])
+      for (const result of await developmentSettled) if (result.status === "rejected") cleanupFailures.push(result.reason)
       for (const result of closed) if (result.status === "rejected") cleanupFailures.push(result.reason)
       sessions.clear()
       connected.clear()

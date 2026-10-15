@@ -17,6 +17,7 @@ const object = (value: unknown): value is Record<string, unknown> => value !== n
 /** Тот же Session loop и archive; адреса source packages не имитируют Quantum Atom. */
 export function createDevelopmentConversations(config: DevelopmentConfiguration, catalog: Catalog, options: {
   machine?: DevelopmentEnvironmentHost["machine"]
+  tools?: DevelopmentEnvironmentHost["tools"]
   connect?: StorybookChatSession.Input["connect"]
 } = {}) {
   const instructions: DevelopmentEnvironmentHost["instructions"] = async source => {
@@ -48,6 +49,7 @@ export function createDevelopmentConversations(config: DevelopmentConfiguration,
       return Response.json({error: {code: "not_found", message: "Документ не входит в назначение"}}, {status: 404})
     },
     ...(options.machine === undefined ? {} : {machine: options.machine}),
+    ...(options.tools === undefined ? {} : {tools: options.tools}),
   }
   const execution = createDevelopmentExecution(config)
   const sessions = createSessions({

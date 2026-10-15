@@ -8,13 +8,14 @@ const timelineRoot = resolve(dirname(Bun.resolveSync("@zavx0z/storybook-chat-vie
 const settingsRoot = dirname(Bun.resolveSync("@zavx0z/storybook-app-web-page-shell-execution-settings", import.meta.dir))
 const browserRoot = dirname(Bun.resolveSync("@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview", import.meta.dir))
 const shellRoot = resolve(dirname(Bun.resolveSync("@zavx0z/storybook-app-web-page-shell-workbench", import.meta.dir)), "..")
+const packagePageRoot = resolve(dirname(Bun.resolveSync("@zavx0z/storybook-app-web-page-package/content", import.meta.dir)), "..")
 const visualRoot = resolve(import.meta.dir, "..")
 
 /** Visual связывает свои views и стандартный Agent в одном compiled Document; Immersive предоставляет готовые компоненты. */
 export function createVisualTemplatePlugin() {return createJsxBunPlugin({
   cwd: visualRoot,
-  sourceRoots: [resolve(visualRoot, "main"), resolve(visualRoot, "../../../standard/agent"), chatRoot, preferencesRoot, timelineRoot, browserRoot, settingsRoot, shellRoot],
-  styleSourceRootIds: ["@internal/visual", "@metafor/agent", "@zavx0z/chat", "@zavx0z/storybook-chat-preferences", "@zavx0z/storybook-chat-view", "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview", "@zavx0z/storybook-app-web-page-shell-execution-settings", "@zavx0z/storybook-app-web-page-shell"],
+  sourceRoots: [resolve(visualRoot, "main"), resolve(visualRoot, "../../../standard/agent"), chatRoot, preferencesRoot, timelineRoot, browserRoot, settingsRoot, shellRoot, packagePageRoot],
+  styleSourceRootIds: ["@internal/visual", "@metafor/agent", "@zavx0z/chat", "@zavx0z/storybook-chat-preferences", "@zavx0z/storybook-chat-view", "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview", "@zavx0z/storybook-app-web-page-shell-execution-settings", "@zavx0z/storybook-app-web-page-shell", "@zavx0z/storybook-app-web-page-package"],
 })}
 
 export default createVisualTemplatePlugin()

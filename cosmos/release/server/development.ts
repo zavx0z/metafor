@@ -8,21 +8,27 @@ import {readDevelopmentConfiguration} from "./development-config"
 import {createDevelopmentCatalog} from "./development-catalog"
 import {createDevelopmentConversations} from "./development-conversations"
 import {createDevelopmentMachineGrant} from "./development-machine"
+import {createDevelopmentScenarios} from "./development-scenarios"
+import {assignedScenarioCompiler} from "./development-scenario-compiler"
+import {createAssignedPreparation, developmentReleaseTools, type DevelopmentReleaseHost} from "./development-preparation"
+import {developmentScenarioTools} from "./development-scenario-tools"
 import {DEVELOPMENT_PATH, type DevelopmentSubscription, type DevelopmentChatScope} from "../shared/development"
 
 type Host = {requestIP(request: Request): {address: string} | null; timeout?(request: Request, seconds: number): void}
 
 /** Ошибка source assignment не меняет готовность обязательных участников Core. */
-export function configuredOptionalDevelopment(environment: Readonly<Record<string, string | undefined>>, repl: ReturnType<typeof createNativeReplOracle> | null) {
+export function configuredOptionalDevelopment(environment: Readonly<Record<string, string | undefined>>, repl: ReturnType<typeof createNativeReplOracle> | null,
+  releaseHost?: DevelopmentReleaseHost) {
   return createOptionalDevelopment<Host, DevelopmentChatScope>({
-    initialize: () => configuredDevelopment(environment, repl),
+    initialize: () => configuredDevelopment(environment, repl, releaseHost),
     authorize: authorizeAgentRequest,
     failed() {console.error("[@cosmos/release:development]", "Исходное окружение Cosmos недоступно; Core и настройки продолжают работу", {code: "workspace_unavailable"})},
   })
 }
 
 /** Один owner в существующем release, без listener, второго REPL и внешнего Project. */
-export async function configuredDevelopment(environment: Readonly<Record<string, string | undefined>>, repl: ReturnType<typeof createNativeReplOracle> | null) {
+export async function configuredDevelopment(environment: Readonly<Record<string, string | undefined>>, repl: ReturnType<typeof createNativeReplOracle> | null,
+  releaseHost?: DevelopmentReleaseHost) {
   const config = await readDevelopmentConfiguration(environment)
   if (!config) return null
   let observed = await createDevelopmentCatalog(config)
@@ -36,12 +42,21 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
   const refresh = () => refreshing ??= createDevelopmentCatalog(config).then(value => {observed = value}).finally(() => {refreshing = undefined})
   const assignment = config.machine?.enabled ? await readNativeReplAssignment(environment) : null
   if (config.machine?.enabled && (!assignment || !repl)) throw new Error("Development machine was enabled without its native owner assignment")
+  const compiler = config.scenarios
+  const scenarios = releaseHost && compiler ? createDevelopmentScenarios(catalog, {
+    tracePreloadPath: await releaseHost.scenarioPreloadEntrypoint(), tsserverPath: () => assignedScenarioCompiler(compiler),
+  }) : null
+  const preparation = releaseHost ? createAssignedPreparation(config, catalog, releaseHost, environment) : null
   const conversations = createDevelopmentConversations(config, catalog, {
+    tools: (_input, source) => [
+      ...(releaseHost ? developmentReleaseTools(releaseHost, source.writable ? preparation : null, source.address) : []),
+      ...(scenarios ? developmentScenarioTools(scenarios, source.name) : []),
+    ],
     ...(config.machine?.enabled && assignment && repl ? {machine: (_input, source) => createDevelopmentMachineGrant({repl, assignment, cwd: source.directory,
       hostId: config.machine!.hostId, revision: config.machine!.revision})} : {}),
   })
   const sources = createDevelopmentSources(catalog)
-  const content = createDevelopmentContent(catalog)
+  const content = createDevelopmentContent(catalog, scenarios ? "available" : "unassigned")
   const readers = new Map<string, number>()
   let closed = false
   const ready = () => {if (closed) throw new Error("Development workspace is closed")}
@@ -76,6 +91,35 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
         }
         const token = request.headers.get("x-storybook-session")
         if (!token || (readers.get(token) ?? 0) <= Date.now()) return new Response(null, {status: 401})
+        if (url.pathname.startsWith(`${DEVELOPMENT_PATH}/scenarios/`)) {
+          if (!scenarios) return Response.json({error: "Выполнение сценариев не назначено"}, {status: 503})
+          if (!body || typeof body !== "object" || Array.isArray(body)) return new Response(null, {status: 400})
+          const value = body as Record<string, unknown>
+          const allowed = url.pathname.endsWith("/list") ? ["packageName", "nodeId"] : ["packageName", "nodeId", "sourcePath", "expectedDigest"]
+          if (typeof value.packageName !== "string" || value.nodeId !== undefined && typeof value.nodeId !== "string"
+            || Object.keys(value).some(key => !allowed.includes(key))) return new Response(null, {status: 400})
+          if (url.pathname === `${DEVELOPMENT_PATH}/scenarios/list`) return Response.json(await scenarios.list(value.packageName, value.nodeId as string | undefined))
+          if (url.pathname !== `${DEVELOPMENT_PATH}/scenarios/run` || typeof value.sourcePath !== "string" || typeof value.expectedDigest !== "string")
+            return new Response(null, {status: 400})
+          host.timeout?.(request, 0)
+          const abort = new AbortController()
+          const encoder = new TextEncoder()
+          const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+              let cancelled = false
+              abort.signal.addEventListener("abort", () => {cancelled = true}, {once: true})
+              const send = (event: unknown) => {if (!cancelled) controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"))}
+              send({type: "progress", progress: {phase: "preparing"}})
+              void scenarios.run({packageName: value.packageName as string, ...(value.nodeId ? {nodeId: value.nodeId as string} : {}),
+                sourcePath: value.sourcePath as string, expectedDigest: value.expectedDigest as string},
+              AbortSignal.any([request.signal, abort.signal]), progress => send({type: "progress", progress}))
+                .then(result => send({type: "result", result}), error => send({type: "error", error: error instanceof Error ? error.message : String(error)}))
+                .finally(() => {if (!cancelled) controller.close()})
+            },
+            cancel() {abort.abort()},
+          })
+          return new Response(stream, {headers: {"content-type": "application/x-ndjson", "cache-control": "no-store"}})
+        }
         if (url.pathname === `${DEVELOPMENT_PATH}/resource`) {
           if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).sort().join() !== "packageName,path" ||
               !("packageName" in body) || typeof body.packageName !== "string" || !("path" in body) || typeof body.path !== "string") return new Response(null, {status: 400})
@@ -108,6 +152,6 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
           {status, headers: {"cache-control": "no-store"}})
       }
     },
-    async close() {if (closed) return; closed = true; readers.clear(); await conversations.close()},
+    async close() {if (closed) return; closed = true; readers.clear(); await scenarios?.close(); await preparation?.close(); await conversations.close()},
   }
 }

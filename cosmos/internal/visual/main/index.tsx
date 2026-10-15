@@ -38,6 +38,7 @@ import {createEmbeddedSurface} from "@zavx0z/storybook-app-web-page-shell/surfac
 import {createPinnedChatHost} from "@zavx0z/storybook-app-web-page-shell-workbench/chat"
 import {createSourcePackageContent} from "@zavx0z/storybook-app-web-page-package/content"
 import {createDevelopmentRoomPresentations} from "./development-room-presentations"
+import type {createDevelopmentScenarioPresentation} from "./development-scenarios"
 import {developmentRoomCatalogItems} from "./development-room-catalog"
 import {inspectDevelopmentRoom} from "./development-room-inspection"
 
@@ -115,6 +116,7 @@ const developmentScene = createDevelopmentRoomScene({
     let disposed = false
     let contentRequest = 0
     let contentController: ReturnType<typeof createSourcePackageContent> | null = null
+    let scenarioPresentation: ReturnType<typeof createDevelopmentScenarioPresentation> | null = null
     let surface: Awaited<typeof handle.ready> | null = null
     const showNode = async (nodeId?: string) => {
       const current = surface
@@ -124,6 +126,8 @@ const developmentScene = createDevelopmentRoomScene({
       if (disposed || request !== contentRequest) return
       current.workbench.update("catalog.active", content.node.id)
       if (contentController) {
+        await scenarioPresentation?.configure(content.node.id, content.scenarios.sourcePaths, content.sourceExecution === "available")
+        if (disposed || request !== contentRequest) return
         await contentController.update({...content, resourceBase: new URL(content.resourceBase, globalThis.location.href).href})
         return
       }
@@ -132,16 +136,24 @@ const developmentScene = createDevelopmentRoomScene({
         onDirtyChange: dirty => developmentDirty.set(id, dirty)})
       let controller: ReturnType<typeof createSourcePackageContent> | null = null
       try {
+        await presentations.scenario.configure(content.node.id, content.scenarios.sourcePaths, content.sourceExecution === "available")
+        if (disposed || request !== contentRequest) {
+          presentations.dependency.dispose(); presentations.source?.dispose(); presentations.scenario.dispose()
+          return
+        }
         controller = createSourcePackageContent({surface: current,
           content: {...content, resourceBase: new URL(content.resourceBase, globalThis.location.href).href},
           dependencyPresentation: presentations.dependency,
-          ...(presentations.source ? {sourcePresentation: presentations.source} : {})})
+          ...(presentations.source ? {sourcePresentation: presentations.source} : {}),
+          scenarioPresentation: presentations.scenario})
         contentController = controller
+        scenarioPresentation = presentations.scenario
         await controller.ready
       } catch (error) {
         if (controller) controller.dispose()
-        else {presentations.dependency.dispose(); presentations.source?.dispose()}
+        else {presentations.dependency.dispose(); presentations.source?.dispose(); presentations.scenario.dispose()}
         if (contentController === controller) contentController = null
+        if (scenarioPresentation === presentations.scenario) scenarioPresentation = null
         throw error
       }
     }
@@ -177,6 +189,7 @@ const developmentScene = createDevelopmentRoomScene({
       contentRequest++
       surface?.workbench.element.removeEventListener(surface.workbench.events.navigate, navigate)
       contentController?.dispose()
+      if (!contentController) scenarioPresentation?.dispose()
       developmentDirty.delete(id)
       handle.dispose()
     }}

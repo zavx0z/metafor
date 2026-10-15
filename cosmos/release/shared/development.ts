@@ -55,6 +55,8 @@ export type DevelopmentContent = Readonly<{
   /** Объявленные manifest связи; не результаты deps.spec и не пространственная вложенность. */
   dependencies?: readonly Readonly<{name: string, kind: DevelopmentDependencyKind, range: string}>[]
   scenarios: Readonly<{sourcePaths: readonly string[], executable: false, reason: string}>
+  /** Явный Bun Test run не является подготовленным интерактивным preview. */
+  sourceExecution?: "available" | "unassigned"
 }>
 /** Назначение хоста: разрешённая зависимость не получает право записи автоматически. */
 export type DevelopmentWorkspaceAssignment = Readonly<{
@@ -74,6 +76,9 @@ export type DevelopmentConfiguration = DevelopmentWorkspaceAssignment & Readonly
   version: 1
   execution: DevelopmentExecution
   machine?: Readonly<{enabled: boolean, hostId: string, revision: string}>
+  preparation?: Readonly<{enabled: boolean, revision: string, inputRoots: readonly string[]}>
+  /** Native compiler и digest полного соседнего lib-набора, назначенного вне исходников. */
+  scenarios?: Readonly<{compilerPath: string, compilerSha256: string}>
 }>
 
 export type DevelopmentChatScope = Readonly<{address: string, executorId?: string, sessionId?: string}>

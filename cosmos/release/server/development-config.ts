@@ -20,7 +20,7 @@ export async function readDevelopmentConfiguration(environment: Readonly<Record<
     if (!info.isFile() || (info.mode & 0o777) !== 0o600 || info.uid !== process.getuid?.() || info.size > 262144) throw new Error("Development authority requires an owned private regular file")
     value = JSON.parse(await file.readFile("utf8"))
   } finally {await file.close()}
-  if (!object(value) || !only(value, ["version", "id", "rootPackage", "roots", "stateDirectory", "execution", "machine"])
+  if (!object(value) || !only(value, ["version", "id", "rootPackage", "roots", "stateDirectory", "execution", "machine", "preparation", "scenarios"])
     || value.version !== 1 || !text(value.id) || !text(value.rootPackage) || !path(value.stateDirectory) || !Array.isArray(value.roots)
     || value.roots.length === 0 || value.roots.length > 64 || value.roots.some(root => !object(root) || !only(root, ["name", "directory", "writable"])
       || !text(root.name) || !path(root.directory) || typeof root.writable !== "boolean")) throw new Error("Invalid Cosmos development workspace assignment")
@@ -49,5 +49,12 @@ export async function readDevelopmentConfiguration(environment: Readonly<Record<
   if (!execution.connections.some(connection => connection.id === execution.connectionId && connection.enabled)) throw new Error("Selected development connection is unavailable")
   if (value.machine !== undefined && (!object(value.machine) || !only(value.machine, ["enabled", "hostId", "revision"])
     || typeof value.machine.enabled !== "boolean" || !text(value.machine.hostId) || !text(value.machine.revision))) throw new Error("Invalid machine capability assignment")
+  if (value.preparation !== undefined && (!object(value.preparation) || !only(value.preparation, ["enabled", "revision", "inputRoots"])
+    || typeof value.preparation.enabled !== "boolean" || !text(value.preparation.revision) || !Array.isArray(value.preparation.inputRoots)
+    || value.preparation.inputRoots.length === 0 || value.preparation.inputRoots.length > 1024
+    || value.preparation.inputRoots.some(root => !path(root)))) throw new Error("Invalid preparation capability assignment")
+  if (value.scenarios !== undefined && (!object(value.scenarios) || !only(value.scenarios, ["compilerPath", "compilerSha256"])
+    || !path(value.scenarios.compilerPath) || typeof value.scenarios.compilerSha256 !== "string"
+    || !/^[a-f0-9]{64}$/u.test(value.scenarios.compilerSha256))) throw new Error("Invalid scenario compiler assignment")
   return value as unknown as DevelopmentConfiguration
 }

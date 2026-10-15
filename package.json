@@ -142,6 +142,7 @@
     "@zavx0z/storybook-app-environment-binding": "link:@zavx0z/storybook-app-environment-binding",
     "@zavx0z/storybook-package-package-json": "link:@zavx0z/storybook-package-package-json",
     "@zavx0z/storybook-package-env": "link:@zavx0z/storybook-package-env",
+    "@zavx0z/storybook-specs-scenarios-reader": "link:@zavx0z/storybook-specs-scenarios-reader",
     "@zavx0z/storybook-package-route-workspaces": "link:@zavx0z/storybook-package-route-workspaces",
     "@zavx0z/storybook-package-metadata-collect": "link:@zavx0z/storybook-package-metadata-collect",
     "@zavx0z/storybook-package-graph-create": "link:@zavx0z/storybook-package-graph-create",

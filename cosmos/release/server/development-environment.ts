@@ -8,6 +8,7 @@ type Input = Parameters<NonNullable<StorybookChatSession.Input["environment"]>>[
 type Environment = Awaited<ReturnType<NonNullable<StorybookChatSession.Input["environment"]>>>
 type Source = ReturnType<Awaited<ReturnType<typeof createDevelopmentCatalog>>["source"]>
 type Tool = NonNullable<StorybookAppEnvironmentBinding.Input["extensions"]>[number]
+export type DevelopmentTool = Tool
 const reads = new Set(["filesystem.stat", "filesystem.read", "filesystem.read-many", "filesystem.list", "git.status"])
 
 /** Секрет и выбранный host остаются в доверенном замыкании инструмента. */
@@ -23,6 +24,7 @@ export type DevelopmentEnvironmentHost = Readonly<{
   readKnowledge(source: Source, path: string | undefined, signal: AbortSignal): Promise<Response>
   /** Выдача хостом до первого prompt; отсутствие не объявляет bun.evaluate. */
   machine?(input: Input, source: Source): DevelopmentMachineGrant | undefined
+  tools?(input: Input, source: Source): readonly Tool[]
 }>
 
 /** Собственное назначение Cosmos; внешний Project, bearer и model loop не используются. */
@@ -41,7 +43,7 @@ export async function createDevelopmentEnvironment(catalog: Awaited<ReturnType<t
       if (address !== source.address) throw new Error("Development knowledge scope changed")
       return host.readKnowledge(source, path, signal)
     },
-    extensions: () => machine ? [machine.tool] : [],
+    extensions: () => [...(machine ? [machine.tool] : []), ...(host.tools?.(input, source) ?? [])],
     async authorize(action) {
       if (!source.writable && action.command.name.startsWith("filesystem.") && !reads.has(action.command.name)) throw new Error("Source writing is not assigned")
       await input.authorize(action.id, action.command, action.signal)

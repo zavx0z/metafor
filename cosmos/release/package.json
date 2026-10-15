@@ -13,6 +13,12 @@
     "./node": {
       "cosmos:server": "./node.ts"
     },
+    "./build-adapter": {
+      "cosmos:server": "@metafor/tech-build/adapter"
+    },
+    "./development-scenario-preload": {
+      "cosmos:server": "./server/development-scenario-preload.ts"
+    },
     "./persisted-state.json": {
       "cosmos:server": "./persisted-state.json"
     }
@@ -42,6 +48,7 @@
     "@zavx0z/storybook-app-environment-binding": "^0.0.0",
     "@zavx0z/storybook-package-package-json": "^0.0.0",
     "@zavx0z/storybook-package-env": "^0.0.0",
+    "@zavx0z/storybook-specs-scenarios-reader": "^0.0.0",
     "@zavx0z/storybook-package-route-workspaces": "^0.0.0",
     "@zavx0z/storybook-package-metadata-collect": "^0.0.0",
     "@zavx0z/storybook-package-graph-create": "^0.0.0",

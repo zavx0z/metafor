@@ -7,6 +7,26 @@ import {createInstalledReleaseStore, type PublishedReleaseGraph} from "@metafor/
 import {serverProcessCommandMessage, serverProcessIdentityEnvironment, serverProcessLaunchEnvironment} from "../../shared/package/process"
 
 test("Concurrent destroy сохраняет исходный bind failure после освобождения Quantum и listener", async () => {
+  const {result, diagnostics} = await installedFixture(bindRecoveryFixture)
+  expect(diagnostics).not.toContain("TypeError")
+  expect(diagnostics).not.toContain("Unhandled")
+  expect(result.originalPreserved).toBeTrue()
+  expect(result.errors).toContainEqual({name: "Error", message: "original bind failure"})
+  expect(result.errors.some((error: {name: string}) => error.name === "TypeError")).toBeFalse()
+  expect(result.closeCalls).toBeGreaterThanOrEqual(2)
+  expect(result.released).toBe(1)
+  expect(result.listenerClosed).toBeTrue()
+}, 10_000)
+
+test("Destroy закрывает Quantum при ожидающем Source и возвращается только после обоих owners", async () => {
+  const {result, diagnostics} = await installedFixture(delayedSourceFixture)
+  expect(diagnostics).not.toContain("Unhandled")
+  expect(result.beforeSourceSettled).toEqual({quantumClosed: true, sourceClosed: false, destroySettled: false})
+  expect(result.events).toEqual(["source-closing", "quantum-closed", "source-closed", "destroy-settled"])
+  expect(result.listenerClosed).toBeTrue()
+}, 10_000)
+
+async function installedFixture(body: () => Promise<void>) {
   const directory = await mkdtemp(join(tmpdir(), "installed-bind-recovery-"))
   let child: ReturnType<typeof Bun.spawn> | undefined
   try {
@@ -21,13 +41,15 @@ test("Concurrent destroy сохраняет исходный bind failure пос
     const stateRoot = join(directory, "state")
     await mkdir(stateRoot)
     child = Bun.spawn([process.execPath, "--conditions=cosmos:server", "--conditions=internal:server", "--eval",
-      `await (${bindRecoveryFixture.toString()})()`], {
+      `await (${body.toString()})()`], {
       cwd: import.meta.dir,
       env: {PATH: process.env.PATH, TMPDIR: process.env.TMPDIR,
         ...serverProcessIdentityEnvironment(identity), ...serverProcessLaunchEnvironment({mode: "prepared", transitionId: "initial"}),
         COSMOS_BIND_FIXTURE: JSON.stringify({storeRoot: directory, stateRoot, digest: candidate.digest,
           runtimePath: resolve(import.meta.dir, "../server/installed/runtime.ts"),
           quantumPath: resolve(import.meta.dir, "../server/quantum.ts"),
+          developmentPath: resolve(import.meta.dir, "../server/development.ts"),
+          controlPath: resolve(import.meta.dir, "../server/installed/control.ts"),
           bind: serverProcessCommandMessage("bind", identity, "initial")})},
       stdout: "pipe",
       stderr: "pipe",
@@ -36,22 +58,18 @@ test("Concurrent destroy сохраняет исходный bind failure пос
     const stderr = new Response(child.stderr as ReadableStream<Uint8Array>).text()
     const exited = await Promise.race([child.exited, Bun.sleep(5_000).then(() => {throw new Error("Bind cleanup fixture did not finish")})])
     expect(exited).toBe(0)
-    const diagnostics = await stderr
-    expect(diagnostics).not.toContain("TypeError")
-    expect(diagnostics).not.toContain("Unhandled")
-    const result = JSON.parse(await stdout)
-    expect(result.originalPreserved).toBeTrue()
-    expect(result.errors).toContainEqual({name: "Error", message: "original bind failure"})
-    expect(result.errors.some((error: {name: string}) => error.name === "TypeError")).toBeFalse()
-    expect(result.closeCalls).toBeGreaterThanOrEqual(2)
-    expect(result.released).toBe(1)
-    expect(result.listenerClosed).toBeTrue()
+    const output = await stdout
+    const marker = output.lastIndexOf("FIXTURE_RESULT:")
+    if (marker < 0) throw new Error(`Fixture result is missing: ${await stderr}`)
+    const diagnostics = `${await stderr}\n${output.slice(0, marker)}`
+    const result = JSON.parse(output.slice(marker + "FIXTURE_RESULT:".length))
+    return {result, diagnostics}
   } finally {
     if (child?.exitCode === null) child.kill("SIGKILL")
     await child?.exited
     await rm(directory, {recursive: true, force: true})
   }
-}, 10_000)
+}
 
 async function bindRecoveryFixture() {
   const fixture = JSON.parse(process.env.COSMOS_BIND_FIXTURE!)
@@ -104,6 +122,50 @@ async function bindRecoveryFixture() {
   }
   const failures = errors(error)
   const listenerClosed = await fetch(`http://127.0.0.1:${port}`, {signal: AbortSignal.timeout(1_000)}).then(() => false, () => true)
-  process.stdout.write(JSON.stringify({originalPreserved: failures.includes(original),
+  process.stdout.write("FIXTURE_RESULT:" + JSON.stringify({originalPreserved: failures.includes(original),
     errors: failures.map(error => ({name: error.name, message: error.message})), closeCalls, released, listenerClosed}))
+}
+
+async function delayedSourceFixture() {
+  const fixture = JSON.parse(process.env.COSMOS_BIND_FIXTURE!)
+  const {mock} = await import("bun:test")
+  const releaseSource = Promise.withResolvers<void>()
+  const quantumClosing = Promise.withResolvers<void>()
+  const events: string[] = []
+  let sourceClosed = false, quantumClosed = false, destroySettled = false
+  let application: {bind(): Promise<void>; destroy(): Promise<void>} | undefined
+  mock.module(fixture.controlPath, () => ({async attachServerProcessControl(runtime: typeof application) {
+    application = runtime
+    return {bound: runtime!.bind(), destroy: () => runtime!.destroy()}
+  }}))
+  mock.module(fixture.developmentPath, () => ({configuredOptionalDevelopment() {
+    return {async close() {
+      events.push("source-closing")
+      await releaseSource.promise
+      sourceClosed = true
+      events.push("source-closed")
+    }}
+  }}))
+  mock.module(fixture.quantumPath, () => ({async prepareQuantumRuntime() {
+    return {async start() {}, async close() {
+      quantumClosed = true
+      events.push("quantum-closed")
+      quantumClosing.resolve()
+    }, failure: new Promise<void>(() => {}), handles() {return false}, observeDomains() {return null}, authorizeObservation() {return false}}
+  }}))
+  const {runInstalledRelease} = await import(fixture.runtimePath)
+  const server = await runInstalledRelease({storeRoot: fixture.storeRoot, digest: fixture.digest, port: 0,
+    quantum: {stateRoot: fixture.stateRoot, sources: []}})
+  const port = server.port
+  const destroying = application!.destroy().then(() => {
+    destroySettled = true
+    events.push("destroy-settled")
+  })
+  await quantumClosing.promise
+  await Bun.sleep(0)
+  const beforeSourceSettled = {quantumClosed, sourceClosed, destroySettled}
+  releaseSource.resolve()
+  await destroying
+  const listenerClosed = await fetch(`http://127.0.0.1:${port}`, {signal: AbortSignal.timeout(1_000)}).then(() => false, () => true)
+  process.stdout.write("FIXTURE_RESULT:" + JSON.stringify({beforeSourceSettled, events, listenerClosed}))
 }

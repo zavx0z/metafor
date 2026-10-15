@@ -67,6 +67,11 @@ export async function readInstalledStateCompatibility(store: Store, digest: stri
     throw new Error("Invalid installed persisted-state contract")
   const path = await store.artifactPath(digest, {name: member.name, version: member.version, env: "server", ...output})
   const value: unknown = await Bun.file(path).json()
+  return parseInstalledStateCompatibility(value)
+}
+
+/** Общая проверка инертного контракта после подтверждения bytes у installed или preparation owner. */
+export function parseInstalledStateCompatibility(value: unknown): string {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid installed persisted-state contract")
   const input = value as Record<string, unknown>
   if (Object.keys(input).sort().join() !== "compatibilityLine,version" || input.version !== 1 ||
