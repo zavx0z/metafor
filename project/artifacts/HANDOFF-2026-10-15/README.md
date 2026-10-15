@@ -25,6 +25,81 @@ Oracle/Force как путь канонических изменений. Вто
 восстановление → расширение пространственного интерфейса. Это приоритизация
 оставшейся работы; новые пункты ниже не объявлены реализованными.
 
+## Обновление после первого рабочего чата, 15 октября
+
+Установлен Core `0.3.33` / Visual `0.3.29`, digest
+`7f75c647d3ae6af5d69d44e7f41fa295b5d8453b448d09d2e5b31d3642b68b4e`.
+Состав мира и 10 Meta сохранены; canonical migration не выполнялась.
+Новые локальные коммиты: MetaFor `fa5fabe88`, `948cdd99e`, `d40ae1319`, `e77ccbfb3`;
+Storybook `669acc1c`, `5c80458e`; Provider `48076b5`; Capsule `c0eafb1`.
+Push не выполнялся.
+
+- **Ollama → Cosmos работает для текста и восстановления.** В корневой комнате
+  создан агент «Ollama · ai-srv», беседа «Рабочий чат · Ollama», модель
+  `qwen3.5:9b`. Две реальные реплики: сначала кодовое слово «Кедр», после
+  остановки/подготовки и обновления release — точное воспоминание «Кедр».
+  Native session сохранила identity и ровно два завершённых хода. Второе
+  сообщение повторно не отправлялось: продолжилась существующая pending очередь
+  после отказа соединения до model admission. Поток обновлений наблюдался через
+  `/clients/socket`; инструменты исходников этому чату ещё не выданы.
+- На ai-srv отдельный контейнер `metafor-provider-ai-ollama`, одна модель и одна
+  активная ACP-сессия. Peer `metafor-provider-ai-srv-ollama`, executor `ollama`,
+  приватное назначение `ai-srv-ollama`. Во время генерации GPU занимала около
+  6804 MiB из 16311 MiB. Browser profiles не изменялись.
+- Исправлен штатный peer close: отправка `bye` завершается до закрытия
+  bootstrap. Generation guards и запрет повтора прикладных эффектов сохранены.
+- Qwen preview восстановлен перезапуском только native Provider. Два
+  последовательных bootstrap через MetaFor дали 200 за 2–2,5 секунды,
+  grants закрылись 204. Capsule/Chrome и прежний host-sender сохранены.
+  Это ещё не подтверждение входа в Qwen, видео, микрофона или модельного ответа.
+- **Qwen на Mac работает через Chrome Studio.** Включено существующее
+  назначение `mac-qwen`, создан агент «Qwen · MacBook» в корневой комнате,
+  беседа «Рабочий чат · Qwen». Реальные ответы «Готово.» и после stop/prepare
+  «MetaFor» подтвердили продолжение контекста. Использован прежний профиль
+  `browser-bridge-rtc-host-auto-mrdt0zba`; новый профиль и повторный вход не нужны.
+- Автоматические browser prompt и ChatGPT settings больше не вызывают
+  `Target.activateTarget`: используют focus emulation собственной CDP session.
+  Ошибка не включает foreground fallback; ручная активация сохранена.
+  Новый native bundle `browser-host-background-20261015` установлен только
+  для Mac Provider, PID 29742 на 4447. Chrome Studio и Chrome не перезапускались.
+  Qwen live ход прошёл с этой сборкой; отсутствие переключения фокуса рабочего
+  стола отдельно не измерялось OS-инструментом. ai-srv/Codespace browser bundles
+  этим переключением не обновлялись.
+- Исправлен `Illegal invocation` таймера переподключения screenshot transport
+  Capsule. Ожидание sender у Mac остаётся отдельным незакрытым вопросом.
+- В общей Storybook display-проекции одна мысль теперь соответствует одной
+  накопительной карточке. Старый кеш перестраивается из неизменного журнала.
+  На сохранённой беседе проверено: 2713 → 4 и 215 → 5 служебных записей,
+  по одной цельной мысли в каждой группе. Остальное — начало/исход хода и usage.
+  В установленной версии мысль выводится готовым ChatContent как Markdown вместо
+  readonly CodeEditor. Оба текста побайтно совпали с native Ollama thinking:
+  12484/919 символов, 15204/1007 bytes, одинаковые SHA-256. Потери данных не было.
+- Вход в комнату вписывает всю её геометрию фронтально через public ViewPoint;
+  проверки покрывают 1/5 агентов, широкий/узкий viewport и точный Back из чата.
+  Live-снимок после Back подтвердил общий фронтальный план комнаты с 8 агентами
+  и HUD участников. Соседние надголовные панели местами перекрываются — это
+  оставшаяся задача размещения T11, а не доказанная полноценная приёмка layout.
+
+Целевые проверки Session/view, Provider и камеры прошли, пять сборок Cosmos
+завершились успешно. Полный Storybook tsc остаётся с четырьмя ошибками вне
+этой правки: fetch.preconnect, два ICE fixture и legacy Timeline.address.
+Не выдавать это за полностью чистую общую проверку Storybook.
+
+Ближайший отдельный дефект настроек: native Ollama отдаёт `context`, но общая
+Session пропускает только известные категории. Нельзя просто убрать фильтр:
+`configure` сейчас записывает любое non-model значение как `thoughtLevel`.
+Нужна отдельная обработка native options с их сохранением. У реального
+`/api/show` этой модели есть capability `thinking`, но нет `thinking.values`;
+текущий Provider поэтому не выдаёт переключатель. Значения не выдумывать.
+Контекст проверенной сессии — 32768, не 8192. Первый короткий ответ занял
+около 3,5 минут; повседневная скорость, cancel и длительная устойчивость ещё
+не приняты. Следующий основной срез — T3 с существующим Session Environment.
+
+Доказательства оператора: `.local/orchestration/2026-10-15/ollama-chat/`,
+`.local/orchestration/2026-10-15/mac-qwen/`,
+`.local/orchestration/2026-10-15/qwen-preview/recovery-proof.json` и
+`.local/oracle-agent-provider/desktop-thought-markdown-0.3.33-result.json`.
+
 ## Покрытие истории и границы проверки
 
 - Текущий чат `01a12dea-06ab-7ad1-9e4f-8f52421dea60`, «Проанализируй сделанное»:
@@ -113,11 +188,12 @@ Oracle/Force как путь канонических изменений. Вто
 |---|---|---|
 | Cosmos sessions | Store Storybook, history, настройки, новые сессии, rename/delete, Cosmos scopes | Повседневная работа с восстановлением всех провайдеров ещё нестабильна |
 | Streaming | Подписки через `/clients/socket`, нет периодического `/agents` и idle history polling; global/room invalidation | Полной согласованной Photon-проекцией всего мира это не является |
-| DeepSeek ACP | Ранее реальный ответ и resume; 21 ACP text chunk, несколько растущих префиксов | Последняя проверка 14 октября завершилась `composer input not ready` |
+| DeepSeek ACP | Ранее реальный ответ и resume; 21 ACP text chunk, несколько растущих префиксов | 15 октября пользователь показал native `Server is temporarily unavailable`; Cosmos сообщил отсутствие полной квитанции. Не переотправлять неопределённый запрос |
 | DeepSeek login | **15 октября Владимир подтвердил обычный чат и выполненный вход** | Проверять конкретный target/диалог и распознавание поля; не просить войти заново без новых данных |
 | Mac preview | API профиля доступен, профиль running; существующий WebRTC путь ранее работал | Последнее наблюдение: `capture-required`, нет sender/кадров. Это отдельный от login и model-turn канал |
 | Qwen ai-srv | Capsule/Provider healthy; ранее получены видео 1920×1080, audio RTP, control ready | Вход и успешный текущий модельный ход не подтверждены; fullscreen keyboard/audio/mic требуют приёмки |
-| Ollama | Реальные установленные модели и работающий API на ai-srv | Cosmos nativeConnect требует `selected.peer`, а ветка Ollama в resolveConfiguredProvider пока запрещает peer; назначение и эти две границы ещё нужно согласовать |
+| Qwen Mac | Реальные ответ и продолжение после stop/prepare в Cosmos, существующий Chrome Studio профиль | Длительная работа, cancel, native preview/audio/mic и независимая проверка OS focus остаются открытыми |
+| Ollama | Назначенный peer, две реальные реплики одной native session через Cosmos, сохранённая история и поток | Native context/thinking controls, cancel и длительная пользовательская приёмка остаются открытыми; Environment tools пока не выданы |
 | Navigation | Через Oracle выполнено room → Qwen fullscreen → back; после открытия BrowserPreview выбор сохранён | Свежий снимок и визуальная приёмка в видимой вкладке остаются открытыми |
 | UI stability | Исправлены disposal CSS-resolution Display, transient-error reset, массовый auto-prepare head chats | Нет длительной измеренной приёмки лагов/памяти на Mac |
 | Fields | Scalar/enum/number[] batch CAS, единый commit, черновики и conflict UI | Произвольный ввод полей не означает готовый deploy нового Codespace |
@@ -184,11 +260,10 @@ Mac preview — `cosmos-placement-core24/mac-deepseek-current-stability-preview.
    текущие правила Project прямо говорят, что MetaFor не входит в его состав.
 6. В текущем Cosmos поддержан `ask`; предавторизованный автономный режим и общий
    бюджет model/tool steps нужно отдельно довести. Не начинать бесконечный loop.
-7. Для Ollama недостаточно добавить строку в настройки: текущие guard условия
-   `nativeConnect` и `resolveConfiguredProvider` не дают общего допустимого пути.
-   Нужно одно доверенное назначение транспорта с проверками identity. Для
-   ai-srv рекомендуется использовать существующий Ollama ACP executor через
-   peer, сохранив legacy локальный driver; это ещё работа в contracts/code/tests.
+7. Для Ollama добавлен допустимый peer route через доверенное private назначение:
+   exact identity, executor и endpoint проверяются до сетевого эффекта.
+   Standalone native driver сохранён как отдельный exact sentinel. Наличие
+   строки в UI без такого назначения не выдаёт доступ к произвольному endpoint.
 
 Первый зачётный сценарий: в одном Cosmos-чате модель получает точные scope,
 revision, правила и catalog; читает один исходник, исправляет небольшой известный
@@ -207,7 +282,7 @@ T4 → T5**. T1 восстанавливает уже авторизованны
 | ID | Приоритет и владелец | Следующий конкретный результат | Проверка готовности |
 |---|---|---|---|
 | T1 | P0 — Provider/Chrome Studio consumer | Восстановить DeepSeek на уже авторизованном профиле: точный target, существующий диалог, видимый composer; отдельно sender preview | Две последовательные реплики, повторное открытие той же сессии, история и native identity сохранены, неизвестный исход не повторён |
-| T2 | P0 — Provider/Cosmos | Подключить существующий Ollama ACP executor на ai-srv через доверенный peer; один небольшой установленный model | Выбор в текущем UI, реальный ответ, streaming/cancel/resume; ноль изменений browser profiles, одна загруженная GPU-модель |
+| T2 | P0 — Provider/Cosmos | Text/stream/resume подключены; закончить native settings и cancel acceptance | Две реплики и identity уже подтверждены; остаются отмена и повторное использование через UI; одна GPU-модель, профили браузера сохранены |
 | T3 | P0 — Cosmos + публичный Session Environment | Выдать назначенную среду одной сессии: один source package, read/list/diff, hash-checked patch, одна проверка | Реальные tool cards и полный первый цикл разработки; чужой path, stale revision и отменённое разрешение дают ноль эффекта |
 | T4 | P0 — владельцы Session/Environment | Лимит model/tool шагов, дедупликация эффектов, явный failed/unknown/retry, управляемая pending очередь | Разрыв до отправки, после принятия и во время tool: ни дублирования prompt/patch, ни вечного скрытого ожидания; закрытие viewer не отменяет модель |
 | T5 | P1 — Cosmos/Provider UI | Рабочий операторский путь: создать агент → session/provider → вход → сообщение → инструменты → stop/recover | Только UI MetaFor, без ручного HTTP/Bun оператором; видимые состояния service/login/model/stream/capture различаются |
