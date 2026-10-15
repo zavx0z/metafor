@@ -84,7 +84,9 @@ export function createRoutedPeerNetwork(options: RoutedPeerNetworkOptions): Peer
   const stop = (link: Logical, reason = new Error("Routed peer link closed"), notify = true) => {
     if (links.get(link.peerId) !== link) return
     links.delete(link.peerId)
-    if (hasRelay(link.peerId)) void options.bootstrap.sendRelay(link.peerId, JSON.stringify({kind: "bye", generation: link.generation}), options.dataChannels ? defaultLane : "peer:control").catch(() => {})
+    const notification = hasRelay(link.peerId)
+      ? options.bootstrap.sendRelay(link.peerId, JSON.stringify({kind: "bye", generation: link.generation}), options.dataChannels ? defaultLane : "peer:control").catch(() => {})
+      : Promise.resolve()
     clearTimeout(link.timer)
     for (const lane of link.lanes.values()) {
       clearTimeout(lane.receiver?.timer)
@@ -96,6 +98,7 @@ export function createRoutedPeerNetwork(options: RoutedPeerNetworkOptions): Peer
     retired.add(link.generation)
     if (retired.size > 256) retired.delete(retired.values().next().value!)
     if (notify) emit()
+    return notification
   }
   const make = (peerId: string, generation: string) => {
     if (closed) throw new Error("Peer network is closed")
@@ -363,7 +366,7 @@ export function createRoutedPeerNetwork(options: RoutedPeerNetworkOptions): Peer
       disposeData()
       disposeDirect()
       disposeRoster()
-      for (const link of links.values()) stop(link)
+      await Promise.all([...links.values()].map(link => stop(link)))
       await direct.close()
       dataListeners.clear()
       listeners.clear()
