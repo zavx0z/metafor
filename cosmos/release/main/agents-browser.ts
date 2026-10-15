@@ -6,8 +6,9 @@ import {AGENT_BROWSER_SCHEMA, type AgentBrowserBootstrap} from "../shared/agents
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
 const same = (a: ProviderBinding, b: ProviderBinding) => ["id", "service", "host", "remotePeerId", "executorId", "assignmentId"].every(key => a[key as keyof ProviderBinding] === b[key as keyof ProviderBinding])
 function description(value: unknown): BrowserPeerDescription {
-  if (!object(value) || Object.keys(value).some(key => !["instanceId", "profile", "controlEnabled", "media", "target"].includes(key)) ||
+  if (!object(value) || Object.keys(value).some(key => !["instanceId", "profile", "controlEnabled", "screenshotProvider", "media", "target"].includes(key)) ||
     typeof value.instanceId !== "string" || !value.instanceId || typeof value.profile !== "string" || !value.profile || typeof value.controlEnabled !== "boolean") throw new Error("Недоступна identity браузера")
+  if (value.screenshotProvider !== undefined && typeof value.screenshotProvider !== "boolean") throw new Error("Недоступна native PNG capability")
   const media = value.media
   if (media !== undefined && (!object(media) || Object.keys(media).length !== 2 || typeof media.audio !== "boolean" ||
     ![null, "data-channel", "rtp"].includes(media.microphoneTransport as string | null))) throw new Error("Недоступны возможности медиа")
@@ -52,7 +53,7 @@ export async function connectAgentBrowser(input: {agentRef: string | null, provi
     selection.signal?.throwIfAborted()
   }
   const client: BrowserPeerClient = {
-    ...(bootstrap.screenshotProvider ? {screenshotProvider(selection: BrowserPeerSelection & {instanceId: string; profile: string}): BrowserPeerScreenshotSocket {
+    ...(bootstrap.screenshotProvider === true && initial.screenshotProvider === true ? {screenshotProvider(selection: BrowserPeerSelection & {instanceId: string; profile: string}): BrowserPeerScreenshotSocket {
       check(selection)
       if (selection.instanceId !== initial.instanceId || selection.profile !== initial.profile) throw new Error("Screenshot selection вне назначенного profile")
       const endpoint = new URL(url.href + "/screenshot")

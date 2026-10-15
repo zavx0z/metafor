@@ -101,7 +101,7 @@ export function createAgentBrowserBridge(options: {peer: Pick<OracleRpcPeer, "ca
           const {ticket, instanceId, profile} = Object.fromEntries(url.searchParams)
           if (!id(ticket) || !id(instanceId) || !profile || profile.length > 128 || /[\u0000-\u001f\u007f]/u.test(profile)) return failure(400)
           const lease = requireLease({ticket}), current = await describe(lease)
-          if (lease.screenshotSocket || lease.screenshot || !lease.native.client.screenshotProvider || current.instanceId !== instanceId || current.profile !== profile) return failure()
+          if (lease.screenshotSocket || lease.screenshot || current.screenshotProvider !== true || !lease.native.client.screenshotProvider || current.instanceId !== instanceId || current.profile !== profile) return failure()
           return host.upgrade(request, {data: {kind: "agent-browser-screenshot", ticket, instanceId, profile}}) ? undefined : failure(426)
         }
         if (url.pathname === `${AGENT_BROWSER_PATH}/socket`) {
@@ -137,7 +137,7 @@ export function createAgentBrowserBridge(options: {peer: Pick<OracleRpcPeer, "ca
             extend(acquired)
             const description = await describe(acquired)
             return Response.json({schema: AGENT_BROWSER_SCHEMA, version: 1, ticket, expiresAt: acquired.expiresAt, binding: selected, description,
-              screenshotProvider: typeof acquired.native.client.screenshotProvider === "function",
+              screenshotProvider: description.screenshotProvider === true && typeof acquired.native.client.screenshotProvider === "function",
               iceServers: structuredClone(options.iceServers ?? [{urls: "stun:stun.l.google.com:19302"}])} satisfies AgentBrowserBootstrap, {headers: {"cache-control": "no-store"}})
           } catch (error) {if (lease) await close(lease); else await native?.close(); throw error}
           finally {pending.delete(controller); request.signal.removeEventListener("abort", abort)}
@@ -168,7 +168,7 @@ export function createAgentBrowserBridge(options: {peer: Pick<OracleRpcPeer, "ca
           lease.screenshotBytes = 0
           void (async () => {
             const current = await describe(lease)
-            if (current.instanceId !== selected.instanceId || current.profile !== selected.profile || lease.screenshotSocket !== socket) throw new Error("Screenshot profile changed")
+            if (current.screenshotProvider !== true || current.instanceId !== selected.instanceId || current.profile !== selected.profile || lease.screenshotSocket !== socket) throw new Error("Screenshot profile or native capability changed")
             const native = lease.native.client.screenshotProvider!({peerId: lease.binding.remotePeerId, executorId: lease.binding.executorId,
               instanceId: selected.instanceId, profile: selected.profile, signal: lease.controller.signal})
             lease.screenshot = native

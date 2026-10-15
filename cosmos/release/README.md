@@ -315,6 +315,8 @@ Scene разрешает выбор в текущем назначенном Ver
 Browser preview использует выданный Agent/Provider ticket. Дополнительный
 screenshot socket того же ticket закреплён к фактическим profile и instance;
 он передаёт ограниченные Capsule metadata и PNG bytes отдельным каналом.
+Канал доступен только при явно подтверждённой native возможности в описании
+Provider; наличие общего метода клиента само по себе её не выдаёт.
 Освобождение screenshot socket сохраняет RTC viewer, освобождение ticket
 закрывает оба. Native endpoint и credentials остаются у Provider host.
 

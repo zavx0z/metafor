@@ -6,7 +6,7 @@ import {createAgentBrowserBridge, type AgentBrowserSocketData} from "../server/a
 import type {AgentBrowserBootstrap} from "../shared/agents-browser"
 
 const binding = {id: "chatgpt-codespace", service: "chatgpt", host: "codespace", remotePeerId: "remote", executorId: "browser", assignmentId: "assigned"}
-function fixture(lifetimeMs?: number, screenshot = false, iceServers?: AgentBrowserBootstrap["iceServers"]) {
+function fixture(lifetimeMs?: number, screenshot = false, iceServers?: AgentBrowserBootstrap["iceServers"], screenshotCapability: boolean | "legacy" = screenshot) {
   const entry: ProviderCatalogEntry = {...binding, source: {kind: "native-bootstrap", assignmentId: "assigned", remoteGraph: "unknown"}, resolution: "exact", connection: "connected",
     capabilities: {modelTurn: true, browserPreview: true, browserControl: true}, checks: {status: "unknown", checkedAt: 1, message: null}}
   const registry: ProviderRegistry = {schema: "metafor/provider-registry/v1", version: 1, revision: 1, settings: {selectedId: entry.id}, entries: [entry], observations: [], requests: [], members: [],
@@ -34,7 +34,8 @@ function fixture(lifetimeMs?: number, screenshot = false, iceServers?: AgentBrow
       expect(selected).toEqual(binding)
       signal.throwIfAborted()
       return {async close() {closes++}, client: {
-        async describe(selection) {expect(selection).toMatchObject({peerId: "remote", executorId: "browser"}); return {instanceId: "instance", profile: screenshotProfile, controlEnabled: true, media: {audio: true, microphoneTransport: "rtp"}}},
+        async describe(selection) {expect(selection).toMatchObject({peerId: "remote", executorId: "browser"}); return {instanceId: "instance", profile: screenshotProfile, controlEnabled: true,
+          ...(screenshotCapability === "legacy" ? {} : {screenshotProvider: screenshotCapability}), media: {audio: true, microphoneTransport: "rtp"}}},
         async close() {},
         ...(screenshot ? {screenshotProvider(selection: {peerId: string; executorId: string; instanceId: string; profile: string}): BrowserPeerScreenshotSocket {
           expect(selection).toMatchObject({peerId: "remote", executorId: "browser", instanceId: "instance", profile: screenshotProfile})
@@ -122,6 +123,20 @@ test("short ticket expiry releases the acquired viewer without any model or muta
     expect((await f.request("describe", {ticket: lease.ticket})).status).toBe(409)
     expect(f.closes()).toBe(1)
     expect(f.calls.every(method => method === "readGraph" || method === "energy.mass.result.read")).toBe(true)
+  } finally {await f.close()}
+})
+
+test.each([false, "legacy"] as const)("generic screenshot method не выдаёт PNG capability при native description %s", async capability => {
+  const f = fixture(undefined, true, undefined, capability)
+  try {
+    const lease = await (await f.request("bootstrap", selection)).json() as AgentBrowserBootstrap
+    expect(lease.screenshotProvider).toBeFalse()
+    expect(lease.description).toMatchObject({controlEnabled: true, media: {audio: true, microphoneTransport: "rtp"}})
+    const endpoint = `${f.origin}/agents/browser/screenshot?${new URLSearchParams({ticket: lease.ticket, instanceId: "instance", profile: "actual-profile"})}`
+    expect((await fetch(endpoint, {headers: {Origin: f.origin}})).status).toBe(409)
+    expect(f.screenshotPayloads).toEqual([])
+    expect(f.closes()).toBe(0)
+    expect((await f.request("describe", {ticket: lease.ticket})).status).toBe(200)
   } finally {await f.close()}
 })
 

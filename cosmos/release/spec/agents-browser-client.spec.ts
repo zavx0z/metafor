@@ -3,7 +3,7 @@ import {connectAgentBrowser} from "../main/agents-browser"
 const binding = {id: "chatgpt", service: "chatgpt", host: "codespace", remotePeerId: "remote", executorId: "browser"}
 function fixture(screenshot = false) {
   const calls: Array<{url: string, method: string, body: unknown}> = []
-  let descriptor: unknown = {instanceId: "instance", profile: "actual-profile", controlEnabled: true, media: {audio: true, microphoneTransport: "rtp"}}
+  let descriptor: unknown = {instanceId: "instance", profile: "actual-profile", controlEnabled: true, screenshotProvider: screenshot, media: {audio: true, microphoneTransport: "rtp"}}
   let selected = binding
   const fetcher = async (url: RequestInfo | URL, init?: RequestInit) => {
     calls.push({url: String(url), method: init?.method ?? "GET", body: JSON.parse(init?.body as string)})
@@ -45,6 +45,18 @@ test("unknown media remains absent and invalid/mismatched bootstrap releases its
   invalid.changeDescription({instanceId: "instance", profile: "actual", controlEnabled: true, media: {audio: true, microphoneTransport: "invented"}})
   await expect(connectAgentBrowser(invalid.input)).rejects.toThrow()
   expect(invalid.calls.filter(call => call.method === "DELETE")).toHaveLength(1)
+})
+
+test.each([false, undefined])("Window не создаёт PNG facade без явной native capability %s, сохраняя RTC/media", async capability => {
+  const f = fixture(true)
+  f.changeDescription({instanceId: "instance", profile: "actual-profile", controlEnabled: true,
+    ...(capability === undefined ? {} : {screenshotProvider: capability}), media: {audio: true, microphoneTransport: "rtp"}})
+  const connection = await connectAgentBrowser(f.input)
+  try {
+    expect(connection.client.screenshotProvider).toBeUndefined()
+    expect(typeof connection.client.socket).toBe("function")
+    expect(connection.media).toEqual({audio: true, microphoneTransport: "rtp"})
+  } finally {await connection.client.close()}
 })
 
 test("screenshot facade exposes only an advertised exact-profile same-origin ticket and releases binary sockets on close", async () => {
