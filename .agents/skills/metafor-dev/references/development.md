@@ -448,8 +448,50 @@ installed-контур выбирается через `COSMOS_RELEASE_STORE`: �
 запуск получает явно назначенный `COSMOS_RELEASE_DIGEST`; последующие читают
 единственный сохранённый active. `PORT` задаёт рабочий вход.
 
+`metafor activate <digest>` явно выбирает уже подготовленного кандидата, а
+`metafor downgrade` выбирает предыдущую успешную активацию. Обе команды используют
+один живой operator endpoint и существующий serialized startup handover.
+Одноразовый selection содержит точный store root и ожидаемые active/revision;
+startup повторяет CAS перед handover. При недоступном management API CLI допускает
+только cold start через dispatcher и launcher lock, не вызывает implicit stop.
+Живой legacy launcher с прежним коротким termination budget сначала останавливается
+явным `metafor stop-release <Core-PID>` по текущему `release:` из status. Этот
+узкий dispatcher mode проверяет selected installed artifact, store cwd,
+managed TTY, UID, birth identity и единственный HTTP listener. Единственный TERM
+получает Core; launcher и домены не сигналятся. Режим ждёт natural parent/tree
+exit до общего deadline 90 секунд и не выполняет автоматический restart.
+CLI привязывает HTTP owner к точному local store через opaque SHA-256 его
+canonical root в `X-Cosmos-Store-Identity`: сверяет GET и передаёт identity в
+POST, который проверяет её до эффекта. Этот header не заменяет local operator
+guard и не раскрывает host path в browser snapshot.
+Обычный restart не повторяет этот selection и не читает bootstrap digest поверх
+сохранённого active. CLI проверяет новый digest через server response и receipt.
+
+Installed activation schema 2 сохраняет selection revision и последние 32
+различных successful digests в порядке admission. Schema 1 читается с пустой
+историей; первый свежий успешный запуск создаёт baseline. Только startup после
+`admitted` добавляет success. Контракт `@cosmos/release` public artifact
+`./persisted-state.json` имеет `{version: 1, compatibilityLine}`. Downgrade
+проверяет равенство явной линии текущего и предыдущего выпусков и линии его
+success receipt. Missing legacy contract не выводится из semver или prepared
+candidate. Первому поддерживающему выпуску нужен fresh admission, следующему
+совместимому — ещё один, прежде чем появится подтверждённый predecessor.
+
+HUD использует отдельный локальный `GET/POST /release/manage` с same-origin и
+loopback operator guard. Read-only snapshot не содержит credentials или host
+paths. POST передаёт operationId, kind, target и expected active/revision; `202`
+означает HTTP-приём до handover. Core отправляет один intent существующему startup
+по IPC, не запускает CLI. Startup повторяет CAS и same-line gate для обеих UI
+операций, сохраняет running/complete/failed receipt в той же activation record.
+Только явный CLI installer может назначить новую подготовленную версию другой
+линии. Возврат уже исполнявшегося digest или понижение package version через
+`activate` также требует совместимости и не обходит downgrade gate.
+Если HTTP-приём потерян до startup receipt, UI сохраняет unknown outcome и не
+повторяет POST. При следующем явном cold start незавершённый receipt становится
+failed, а его mutation автоматически не повторяется.
+
 Dispatcher узнаёт установленный release по точному server artifact выбранного
-active либо явно настроенного candidate через публичный installed store API.
+active, а до первой активации — явно настроенного candidate через публичный installed store API.
 Процесс должен одновременно принадлежать managed parent и быть единственным
 HTTP listener назначенного порта. Quantum children с тем же executable не
 становятся отдельными release hosts; произвольный `server.js` не принимается.

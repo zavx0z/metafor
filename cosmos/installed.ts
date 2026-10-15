@@ -1,8 +1,9 @@
-import {mkdir} from "node:fs/promises"
+import {mkdir, realpath} from "node:fs/promises"
 import {Database} from "bun:sqlite"
 import {join, resolve} from "node:path"
 import {createInstalledReleaseStore} from "@metafor/tech-release/installed"
 import {observeServerRelease, ServerStartupCleanupError, startStagedServerRelease, type ServerProcessCandidate} from "@cosmos/startup"
+import {readInstalledStateCompatibility, verifyInstalledReleaseSelection, type InstalledReleaseSelection} from "./selection"
 
 export interface InstalledCosmosOptions {
   /** Cancels initial startup; runInstalledCosmos also stops its active host on abort. */
@@ -10,6 +11,8 @@ export interface InstalledCosmosOptions {
   readonly storeRoot: string
   /** Первый явно назначенный кандидат, когда active ещё не записан. */
   readonly initialDigest?: string
+  /** Одноразовый явный выбор оператора; обычный restart читает durable active. */
+  readonly selection?: InstalledReleaseSelection
   readonly port?: number
   /** Bounded owned-release shutdown; omitted retains startup's existing default. */
   readonly terminationTimeoutMs?: number
@@ -33,10 +36,17 @@ export async function startInstalledCosmos(options: InstalledCosmosOptions) {
   const store = createInstalledReleaseStore({root})
   try {
     options.signal?.throwIfAborted()
-    const digest = options.initialDigest ?? (await store.readActive())?.digest
+    let activation = await store.readActivation()
+    if (options.selection) await verifyInstalledReleaseSelection(root, options.selection)
+    if (activation?.operation?.state === "running") {
+      activation = await store.recordOperation({...activation.operation, state: "failed", error: "Previous startup ended before confirming the operation"}, activation)
+    }
+    const digest = options.selection?.target ?? activation?.digest ?? options.initialDigest
     if (!digest) throw new Error("Installed Cosmos requires an explicit initial candidate or active release")
+    const compatibility = new Map<string, string | null>()
     const resolveCandidate = async (target: string): Promise<ServerProcessCandidate> => {
       const {graph} = await store.verifyCandidate(target)
+      compatibility.set(target, await readInstalledStateCompatibility(store, target))
       const member = graph.packages.find(item => item.name === "@cosmos/release")
       const output = member?.environments.find(item => item.env === "server")?.outputs.find(item => item.artifact === "." && item.kind === "entry-point")
       if (!member || !output) throw new Error("Installed Cosmos server entry is missing")
@@ -53,6 +63,7 @@ export async function startInstalledCosmos(options: InstalledCosmosOptions) {
             PORT: String(options.port ?? 4444),
             COSMOS_STATIC_ROOT: options.staticRoot ? resolve(options.staticRoot) : undefined,
             COSMOS_CONTROL_TOKEN: options.controlToken,
+            COSMOS_RELEASE_SELECTION: undefined,
           },
           readyTimeoutMs: 120_000,
           ...(options.terminationTimeoutMs === undefined ? {} : {terminationTimeoutMs: options.terminationTimeoutMs}),
@@ -65,7 +76,33 @@ export async function startInstalledCosmos(options: InstalledCosmosOptions) {
       async commitCandidate(candidate) {
         const target = candidate.context.env?.COSMOS_RELEASE_DIGEST
         if (!target) throw new Error("Installed Cosmos candidate identity is missing")
-        await store.commitActive(target)
+        await store.commitActive(target, {digest: activation?.digest ?? null, revision: activation?.revision ?? 0})
+        activation = await store.readActivation()
+      },
+      async confirmCandidate(candidate) {
+        const target = candidate.context.env?.COSMOS_RELEASE_DIGEST
+        if (!target || !activation) throw new Error("Installed Cosmos activation is missing")
+        activation = await store.confirmActive(target, compatibility.get(target) ?? null, activation)
+      },
+      async beginSelection(request) {
+        if (!request.selection || !activation) throw new Error("Installed selection is unavailable")
+        const previous = activation.operation
+        if (previous?.id === request.requestId) {
+          if (previous.target !== request.target || previous.kind !== request.selection.kind ||
+              previous.expected.digest !== request.selection.expected.digest || previous.expected.revision !== request.selection.expected.revision)
+            throw new Error("Installed operation identity was reused for another selection")
+          if (previous.state === "complete") return false
+          throw new Error(previous.error ?? "Installed operation is already running")
+        }
+        const selection: InstalledReleaseSelection = {storeRoot: await realpath(root), target: request.target, ...request.selection}
+        await verifyInstalledReleaseSelection(root, selection, {compatible: true})
+        activation = await store.recordOperation({id: request.requestId, target: request.target, ...request.selection, state: "running"}, activation)
+        return true
+      },
+      async finishSelection(request, error) {
+        if (!activation?.operation || activation.operation.id !== request.requestId) throw new Error("Installed operation identity changed")
+        activation = await store.recordOperation({...activation.operation, state: error ? "failed" : "complete",
+          ...(error ? {error: error.message.slice(0, 2000) || "Release selection failed"} : {})}, activation)
       },
     })
     let destroying: Promise<void> | undefined

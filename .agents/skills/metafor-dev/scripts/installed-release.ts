@@ -13,7 +13,7 @@ export async function configuredInstalledReleaseArtifacts(cosmos: string, enviro
   const active = await store.readActive()
   const candidates = active ? [active] : []
   const configuredDigest = environment.COSMOS_RELEASE_DIGEST
-  if (configuredDigest && configuredDigest !== active?.digest) {
+  if (configuredDigest && !active) {
     const selected = await store.readCandidate(configuredDigest)
     if (!selected) throw new Error("Configured installed release candidate is unavailable")
     candidates.push(selected)

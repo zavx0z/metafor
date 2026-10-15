@@ -21,6 +21,38 @@ export interface InstalledReleaseCandidate {
   readonly graph: PublishedReleaseGraph
 }
 
+/** Успешное admission, подтверждённое startup; подготовленный candidate не создаёт эту запись. */
+export interface InstalledReleaseSuccess {
+  readonly digest: string
+  /** Явный контракт сохранённых данных потребителя; null не разрешает downgrade. */
+  readonly compatibility: string | null
+}
+
+/** Один атомарный выбор и ограниченная история завершённых активаций того же installed root. */
+export interface InstalledReleaseActivation {
+  readonly schemaVersion: 2
+  readonly revision: number
+  readonly digest: string
+  readonly successful: readonly InstalledReleaseSuccess[]
+  readonly operation?: InstalledReleaseOperation
+}
+
+/** Последнее явное намерение startup; это receipt выбора кода, не журнал мира. */
+export interface InstalledReleaseOperation {
+  readonly id: string
+  readonly kind: "activate" | "downgrade"
+  readonly target: string
+  readonly expected: InstalledReleaseExpectation
+  readonly state: "running" | "complete" | "failed"
+  readonly error?: string
+}
+
+/** CAS защищает также от A → B → A между чтением и решением оператора. */
+export interface InstalledReleaseExpectation {
+  readonly digest: string | null
+  readonly revision: number
+}
+
 export interface InstalledReleaseStoreOptions {
   /** Единственный явно предоставленный корень installed storage; не source checkout. */
   readonly root: string
@@ -296,21 +328,88 @@ export function createInstalledReleaseStore(options: InstalledReleaseStoreOption
     return path
   }
 
-  /** Только startup вызывает commit после проверки кандидата; prepare active не меняет. */
-  async function commitActive(digest: string) {
+  /**
+  Только startup под exclusive launcher lock фиксирует готовый candidate.
+  Все activation writers используют один атомарно заменяемый record. Commit до
+  admission ещё не добавляет успешную активацию; legacy record не получает
+  выдуманную историю. CAS проверяется повторно перед записью.
+  */
+  async function commitActive(digest: string, expected?: InstalledReleaseExpectation) {
     return await serialize(async () => {
       const selected = await verifyCandidate(digest)
-      await write(join(await root(), "active.json"), Buffer.from(JSON.stringify({schemaVersion: 1, digest})), false)
+      const current = await readActivation()
+      expectActivation(current, expected)
+      if (current?.digest !== digest) await writeActivation({schemaVersion: 2, digest,
+        revision: (current?.revision ?? 0) + 1, successful: current?.successful ?? [],
+        ...(current?.operation ? {operation: current.operation} : {})})
       return selected
     })
   }
 
-  async function readActive() {
-    const bytes = await read(join(await root(), "active.json"), 256)
+  /** Читает выбор без исполнения кода; schema 1 сохраняет пустую историю подтверждений. */
+  async function readActivation(): Promise<InstalledReleaseActivation | null> {
+    const bytes = await read(join(await root(), "active.json"), 16 * 1024)
     if (!bytes) return null
     const value = JSON.parse(Buffer.from(bytes).toString())
-    if (!value || Object.keys(value).sort().join() !== "digest,schemaVersion" || value.schemaVersion !== 1 || !isReleaseDigest(value.digest))
+    if (value && Object.keys(value).sort().join() === "digest,schemaVersion" && value.schemaVersion === 1 && isReleaseDigest(value.digest))
+      return {schemaVersion: 2, digest: value.digest, revision: 0, successful: []}
+    if (!value || !["digest,revision,schemaVersion,successful", "digest,operation,revision,schemaVersion,successful"].includes(Object.keys(value).sort().join()) || value.schemaVersion !== 2 ||
+      !isReleaseDigest(value.digest) || !Number.isSafeInteger(value.revision) || value.revision < 1 ||
+      !Array.isArray(value.successful) || value.successful.length > 32 || value.successful.some((entry: unknown) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return true
+        const item = entry as Record<string, unknown>
+        return Object.keys(item).sort().join() !== "compatibility,digest" || !isReleaseDigest(item.digest) ||
+          item.compatibility !== null && (typeof item.compatibility !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,179}$/.test(item.compatibility))
+      }) || new Set(value.successful.map((entry: InstalledReleaseSuccess) => entry.digest)).size !== value.successful.length ||
+      value.operation !== undefined && !validOperation(value.operation))
       throw new Error("Invalid active installed release")
+    return value as InstalledReleaseActivation
+  }
+
+  /** Только startup вызывает после admitted; ошибка не превращает candidate в successful. */
+  async function confirmActive(digest: string, compatibility: string | null, expected: InstalledReleaseExpectation) {
+    if (compatibility !== null && !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,179}$/.test(compatibility))
+      throw new Error("Invalid installed state compatibility")
+    return await serialize(async () => {
+      const current = await readActivation()
+      expectActivation(current, expected)
+      if (!current || current.digest !== digest) throw new Error("Installed activation changed before admission confirmation")
+      const first = current.successful[0]
+      if (first?.digest === digest && first.compatibility === compatibility) return current
+      const next: InstalledReleaseActivation = {schemaVersion: 2, digest, revision: current.revision + 1,
+        successful: [{digest, compatibility}, ...current.successful.filter(entry => entry.digest !== digest)].slice(0, 32),
+        ...(current.operation ? {operation: current.operation} : {})}
+      await writeActivation(next)
+      return next
+    })
+  }
+
+  async function writeActivation(value: InstalledReleaseActivation) {
+    if (!Number.isSafeInteger(value.revision)) throw new Error("Installed activation revision exhausted")
+    await write(join(await root(), "active.json"), Buffer.from(JSON.stringify(value)), false)
+  }
+
+  /** Startup под своим lock сохраняет receipt в той же atomic activation, без отдельного registry. */
+  async function recordOperation(operation: InstalledReleaseOperation, expected: InstalledReleaseExpectation) {
+    if (!validOperation(operation)) throw new Error("Invalid installed release operation")
+    return await serialize(async () => {
+      const current = await readActivation()
+      expectActivation(current, expected)
+      if (!current) throw new Error("Installed operation requires an active release")
+      const next: InstalledReleaseActivation = {...current, revision: current.revision + 1, operation}
+      await writeActivation(next)
+      return next
+    })
+  }
+
+  function expectActivation(current: InstalledReleaseActivation | null, expected?: InstalledReleaseExpectation) {
+    if (expected && ((current?.digest ?? null) !== expected.digest || (current?.revision ?? 0) !== expected.revision))
+      throw new Error("Installed activation changed; read the current release before retrying")
+  }
+
+  async function readActive() {
+    const value = await readActivation()
+    if (!value) return null
     return await verifyCandidate(value.digest)
   }
 
@@ -340,7 +439,20 @@ export function createInstalledReleaseStore(options: InstalledReleaseStoreOption
     try { return await running } finally { if (queues.get(key) === running) queues.delete(key) }
   }
 
-  return {prepare, readCandidate: candidate, verifyCandidate, artifactPath, commitActive, readActive, listCandidates}
+  return {prepare, readCandidate: candidate, verifyCandidate, artifactPath, commitActive, confirmActive, recordOperation, readActivation, readActive, listCandidates}
+}
+
+function validOperation(value: unknown): value is InstalledReleaseOperation {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const item = value as Record<string, unknown>
+  const expected = item.expected as Record<string, unknown> | null
+  return ["expected,id,kind,state,target", "error,expected,id,kind,state,target"].includes(Object.keys(item).sort().join()) &&
+    typeof item.id === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,179}$/.test(item.id) &&
+    (item.kind === "activate" || item.kind === "downgrade") && isReleaseDigest(item.target) &&
+    (item.state === "running" || item.state === "complete" || item.state === "failed") &&
+    (item.error === undefined || item.state === "failed" && typeof item.error === "string" && item.error.length > 0 && item.error.length <= 2000) &&
+    !!expected && typeof expected === "object" && !Array.isArray(expected) && Object.keys(expected).sort().join() === "digest,revision" &&
+    (expected.digest === null || isReleaseDigest(expected.digest)) && Number.isSafeInteger(expected.revision) && Number(expected.revision) >= 0
 }
 
 function outputs(graph: PublishedReleaseGraph) {

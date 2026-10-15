@@ -11,6 +11,12 @@ export interface ServerStagedStartupOptions {
   readonly initialTarget?: string
   readonly resolveCandidate?: (target: string) => Promise<ServerProcessCandidate>
   readonly commitCandidate?: (candidate: ServerProcessCandidate) => Promise<void>
+  /** Подтверждает успешное admission отдельно от durable выбора до него. */
+  readonly confirmCandidate?: (candidate: ServerProcessCandidate) => Promise<void>
+  /** Установленный owner проверяет и записывает операторский intent до lifecycle; false означает уже завершённый повтор. */
+  readonly beginSelection?: (request: ServerProcessHandoverRequest) => Promise<boolean>
+  /** Сохраняет исход того же intent; ошибка не выбирает другой выпуск. */
+  readonly finishSelection?: (request: ServerProcessHandoverRequest, error?: Error) => Promise<void>
 }
 
 /** Последняя наблюдаемая попытка; failed после unbind не означает возврат старого listener. */
@@ -64,7 +70,7 @@ export async function startStagedServerRelease(
   const cancellation = new AbortController()
   const signal = options.signal ? AbortSignal.any([options.signal, cancellation.signal]) : cancellation.signal
   signal.throwIfAborted()
-  const requests = new WeakMap<StagedProcess, Map<string, {target: string; result: Promise<ServerProcessHandoverResult>}>>()
+  const requests = new WeakMap<StagedProcess, Map<string, {target: string; selection: string; result: Promise<ServerProcessHandoverResult>}>>()
   const completion = deferred<PackageExit>()
   let current: StagedProcess | null = null
   let currentTarget = initial.context.env?.COSMOS_RELEASE_DIGEST
@@ -83,6 +89,7 @@ export async function startStagedServerRelease(
     await commitCandidate(initial)
     signal.throwIfAborted()
     await boot.command("admit", "admitted", launchId)
+    await options.confirmCandidate?.(initial)
     current = boot
   } catch (error) {
     try { await remove(boot) }
@@ -132,8 +139,20 @@ export async function startStagedServerRelease(
     return enqueue(target)
   }
 
-  function enqueue(target: string, candidate?: ServerProcessCandidate): Promise<void> {
-    const operation = queue.then(() => replace(target, candidate))
+  function enqueue(target: string, candidate?: ServerProcessCandidate, request?: ServerProcessHandoverRequest): Promise<void> {
+    const operation = queue.then(async () => {
+      if (request?.selection) {
+        if (!options.beginSelection || !options.finishSelection) throw new Error("Operator release selection is unavailable")
+        if (!await options.beginSelection(request)) return
+      }
+      try {
+        await replace(target, candidate)
+      } catch (error) {
+        if (request?.selection) await options.finishSelection!(request, error instanceof Error ? error : new Error(String(error)))
+        throw error
+      }
+      if (request?.selection) await options.finishSelection!(request)
+    })
     queue = operation.then(() => undefined, () => undefined)
     return operation
   }
@@ -177,6 +196,7 @@ export async function startStagedServerRelease(
       setPhase("admitting")
       await next.command("admit", "admitted", transitionId)
       admitted = true
+      await options.confirmCandidate?.(candidate)
       for (const [requestId, accepted] of requests.get(previous) ?? []) {
         if (accepted.target === target) previous.send({type: "handover-result", requestId, success: true})
       }
@@ -239,20 +259,20 @@ export async function startStagedServerRelease(
       sender.send({type: "handover-result", requestId: request.requestId, success: false, error: "Only the active server release may request handover"})
       return
     }
-    const previous = requests.get(sender) ?? new Map<string, {target: string; result: Promise<ServerProcessHandoverResult>}>()
+    const previous = requests.get(sender) ?? new Map<string, {target: string; selection: string; result: Promise<ServerProcessHandoverResult>}>()
     requests.set(sender, previous)
     let accepted = previous.get(request.requestId)
-    if (accepted && accepted.target !== request.target) {
+    if (accepted && (accepted.target !== request.target || accepted.selection !== JSON.stringify(request.selection ?? null))) {
       sender.send({type: "handover-result", requestId: request.requestId, success: false, error: "Handover request identity was reused for another target"})
       return
     }
     if (!accepted) {
-      const result = handover(request.target).then<ServerProcessHandoverResult, ServerProcessHandoverResult>(
+      const result = enqueue(request.target, undefined, request).then<ServerProcessHandoverResult, ServerProcessHandoverResult>(
         () => ({type: "handover-result", requestId: request.requestId, success: true}),
         error => ({type: "handover-result", requestId: request.requestId, success: false,
           error: error instanceof Error ? error.message : String(error)}),
       )
-      accepted = {target: request.target, result}
+      accepted = {target: request.target, selection: JSON.stringify(request.selection ?? null), result}
       previous.set(request.requestId, accepted)
     }
     void accepted.result.then(result => sender.send(result)).catch(() => {})

@@ -337,3 +337,44 @@ test("explicit browser opening singleflights missing admission and uses the newl
     expect(opened).toBe(2)
   } finally {viewer.abort(); scope.abort(); globalThis.fetch = originalFetch}
 })
+
+test("shared profile Save callbacks retain exact registry binding and native instance without profile-name/host inference", async () => {
+  const {createProviderRegistry} = await import("@metafor/types/metafor/provider-validation")
+  const binding = {id: "assigned-browser", service: "qwen", host: "server-with-no-name-heuristic", remotePeerId: "exact-peer", executorId: "exact-executor", assignmentId: "native-assignment"}
+  const registry = createProviderRegistry([{...binding, source: {kind: "native-bootstrap", assignmentId: binding.assignmentId, remoteGraph: "unknown"}, resolution: "exact", connection: "connected", capabilities: {modelTurn: true, browserPreview: true, browserControl: true}, checks: {status: "unknown", checkedAt: 1, message: null}}])
+  const catalog = {profiles: [{name: "same-native-name", saves: [], canOpen: false}], current: {name: "same-native-name", saveId: null, active: true, instanceId: "exact-instance"}, capabilities: {open: false, save: true}}
+  const originalFetch = globalThis.fetch, requests: Record<string, unknown>[] = []
+  let foreign = false
+  try {
+    globalThis.fetch = Object.assign(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(url).toBe("/agents/browser/profile")
+      const request = JSON.parse(String(init?.body)); requests.push(request)
+      expect(request).toMatchObject({providerRef: "atom:4", entryId: binding.id})
+      expect(request).not.toHaveProperty("profile")
+      return Response.json({schema: "cosmos:agents/browser-profile/v1", binding: {...binding, ...(foreign ? {remotePeerId: "foreign-peer"} : {})}, catalog: request.action === "read" ? catalog : {...catalog,
+        profiles: [{name: catalog.current.name, saves: [{id: "native-new-save"}], canOpen: request.action === "save"}],
+        current: {...catalog.current, saveId: "native-new-save", active: request.action === "open", instanceId: request.action === "open" ? "opened-instance" : null},
+        capabilities: {open: request.action === "save", save: request.action === "open"}}})
+    }, {preconnect: originalFetch.preconnect}) as typeof fetch
+    const client = compiledHUD.createProviderSettingsClient(() => ({atom: null, open: true, onOpenChange() {}, registries: [{ref: "atom:4", registry}]}), new AbortController().signal)
+    const signal = new AbortController().signal
+    await expect(client.saveBrowserProfile!(binding.id, signal)).rejects.toThrow("Сначала прочитайте")
+    expect(requests).toHaveLength(0)
+    expect(await client.browserProfiles!(binding.id, signal)).toEqual(catalog)
+    expect((await client.saveBrowserProfile!(binding.id, signal)).current).toMatchObject({saveId: "native-new-save", active: false})
+    expect(requests[1]).toMatchObject({action: "save", instanceId: "exact-instance"})
+    expect(typeof requests[1]!.requestId).toBe("string")
+    registry.settings = {selectedId: null, configuration: {schemaVersion: 1, revision: 1, connections: [{id: binding.id, label: "Closed native browser", enabled: true, provider: "chrome-studio",
+      endpoint: {url: "", profile: "", service: "qwen"}, peer: {peerId: binding.remotePeerId, executorId: binding.executorId}}], general: {}, types: {}},
+      connectionBindings: {[binding.id]: null}, connectionChecks: {[binding.id]: {status: "failed", checkedAt: 1, message: "Closed"}}}
+    await expect(client.openBrowserProfile!(binding.id, {name: "foreign-name", saveId: "native-new-save"}, signal)).rejects.toThrow("своего закрытого профиля")
+    await expect(client.openBrowserProfile!(binding.id, {name: catalog.current.name, saveId: "foreign-save"}, signal)).rejects.toThrow("своего закрытого профиля")
+    expect(requests).toHaveLength(2)
+    expect((await client.openBrowserProfile!(binding.id, {name: catalog.current.name, saveId: "native-new-save"}, signal)).current).toMatchObject({saveId: "native-new-save", active: true})
+    expect(requests[2]).toMatchObject({action: "open", saveId: "native-new-save"})
+    expect(requests[2]).not.toHaveProperty("profile")
+    expect(requests[2]).not.toHaveProperty("templatePath")
+    foreign = true
+    await expect(client.browserProfiles!(binding.id, signal)).rejects.toThrow("изменился")
+  } finally {globalThis.fetch = originalFetch}
+})

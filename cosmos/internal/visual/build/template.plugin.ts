@@ -10,8 +10,10 @@ const browserRoot = dirname(Bun.resolveSync("@zavx0z/storybook-app-web-page-shel
 const visualRoot = resolve(import.meta.dir, "..")
 
 /** Visual связывает свои views и стандартный Agent в одном compiled Document; Immersive предоставляет готовые компоненты. */
-export default createJsxBunPlugin({
+export function createVisualTemplatePlugin() {return createJsxBunPlugin({
   cwd: visualRoot,
   sourceRoots: [resolve(visualRoot, "main"), resolve(visualRoot, "../../../standard/agent"), chatRoot, preferencesRoot, timelineRoot, browserRoot, settingsRoot],
   styleSourceRootIds: ["@internal/visual", "@metafor/agent", "@zavx0z/chat", "@zavx0z/storybook-chat-preferences", "@zavx0z/storybook-chat-view", "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview", "@zavx0z/storybook-app-web-page-shell-execution-settings"],
-})
+})}
+
+export default createVisualTemplatePlugin()

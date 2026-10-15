@@ -28,6 +28,7 @@ import {createAtomScene, type AtomSceneModel, type AtomSceneRoute} from "./atom-
 import {AtomSurface, agentsForAtom} from "./atom-surface"
 import type {ClientViewAction} from "@metafor/types/cosmos/client"
 import type {InfrastructureProjection} from "./infrastructure-model.ts"
+import type {ReleaseSettingsClient} from "./release-settings"
 
 export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentOfficeActor, AgentConnectableSlot, AgentFieldValue, AgentFieldUpdate,
   CosmosConversationClient, CosmosConversationDirectoryClient, CosmosConversationSnapshot, CosmosConversationSelection} from "./agent-workspace-types"
@@ -53,14 +54,30 @@ const scene: AtomSceneModel = createAtomScene({workspace, contentFor: atom => ({
   props: {atom, workspace, scene}, key: atom.ref,
 })})
 const annotations = createProductAnnotationState()
-root.render(
+let releaseManagement: ReleaseSettingsClient | undefined
+let currentBot: Awaited<ReturnType<typeof loadBot>> | undefined
+function renderApp() {root.render(
   <App
     network={network}
     workspace={workspace}
     annotations={annotations}
     scene={scene}
+    bot={currentBot}
+    releaseManagement={releaseManagement}
   />,
-)
+)}
+renderApp()
+
+/** Release назначает Settings capability тому же App; cleanup не создаёт transport или второй Document. */
+export function connectReleaseManagement(client: ReleaseSettingsClient): () => void {
+  releaseManagement = client
+  if (!workspace.disposed) renderApp()
+  return () => {
+    if (releaseManagement !== client) return
+    releaseManagement = undefined
+    if (!workspace.disposed) renderApp()
+  }
+}
 
 /**
 Принимает полный read-only снимок от владельца наблюдения и обновляет то же
@@ -144,7 +161,8 @@ export const clientControls = {
   dispose() {stopFocus(); controls.dispose(); clientDiagnostics.dispose()},
 }
 void loadBot(`/@internal/visual/bots.glb?env=main&version=${packageVersion}`).then(bot => {
-  if (!workspace.disposed) root.render(<App network={network} workspace={workspace} annotations={annotations} scene={scene} bot={bot} />)
+  currentBot = bot
+  if (!workspace.disposed) renderApp()
 }).catch(error => console.error("[@internal/visual:main]", "не удалось загрузить avatar asset офиса", {
   error: error instanceof Error ? error.message : String(error),
 }))

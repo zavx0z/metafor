@@ -282,13 +282,14 @@ ensure_chrome() {
 }
 
 shell_command() {
-  local mode=${1:-normal} quoted_script quoted_repo quoted_mode quoted_debug_address
+  local mode=${1:-normal} quoted_script quoted_repo quoted_mode quoted_debug_address quoted_selection
   printf -v quoted_script '%q' "$script_dir/terminal-runner.sh"
   printf -v quoted_repo '%q' "$repo"
   printf -v quoted_mode '%q' "$mode"
   printf -v quoted_debug_address '%q' "$debug_address"
+  printf -v quoted_selection '%q' "${METAFOR_DEV_RELEASE_SELECTION:-}"
   printf '/bin/zsh -l -c %q' \
-    "exec $quoted_script $quoted_repo $quoted_mode $quoted_debug_address"
+    "exec $quoted_script $quoted_repo $quoted_mode $quoted_debug_address $quoted_selection"
 }
 
 cosmos_ready() {
@@ -379,6 +380,7 @@ start_contour() {
   state=$(iterm_state)
 
   if [[ -n $processes ]]; then
+    [[ -z ${METAFOR_DEV_RELEASE_SELECTION:-} ]] || die "live release management is unavailable; an explicit metafor stop is required before cold activation"
     ensure_process_ownership
     parents=$(parent_processes)
     reuse_error=$(require_reusable_parent "$mode" "$parents") \
@@ -432,7 +434,7 @@ start_contour() {
 
 stop_contour() {
   local state parents parent_pid child_pid identity current index remaining signalled=0
-  local stop_timeout_seconds=60 stop_grace_seconds=10 stop_wait_interval=0.2
+  local stop_timeout_seconds=90 stop_grace_seconds=60 stop_wait_interval=0.2
   local deadline grace_deadline now observed_ppid parent_gone fallback_sent=0
   local -a owned_pids owned_identities orphan_retried
   state=$(iterm_state)
@@ -521,6 +523,76 @@ stop_contour() {
     sleep "$stop_wait_interval"
   done
   printf 'cosmos: stopped %s\niterm: preserved %s\n' "$parent_pid" "${state#*$'\t'}"
+}
+
+stop_release_contour() {
+  local expected_pid=$1 state parents parent_pid children installed_artifacts listeners evidence kind release_pid ignored
+  local command artifact selected_artifact= store_root cwd tty_value identity current pid remaining deadline index
+  local -a owned_pids owned_identities
+  [[ $expected_pid =~ ^[1-9][0-9]*$ ]] || die "stop-release requires the expected Core PID"
+  state=$(iterm_state)
+  [[ $state == found$'\t'* ]] || die "managed iTerm session is missing; refusing to stop external processes"
+  ensure_process_ownership
+  parents=$(parent_processes)
+  [[ $(awk 'NF {count++} END {print count+0}' <<<"$parents") == 1 ]] || die "stop-release requires one managed parent"
+  parent_pid=$(awk -F '\t' '{print $1}' <<<"$parents")
+  children=$(process_descendants "$parent_pid")
+  installed_artifacts=$(bun --cwd "$cosmos" "$script_dir/installed-release.ts" "$cosmos") || die "installed release identity is unavailable"
+  [[ -n $installed_artifacts ]] || die "stop-release requires an installed release"
+  listeners=$(lsof -nP -iTCP:"$(package_port)" -sTCP:LISTEN -t 2>/dev/null || true)
+  evidence=$(release_inspector_state "$children" "$cosmos/release" "$installed_artifacts" "$listeners")
+  IFS=$'\t' read -r kind release_pid ignored <<<"$evidence"
+  [[ ( $kind == normal || $kind == debug ) && $release_pid == "$expected_pid" ]] || die "stop-release Core identity differs from the expected listener"
+  command=$(ps -p "$release_pid" -o command= 2>/dev/null || true)
+  while IFS= read -r artifact; do
+    [[ -n $artifact && " $command " == *" $artifact "* ]] || continue
+    [[ -z $selected_artifact ]] || die "stop-release artifact is ambiguous"
+    selected_artifact=$artifact
+  done <<<"$installed_artifacts"
+  [[ -n $selected_artifact ]] || die "Core does not execute the selected installed artifact"
+  store_root=${selected_artifact%/candidates/*}
+  [[ $store_root != "$selected_artifact" ]] || die "installed artifact has no candidate store"
+  cwd=$(lsof -a -p "$release_pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' || true)
+  [[ $cwd == "$store_root" ]] || die "Core cwd differs from its selected installed store"
+  tty_value=${state#*$'\t'}
+  [[ $(ps -p "$release_pid" -o tty= 2>/dev/null | tr -d ' ') == "${tty_value#/dev/}" ]] || die "Core TTY differs from the managed session"
+  [[ $(ps -p "$release_pid" -o uid= 2>/dev/null | tr -d ' ') == "$(id -u)" ]] || die "Core process owner differs"
+  identity=$(ps -p "$release_pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+  [[ -n $identity ]] || die "Core disappeared before stop-release"
+  owned_pids=()
+  owned_identities=()
+  while IFS=$'\t' read -r pid ignored; do
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || continue
+    current=$(ps -p "$pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+    [[ -n $current ]] || continue
+    owned_pids+=("$pid")
+    owned_identities+=("$current")
+  done <<<"$parents"$'\n'"$children"
+  # Перед единственным signal заново связываются store, listener и birth identity.
+  [[ $(bun --cwd "$cosmos" "$script_dir/installed-release.ts" "$cosmos") == "$installed_artifacts" ]] || die "installed selection changed before stop-release"
+  listeners=$(lsof -nP -iTCP:"$(package_port)" -sTCP:LISTEN -t 2>/dev/null || true)
+  evidence=$(release_inspector_state "$(process_descendants "$parent_pid")" "$cosmos/release" "$installed_artifacts" "$listeners")
+  IFS=$'\t' read -r kind pid ignored <<<"$evidence"
+  [[ ( $kind == normal || $kind == debug ) && $pid == "$release_pid" ]] || die "Core listener changed before stop-release"
+  current=$(ps -p "$release_pid" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+  [[ $current == "$identity" ]] || die "Core process identity changed before stop-release"
+  kill -TERM "$release_pid" || die "Core did not accept its explicit stop signal"
+  deadline=$(( $(date +%s) + 90 ))
+  while true; do
+    remaining=
+    for ((index=0; index<${#owned_pids[@]}; index++)); do
+      current=$(ps -p "${owned_pids[$index]}" -o lstart= -o uid= -o tty= -o command= 2>/dev/null || true)
+      [[ -n $current && $current == "${owned_identities[$index]}" ]] || continue
+      remaining="${remaining}${remaining:+ }${owned_pids[$index]}"
+    done
+    [[ -n $remaining ]] || break
+    [[ $(date +%s) -lt $deadline ]] || die "stop-release did not finish within 90s; remaining owned PIDs: $remaining"
+    sleep 0.2
+  done
+  listeners=$(lsof -nP -iTCP:"$(package_port)" -sTCP:LISTEN -t 2>/dev/null || true)
+  parents=$(parent_processes)
+  [[ -z $listeners && -z $parents ]] || die "stop-release observed replacement owner PIDs $(awk -F '\t' '{print $1}' <<<"$parents") or listener PIDs $listeners"
+  printf 'cosmos: stopped Core %s after explicit release signal\niterm: preserved %s\n' "$release_pid" "$tty_value"
 }
 
 clear_site_data() {
@@ -631,6 +703,9 @@ print_status() {
   http_listeners=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
   inspector_state=$(release_inspector_state "$children" "$cosmos/release" "$installed_artifacts" "$http_listeners")
   IFS=$'\t' read -r inspector_kind release_pid inspector_address <<<"$inspector_state"
+  if [[ $inspector_kind == normal || $inspector_kind == debug ]]; then
+    printf 'release: %s %s\n' "$inspector_kind" "$release_pid"
+  fi
   case "$inspector_kind" in
     debug)
       inspector_port=$(inspector_port_from_address "$inspector_address")
@@ -699,6 +774,7 @@ case "$action" in
   clear-site-data) clear_site_data ;;
   sizes) package_sizes ;;
   stop) stop_contour ;;
+  stop-release) stop_release_contour "${3:?expected Core PID required}" ;;
   retire-owned-orphan) retire_owned_orphan "${3:?PID required}" "${4:?artifact required}" "${5:?birth required}" ;;
-  *) die "usage: $0 {start|start-server|start-browser|start-debug|status|focus|logs|restart|restart-server|restart-browser|restart-debug|clear-site-data|sizes|stop} [checkout]" ;;
+  *) die "usage: $0 {start|start-server|start-browser|start-debug|status|focus|logs|restart|restart-server|restart-browser|restart-debug|clear-site-data|sizes|stop|stop-release} [checkout] [expected Core PID]" ;;
 esac

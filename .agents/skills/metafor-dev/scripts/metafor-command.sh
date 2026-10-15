@@ -7,16 +7,18 @@ repo=$(cd "$script_dir/../../../.." && pwd)
 dispatcher="$script_dir/metafor-dev.sh"
 action=${1:-start}
 
-if [[ $# -gt 1 ]]; then
-  printf 'Usage: metafor [start|status|stop|restart|logs|focus]\n' >&2
+if [[ $# -gt 2 || $# -gt 1 && $action != activate && $action != stop-release ]]; then
+  printf 'Usage: metafor [start|status|stop|restart|logs|focus|downgrade|activate <digest>|stop-release <Core-PID>]\n' >&2
   exit 2
 fi
 case "$action" in
   -h|--help|help)
-    printf 'Usage: metafor [start|status|stop|restart|logs|focus]\n'
+    printf 'Usage: metafor [start|status|stop|restart|logs|focus|downgrade|activate <digest>|stop-release <Core-PID>]\n'
     exit 0
     ;;
-  start|status|stop|restart|logs|focus) ;;
+  start|status|stop|restart|logs|focus|downgrade) ;;
+  activate) [[ $# == 2 ]] || { printf 'Usage: metafor activate <digest>\n' >&2; exit 2; } ;;
+  stop-release) [[ $# == 2 ]] || { printf 'Usage: metafor stop-release <Core-PID>\n' >&2; exit 2; } ;;
   *) printf 'Unknown metafor command: %s\n' "$action" >&2; exit 2 ;;
 esac
 
@@ -47,6 +49,19 @@ health_state() {
 }
 
 case "$action" in
+  downgrade|activate)
+    # Живой owner выполняет тот же serialized handover, что HUD. При недоступном
+    # API разрешён только cold start; implicit stop мог бы остановить новый active.
+    selection=$(bun --cwd "$repo/cosmos" "$script_dir/release-selection.ts" prepare "${2:-}")
+    if bun --cwd "$repo/cosmos" "$script_dir/release-selection.ts" apply "$selection" "$origin"; then
+      exit 0
+    else
+      code=$?
+      [[ $code == 3 ]] || exit "$code"
+    fi
+    METAFOR_DEV_RELEASE_SELECTION="$selection" "$dispatcher" start "$repo"
+    exec bun --cwd "$repo/cosmos" "$script_dir/release-selection.ts" verify "$selection" "$origin"
+    ;;
   status)
     printf '%s\n' "$status"
     state=$(health_state) || state=unavailable
@@ -67,5 +82,6 @@ case "$action" in
     printf 'MetaFor: health is %s; inspect metafor logs\n' "$state" >&2
     exit 1
     ;;
+  stop-release) exec "$dispatcher" stop-release "$repo" "$2" ;;
   stop|logs|focus) exec "$dispatcher" "$action" "$repo" ;;
 esac

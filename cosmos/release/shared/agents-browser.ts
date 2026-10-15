@@ -15,3 +15,10 @@ export type AgentBrowserBootstrap = {
   screenshotProvider?: boolean
   iceServers: Array<{urls: string | string[], username?: string, credential?: string}>
 }
+
+/** Completion metadata exact Provider binding; native paths и archive bytes остаются у владельца. */
+export type AgentBrowserProfileResult = Readonly<{
+  schema: "cosmos:agents/browser-profile/v1"
+  binding: import("@metafor/types/metafor/providers").ProviderBinding
+  catalog: import("@zavx0z/provider-tech-peer/browser-types").BrowserPeerProfileCatalog
+}>

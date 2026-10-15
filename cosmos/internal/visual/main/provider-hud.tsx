@@ -1,10 +1,12 @@
-import {useMemo, useRef} from "@zavx0z/immersive/XReact"
+import {useMemo, useRef, useState} from "@zavx0z/immersive/XReact"
 import ExecutionSettings, {type StorybookAppWebPageShellExecutionSettings as Settings} from "@zavx0z/storybook-app-web-page-shell-execution-settings"
 import type {AtomContext} from "@metafor/agent/atom"
 import type {AgentWorkspaceSource, AgentWorkspaceSnapshot} from "./agent-workspace-types"
 import {parseProviderRegistry} from "@metafor/types/metafor/provider-validation"
+import type {AgentBrowserProfileResult} from "../../../release/shared/agents-browser"
 import type {ProviderRegistry} from "@metafor/types/metafor/providers"
 import type {ProfileIntentRequest, ProfileTargetDescriptor} from "@metafor/types/metafor/profile-intent"
+import {ReleaseSettings, type ReleaseSettingsClient} from "./release-settings"
 
 export type ProviderHUDProps = Readonly<{
   atom: AtomContext | null
@@ -17,6 +19,7 @@ export type ProviderHUDProps = Readonly<{
   profiles?: readonly ProfileTargetDescriptor[] | undefined
   profileError?: string | null | undefined
   profileIntent?: ((request: ProfileIntentRequest, signal: AbortSignal) => Promise<void>) | undefined
+  releaseManagement?: ReleaseSettingsClient | undefined
 }>
 /** Read-only назначение Provider для входа в существующий браузер до создания native session. */
 export type ProviderBrowserAccess = Pick<ProviderHUDProps, "atom" | "registries" | "profiles">
@@ -62,6 +65,7 @@ export function createProviderSettingsClient(props: () => ProviderHUDProps, sign
     const registry = owner().registry
     return registry.settings.configuration ? registry.settings.connectionBindings?.[connectionId] ?? null : connectionId
   }
+  const profileCatalogs = new Map<string, {scope: string, catalog: AgentBrowserProfileResult["catalog"]}>()
   const read = async (): Promise<Document> => {
     signal.throwIfAborted()
     const registry = owner().registry
@@ -77,8 +81,44 @@ export function createProviderSettingsClient(props: () => ProviderHUDProps, sign
     return {schemaVersion: 1, revision: 0, connections,
       general: registry.settings.selectedId ? {connectionId: registry.settings.selectedId} : {}, types: {}}
   }
+  const profileRow = (connectionId: string) => {
+    const registry = owner().registry, connection = registry.settings.configuration?.connections.find(row => row.id === connectionId)
+    const binding = bindingId(connectionId)
+    const matches = registry.entries.filter(entry => entry.resolution === "exact" && (binding ? entry.id === binding
+      : connection?.enabled && (connection.provider === "capsule" || connection.provider === "chrome-studio")
+        && connection.peer?.peerId === entry.remotePeerId && connection.peer.executorId === entry.executorId && connection.endpoint.service === entry.service))
+    return matches.length === 1 ? matches[0] : undefined
+  }
+  const profileScope = (connectionId: string) => {
+    const selected = owner(), row = profileRow(connectionId)
+    return row ? JSON.stringify([selected.ref, row.id, row.service, row.host, row.remotePeerId, row.executorId, row.assignmentId]) : null
+  }
+  const profile = async (connectionId: string, action: "read" | "save" | "open", profileSignal: AbortSignal, selection?: {name: string, saveId: string | null}) => {
+    const configuration = await read(), selected = owner()
+    const connection = configuration.connections.find(row => row.id === connectionId)
+    const row = profileRow(connectionId)
+    if (!connection?.enabled || !["capsule", "chrome-studio"].includes(connection.provider) || !row || row.resolution !== "exact") throw new Error("Назначение профиля браузера не подтверждено")
+    const scope = profileScope(connectionId)!
+    const previous = profileCatalogs.get(connectionId)
+    if (action === "save" && (previous?.scope !== scope || !previous.catalog.capabilities.save || !previous.catalog.current?.instanceId)) throw new Error("Сначала прочитайте текущий назначенный профиль")
+    if (action === "open" && (previous?.scope !== scope || !previous.catalog.capabilities.open || !selection?.saveId
+      || selection.name !== previous.catalog.profiles[0]?.name || !previous.catalog.profiles[0]?.canOpen
+      || !previous.catalog.profiles[0]?.saves.some(save => save.id === selection.saveId))) throw new Error("Сначала выберите сохранение своего закрытого профиля")
+    const response = await fetch("/agents/browser/profile", {method: "POST", headers: {"content-type": "application/json"}, signal: AbortSignal.any([signal, profileSignal]),
+      body: JSON.stringify({providerRef: selected.ref, entryId: row.id, action, ...(action === "save" ? {requestId: crypto.randomUUID(), instanceId: previous!.catalog.current!.instanceId} : action === "open" ? {requestId: crypto.randomUUID(), saveId: selection!.saveId} : {})})})
+    if (!response.ok) throw new Error(action !== "read" ? "Операция с профилем не подтверждена. Проверьте его состояние перед повтором" : "Каталог назначенного профиля недоступен")
+    const value = await response.json() as AgentBrowserProfileResult
+    if (value.schema !== "cosmos:agents/browser-profile/v1" || !value.binding || value.binding.id !== row.id || value.binding.remotePeerId !== row.remotePeerId
+      || value.binding.executorId !== row.executorId || value.binding.host !== row.host || value.binding.service !== row.service
+      || value.binding.assignmentId !== row.assignmentId || profileScope(connectionId) !== scope) throw new Error("Владелец профиля изменился")
+    profileCatalogs.set(connectionId, {scope, catalog: value.catalog})
+    return value.catalog
+  }
   return {
     read,
+    browserProfiles: (connectionId, profileSignal) => profile(connectionId, "read", profileSignal),
+    saveBrowserProfile: (connectionId, profileSignal) => profile(connectionId, "save", profileSignal),
+    openBrowserProfile: (connectionId, selection, profileSignal) => profile(connectionId, "open", profileSignal, selection),
     async save(document) {
       await operation({configure: document})
       return read()
@@ -179,6 +219,7 @@ export function createProviderSettingsClient(props: () => ProviderHUDProps, sign
 
 /** Полное готовое окно Storybook. Adapter читает Provider Mass; UI не владеет настройками. */
 export function ProviderHUD(props: ProviderHUDProps) {
+  const [releaseActive, setReleaseActive] = useState(false)
   const current = useRef(props)
   current.current = props
   const factory = useMemo(() => (signal: AbortSignal) => createProviderSettingsClient(() => current.current, signal), [])
@@ -189,5 +230,9 @@ export function ProviderHUD(props: ProviderHUDProps) {
     initialState={{open: props.open}}
     onStateChange={changed}
     clientFactory={factory}
-  />
+    optionalSection={{id: "releases", label: "Сборки и откат"}}
+    onOptionalSectionActiveChange={setReleaseActive}
+  >
+    <ReleaseSettings active={releaseActive} client={props.releaseManagement} />
+  </ExecutionSettings>
 }

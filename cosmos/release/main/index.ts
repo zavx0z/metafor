@@ -18,6 +18,7 @@ import {observeBrowserNetwork} from "./network"
 import {createAgentWorkspace} from "./agents"
 import {createCosmosConversationDirectoryClient} from "./conversations"
 import {createProductRouter} from "./router"
+import {createReleaseManagementClient} from "./management"
 
 let controls: {inspect(): ClientViewInspection; act(action: ClientViewAction): unknown} | null = null
 let diagnostics: typeof import("@internal/visual")["clientDiagnostics"] | null = null
@@ -48,7 +49,8 @@ try {
     document.head.append(declaration)
   }
 
-  const {runtime, presentInfrastructure, connectAgents, clientControls, clientDiagnostics, connectAnnotationFeedback, presentAtomRoute, connectAtomNavigation} = await import("@internal/visual")
+  const {runtime, presentInfrastructure, connectAgents, clientControls, clientDiagnostics, connectAnnotationFeedback, presentAtomRoute, connectAtomNavigation, connectReleaseManagement} = await import("@internal/visual")
+  const disconnectReleaseManagement = connectReleaseManagement(createReleaseManagementClient())
   controls = clientControls
   diagnostics = clientDiagnostics
   const disconnectFeedback = connectAnnotationFeedback({source: client.getDescriptor, send: client.feedback})
@@ -85,6 +87,7 @@ try {
     stopAgents()
     if (!event.persisted) {
       disconnectNavigation()
+      disconnectReleaseManagement()
       router.dispose()
       clientControls.dispose()
       disconnectFeedback()

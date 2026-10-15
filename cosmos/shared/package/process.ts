@@ -115,6 +115,11 @@ export interface ServerProcessHandoverRequest {
   readonly type: "handover-request"
   readonly requestId: string
   readonly target: string
+  /** Локальное операторское намерение; root и исполнение определяет parent. */
+  readonly selection?: {
+    readonly kind: "activate" | "downgrade"
+    readonly expected: {readonly digest: string | null; readonly revision: number}
+  }
 }
 
 export type ServerProcessHandoverResult =
@@ -179,8 +184,12 @@ export function readServerProcessFailure(value: unknown): ServerProcessFailure |
 }
 
 export function readServerProcessHandoverRequest(value: unknown): ServerProcessHandoverRequest | null {
-  return exact(value, ["type", "requestId", "target"]) && value.type === "handover-request"
-    && nonempty(value.requestId) && nonempty(value.target)
+  return (exact(value, ["type", "requestId", "target"]) || exact(value, ["type", "requestId", "target", "selection"])) && value.type === "handover-request"
+    && nonempty(value.requestId) && nonempty(value.target) &&
+    (value.selection === undefined || exact(value.selection, ["kind", "expected"]) &&
+      (value.selection.kind === "activate" || value.selection.kind === "downgrade") && exact(value.selection.expected, ["digest", "revision"]) &&
+      (value.selection.expected.digest === null || typeof value.selection.expected.digest === "string" && /^[a-f0-9]{64}$/.test(value.selection.expected.digest)) &&
+      Number.isSafeInteger(value.selection.expected.revision) && Number(value.selection.expected.revision) >= 0)
     ? value as unknown as ServerProcessHandoverRequest : null
 }
 

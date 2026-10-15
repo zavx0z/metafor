@@ -10,6 +10,8 @@ import type {RpcSocketData} from "../rpc"
 import {acceptReleasePeer, createConnectedReleasePeer, type ConnectedReleasePeer, type ReleasePeerDescription} from "../peer/connect"
 import {createInstalledReleaseDelivery} from "./delivery"
 import {attachServerProcessControl} from "./control"
+import {createReleaseManagement} from "./management"
+import {RELEASE_MANAGEMENT_PATH} from "../../shared/management"
 import {createServerReleaseReceiver} from "./receive"
 import {createRendezvousHandler, type RendezvousHandler} from "@metafor/tech-peer/rendezvous"
 import type {ReleaseServerSocketData} from "../rpc"
@@ -120,6 +122,17 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
   const cleanupFailures: unknown[] = []
   let preparingPeers = 0
   let update: {target: string; state: "receiving" | "handover" | "failed"; error?: string} | null = null
+  const management = createReleaseManagement({storeRoot: options.storeRoot,
+    request: (selection, operationId) => control.requestHandover(selection.target, 120_000,
+      {kind: selection.kind, expected: selection.expected}, operationId),
+    defer(work) {
+      const timer = setTimeout(() => {
+        timers.delete(timer)
+        if (!destroyed) void track(work(), background)
+      }, 0)
+      timers.add(timer)
+    },
+  })
 
   function track<T>(work: Promise<T>, operations = inFlight): Promise<T> {
     operations.add(work)
@@ -136,6 +149,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
 
   async function handle(request: Request, current: Bun.Server<ReleaseServerSocketData>, rendezvous: RendezvousHandler | null): Promise<Response | undefined> {
     const url = new URL(request.url)
+    if (url.pathname === RELEASE_MANAGEMENT_PATH) return management.fetch(request, current)
     if (url.pathname === CLIENT_SOCKET_PATH) return clients ? clients.fetch(request, current) : new Response(null, {status: 404})
     if (url.pathname === "/peer") {
       return rendezvous ? rendezvous.upgrade(request, (request, data) => current.upgrade(request, {data}))

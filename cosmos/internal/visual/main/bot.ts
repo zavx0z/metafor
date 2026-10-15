@@ -1,4 +1,4 @@
-import {GLTFLoader, Matrix4, Object3D, SkinnedMesh, Vector3, type AnimationClip} from "@zavx0z/immersive/engine"
+import {GLTFLoader, Matrix4, Object3D, Quaternion, SkinnedMesh, Vector3, type AnimationClip} from "@zavx0z/immersive/engine"
 import type {OfficeBounds} from "@metafor/agent/office-layout"
 import type {OfficeAvatarPrimitive} from "@metafor/agent/office-instances"
 
@@ -24,14 +24,16 @@ export async function loadBot(url: string): Promise<Bot> {
   const betaClip = model.animations.find(animation => animation.name === "Armature.001|mixamo.com|Layer0")
   if (!alpha || !beta || !alphaClip || !betaClip) throw new Error("Bot asset is missing a humanoid or its animation")
   model.scene.updateWorldMatrix(true)
-  const prepare = (armature: Object3D, clip: AnimationClip): BotVariant => {
+  const prepare = (armature: Object3D, clip: AnimationClip, turnAround = false): BotVariant => {
     const root = new Object3D()
     armature.parent!.matrixWorld.decompose(root.position, root.quaternion, root.scale)
+    // У Alpha передняя сторона направлена по -Y, у Beta по +Y. Office placement ожидает +Y для обоих.
+    if (turnAround) root.quaternion.premultiply(new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI))
     armature.position.set(0, 0, 0)
     root.add(armature)
     return prepareVariant(root, clip)
   }
-  const male = prepare(alpha, alphaClip), female = prepare(beta, betaClip)
+  const male = prepare(alpha, alphaClip, true), female = prepare(beta, betaClip)
   return {...male, variants: {male, female}}
 }
 

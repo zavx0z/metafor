@@ -17,6 +17,8 @@ function fixture(lifetimeMs?: number, screenshot = false, iceServers?: AgentBrow
   for (const provider of [executor, owner]) provider.mass.push({ref: "mass:registry", key: "registry", format: "json", label: null, description: null, content: "lazy"})
   const graph = {schema: GRAPH_SCHEMA, root: parseMetaAddress("@fixture/root")!, template: {}, runtime: {roots: [atom("atom:1", "@fixture/root", {}, [atom("atom:2", "@metafor/agent", {}, [atom("atom:3", "@metafor/chat", {}, [executor])]), owner])], reactions: []}} as Graph
   let nativeCalls = 0, closes = 0, admitted = true
+  const profileOperations: Array<{action: string, requestId?: string, saveId?: string}> = []
+  const profileCatalog = {profiles: [{name: "actual-profile", saves: [{id: "old-save"}], canOpen: false as const}], current: {name: "actual-profile", saveId: null as string | null, active: true, instanceId: "instance" as string | null}, capabilities: {open: false as const, save: true}}
   const payloads: string[] = []
   const calls: string[] = []
   const screenshotPayloads: Array<string | Uint8Array> = []
@@ -37,6 +39,18 @@ function fixture(lifetimeMs?: number, screenshot = false, iceServers?: AgentBrow
         async describe(selection) {expect(selection).toMatchObject({peerId: "remote", executorId: "browser"}); return {instanceId: "instance", profile: screenshotProfile, controlEnabled: true,
           ...(screenshotCapability === "legacy" ? {} : {screenshotProvider: screenshotCapability}), media: {audio: true, microphoneTransport: "rtp"}}},
         async close() {},
+        async profileCatalog(selection) {expect(selection).toMatchObject({peerId: "remote", executorId: "browser"}); profileOperations.push({action: "read"}); return structuredClone(profileCatalog)},
+        async openSaved(selection) {
+          expect(selection).toMatchObject({peerId: "remote", executorId: "browser", saveId: "saved"})
+          profileOperations.push({action: "open", requestId: selection.requestId, saveId: selection.saveId})
+          return {...profileCatalog, current: {name: "actual-profile", saveId: "saved", active: true, instanceId: "opened-instance"}}
+        },
+        async saveProfile(selection) {
+          expect(selection).toMatchObject({peerId: "remote", executorId: "browser", instanceId: "instance"})
+          profileOperations.push({action: "save", requestId: selection.requestId})
+          return {...profileCatalog, profiles: [{name: "actual-profile", saves: [{id: "old-save"}, {id: "saved"}], canOpen: false}],
+            current: {name: "actual-profile", saveId: "saved", active: false, instanceId: null}, capabilities: {open: false, save: false}}
+        },
         ...(screenshot ? {screenshotProvider(selection: {peerId: string; executorId: string; instanceId: string; profile: string}): BrowserPeerScreenshotSocket {
           expect(selection).toMatchObject({peerId: "remote", executorId: "browser", instanceId: "instance", profile: screenshotProfile})
           const events = new Map<keyof BrowserPeerScreenshotEvents, (event: never) => void>()
@@ -61,7 +75,7 @@ function fixture(lifetimeMs?: number, screenshot = false, iceServers?: AgentBrow
   const server = Bun.serve<AgentBrowserSocketData>({hostname: "127.0.0.1", port: 0, fetch: bridge.fetch, websocket: bridge.websocket})
   const origin = server.url.origin
   const request = (path: string, value: unknown, method = "POST", source = origin) => fetch(`${origin}/agents/browser/${path}`, {method, headers: {Origin: source, "Content-Type": "application/json"}, body: JSON.stringify(value)})
-  return {entry, graph, registry, calls, payloads, screenshotPayloads, origin, request, bridge, nativeCalls: () => nativeCalls, closes: () => closes, screenshotCloses: () => screenshotCloses,
+  return {entry, graph, registry, calls, profileOperations, payloads, screenshotPayloads, origin, request, bridge, nativeCalls: () => nativeCalls, closes: () => closes, screenshotCloses: () => screenshotCloses,
     changeProfile() {screenshotProfile = "other-profile"},
     revoke() {admitted = false}, async close() {await bridge.close(); await server.stop(true)}}
 }
@@ -245,4 +259,49 @@ test("renewal rejects foreign origin or extra fields without revoking the ticket
     expect(expired.closes()).toBe(1)
     expect(expired.nativeCalls()).toBe(1)
   } finally {await expired.close()}
+})
+
+test("profile metadata/save use exact owner binding without fake Agent or viewer admission; foreign scopes and profile names never reach native", async () => {
+  const f = fixture()
+  const selected = {providerRef: "atom:5", entryId: binding.id}
+  try {
+    for (const body of [{...selected, action: "read", profile: "foreign"}, {...selected, providerRef: "atom:4", action: "read"},
+      {...selected, entryId: "foreign", action: "read"}, {...selected, action: "save", requestId: "request", instanceId: "instance", endpoint: "http://foreign"}]) expect((await f.request("profile", body)).ok).toBe(false)
+    expect(f.nativeCalls()).toBe(0)
+    const read = await f.request("profile", {...selected, action: "read"})
+    expect(read.status).toBe(200)
+    expect(await read.json()).toMatchObject({schema: "cosmos:agents/browser-profile/v1", binding, catalog: {current: {name: "actual-profile", instanceId: "instance"}, capabilities: {open: false, save: true}}})
+    expect(f.closes()).toBe(1)
+    const saved = await f.request("profile", {...selected, action: "save", requestId: "save-once", instanceId: "instance"})
+    expect(saved.status).toBe(200)
+    expect(await saved.json()).toMatchObject({binding, catalog: {current: {name: "actual-profile", saveId: "saved", active: false}}})
+    expect(f.profileOperations).toEqual([{action: "read"}, {action: "save", requestId: "save-once"}])
+    expect(f.closes()).toBe(2)
+    const opened = await f.request("profile", {...selected, action: "open", requestId: "open-own-save", saveId: "saved"})
+    expect(opened.status).toBe(200)
+    expect(await opened.json()).toMatchObject({binding, catalog: {current: {name: "actual-profile", saveId: "saved", active: true, instanceId: "opened-instance"}}})
+    expect(f.profileOperations.at(-1)).toEqual({action: "open", requestId: "open-own-save", saveId: "saved"})
+    expect(f.closes()).toBe(3)
+  } finally {await f.close()}
+})
+
+test("inactive profile control survives failed model/viewer admission while disabled or changed exact connection stays denied", async () => {
+  const f = fixture(), connection = {id: "own-settings-row", label: "Own browser", enabled: true, provider: "capsule" as const,
+    peer: {peerId: binding.remotePeerId, executorId: binding.executorId}, endpoint: {url: "", profile: "", service: "chatgpt" as const}}
+  f.registry.settings = {selectedId: null, configuration: {schemaVersion: 1, revision: 1, connections: [connection], general: {}, types: {}},
+    connectionBindings: {[connection.id]: null}, connectionChecks: {[connection.id]: {status: "failed", checkedAt: 1, message: "Browser is closed"}}}
+  f.entry.connection = "disconnected"
+  f.entry.capabilities = {modelTurn: false, browserPreview: false, browserControl: false}
+  try {
+    expect((await f.request("bootstrap", {agentRef: null, providerRef: "atom:5", entryId: binding.id})).status).toBe(409)
+    expect(f.nativeCalls()).toBe(0)
+    expect((await f.request("profile", {providerRef: "atom:5", entryId: binding.id, action: "read"})).status).toBe(200)
+    expect((await f.request("profile", {providerRef: "atom:5", entryId: binding.id, action: "open", requestId: "open-closed", saveId: "saved"})).status).toBe(200)
+    const admitted = f.nativeCalls()
+    connection.enabled = false
+    expect((await f.request("profile", {providerRef: "atom:5", entryId: binding.id, action: "read"})).status).toBe(409)
+    connection.enabled = true; connection.peer.executorId = "foreign-executor"
+    expect((await f.request("profile", {providerRef: "atom:5", entryId: binding.id, action: "open", requestId: "foreign", saveId: "saved"})).status).toBe(409)
+    expect(f.nativeCalls()).toBe(admitted)
+  } finally {await f.close()}
 })

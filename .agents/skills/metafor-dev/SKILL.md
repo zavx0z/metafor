@@ -19,6 +19,7 @@ scripts/metafor-dev.sh restart-debug <checkout>
 scripts/metafor-dev.sh clear-site-data <checkout>
 scripts/metafor-dev.sh sizes <checkout>
 scripts/metafor-dev.sh stop <checkout>
+scripts/metafor-dev.sh stop-release <checkout> <expected-Core-PID>
 ```
 
 The dispatcher owns one iTerm session marked for the exact checkout, runs
@@ -51,6 +52,25 @@ process on port 9222 with a stable profile.
    owner needs the window brought forward.
 6. Use `restart` or `stop` only when required by the requested work. Leave the
    iTerm window and CDP Chrome running between Codex tasks.
+
+Installed release cleanup получает 60 секунд, как portable bootstrap.
+Dispatcher сначала посылает TERM только startup и ждёт 60 секунд, не вмешиваясь
+в причинную остановку его потомков. Затем существующая cleanup-фаза получает
+оставшееся время общего 90-секундного предела: она проверяет снятые identities
+и завершает только принадлежащие дереву процессы прежним порядком TERM.
+Живой процесс после deadline означает ошибку с его PID и запрещает restart;
+исчезновение PID не доказывает успешность checkpoint или graceful cleanup.
+
+Для первой миграции старого installed launcher с коротким shutdown budget есть
+явный узкий `stop-release`. Он требует ожидаемый Core PID, подтверждает его как
+единственный HTTP listener выбранного installed artifact, проверяет managed
+TTY, store cwd и process identity, затем посылает TERM только этому Core.
+Startup и остальные потомки не получают сигналов: Core завершает свой cleanup
+и освобождает IPC, после чего startup наблюдает его выход. Режим ждёт всё
+наблюдавшееся owned tree не более 90 секунд; survivor или сменившийся listener
+даёт ошибку без эскалации и без restart. Это отдельное решение оператора для
+миграции, не fallback `activate`/`downgrade`; последующие live-переходы используют
+обычный handover.
 
 `start-debug` and `restart-debug` preserve the same process tree and browser
 target, but startup launches the exact release child with Bun Inspector on

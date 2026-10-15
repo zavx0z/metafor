@@ -7,6 +7,7 @@ import {
   serverProcessFailure,
   serverProcessLifecycle,
   type ServerProcessOperation,
+  type ServerProcessHandoverRequest,
 } from "../../../shared/package/process"
 
 /** Принадлежащие release действия над подготовленным рабочим входом. */
@@ -164,17 +165,19 @@ export async function attachServerProcessControl(runtime: ServerApplicationLifec
   return {
     bound,
     destroy,
-    requestHandover(target: string, timeoutMs = 120_000): Promise<void> {
+    requestHandover(target: string, timeoutMs = 120_000, selection?: ServerProcessHandoverRequest["selection"], operationId?: string): Promise<void> {
       if (stopped || phase !== "active") return Promise.reject(new Error("Only active release may request handover"))
       if (!/^[a-f0-9]{64}$/.test(target)) return Promise.reject(new Error("Invalid installed release target"))
-      const requestId = crypto.randomUUID()
+      const requestId = operationId ?? crypto.randomUUID()
+      if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,179}$/.test(requestId) || requests.has(requestId))
+        return Promise.reject(new Error("Invalid or pending server handover request identity"))
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           requests.delete(requestId)
           reject(new Error("Server handover result timed out"))
         }, timeoutMs)
         requests.set(requestId, {resolve, reject, timer})
-        try { send({type: "handover-request", requestId, target}) }
+        try { send({type: "handover-request", requestId, target, ...(selection ? {selection} : {})}) }
         catch (error) { clearTimeout(timer); requests.delete(requestId); reject(error) }
       })
     },

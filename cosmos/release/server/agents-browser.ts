@@ -3,9 +3,9 @@ import type {ProviderBinding} from "@metafor/types/metafor/providers"
 import {READ_GRAPH_METHOD, type Graph} from "@metafor/types/metafor/graph"
 import type {OracleRpcPeer} from "shared/transport/oracle"
 import {authorizedProviderBrowserClient} from "@metafor/provider/driver"
-import {readAgentProvider, readProviderRegistry, browserBinding} from "./agent-provider"
+import {readAgentProvider, readProviderRegistry, browserBinding, profileBinding} from "./agent-provider"
 import {authorizeAgentRequest, readAgentBody} from "./agents"
-import {AGENT_BROWSER_PATH, AGENT_BROWSER_SCHEMA, AGENT_BROWSER_RENEW_SCHEMA, type AgentBrowserBootstrap, type AgentBrowserRenewal} from "../shared/agents-browser"
+import {AGENT_BROWSER_PATH, AGENT_BROWSER_SCHEMA, AGENT_BROWSER_RENEW_SCHEMA, type AgentBrowserBootstrap, type AgentBrowserRenewal, type AgentBrowserProfileResult} from "../shared/agents-browser"
 
 export type AgentBrowserSocketData = {kind: "agent-browser", ticket: string, instanceId: string, viewerPeerId: string}
   | {kind: "agent-browser-screenshot", ticket: string, instanceId: string, profile: string}
@@ -60,12 +60,12 @@ export function createAgentBrowserBridge(options: {peer: Pick<OracleRpcPeer, "ca
     lease.timer = setTimeout(() => {void close(lease).catch(() => {})}, Math.max(1, lease.expiresAt - Date.now()))
     lease.timer.unref?.()
   }
-  const binding = async (agentRef: string | null, providerRef: string, entryId: string) => {
+  const binding = async (agentRef: string | null, providerRef: string, entryId: string, profileControl = false) => {
     ready()
     const graph = await options.peer.call<Graph>("dark", READ_GRAPH_METHOD, {})
     const provider = agentRef === null ? await readProviderRegistry(options.peer, graph, providerRef) : await readAgentProvider(options.peer, graph, agentRef, providerRef)
     ready()
-    return browserBinding(provider.registry, entryId)
+    return profileControl ? profileBinding(provider.registry, entryId) : browserBinding(provider.registry, entryId)
   }
   const validate = async (lease: Lease) => {
     if (!leases.has(lease.ticket) || lease.expiresAt <= Date.now() || !same(lease.binding, await binding(lease.agentRef, lease.providerRef, lease.entryId))) throw new Error("Viewer binding changed")
@@ -116,6 +116,34 @@ export function createAgentBrowserBridge(options: {peer: Pick<OracleRpcPeer, "ca
         }
         if (url.search) return failure(400)
         const value = await readAgentBody(request)
+        if (url.pathname === `${AGENT_BROWSER_PATH}/profile` && request.method === "POST") {
+          const saving = object(value) && value.action === "save", opening = object(value) && value.action === "open"
+          if (!exact(value, opening ? ["providerRef", "entryId", "action", "requestId", "saveId"] : saving ? ["providerRef", "entryId", "action", "requestId", "instanceId"] : ["providerRef", "entryId", "action"])
+            || !id(value.providerRef) || !value.providerRef.startsWith("atom:") || !id(value.entryId)
+            || !["read", "save", "open"].includes(String(value.action)) || saving && (!id(value.requestId) || !id(value.instanceId))
+            || opening && (!id(value.requestId) || !id(value.saveId))
+            || pending.size >= 16) return failure(400)
+          const controller = new AbortController()
+          pending.add(controller)
+          const abort = () => controller.abort(request.signal.reason)
+          request.signal.addEventListener("abort", abort, {once: true})
+          if (request.signal.aborted) abort()
+          let native: NativeLease | undefined
+          try {
+            const selected = await binding(null, value.providerRef, value.entryId, true)
+            native = await (options.native ?? authorizedProviderBrowserClient)(selected, AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]))
+            if (!same(selected, await binding(null, value.providerRef, value.entryId, true))) throw new Error("Profile binding changed")
+            const selection = {peerId: selected.remotePeerId, executorId: selected.executorId, signal: controller.signal}
+            if (!native.client.profileCatalog || saving && !native.client.saveProfile || opening && !native.client.openSaved) throw new Error("Native profile operation is unavailable")
+            const catalog = opening ? await native.client.openSaved!({...selection, requestId: value.requestId as string, saveId: value.saveId as string}) : saving
+              ? await native.client.saveProfile!({...selection, requestId: value.requestId as string, instanceId: value.instanceId as string})
+              : await native.client.profileCatalog(selection)
+            if (!same(selected, await binding(null, value.providerRef, value.entryId, true))) throw new Error("Profile binding changed")
+            if (saving) for (const lease of [...leases.values()]) if (same(lease.binding, selected)) await close(lease)
+            return Response.json({schema: "cosmos:agents/browser-profile/v1", binding: selected, catalog} satisfies AgentBrowserProfileResult,
+              {headers: {"cache-control": "no-store"}})
+          } finally {pending.delete(controller); request.signal.removeEventListener("abort", abort); await native?.close()}
+        }
         if (url.pathname === `${AGENT_BROWSER_PATH}/bootstrap` && request.method === "POST") {
           if (!exact(value, ["agentRef", "providerRef", "entryId"]) || value.agentRef !== null && (!id(value.agentRef) || !value.agentRef.startsWith("atom:")) ||
             !id(value.providerRef) || !value.providerRef.startsWith("atom:") || !id(value.entryId) || leases.size + pending.size >= 16) return failure(400)

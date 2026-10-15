@@ -144,3 +144,29 @@ test("обычный офис показывает только надголов
     expect(originals).toBe(0)
   } finally {instances.dispose()}
 })
+
+test("оба гуманоида физически смотрят в локальный центр смещённой комнаты", () => {
+  const roomBounds = {min: {x: 150, y: -750, z: 20}, max: {x: 1250, y: 150, z: 620}}
+  const genders = new Map<string, "male" | "female">(Array.from({length: 8}, (_, index) => [`agent-${index}`, index % 2 ? "female" : "male"] as const))
+  const layout = layoutAgentOffice({roomBounds, humanoid: bot.bounds, overheadDisplayId: "chat",
+    agents: [...genders].map(([id, gender]) => ({id, humanoid: bot.variants[gender].bounds,
+      displays: [{id: "chat", width: 900, height: 600, depth: 20}]}))})
+  const room: OfficeSceneRoom = {id: "far-office", layout, position: {x: 9000, y: -7000, z: 500}, genders}
+  const instances = createOfficeSceneGeometry([room], bot)
+  try {
+    const slots = {male: 0, female: 0}
+    const center = {x: (roomBounds.min.x + roomBounds.max.x) / 2 + room.position.x,
+      y: (roomBounds.min.y + roomBounds.max.y) / 2 + room.position.y}
+    for (const agent of layout.agents) {
+      const gender = genders.get(agent.id)!
+      const matrix = new Matrix4()
+      instances.variantBatches[gender][0]!.getMatrixAt(slots[gender]++, matrix)
+      const forward = new Vector3(0, 1, 0).applyMatrix4(matrix).sub(new Vector3().applyMatrix4(matrix)).normalize()
+      const towardCenter = new Vector3(center.x - agent.head.x - room.position.x,
+        center.y - agent.head.y - room.position.y, 0).normalize()
+      expect(forward.dot(towardCenter)).toBeGreaterThan(.999)
+      expect(agent.displays[0]!.billboard).toBe(true)
+    }
+    expect(new Set(layout.agents.map(agent => agent.wall)).size).toBeGreaterThanOrEqual(3)
+  } finally {instances.dispose()}
+})

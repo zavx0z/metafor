@@ -67,3 +67,14 @@ export function browserBinding(registry: ProviderRegistry, entryId: string): Pro
   return {id: entry.id, service: entry.service, host: entry.host, remotePeerId: entry.remotePeerId, executorId: entry.executorId,
     ...(entry.assignmentId === undefined ? {} : {assignmentId: entry.assignmentId})}
 }
+
+/** Управление закрытым профилем требует exact assignment и enabled connection независимо от готовности viewer/model. Native driver отдельно сверяет назначение хоста. */
+export function profileBinding(registry: ProviderRegistry, entryId: string): ProviderBinding {
+  const entry = registry.entries.find(entry => entry.id === entryId)
+  if (!entry || entry.resolution !== "exact" || !["chatgpt", "deepseek", "qwen"].includes(entry.service)) throw new Error("Assigned browser profile is unavailable")
+  if (registry.settings.configuration && !registry.settings.configuration.connections.some(row => row.enabled &&
+    (row.provider === "capsule" || row.provider === "chrome-studio") && (registry.settings.connectionBindings?.[row.id] === entryId
+      || row.peer?.peerId === entry.remotePeerId && row.peer.executorId === entry.executorId && row.endpoint.service === entry.service))) throw new Error("Assigned profile connection is disabled or changed")
+  return {id: entry.id, service: entry.service, host: entry.host, remotePeerId: entry.remotePeerId, executorId: entry.executorId,
+    ...(entry.assignmentId === undefined ? {} : {assignmentId: entry.assignmentId})}
+}

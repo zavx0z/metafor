@@ -1,7 +1,7 @@
 {
   "name": "@cosmos/release",
   "label": "Релизы Cosmos",
-  "version": "0.3.34",
+  "version": "0.3.35",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,6 +12,9 @@
     },
     "./node": {
       "cosmos:server": "./node.ts"
+    },
+    "./persisted-state.json": {
+      "cosmos:server": "./persisted-state.json"
     }
   },
   "scripts": {

@@ -5,7 +5,7 @@ import {join} from "node:path"
 import {createInstalledReleaseStore, validatePublishedReleaseGraph} from "../../../../tech/release/installed"
 import {configuredInstalledReleaseArtifacts} from "./installed-release"
 
-test("dispatcher resolves only configured/active verified installed server artifacts without changing selection", async () => {
+test("dispatcher resolves active verified artifacts and uses configured digest only before first activation", async () => {
   const root = await mkdtemp(join(tmpdir(), "metafor-dispatcher-installed-"))
   const cosmos = new URL("../../../../cosmos", import.meta.url).pathname
   const store = createInstalledReleaseStore({root})
@@ -21,12 +21,15 @@ test("dispatcher resolves only configured/active verified installed server artif
     expect(await configuredInstalledReleaseArtifacts(cosmos, {})).toEqual([])
     const old = await prepare("0.2.0")
     const current = await prepare("0.2.1")
+    const bootstrap = await configuredInstalledReleaseArtifacts(cosmos, {COSMOS_RELEASE_STORE: root, COSMOS_RELEASE_DIGEST: old.digest})
+    expect(bootstrap).toHaveLength(1)
+    expect(bootstrap[0]).toContain(`/candidates/${old.digest}/`)
     await store.commitActive(current.digest)
     const before = await Bun.file(join(root, "active.json")).text()
     const paths = await configuredInstalledReleaseArtifacts(cosmos, {COSMOS_RELEASE_STORE: root, COSMOS_RELEASE_DIGEST: old.digest, COSMOS_CONTROL_TOKEN: "fixture-secret-must-not-escape"})
-    expect(paths).toHaveLength(2)
+    expect(paths).toHaveLength(1)
     expect(paths[0]).toContain(`/candidates/${current.digest}/packages/%40cosmos%2Frelease/dist/versions/0.2.1/server.js`)
-    expect(paths[1]).toContain(`/candidates/${old.digest}/packages/%40cosmos%2Frelease/dist/versions/0.2.0/server.js`)
+    expect(await configuredInstalledReleaseArtifacts(cosmos, {COSMOS_RELEASE_STORE: root, COSMOS_RELEASE_DIGEST: "f".repeat(64)})).toEqual(paths)
     expect(paths.join("\n")).not.toContain("fixture-secret")
     expect(await Bun.file(join(root, "active.json")).text()).toBe(before)
     await Bun.write(paths[0]!, "corrupt")

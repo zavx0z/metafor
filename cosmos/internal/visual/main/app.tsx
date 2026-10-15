@@ -14,9 +14,10 @@ import {INITIAL_VIEW_POINT} from "./view-state.ts"
 import {RoomActions} from "./room-actions"
 import {RoomContextMenu, RoomInfoWindow, RoomNavigationHUD} from "./room-navigation-hud"
 import {RoomChatWindow} from "./room-chat-window"
+import type {ReleaseSettingsClient} from "./release-settings"
 
 /** Одна сеть в одном Space и Document; свет, HUD и ввод разделяют общий lifecycle. */
-export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined}>) {
+export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined; releaseManagement?: ReleaseSettingsClient | undefined}>) {
   const network = useMemo(() => props.network ?? createNetworkSpace(), [props.network])
   const [context, setContext] = useState<{x: number; y: number} | null>(null)
   useEffect(() => () => {
@@ -92,7 +93,7 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
       {props.workspace === undefined || props.scene !== undefined ? null : <AgentOffices workspace={props.workspace!} bot={props.bot} />}
       <hud>
         {props.scene ? <AtomNavigation scene={props.scene} workspace={props.workspace!} annotations={props.annotations} /> : <NetworkNavigation network={network} workspace={props.workspace} annotations={props.annotations} />}
-        {props.workspace ? <AgentProviderHUD workspace={props.workspace} scene={props.scene} /> : null}
+        {props.workspace ? <AgentProviderHUD workspace={props.workspace} scene={props.scene} releaseManagement={props.releaseManagement} /> : null}
         {props.workspace && props.scene ? <AgentRoomHUD workspace={props.workspace} scene={props.scene} /> : null}
         {props.workspace && props.scene ? <RoomExperience
           workspace={props.workspace}
@@ -250,12 +251,13 @@ function AgentParking(props: Readonly<{workspace: AgentWorkspaceModel}>) {
   return <div hidden={true} ref={props.workspace.bindParking} data-agent-parking="true" style={css`display: none;`} />
 }
 
-function AgentProviderHUD(props: Readonly<{workspace: AgentWorkspaceModel; scene?: AtomSceneModel | undefined}>) {
+function AgentProviderHUD(props: Readonly<{workspace: AgentWorkspaceModel; scene?: AtomSceneModel | undefined; releaseManagement?: ReleaseSettingsClient | undefined}>) {
   const state = useSyncExternalStore(props.workspace.subscribe, props.workspace.getSnapshot)
   const [open, setOpen] = useState(false)
   const selected = state.agents.find(agent => agent.key === state.selected)
   return <ProviderHUD registries={state.input.providerRegistries} connectProviderBrowser={props.workspace.connectProviderBrowser} atom={selected?.atom ?? null} open={open} onOpenChange={setOpen} scopeLabel={selected?.label ?? "Verse"}
-    profiles={state.input.profiles?.targets} profileError={state.input.profileError} profileIntent={props.workspace.profileIntent} />
+    profiles={state.input.profiles?.targets} profileError={state.input.profileError} profileIntent={props.workspace.profileIntent}
+    releaseManagement={props.releaseManagement} />
 }
 
 /** Как в Workbench: общий Tab владеет drag/docking, Button — доступностью и темой. */

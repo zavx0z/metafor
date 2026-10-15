@@ -9,6 +9,8 @@ main() {
   repo=${1:?usage: terminal-runner.sh checkout}
   mode=${2:-normal}
   inspect_address=${3:-}
+  # Явный выбор действует только для одного запуска, не сохраняется в shell/ENV.
+  local selection=${4:-}
   cosmos="$repo/cosmos"
 
   configure_terminal_inspector_environment "$mode" "$inspect_address" || exit 1
@@ -23,7 +25,7 @@ main() {
   printf 'MetaFor Dev\ncheckout: %s\ncommand: bun run %s\n\n' "$repo" "$script"
 
   exit_code=0
-  bun run "$script" || exit_code=$?
+  COSMOS_RELEASE_SELECTION="$selection" bun run "$script" || exit_code=$?
 
   printf '\nCosmos stopped with exit code %s\n' "$exit_code"
   printf 'This iTerm session stays open for metafor-dev restart and log inspection.\n'

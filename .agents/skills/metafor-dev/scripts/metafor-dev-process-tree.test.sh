@@ -85,7 +85,7 @@ ps() {
   local ticks
   ticks=$(cat "$stop_test_root/ticks")
   if [[ $* == '-p 303 -o ppid=' ]]; then
-    [[ $stop_case != late-orphan || $ticks -ge 125 ]] || fail "stop retried TERM before the captured parent exited"
+    [[ $stop_case != late-orphan || $ticks -ge 375 ]] || fail "stop retried TERM before the captured parent exited"
     if [[ $stop_case == orphan-reused ]]; then : > "$stop_test_root/pid-replaced"; fi
     printf '1\n'
     return
@@ -93,13 +93,14 @@ ps() {
   [[ $1 == -p && $* == *'lstart='* && $* == *'uid='* && $* == *'tty='* && $* == *'command='* ]] || fail "stop lost its birth/UID/TTY/command identity check"
   case $2 in
     101)
-      if [[ $stop_case != late-orphan || $ticks -ge 125 ]]; then
+      if [[ $stop_case != late-orphan || $ticks -ge 375 ]]; then
         [[ ! -f $stop_test_root/parent-retired ]] || return 1
       fi
       if [[ -f $stop_test_root/primary ]]; then
         case $stop_case in
           runner-stuck|launcher-stuck) ;;
-          late-orphan) [[ $ticks -lt 125 ]] || return 1 ;;
+          late-orphan) [[ $ticks -lt 375 ]] || return 1 ;;
+          slow-grace) [[ $ticks -lt 250 ]] || return 1 ;;
           graceful) [[ $ticks -lt 3 ]] || return 1 ;;
           *) return 1 ;;
         esac
@@ -116,7 +117,9 @@ ps() {
     202)
       if [[ -f $stop_test_root/primary ]]; then
         if [[ $stop_case == late-orphan ]]; then
-          [[ $ticks -lt 125 ]] || return 1
+          [[ $ticks -lt 375 ]] || return 1
+        elif [[ $stop_case == slow-grace ]]; then
+          [[ $ticks -lt 250 ]] || return 1
         elif [[ $stop_case == launcher-stuck ]]; then
           [[ ! -f $stop_test_root/launcher-retired ]] || return 1
         else
@@ -129,6 +132,7 @@ ps() {
       if [[ -f $stop_test_root/primary ]]; then
         case $stop_case in
           graceful|runner-stuck) [[ $ticks -lt 3 ]] || return 1 ;;
+          slow-grace) [[ $ticks -lt 250 ]] || return 1 ;;
           orphan|launcher-stuck) [[ ! -f $stop_test_root/domain-retired ]] || return 1 ;;
           late-orphan) [[ ! -f $stop_test_root/orphan-retired ]] || return 1 ;;
           orphan-reused)
@@ -136,7 +140,7 @@ ps() {
             ;;
           reused) printf 'Tue Oct 13 00:01:00 2026 501 ttys001 bun unrelated.js\n'; return ;;
           fallback-reused)
-            if [[ $ticks -ge 50 ]]; then
+            if [[ $ticks -ge 300 ]]; then
               if [[ -f $stop_test_root/fallback-observed ]]; then printf 'Tue Oct 13 00:01:00 2026 501 ttys001 bun unrelated.js\n'; return; fi
               : > "$stop_test_root/fallback-observed"
             fi
@@ -151,6 +155,9 @@ ps() {
 kill() {
   [[ $1 == -TERM && $# == 2 ]] || fail "stop used a process group or escalation signal"
   [[ -f $stop_test_root/captured ]] || fail "stop sent TERM before capturing descendants"
+  if [[ -f $stop_test_root/primary ]]; then
+    [[ $(cat "$stop_test_root/ticks") -ge 300 ]] || fail "dispatcher interrupted causal cleanup before its 60-second grace"
+  fi
   case $2 in
     202)
       if [[ -f $stop_test_root/primary ]]; then : > "$stop_test_root/launcher-retired"; fi
@@ -159,7 +166,7 @@ kill() {
     303)
       [[ $stop_case != reused && $stop_case != fallback-reused && ! -f $stop_test_root/pid-replaced ]] || fail "stop signalled a reused domain PID"
       : > "$stop_test_root/domain-retired"
-      if [[ $stop_case == late-orphan && $(cat "$stop_test_root/ticks") -ge 125 ]]; then : > "$stop_test_root/orphan-retired"; fi
+      if [[ $stop_case == late-orphan && $(cat "$stop_test_root/ticks") -ge 375 ]]; then : > "$stop_test_root/orphan-retired"; fi
       ;;
     101) : > "$stop_test_root/parent-retired" ;;
     *) fail "stop signalled a foreign PID" ;;
@@ -191,9 +198,15 @@ output=$(stop_contour)
 [[ $(cat "$stop_test_root/events") == 'TERM 202' ]] || fail "graceful stop signalled the wrapper or domains"
 printf 'ok - graceful stop signals the launcher and waits for its owned tree\n'
 
+reset_stop_case slow-grace
+output=$(stop_contour)
+[[ $output == *'cosmos: stopped 101'* && $(cat "$stop_test_root/ticks") == 250 ]] || fail "stop interrupted a 50-second causal drain"
+[[ $(cat "$stop_test_root/events") == 'TERM 202' ]] || fail "slow graceful stop signalled a domain or outer runner"
+printf 'ok - a 50-second causal drain receives no descendant signals before completion\n'
+
 reset_stop_case orphan
 output=$(stop_contour)
-[[ $output == *'cosmos: stopped 101'* && $(cat "$stop_test_root/ticks") == 51 ]] || fail "stop did not retire its exact captured orphan"
+[[ $output == *'cosmos: stopped 101'* && $(cat "$stop_test_root/ticks") == 301 ]] || fail "stop did not retire its exact captured orphan"
 [[ $(cat "$stop_test_root/events") == $'TERM 202\nTERM 303' ]] || fail "stop lost ordered captured-orphan cleanup"
 printf 'ok - graceful timeout sends TERM to the exact reparented domain\n'
 
@@ -201,9 +214,9 @@ reset_stop_case persistent
 if output=$(stop_contour 2>&1; printf 'START NEW TREE\n' >> "$stop_test_root/events"); then
   fail "a surviving descendant allowed restart"
 fi
-[[ $output == *'did not stop within 60s; remaining owned PIDs: 303'* && $(cat "$stop_test_root/ticks") == 300 ]] || fail "bounded stop did not identify its surviving descendant"
+[[ $output == *'did not stop within 90s; remaining owned PIDs: 303'* && $(cat "$stop_test_root/ticks") == 450 ]] || fail "bounded stop did not identify its surviving descendant"
 [[ $(cat "$stop_test_root/events") == $'TERM 202\nTERM 303\nTERM 303' ]] || fail "bounded stop escalated, spammed TERM or started a new tree"
-printf 'ok - one 60-second deadline reports the survivor and prevents restart\n'
+printf 'ok - one 90-second deadline reports the survivor and prevents restart\n'
 
 reset_stop_case reused
 output=$(stop_contour)
@@ -213,7 +226,7 @@ printf 'ok - reused descendant PID is preserved\n'
 
 reset_stop_case fallback-reused
 output=$(stop_contour)
-[[ $output == *'cosmos: stopped 101'* && $(cat "$stop_test_root/ticks") == 51 ]] || fail "fallback failed to recheck process identity"
+[[ $output == *'cosmos: stopped 101'* && $(cat "$stop_test_root/ticks") == 301 ]] || fail "fallback failed to recheck process identity"
 [[ $(cat "$stop_test_root/events") == 'TERM 202' ]] || fail "fallback signalled a PID reused during the grace period"
 printf 'ok - fallback revalidates identity immediately before TERM\n'
 
@@ -231,7 +244,7 @@ printf 'ok - fallback retries TERM from captured leaves to the outer runner\n'
 
 reset_stop_case late-orphan
 output=$(stop_contour)
-[[ $output == *'cosmos: stopped 101'* && $(cat "$stop_test_root/ticks") == 126 ]] || fail "stop did not wait for asynchronous parent exit after 20 seconds"
+[[ $output == *'cosmos: stopped 101'* && $(cat "$stop_test_root/ticks") == 376 ]] || fail "stop did not wait for asynchronous parent exit during the cleanup window"
 [[ $(cat "$stop_test_root/events") == $'TERM 202\nTERM 303\nTERM 202\nTERM 101\nTERM 303' ]] || fail "stop did not reassert TERM once after the domain became an orphan"
 printf 'ok - late PPID-1 reparent gets one fresh TERM inside the same deadline\n'
 
