@@ -38,6 +38,7 @@ import {createEmbeddedSurface} from "@zavx0z/storybook-app-web-page-shell/surfac
 import {createPinnedChatHost} from "@zavx0z/storybook-app-web-page-shell-workbench/chat"
 import {createSourcePackageContent} from "@zavx0z/storybook-app-web-page-package/content"
 import {createDevelopmentRoomPresentations} from "./development-room-presentations"
+import {developmentRoomCatalogItems} from "./development-room-catalog"
 import {inspectDevelopmentRoom} from "./development-room-inspection"
 
 export type {AgentWorkspaceSource, AgentWorkspaceSnapshot, AgentOfficeSnapshot, AgentOfficeActor, AgentConnectableSlot, AgentFieldValue, AgentFieldUpdate,
@@ -109,22 +110,19 @@ const developmentScene = createDevelopmentRoomScene({
     if (!pkg || !catalog) throw new Error("Package отсутствует в назначенном каталоге Cosmos")
     const nodes = catalog.nodes?.filter(node => node.packageName === id) ?? []
     const nodeIds = new Set(nodes.map(node => node.id))
-    const surface = createEmbeddedSurface({root: presentation, display, hudId: "cosmos-development-hud",
+    const handle = createEmbeddedSurface({root: presentation, display, hudId: "cosmos-development-hud",
       title, statusOwner: "Cosmos", mount, onRelease})
     let disposed = false
     let contentRequest = 0
     let contentController: ReturnType<typeof createSourcePackageContent> | null = null
-    surface.workbench.update("catalog.label", "Структура Package")
-    surface.workbench.update("catalog.items", nodes.map(node => ({id: node.id, label: node.label, route: node.routePath,
-      searchText: `${node.label} ${node.sourcePath}`,
-      ...(node.parentId && nodeIds.has(node.parentId) ? {parentId: node.parentId} : {})})))
-    surface.workbench.update("catalog.active", `package:${id}`)
-    surface.showMessage("Package", title, "Загрузка содержания Package…")
+    let surface: Awaited<typeof handle.ready> | null = null
     const showNode = async (nodeId?: string) => {
+      const current = surface
+      if (!current || disposed) throw new Error("Package Surface недоступна")
       const request = ++contentRequest
       const content = await developmentPorts.content(id, nodeId)
       if (disposed || request !== contentRequest) return
-      surface.workbench.update("catalog.active", content.node.id)
+      current.workbench.update("catalog.active", content.node.id)
       if (contentController) {
         await contentController.update({...content, resourceBase: new URL(content.resourceBase, globalThis.location.href).href})
         return
@@ -132,27 +130,55 @@ const developmentScene = createDevelopmentRoomScene({
       const presentations = createDevelopmentRoomPresentations({document: presentation.document, catalog,
         package: pkg, sourceClient: developmentSourceClient, navigate: name => developmentNavigation?.navigate(name),
         onDirtyChange: dirty => developmentDirty.set(id, dirty)})
-      contentController = createSourcePackageContent({surface,
-        content: {...content, resourceBase: new URL(content.resourceBase, globalThis.location.href).href},
-        dependencyPresentation: presentations.dependency,
-        ...(presentations.source ? {sourcePresentation: presentations.source} : {})})
-      await contentController.ready
+      let controller: ReturnType<typeof createSourcePackageContent> | null = null
+      try {
+        controller = createSourcePackageContent({surface: current,
+          content: {...content, resourceBase: new URL(content.resourceBase, globalThis.location.href).href},
+          dependencyPresentation: presentations.dependency,
+          ...(presentations.source ? {sourcePresentation: presentations.source} : {})})
+        contentController = controller
+        await controller.ready
+      } catch (error) {
+        if (controller) controller.dispose()
+        else {presentations.dependency.dispose(); presentations.source?.dispose()}
+        if (contentController === controller) contentController = null
+        throw error
+      }
     }
     const navigate = (event: Event) => {
       const nodeId = (event as CustomEvent<{id: string}>).detail?.id
       if (nodeId && nodeIds.has(nodeId)) void showNode(nodeId).catch(error => {
-        if (!disposed) surface.showMessage("Package", title, error instanceof Error ? error.message : "Содержание узла недоступно")
+        if (!disposed) surface?.showMessage("Package", title, error instanceof Error ? error.message : "Содержание узла недоступно")
       })
     }
-    surface.workbench.element.addEventListener(surface.workbench.events.navigate, navigate)
-    void showNode().catch(error => {if (!disposed) surface.showMessage("Package", title, error instanceof Error ? error.message : "Содержание Package недоступно")})
-    return {display, dispose() {
+    const ready = handle.ready.then(value => {
+      if (disposed) throw new Error("Package Surface освобождена")
+      surface = value
+      value.workbench.update("catalog.label", "Структура Package")
+      value.workbench.update("catalog.items", developmentRoomCatalogItems(pkg, nodes))
+      value.workbench.update("catalog.active", `package:${id}`)
+      value.showMessage("Package", title, "Загрузка содержания Package…")
+      value.workbench.element.addEventListener(value.workbench.events.navigate, navigate)
+    }).catch(error => {
+      handle.dispose()
+      throw error
+    })
+    const load = async () => {
+      try {await showNode()}
+      catch (error) {
+        if (!disposed) surface?.showMessage("Package", title, error instanceof Error ? error.message : "Содержание Package недоступно")
+        throw error
+      }
+    }
+    const content = ready.then(load)
+    void content.catch(() => {})
+    return {display, ready, content, reload: () => ready.then(load), dispose() {
       disposed = true
       contentRequest++
-      surface.workbench.element.removeEventListener(surface.workbench.events.navigate, navigate)
+      surface?.workbench.element.removeEventListener(surface.workbench.events.navigate, navigate)
       contentController?.dispose()
       developmentDirty.delete(id)
-      surface.dispose()
+      handle.dispose()
     }}
   },
 })

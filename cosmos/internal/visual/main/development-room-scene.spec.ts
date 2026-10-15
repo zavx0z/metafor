@@ -15,7 +15,7 @@ const catalog: DevelopmentCatalog = {
   dependencies: [],
 }
 
-function fixture() {
+function fixture(failFirstView = false) {
   const document = createDocument(), space = new SpaceElement(document), viewPoint = new ViewPointElement(document)
   document.append(space)
   space.append(viewPoint)
@@ -28,6 +28,7 @@ function fixture() {
     visit(name) {visits.push(name)},
     createView(_root, id, _title, mount, display, release) {
       surfaces.push(id)
+      if (failFirstView && surfaces.length === 1) throw new Error("Первое представление недоступно")
       const content = document.createElement("article")
       content.textContent = id
       mount(content)
@@ -59,6 +60,22 @@ function fixture() {
   } as unknown as Presentation
   return {document, scene, root, hosts, visits, navigation, surfaces, dispose() {scene.dispose(); stopHosts()}}
 }
+
+test("failed Package creation reports an error and the same route can be retried", () => {
+  const f = fixture(true)
+  try {
+    f.scene.configure(catalog)
+    f.scene.setActive(true)
+    f.scene.attach(f.root)
+    f.scene.applyRoute("@fixture/root")
+    expect(f.scene.getSnapshot().error).toBe("Первое представление недоступно")
+    expect(f.scene.spatial.getSnapshot()?.contentById.get("@fixture/root")).toBeUndefined()
+    f.scene.applyRoute("@fixture/root")
+    expect(f.scene.getSnapshot().error).toBeNull()
+    expect(f.surfaces).toEqual(["@fixture/root", "@fixture/root"])
+    expect(f.scene.spatial.getSnapshot()?.contentById.get("@fixture/root")).toBeDefined()
+  } finally {f.dispose()}
+})
 
 test("nested Package rooms use exact names, one visited Surface and the Quantum room/back camera policy", () => {
   const f = fixture()

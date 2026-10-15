@@ -9,7 +9,7 @@ export function inspectDevelopmentRoom(base: ClientViewInspection, scene: Develo
   const currentAgents = agents.packageName === selected?.name && selected?.resolution === "source"
   const participants = currentAgents ? agents.agents : []
   const error = catalogError ?? scene.error ?? (currentAgents ? agents.error : null)
-  const loading = !scene.catalog || currentAgents && agents.loading
+  const loading = !scene.catalog || scene.loading || currentAgents && agents.loading
   const bounded = participants.filter(agent => agent.executorId.length > 0 && agent.executorId.length <= 256).slice(0, 64)
   return {
     mode: "cosmos",

@@ -17,7 +17,7 @@ const base: ClientViewInspection = {mode: "agents", status: "ready", error: null
 
 test("Cosmos inspect projects only the selected Package and bounded exact executor identities", () => {
   const scene: DevelopmentRoomSnapshot = {catalog, selectedPackage: catalog.packages[0]!, view: "room", canGoBack: true,
-    error: null, geometryNodes: []}
+    loading: false, error: null, geometryNodes: []}
   const participants = Array.from({length: 66}, (_, index) => ({executorId: `executor-${index}`, label: `Агент ${index}`}))
   const agents: DevelopmentRoomAgentsSnapshot = {packageName: "@fixture/root", agents: participants, loading: false,
     error: null, selectedActorId: null, chatOpen: false}
@@ -34,6 +34,7 @@ test("Cosmos inspect projects only the selected Package and bounded exact execut
   expect(external.status).toBe("error")
   expect(external.sourceRoom).toMatchObject({packageName: "external-lib", resolution: "external", view: "overview", participants: []})
   expect(inspectDevelopmentRoom(base, scene, {...agents, loading: true}, null).status).toBe("loading")
+  expect(inspectDevelopmentRoom(base, {...scene, loading: true}, agents, null).status).toBe("loading")
   expect(inspectDevelopmentRoom(base, scene, {...agents, error: "Участники недоступны"}, null)).toMatchObject({status: "error", error: "Участники недоступны"})
   expect(inspectDevelopmentRoom(base, {...scene, error: "Сохраните черновики"}, agents, null)).toMatchObject({status: "error", error: "Сохраните черновики"})
   expect(inspectDevelopmentRoom(base, scene, {...agents, packageName: "previous", error: "Старая ошибка"}, null).status).toBe("ready")

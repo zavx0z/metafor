@@ -7,7 +7,7 @@ import type {DevelopmentCatalog, DevelopmentPackage} from "../../../release/shar
 const BODY_DEPTH = 180
 const MAX_VIEWS = 32
 type GeometryNode = SpatialTreeSnapshot["nodes"][number]
-type View = {display: DisplayElement; dispose(): void}
+type View = {display: DisplayElement; dispose(): void; ready?: Promise<void>; content?: Promise<void>; reload?(): Promise<void>}
 type Viewport = Readonly<{width: number; height: number}>
 
 export type DevelopmentRoomView = "overview" | "display" | "room"
@@ -16,6 +16,7 @@ export type DevelopmentRoomSnapshot = Readonly<{
   selectedPackage: DevelopmentPackage | null
   view: DevelopmentRoomView
   canGoBack: boolean
+  loading: boolean
   error: string | null
   geometryNodes: readonly GeometryNode[]
 }>
@@ -36,6 +37,7 @@ export function createDevelopmentRoomScene(options: Readonly<{
   const visible = createSpatialTreeState()
   const listeners = new Set<() => void>()
   const views = new Map<string, View>()
+  const pending = new Set<string>()
   let catalog: DevelopmentCatalog | null = null
   let selectedName: string | null = null
   let root: Presentation | null = null
@@ -45,11 +47,12 @@ export function createDevelopmentRoomScene(options: Readonly<{
   let disposed = false
   let openingDisplay = false
   let configuredKey = ""
-  let capacityError: string | null = null
+  let sceneError: string | null = null
   let viewportSize: Viewport | null = null
   let resizeQueued = false
   let stopCamera = () => {}, stopPresented = () => {}
-  let snapshot: DevelopmentRoomSnapshot = {catalog, selectedPackage: null, view, canGoBack: false, error: null, geometryNodes: []}
+  let snapshot: DevelopmentRoomSnapshot = {catalog, selectedPackage: null, view, canGoBack: false, loading: false,
+    error: null, geometryNodes: []}
   const assertActive = () => {if (disposed) throw new Error("Development room scene is disposed")}
   const selectedPackage = () => catalog?.packages.find(pkg => pkg.name === selectedName) ?? null
   const viewport = (): Viewport | null => {
@@ -60,12 +63,28 @@ export function createDevelopmentRoomScene(options: Readonly<{
   const derive = () => {
     const value = source.getSnapshot()
     snapshot = {catalog, selectedPackage: selectedPackage(), view, canGoBack: view !== "overview" && selectedPackage() !== null,
-      error: capacityError,
+      loading: selectedName !== null && pending.has(selectedName),
+      error: sceneError,
       geometryNodes: value?.geometryNodes ?? value?.nodes ?? []}
     for (const listener of listeners) listener()
   }
   const updateVisibility = () => {
     for (const [name, item] of views) item.display.hidden = !active || view !== "display" || name !== selectedName
+  }
+  const trackContent = (id: string, item: View, result: Promise<void>) => {
+    pending.add(id)
+    derive()
+    void result.then(() => {
+      if (views.get(id) !== item) return
+      pending.delete(id)
+      if (selectedName === id) sceneError = null
+      derive()
+    }, error => {
+      if (views.get(id) !== item) return
+      pending.delete(id)
+      if (selectedName === id) sceneError = error instanceof Error ? error.message : "Содержание Package недоступно"
+      derive()
+    })
   }
   const enter = () => {
     if (!root || !graph || !selectedName || !selectedPackage() || view !== "display" || !active) return false
@@ -109,7 +128,7 @@ export function createDevelopmentRoomScene(options: Readonly<{
     }
     if (eye.z < r.z && eye.x >= r.x && eye.x <= r.x + r.width && eye.y >= r.y && eye.y <= r.y + r.height) enter()
   }
-  const refresh = (focus: boolean) => {
+  const refresh = (focus: boolean, retryContent = false) => {
     if (!graph || !catalog) {derive(); return}
     const sourcePackages = catalog.packages.filter(pkg => pkg.resolution === "source")
     const packageNames = new Set(sourcePackages.map(pkg => pkg.name))
@@ -129,19 +148,30 @@ export function createDevelopmentRoomScene(options: Readonly<{
       if (!views.has(pkg.name) && views.size >= MAX_VIEWS) {
         const evict = [...views.keys()].find(id => id !== pkg.name && options.canRelease?.(id) !== false)
         if (!evict) {
-          capacityError = "Сохраните открытые черновики перед переходом к другому Package"
+          sceneError = "Сохраните открытые черновики перед переходом к другому Package"
           derive()
           return
         }
         graph.releaseView(evict)
       }
-      capacityError = null
-      graph.createView({id: pkg.name, title: pkg.label})
+      try {
+        const residentBefore = views.has(pkg.name)
+        const current = graph.createView({id: pkg.name, title: pkg.label})
+        if (!residentBefore) sceneError = null
+        if (retryContent && !pending.has(pkg.name) && current.reload) {
+          sceneError = null
+          trackContent(pkg.name, current, current.reload())
+        }
+      } catch (error) {
+        sceneError = error instanceof Error ? error.message : "Не удалось открыть Package"
+        derive()
+        return
+      }
       const resident = views.get(pkg.name)
       if (resident) {views.delete(pkg.name); views.set(pkg.name, resident)}
       if (active) graph.select(pkg.name, focus)
     } else {
-      capacityError = null
+      sceneError = null
       if (focus && active) graph.fit()
     }
     updateVisibility()
@@ -163,9 +193,26 @@ export function createDevelopmentRoomScene(options: Readonly<{
         preserveViewPoint: true,
         getViewport: viewport,
         createView(id, title, mount, display, onRelease) {
-          const release = () => {views.delete(id); onRelease()}
+          const release = () => {views.delete(id); pending.delete(id); onRelease()}
           const result = options.createView(value, id, title, mount, display, release)
           views.set(id, result)
+          if (result.ready) {
+            pending.add(id)
+            void result.ready.then(() => {
+              if (views.get(id) !== result) return
+              if (result.content) trackContent(id, result, result.content)
+              else {pending.delete(id); derive()}
+            }, error => {
+              const current = views.get(id) === result
+              if (current) {
+                pending.delete(id)
+                graph?.releaseView(id)
+              }
+              if (!current && (error as {name?: string})?.name === "AbortError") return
+              if (selectedName === id) sceneError = error instanceof Error ? error.message : "Не удалось открыть Package"
+              derive()
+            })
+          } else if (result.content) trackContent(id, result, result.content)
           return result
         },
       })
@@ -199,8 +246,8 @@ export function createDevelopmentRoomScene(options: Readonly<{
       const changed = selectedName !== packageName
       selectedName = packageName
       const sourcePackage = catalog?.packages.find(pkg => pkg.name === packageName)?.resolution === "source"
-      if (changed) {view = sourcePackage ? "display" : "overview"; openingDisplay = sourcePackage}
-      refresh(changed)
+      if (changed) {view = sourcePackage ? "display" : "overview"; openingDisplay = sourcePackage; sceneError = null}
+      refresh(changed, !changed)
     },
     setActive(next: boolean) {
       assertActive()
