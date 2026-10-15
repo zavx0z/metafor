@@ -171,7 +171,9 @@
 - По явному решению владельца bundled script
   `.agents/skills/metafor-dev/scripts/metafor-dev.sh` может использовать
   AppleScript только для поиска, создания, чтения и фокусировки собственной
-  iTerm-сессии с marker `user.metaforDev`. Это узкое исключение не разрешает
+  iTerm-сессии с marker `user.metaforDev`. Та же возможность сохраняется у его
+  проверенной installed-копии, подготовленной `operator-install.ts`: точный
+  checkout marker и границы действий остаются прежними. Это узкое исключение не разрешает
   другим scripts или агенту напрямую управлять iTerm, Chrome либо иными
   приложениями через AppleScript; Chrome этого contour управляется через CDP.
 - WebGPU Inspector остаётся только внешним диагностическим инструментом. Его

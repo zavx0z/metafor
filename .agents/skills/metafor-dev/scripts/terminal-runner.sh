@@ -5,13 +5,15 @@ export LC_ALL=C LANG=C
 main() {
   local script_dir repo mode inspect_address cosmos script exit_code
   script_dir=$(cd "$(dirname "$0")" && pwd)
+  source "$script_dir/operator-mode.sh"
   source "$script_dir/inspector.sh"
   repo=${1:?usage: terminal-runner.sh checkout}
   mode=${2:-normal}
   inspect_address=${3:-}
   # Явный выбор действует только для одного запуска, не сохраняется в shell/ENV.
   local selection=${4:-}
-  cosmos="$repo/cosmos"
+  [[ -z ${operator_checkout:-} || $repo == "$operator_checkout" ]] || exit 1
+  cosmos=${METAFOR_OPERATOR_ROOT:-$repo/cosmos}
 
   configure_terminal_inspector_environment "$mode" "$inspect_address" || exit 1
   case "$mode" in

@@ -1,4 +1,5 @@
 import {resolve} from "node:path"
+import {loadOperatorInstance} from "./operator-instance"
 import {realpath} from "node:fs/promises"
 import {createInstalledReleaseStore} from "../../../../tech/release/installed"
 import {decodeInstalledReleaseSelection, installedReleaseStoreIdentity, prepareInstalledReleaseSelection, type InstalledReleaseSelection} from "../../../../cosmos/selection"
@@ -109,6 +110,6 @@ async function main(args: string[]) {
 }
 
 if (import.meta.main) {
-  try {await main(process.argv.slice(2))}
+  try {await loadOperatorInstance(); await main(process.argv.slice(2))}
   catch (error) {console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 1}
 }

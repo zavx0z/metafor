@@ -3,7 +3,9 @@ set -euo pipefail
 export LC_ALL=C LANG=C
 
 script_dir=$(cd "$(dirname "$0")" && pwd)
-repo=$(cd "$script_dir/../../../.." && pwd)
+source "$script_dir/operator-mode.sh"
+repo=${operator_checkout:-$(cd "$script_dir/../../../.." && pwd)}
+runtime_root=${METAFOR_OPERATOR_ROOT:-$repo/cosmos}
 dispatcher="$script_dir/metafor-dev.sh"
 action=${1:-start}
 
@@ -23,14 +25,14 @@ case "$action" in
 esac
 
 # Чтение уже работающего checkout не присваивает iTerm ownership и не требует GUI.
-if [[ $action == start ]]; then
-  port=$(jq -r '.scripts.dev | try capture("--port=(?<port>[0-9]+)").port catch ""' "$repo/cosmos/package.json")
+if [[ $action == start && -z ${METAFOR_OPERATOR_ROOT:-} ]]; then
+  port=${operator_port:-$(jq -r '.scripts.dev | try capture("--port=(?<port>[0-9]+)").port catch ""' "$repo/cosmos/package.json")}
   if [[ $port =~ ^[0-9]+$ ]]; then
     origin="http://127.0.0.1:$port"
     parents=$(ps -axo pid=,command= | awk '$2 ~ /(^|\/)bun$/ && $3 == "run" && $4 == "dev" {print $1}')
     for parent in $parents; do
       cwd=$(lsof -a -p "$parent" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p') || cwd=
-      if [[ $cwd == "$repo/cosmos" ]] && curl --fail --silent --max-time 2 "$origin/health" | jq -e '.ok == true and .state == "running"' >/dev/null; then
+      if [[ $cwd == "$runtime_root" || $cwd == "$repo/cosmos" ]] && curl --fail --silent --max-time 2 "$origin/health" | jq -e '.ok == true and .state == "running"' >/dev/null; then
         printf 'MetaFor готов: %s/\n' "$origin"
         exit 0
       fi
@@ -52,15 +54,16 @@ case "$action" in
   downgrade|activate)
     # Живой owner выполняет тот же serialized handover, что HUD. При недоступном
     # API разрешён только cold start; implicit stop мог бы остановить новый active.
-    selection=$(bun --cwd "$repo/cosmos" "$script_dir/release-selection.ts" prepare "${2:-}")
-    if bun --cwd "$repo/cosmos" "$script_dir/release-selection.ts" apply "$selection" "$origin"; then
+    selection=$(bun --cwd "$runtime_root" "$script_dir/release-selection.ts" prepare "${2:-}")
+    if bun --cwd "$runtime_root" "$script_dir/release-selection.ts" apply "$selection" "$origin"; then
       exit 0
     else
       code=$?
       [[ $code == 3 ]] || exit "$code"
     fi
     METAFOR_DEV_RELEASE_SELECTION="$selection" "$dispatcher" start "$repo"
-    exec bun --cwd "$repo/cosmos" "$script_dir/release-selection.ts" verify "$selection" "$origin"
+    bun --cwd "$runtime_root" "$script_dir/release-selection.ts" verify "$selection" "$origin"
+    exit $?
     ;;
   status)
     printf '%s\n' "$status"

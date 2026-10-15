@@ -15,6 +15,7 @@ mkdir -p "$test_root/bin" "$test_root/repository/cosmos"
 sed 's|  exec /bin/zsh -l|  return "$exit_code"|' \
   "$script_dir/terminal-runner.sh" > "$runner"
 cp "$script_dir/inspector.sh" "$test_root/inspector.sh"
+cp "$script_dir/operator-mode.sh" "$test_root/operator-mode.sh"
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'printf "%s\n" "replacement must not execute" > "$RUNNER_UNDER_TEST"' \

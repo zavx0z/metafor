@@ -1,5 +1,7 @@
 import {lstat} from "node:fs/promises"
 import {resolve} from "node:path"
+import {createInstalledReleaseStore} from "../../../../tech/release/installed"
+import {loadOperatorInstance} from "./operator-instance"
 
 /** Resolve only explicit installed configuration through the public code-store API; never print credentials. */
 export async function configuredInstalledReleaseArtifacts(cosmos: string, environment: Readonly<Record<string, string | undefined>>): Promise<string[]> {
@@ -8,8 +10,7 @@ export async function configuredInstalledReleaseArtifacts(cosmos: string, enviro
   const root = resolve(cosmos, configured)
   const status = await lstat(root)
   if (!status.isDirectory() || status.isSymbolicLink()) throw new Error("Configured installed release root is not a real directory")
-  const library = await import(Bun.resolveSync("@metafor/tech-release/installed", cosmos)) as typeof import("../../../../tech/release/installed")
-  const store = library.createInstalledReleaseStore({root})
+  const store = createInstalledReleaseStore({root})
   const active = await store.readActive()
   const candidates = active ? [active] : []
   const configuredDigest = environment.COSMOS_RELEASE_DIGEST
@@ -31,6 +32,7 @@ export async function configuredInstalledReleaseArtifacts(cosmos: string, enviro
 
 if (import.meta.main) {
   try {
+    await loadOperatorInstance()
     for (const artifact of await configuredInstalledReleaseArtifacts(process.argv[2] ?? process.cwd(), Bun.env)) console.log(artifact)
   } catch {
     console.error("Configured installed release identity is unavailable")

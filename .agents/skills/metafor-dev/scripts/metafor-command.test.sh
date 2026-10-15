@@ -7,6 +7,7 @@ trap 'rm -r "$fixture"' EXIT
 mkdir -p "$fixture/repo/.agents/skills/metafor-dev/scripts" "$fixture/repo/cosmos" "$fixture/bin"
 wrapper="$fixture/repo/.agents/skills/metafor-dev/scripts/metafor-command.sh"
 cp "$script_dir/metafor-command.sh" "$wrapper"
+cp "$script_dir/operator-mode.sh" "${wrapper%/*}/operator-mode.sh"
 cat > "${wrapper%/*}/metafor-dev.sh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$1" >> "$COMMAND_EVENTS"

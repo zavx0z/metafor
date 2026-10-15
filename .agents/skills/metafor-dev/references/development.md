@@ -448,6 +448,48 @@ installed-контур выбирается через `COSMOS_RELEASE_STORE`: �
 запуск получает явно назначенный `COSMOS_RELEASE_DIGEST`; последующие читают
 единственный сохранённый active. `PORT` задаёт рабочий вход.
 
+### Замороженный operator
+
+Чтобы recovery-команда переживала повреждение source startup, CLI и
+`package.json`, установленный `metafor` может указывать на отдельную малую
+operator-поставку. Она содержит bundle существующего installed startup owner,
+selection/identity helpers и проверенную копию dispatcher skill. Подготовка
+проверяет SHA-256 состава; scripts и bundle после установки доступны только
+для чтения. Это install artifact, не копия workspace. Он использует тот же
+`user.metaforDev` marker канонического checkout, один видимый iTerm и прежнее
+дерево `bun run dev` → startup → release. Cwd launcher находится в поставке;
+повреждённые source `.env`, bunfig и package scripts при восстановлении не читаются.
+
+Сначала вне writable authoring roots готовится приватный JSON с `version: 1`,
+`checkout`, `port`, абсолютным `bunExecutable` и объектом `environment`.
+Последний содержит явные действующие `COSMOS_*`, `METAFOR_*`, `BOUNDARY_*`,
+`DARK_*`, `ORACLE_*`, `FORCE_*` настройки этого экземпляра. Обязательны
+абсолютные `COSMOS_RELEASE_STORE` и `METAFOR_STATE_ROOT`; пути world, history,
+profiles, conversations и capability config сохраняются без переноса.
+Одноразовый selection, Inspector и `METAFOR_OPERATOR_*` туда не входят.
+Credentials не печатаются и не сохраняются в Git. Installer создаёт собственную
+приватную копию config с режимом `0400` и привязывает её digest к поставке.
+
+```bash
+bun .agents/skills/metafor-dev/scripts/operator-install.ts prepare "$HOME/.local/share/metafor/operator" /absolute/private/instance.json
+bun .agents/skills/metafor-dev/scripts/operator-install.ts install /absolute/prepared/receipt.json "$HOME/.local/bin/metafor"
+```
+
+`prepare` возвращает пути snapshot, instance и receipt, не меняет bin и процессы.
+`install` проверяет receipt и атомарно заменяет только bin-wrapper; работающий
+runtime остаётся прежним. Первый source-контур по-прежнему узнаётся по своему
+каноническому cwd. При обновлении уже установленного operator сначала явно
+остановить принадлежащее старой поставке дерево прежним `metafor stop`, затем
+установить новую поставку и вызвать `metafor start`. Обычная публикация Core
+этот entrypoint не обновляет. Произвольные действия с правами пользователя ОС
+не изолируются файловой поставкой.
+
+Если UI сломан, явный `metafor downgrade` использует тот же совместимый
+предыдущий успешный candidate. Он меняет готовую версию программы; исходники,
+чаты и мир не восстанавливаются из прошлого snapshot и не сбрасываются.
+Отказ совместимости и неизвестный исход операции сохраняют прежние правила;
+автоматический rollback или повтор POST не выполняются.
+
 `metafor activate <digest>` явно выбирает уже подготовленного кандидата, а
 `metafor downgrade` выбирает предыдущую успешную активацию. Обе команды используют
 один живой operator endpoint и существующий serialized startup handover.

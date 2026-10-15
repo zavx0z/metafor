@@ -29,6 +29,13 @@ one exact release child; only that child owns `Bun.serve`. Normal and debug
 server lifecycle leave browsers untouched. Browser launch is not part of
 development startup, installation, or distribution acceptance.
 
+Для установленного recovery-входа допускается проверенная frozen-копия того же
+dispatcher, собранная `scripts/operator-install.ts` вне writable authoring roots.
+Она сохраняет checkout marker и process ownership; исполняемый cwd относится к
+operator-поставке. Команды и instance config закрепляются отдельно от Core.
+Подготовка и явная установка описаны в
+[процедуре frozen operator](references/development.md#замороженный-operator).
+
 Only when the user explicitly requests managed Chrome diagnostics, use
 `start-browser` or `restart-browser`. That separate mode owns one Chrome CDP
 process on port 9222 with a stable profile.

@@ -4,11 +4,13 @@ export LC_ALL=C LANG=C
 
 action=${1:-status}
 script_dir=$(cd "$(dirname "$0")" && pwd)
+source "$script_dir/operator-mode.sh"
 source "$script_dir/managed-parent.sh"
 source "$script_dir/inspector.sh"
-default_repo=$(cd "$script_dir/../../../.." && pwd)
+default_repo=${operator_checkout:-$(cd "$script_dir/../../../.." && pwd)}
 repo=${2:-$default_repo}
 cosmos="$repo/cosmos"
+runtime_root=${METAFOR_OPERATOR_ROOT:-$cosmos}
 iterm_app=/Applications/iTerm.app
 chrome_app=/Applications/Google\ Chrome.app
 chrome_executable="$chrome_app/Contents/MacOS/Google Chrome"
@@ -23,6 +25,10 @@ debug_port=$(resolve_inspector_port "${METAFOR_DEV_BUN_INSPECT_PORT:-}") \
 debug_address=$(inspector_address_for_port "$debug_port")
 
 validate_repo() {
+  if [[ -n ${METAFOR_OPERATOR_ROOT:-} ]]; then
+    [[ $repo == "$operator_checkout" ]] || die "operator belongs to another checkout"
+    return
+  fi
   [[ -d $repo ]] || die "checkout does not exist: $repo"
   local root
   root=$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null) \
@@ -36,6 +42,7 @@ validate_repo() {
 }
 
 package_port() {
+  if [[ -n ${operator_port:-} ]]; then printf '%s\n' "$operator_port"; return; fi
   jq -r '.scripts.dev | try capture("--port=(?<port>[0-9]+)").port catch ""' \
     "$cosmos/package.json"
 }
@@ -171,7 +178,7 @@ repo_processes() {
     [[ -n $pid ]] || continue
     cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null \
       | sed -n 's/^n//p' | head -1 || true)
-    [[ $cwd == "$cosmos" ]] || continue
+    [[ $cwd == "$cosmos" || $cwd == "$runtime_root" ]] || continue
     command=$(ps -p "$pid" -o command= 2>/dev/null || true)
     case "$command" in
       *"bun run dev"*|*"bun run start"*|*"bun run server.ts"*|*"bun --port=$expected_port server"*) ;;
@@ -288,8 +295,13 @@ shell_command() {
   printf -v quoted_mode '%q' "$mode"
   printf -v quoted_debug_address '%q' "$debug_address"
   printf -v quoted_selection '%q' "${METAFOR_DEV_RELEASE_SELECTION:-}"
+  local operator_binding=
+  if [[ -n ${METAFOR_OPERATOR_ROOT:-} ]]; then
+    printf -v operator_binding '/usr/bin/env METAFOR_OPERATOR_ROOT=%q METAFOR_OPERATOR_INSTANCE=%q METAFOR_OPERATOR_INSTANCE_SHA256=%q METAFOR_OPERATOR_BUN=%q ' \
+      "$METAFOR_OPERATOR_ROOT" "$METAFOR_OPERATOR_INSTANCE" "$METAFOR_OPERATOR_INSTANCE_SHA256" "$operator_bun"
+  fi
   printf '/bin/zsh -l -c %q' \
-    "exec $quoted_script $quoted_repo $quoted_mode $quoted_debug_address $quoted_selection"
+    "exec $operator_binding$quoted_script $quoted_repo $quoted_mode $quoted_debug_address $quoted_selection"
 }
 
 cosmos_ready() {
@@ -321,7 +333,7 @@ wait_cosmos() {
 managed_release_mode_evidence() {
   local mode=$1 children state kind release_pid actual_address inspector_port listeners= installed_artifacts http_listeners
   children=$(cosmos_children)
-  installed_artifacts=$(bun --cwd "$cosmos" "$script_dir/installed-release.ts" "$cosmos") || return 1
+  installed_artifacts=$(bun --cwd "${runtime_root:-$cosmos}" "$script_dir/installed-release.ts" "$cosmos") || return 1
   http_listeners=$(lsof -nP -iTCP:"$(package_port)" -sTCP:LISTEN -t 2>/dev/null || true)
   state=$(release_inspector_state "$children" "$cosmos/release" "$installed_artifacts" "$http_listeners")
   IFS=$'\t' read -r kind release_pid actual_address <<<"$state"
@@ -537,7 +549,7 @@ stop_release_contour() {
   [[ $(awk 'NF {count++} END {print count+0}' <<<"$parents") == 1 ]] || die "stop-release requires one managed parent"
   parent_pid=$(awk -F '\t' '{print $1}' <<<"$parents")
   children=$(process_descendants "$parent_pid")
-  installed_artifacts=$(bun --cwd "$cosmos" "$script_dir/installed-release.ts" "$cosmos") || die "installed release identity is unavailable"
+  installed_artifacts=$(bun --cwd "${runtime_root:-$cosmos}" "$script_dir/installed-release.ts" "$cosmos") || die "installed release identity is unavailable"
   [[ -n $installed_artifacts ]] || die "stop-release requires an installed release"
   listeners=$(lsof -nP -iTCP:"$(package_port)" -sTCP:LISTEN -t 2>/dev/null || true)
   evidence=$(release_inspector_state "$children" "$cosmos/release" "$installed_artifacts" "$listeners")
@@ -569,7 +581,7 @@ stop_release_contour() {
     owned_identities+=("$current")
   done <<<"$parents"$'\n'"$children"
   # Перед единственным signal заново связываются store, listener и birth identity.
-  [[ $(bun --cwd "$cosmos" "$script_dir/installed-release.ts" "$cosmos") == "$installed_artifacts" ]] || die "installed selection changed before stop-release"
+  [[ $(bun --cwd "${runtime_root:-$cosmos}" "$script_dir/installed-release.ts" "$cosmos") == "$installed_artifacts" ]] || die "installed selection changed before stop-release"
   listeners=$(lsof -nP -iTCP:"$(package_port)" -sTCP:LISTEN -t 2>/dev/null || true)
   evidence=$(release_inspector_state "$(process_descendants "$parent_pid")" "$cosmos/release" "$installed_artifacts" "$listeners")
   IFS=$'\t' read -r kind pid ignored <<<"$evidence"
@@ -699,7 +711,7 @@ print_status() {
   else
     printf 'chrome: stopped\n'
   fi
-  installed_artifacts=$(bun --cwd "$cosmos" "$script_dir/installed-release.ts" "$cosmos") || installed_artifacts=
+  installed_artifacts=$(bun --cwd "${runtime_root:-$cosmos}" "$script_dir/installed-release.ts" "$cosmos") || installed_artifacts=
   http_listeners=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null || true)
   inspector_state=$(release_inspector_state "$children" "$cosmos/release" "$installed_artifacts" "$http_listeners")
   IFS=$'\t' read -r inspector_kind release_pid inspector_address <<<"$inspector_state"
