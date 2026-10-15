@@ -1,3 +1,4 @@
+import {DevelopmentWorkbench, DevelopmentMinimap, type DevelopmentWorkbenchProps, type DevelopmentWorkbenchModel} from "./development-workbench"
 import {useEffect, useMemo, useState, useSyncExternalStore} from "@zavx0z/immersive/XReact"
 import {HTMLElement} from "@zavx0z/immersive"
 import {Button, Tab, Typography} from "@zavx0z/immersive/ui"
@@ -17,8 +18,19 @@ import {RoomChatWindow} from "./room-chat-window"
 import type {ReleaseSettingsClient} from "./release-settings"
 
 /** Одна сеть в одном Space и Document; свет, HUD и ввод разделяют общий lifecycle. */
-export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined; releaseManagement?: ReleaseSettingsClient | undefined}>) {
+export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined; releaseManagement?: ReleaseSettingsClient | undefined; development?: Omit<DevelopmentWorkbenchProps, "width" | "height"> | undefined; onDevelopment?: (() => void) | undefined}>) {
   const network = useMemo(() => props.network ?? createNetworkSpace(), [props.network])
+  const [viewport, setViewport] = useState(() => ({width: globalThis.innerWidth ?? 960, height: globalThis.innerHeight ?? 640}))
+  const developing = props.development?.active === true
+  const [developmentModel, setDevelopmentModel] = useState<DevelopmentWorkbenchModel | null>(null)
+  useEffect(() => {
+    if (!developing) return
+    const resize = () => setViewport({width: globalThis.innerWidth, height: globalThis.innerHeight})
+    resize()
+    globalThis.addEventListener("resize", resize)
+    return () => globalThis.removeEventListener("resize", resize)
+  }, [developing])
+  const developmentDistance = viewport.height * 25.4 / 96 / (2 * Math.tan(INITIAL_VIEW_POINT.fov / 2))
   const [context, setContext] = useState<{x: number; y: number} | null>(null)
   useEffect(() => () => {
     props.scene?.dispose()
@@ -50,16 +62,16 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
       & [data-metafor-display-fitted="true"] {backdrop-filter: blur(8px); --spatial-node-surface-opacity: .16;}
     `}>
       <viewpoint
-        x={INITIAL_VIEW_POINT.position.x}
-        y={INITIAL_VIEW_POINT.position.y}
-        z={INITIAL_VIEW_POINT.position.z}
-        targetX={INITIAL_VIEW_POINT.target.x}
-        targetY={INITIAL_VIEW_POINT.target.y}
-        targetZ={INITIAL_VIEW_POINT.target.z}
+        x={developing ? 0 : INITIAL_VIEW_POINT.position.x}
+        y={developing ? -developmentDistance : INITIAL_VIEW_POINT.position.y}
+        z={developing ? 0 : INITIAL_VIEW_POINT.position.z}
+        targetX={developing ? 0 : INITIAL_VIEW_POINT.target.x}
+        targetY={developing ? 0 : INITIAL_VIEW_POINT.target.y}
+        targetZ={developing ? 0 : INITIAL_VIEW_POINT.target.z}
         fov={INITIAL_VIEW_POINT.fov}
         near={INITIAL_VIEW_POINT.near}
         far={INITIAL_VIEW_POINT.far}
-        controls={true}
+        controls={!developing}
       />
       <xr-light
         name="Основной свет сети"
@@ -91,9 +103,24 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
       {props.scene ? <AtomSceneView scene={props.scene} network={network} workspace={props.workspace!} bot={props.bot} /> : <NetworkSpace model={network} />}
       {props.workspace === undefined && props.bot !== undefined ? <BotAvatar bot={props.bot!} /> : null}
       {props.workspace === undefined || props.scene !== undefined ? null : <AgentOffices workspace={props.workspace!} bot={props.bot} />}
-      <hud>
+      {props.development ? <DevelopmentWorkbench
+        active={props.development.active}
+        packageName={props.development.packageName}
+        width={viewport.width}
+        height={viewport.height}
+        observe={props.development.observe}
+        navigate={props.development.navigate}
+        quantum={props.development.quantum}
+        onReady={setDevelopmentModel}
+      /> : null}
+      <hud id="cosmos-development-hud">
+      <div style={css`
+        ${developing && css`
+          display: none;
+        `}
+      `}>
+        {props.onDevelopment ? <Button label="Cosmos" title="Саморазработка и инструменты" onClick={props.onDevelopment} /> : null}
         {props.scene ? <AtomNavigation scene={props.scene} workspace={props.workspace!} annotations={props.annotations} /> : <NetworkNavigation network={network} workspace={props.workspace} annotations={props.annotations} />}
-        {props.workspace ? <AgentProviderHUD workspace={props.workspace} scene={props.scene} releaseManagement={props.releaseManagement} /> : null}
         {props.workspace && props.scene ? <AgentRoomHUD workspace={props.workspace} scene={props.scene} /> : null}
         {props.workspace && props.scene ? <RoomExperience
           workspace={props.workspace}
@@ -103,6 +130,9 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
         /> : null}
         {props.workspace ? <AgentParking workspace={props.workspace} /> : null}
         {props.annotations ? <AnnotationHUD model={props.annotations} workspace={props.workspace} /> : null}
+      </div>
+        {developmentModel ? <DevelopmentMinimap model={developmentModel} active={developing} /> : null}
+        {props.workspace ? <AgentProviderHUD workspace={props.workspace} scene={props.scene} releaseManagement={props.releaseManagement} /> : null}
       </hud>
     </space>
   </>

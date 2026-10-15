@@ -1,3 +1,4 @@
+import type {DevelopmentChatScope} from "./development"
 import type {CosmosRoomScope} from "@metafor/types/cosmos/conversation-groups"
 import type {CosmosAgentScope} from "@metafor/types/cosmos/agent-profile"
 import type {CosmosConversationSnapshot} from "@metafor/types/cosmos/conversations"
@@ -27,6 +28,8 @@ export type ClientHello = {type: "hello", version: 1, clientId: string | null, k
 export type ClientInbound = ClientHello
   | {type: "workspace.subscribe", connectionId: string}
   | {type: "workspace.unsubscribe", connectionId: string}
+  | {type: "development.subscribe", connectionId: string, subscriptionId: string, scope: DevelopmentChatScope}
+  | {type: "development.unsubscribe", connectionId: string, subscriptionId: string}
   | {type: "conversation.subscribe", connectionId: string, subscriptionId: string, scope: CosmosAgentScope, sessionId?: string}
   | {type: "conversation.unsubscribe", connectionId: string, subscriptionId: string}
   | {type: "feedback", connectionId: string, feedback: ClientAnnotationFeedback}
@@ -39,6 +42,8 @@ export type ClientInbound = ClientHello
 export type ClientOutbound = {type: "registered", version: 1, client: ClientDescriptor}
   | {type: "workspace.changed", connectionId: string, room?: CosmosRoomScope}
   | {type: "workspace.error", connectionId: string, error: ClientFailure}
+  | {type: "development.snapshot", connectionId: string, subscriptionId: string, snapshot: unknown}
+  | {type: "development.error", connectionId: string, subscriptionId: string, error: ClientFailure}
   | {type: "conversation.snapshot", connectionId: string, subscriptionId: string, snapshot: CosmosConversationSnapshot}
   | {type: "conversation.error", connectionId: string, subscriptionId: string, error: ClientFailure}
   | ({type: "feedback-receipt", connectionId: string} & ClientFeedbackReceipt)
@@ -173,10 +178,19 @@ export function parseClientFeedback(value: unknown): ClientAnnotationFeedback | 
       !clientRecord(value.world, ["root", "cutId"]) || !clientText(value.world.root, 256) || !clientId(value.world.cutId)) return null
   try {return {agentRef: value.agentRef, world: {root: value.world.root, cutId: value.world.cutId}, request: parseAgentFeedbackRequest(value.request)}} catch {return null}
 }
+export const isDevelopmentChatScope = (value: unknown): value is DevelopmentChatScope => clientRecord(value, ["address"], ["executorId", "sessionId"])
+  && clientText(value.address, 2048) && value.address.startsWith("/cosmos/package/")
+  && (value.executorId === undefined || clientId(value.executorId)) && (value.sessionId === undefined || clientId(value.sessionId))
+  && (value.sessionId === undefined || value.executorId !== undefined)
 export function parseClientInbound(value: unknown): ClientInbound | null {
   if (!record(value)) return null
   if (value.type === "workspace.subscribe" || value.type === "workspace.unsubscribe") return clientRecord(value, ["type", "connectionId"]) && clientId(value.connectionId)
     ? value as Extract<ClientInbound, {type: "workspace.subscribe" | "workspace.unsubscribe"}> : null
+  if (value.type === "development.subscribe") return clientRecord(value, ["type", "connectionId", "subscriptionId", "scope"]) &&
+    clientId(value.connectionId) && clientId(value.subscriptionId) && isDevelopmentChatScope(value.scope)
+    ? value as Extract<ClientInbound, {type: "development.subscribe"}> : null
+  if (value.type === "development.unsubscribe") return clientRecord(value, ["type", "connectionId", "subscriptionId"]) && clientId(value.connectionId) && clientId(value.subscriptionId)
+    ? value as Extract<ClientInbound, {type: "development.unsubscribe"}> : null
   if (value.type === "conversation.subscribe") return clientRecord(value, ["type", "connectionId", "subscriptionId", "scope"], ["sessionId"]) &&
     clientId(value.connectionId) && clientId(value.subscriptionId) && isClientConversationScope(value.scope) &&
     (value.sessionId === undefined || clientId(value.sessionId)) ? value as Extract<ClientInbound, {type: "conversation.subscribe"}> : null

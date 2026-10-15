@@ -61,6 +61,23 @@ test("Graph resolution uses exact AtomRef through topology and never causal cut 
   expect(resolveProductRoute({kind: "root"}, context)).toEqual({kind: "noSuchAtom", verseId: "verse-α", atomId: null})
 })
 
+test("Cosmos package routes retain exact manifest names and work without Quantum Graph", () => {
+  const route = {kind: "development", packageName: "@zavx0z/storybook"} as const
+  const path = productRoutePath(route)
+  expect(path).toBe("/cosmos/package/%40zavx0z%2Fstorybook")
+  expect(parseProductRoute(path)).toEqual(route)
+  expect(isProductPath("/cosmos/development/catalog")).toBe(false)
+  const f = fixture(path, {status: "unavailable", verseId: null, graph: null})
+  f.router.start()
+  expect(f.router.getSnapshot()).toEqual(route)
+  f.router.navigate({kind: "development", packageName: null})
+  expect(f.url).toBe("/cosmos")
+  f.back()
+  expect(f.router.getSnapshot()).toEqual(route)
+  expect(f.replaces).toBe(0)
+  f.router.dispose()
+})
+
 test("root waits for actual Graph then replaces its own entry exactly once", () => {
   const f = fixture("/", {status: "loading", verseId: null, graph: null})
   f.router.start()

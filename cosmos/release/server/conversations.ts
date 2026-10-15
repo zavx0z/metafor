@@ -95,7 +95,7 @@ function parse(value: unknown): CosmosConversationRequest {
 }
 
 /** Полный ACP lifecycle использует публичный stream Provider без второй сети, CLI либо протокола сообщений. */
-async function nativeConnect(input: Parameters<StorybookChatSession.Input["connect"]>[0]) {
+export async function nativeConnect(input: Parameters<StorybookChatSession.Input["connect"]>[0]) {
   const selected = input.execution.connections.find(value => value.id === input.execution.effective.connectionId)
   if (!selected?.enabled || !selected.peer) throw new Error("Выберите подтверждённое peer-подключение; локальный CLI этой поверхностью не запускается")
   const binding = await resolveConfiguredProvider(selected as ProviderConnection, [])

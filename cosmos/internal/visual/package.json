@@ -1,7 +1,7 @@
 {
   "name": "@internal/visual",
   "label": "Визуальная среда Cosmos",
-  "version": "0.3.30",
+  "version": "0.3.31",
   "private": true,
   "type": "module",
   "exports": {
@@ -33,7 +33,10 @@
     "@zavx0z/immersive": "^0.0.0",
     "@zavx0z/immersive-nodes": "^0.0.0",
     "@zavx0z/storybook-app-web-page-shell-execution-settings": "^0.0.0",
-    "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview": "^0.0.0"
+    "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview": "^0.0.0",
+    "@zavx0z/storybook-app-web-page-shell-workbench": "^0.0.0",
+    "@zavx0z/storybook-app-web-page-presentation": "^0.0.0",
+    "@zavx0z/storybook-app-web-page-shell-minimap": "^0.0.0"
   },
   "devDependencies": {
     "@metafor/tech-build": "workspace:*"

@@ -193,9 +193,19 @@ test.each(["complete", "failed"] as const)("unknown после IPC timeout со�
   } finally {restored.destroy()}
 })
 
-test("третий раздел находится в общем Window/Document, показывает причины и отправляет только явный click", async () => {
+test("52 сборки показывают полезные действия, архив скрыт, подробности раскрываются в том же окне", async () => {
   let reads = 0
   let current = snapshot()
+  current = {...current, candidates: [...current.candidates,
+    ...Array.from({length: 45}, (_, index) => ({digest: index.toString(16).padStart(64, "0"), version: `0.1.${index}`,
+      active: false, previousSuccessful: false, compatibilityLine: null,
+      activate: {allowed: false, reason: "Legacy build cannot read the current persisted state"},
+      downgrade: {allowed: false, reason: "No successful receipt"}})),
+    ...[{digest: "d".repeat(64), version: "1.0.2"}, {digest: "f".repeat(64), version: "1.0.10"}, {digest: "e".repeat(64), version: "0.9.9"}, {digest: "9".repeat(64), version: "1.0.1"}]
+      .map(candidate => ({...candidate, active: false, previousSuccessful: false, compatibilityLine: "state:1",
+        activate: {allowed: true}, downgrade: {allowed: false, reason: "Not the previous successful release"}})),
+  ]}
+  expect(current.candidates).toHaveLength(52)
   const requests: Parameters<ReleaseSettingsClient["request"]>[0][] = []
   const client: ReleaseSettingsClient = {async read() {reads++; return current}, async request(input) {
     requests.push(input)
@@ -232,36 +242,99 @@ test("третий раздел находится в общем Window/Document
     const section = document.querySelector('[data-settings-section="releases"]')!
     expect(section.ownerDocument).toBe(document)
     expect(section.getAttribute("hidden")).toBeNull()
-    expect(section.textContent).toContain("Текущая сборка: 1.0.1")
-    expect(section.textContent).toContain("Предыдущая успешно запущенная")
-    expect(section.textContent).toContain("Байты повреждены")
-    expect(section.textContent).toContain("Успешный запуск не подтверждён")
-    const disabled = [...section.querySelectorAll("button")].find(node => node.textContent === "Активировать 1.0.2") as HTMLButtonElement
-    expect(disabled.disabled).toBe(true)
-    await click("Вернуться к 1.0.0")
+    expect(section.textContent).toContain("Текущая версия: 1.0.1")
+    const labels = [...section.querySelectorAll("button")].map(node => node.textContent)
+    expect(labels.filter(label => label.startsWith("Вернуть предыдущую рабочую версию"))).toEqual(["Вернуть предыдущую рабочую версию 1.0.0"])
+    expect(labels.filter(label => label.startsWith("Установить обновление"))).toEqual(["Установить обновление 1.0.10", "Установить обновление 1.0.2"])
+    expect(labels.filter(label => label.startsWith("Активировать") || label.startsWith("Вернуться к"))).toEqual([])
+    expect(section.textContent).toContain("Архив (46)")
+    expect(section.textContent).not.toContain("Legacy build")
+    expect(section.textContent).not.toContain("Байты повреждены")
+    expect(section.textContent).not.toContain("Успешный запуск не подтверждён")
+    expect(section.textContent).not.toContain("Версия 0.9.9")
+    expect(section.textContent).not.toContain("b".repeat(64))
+    expect(section.textContent).not.toContain("state:1")
+    expect(section.querySelector("code")?.textContent).toBe("metafor downgrade")
+    expect(section.textContent).toContain("Беседы и исходные файлы сохраняют текущее состояние")
+    const technical = [...section.querySelectorAll("button")].find(node => node.textContent === "Технические подробности")!
+    expect(technical.getAttribute("aria-expanded")).toBe("false")
+    await click("Технические подробности")
+    expect(section.textContent).toContain("b".repeat(64))
+    expect(section.textContent).toContain("state:1")
+    expect(requests).toHaveLength(0)
+    await click("Технические подробности")
+    expect(section.textContent).not.toContain("b".repeat(64))
+    expect(section.textContent).not.toContain("Установить другой состав 1.0.1")
+    await click("Другие совместимые сборки (2)")
+    expect(section.textContent).toContain("Установить версию 0.9.9")
+    expect(section.textContent).toContain("Установить другой состав 1.0.1")
+    expect([...section.querySelectorAll("button")].some(node => node.textContent === "Установить обновление 0.9.9")).toBeFalse()
+    await click("Установить другой состав 1.0.1")
     expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({kind: "activate", target: "9".repeat(64)})
+    current = {...current, operation: {...current.operation!, state: "failed", error: "Установка отклонена до изменения версии"}}
+    await click("Обновить состояние")
+    expect(requests).toHaveLength(1)
+    await click("Другие совместимые сборки (2)")
+    expect(section.textContent).not.toContain("Установить версию 0.9.9")
+    await click("Вернуть предыдущую рабочую версию 1.0.0")
+    expect(requests).toHaveLength(2)
+    expect(requests[1]).toMatchObject({kind: "downgrade", target: "a".repeat(64)})
     expect(section.textContent).toContain("Запрос ожидает завершения")
     expect(section.textContent).not.toContain("Смена сборки завершена")
     current = {...current, operation: {...current.operation!, state: "unknown"}}
     await click("Обновить состояние")
     expect(section.textContent).toContain("Подтверждение этой операции не получено; выполняется только чтение состояния")
     expect(section.textContent).not.toContain("Смена сборки не выполнена")
-    const unknownAction = [...section.querySelectorAll("button")].find(node => node.textContent === "Вернуться к 1.0.0") as HTMLButtonElement
+    const unknownAction = [...section.querySelectorAll("button")].find(node => node.textContent === "Вернуть предыдущую рабочую версию 1.0.0") as HTMLButtonElement
     expect(unknownAction.disabled).toBe(true)
     unknownAction.click()
     await settle()
-    expect(requests).toHaveLength(1)
+    expect(requests).toHaveLength(2)
     current = {...current, operation: null}
     await click("Обновить состояние")
     expect(section.textContent).toContain("Подтверждение этой операции не получено; выполняется только чтение состояния")
     expect(section.textContent).not.toContain("Запрос ожидает завершения")
-    const pendingAction = [...section.querySelectorAll("button")].find(node => node.textContent === "Вернуться к 1.0.0") as HTMLButtonElement
+    const pendingAction = [...section.querySelectorAll("button")].find(node => node.textContent === "Вернуть предыдущую рабочую версию 1.0.0") as HTMLButtonElement
     expect(pendingAction.disabled).toBe(true)
-    expect(requests).toHaveLength(1)
+    expect(requests).toHaveLength(2)
     await click("Провайдеры")
     expect(section.hasAttribute("hidden")).toBe(true)
     await click("Сборки и откат")
-    expect(requests).toHaveLength(1)
+    expect(requests).toHaveLength(2)
     expect(reads).toBeGreaterThan(1)
   } finally {root.unmount()}
 }, 30_000)
+
+test.each([
+  {name: "первая рабочая версия", blocked: false, message: "После первого совместимого обновления текущая версия станет предыдущей рабочей"},
+  {name: "несовместимый предшественник", blocked: true, message: "Совместимой точки возврата сейчас нет"},
+])("$name объясняется без недоступных действий", async ({blocked, message}) => {
+  const current = snapshot()
+  const initial = {...current, candidates: blocked ? current.candidates.map(candidate => candidate.previousSuccessful
+    ? {...candidate, compatibilityLine: "state:old", activate: {allowed: false}, downgrade: {allowed: false}}
+    : candidate) : current.candidates.filter(candidate => !candidate.previousSuccessful)}
+  let requests = 0
+  const document = createDocument({elementFactories: createSpaceElementFactories()})
+  const html = document.createElement("html"), body = document.createElement("body")
+  document.append(html)
+  html.append(body)
+  const root = createDomRoot(body)
+  const client: ReleaseSettingsClient = {read: async () => initial, async request(input) {
+    requests++
+    return {operationId: input.operationId, state: "accepted"}
+  }}
+  try {
+    root.render(compiled.ReleaseSettings as unknown as DOMComponentConstructor<{active: boolean; client: ReleaseSettingsClient}>, {active: true, client})
+    root.flush()
+    await Bun.sleep(0)
+    root.flush()
+    const section = document.querySelector('[data-release-settings]')!
+    expect(section.textContent).toContain("Текущая версия: 1.0.1")
+    expect(section.textContent).toContain(message)
+    if (blocked) expect(section.textContent).not.toContain("После первого совместимого обновления")
+    expect([...section.querySelectorAll("button")].map(node => node.textContent)).toEqual(["Обновить состояние", "Технические подробности"])
+    expect(section.textContent).not.toContain("b".repeat(64))
+    expect(requests).toBe(0)
+  } finally {root.unmount()}
+})

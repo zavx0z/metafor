@@ -1,7 +1,7 @@
 import type {AtomRef, Graph, RuntimeAtom, RuntimeNode} from "@metafor/types/metafor/graph"
 
 /** Адресная проекция release: Verse назначает caller, Atom использует opaque suffix публичного AtomRef. */
-export type ProductRoute = {kind: "root"} | {kind: "networks"} | {kind: "atom"; verseId: string; atomId: string}
+export type ProductRoute = {kind: "root"} | {kind: "development"; packageName: string | null} | {kind: "networks"} | {kind: "atom"; verseId: string; atomId: string}
 
 /** Один наблюдаемый Verse. Causal identity хранится отдельно и не становится адресом Verse. */
 export interface ProductRouteContext {
@@ -15,6 +15,7 @@ export interface ProductRouteContext {
 /** Read-only результат адресации; отсутствие сущности не подменяется первым доступным Agent. */
 export type ProductRouteResolution =
   | {kind: "atom"; verseId: string; atomId: string; ref: AtomRef; atom: RuntimeAtom; graph: Graph}
+  | {kind: "development"; packageName: string | null}
   | {kind: "networks"}
   | {kind: "loading"}
   | {kind: "unavailable"; error: string}
@@ -22,7 +23,7 @@ export type ProductRouteResolution =
   | {kind: "noSuchAtom"; verseId: string; atomId: string | null}
   | {kind: "invalidRoute"; pathname: string}
 
-const services = new Set(["agents", "conversations", "oracle", "release", "assets", "code", "sw", "peer", "force", "health", "ws", "clients", "_quantum", "networks", "manifest.webmanifest", "favicon.ico"])
+const services = new Set(["agents", "conversations", "oracle", "release", "assets", "code", "sw", "peer", "force", "health", "ws", "clients", "_quantum", "cosmos", "networks", "manifest.webmanifest", "favicon.ico"])
 const opaque = (value: string) => value.length > 0 && value.length <= 256 && value.trim() === value &&
   value !== "." && value !== ".." && !/[\u0000-\u0020\u007f/\\]/u.test(value)
 const verse = (value: string) => opaque(value) && !services.has(value) && !value.startsWith("@")
@@ -30,6 +31,10 @@ const verse = (value: string) => opaque(value) && !services.has(value) && !value
 /** Закрытый positional codec `/<verseId>/<atomId>`; служебные namespaces исключены из HTML fallback. */
 export function parseProductRoute(pathname: string): ProductRoute | null {
   if (pathname === "/") return {kind: "root"}
+  if (pathname === "/cosmos") return {kind: "development", packageName: null}
+  if (pathname.startsWith("/cosmos/package/") && pathname.split("/").length === 4) {
+    try {const packageName = decodeURIComponent(pathname.slice("/cosmos/package/".length)); return packageName && packageName.length <= 256 && !/[\u0000-\u0020]/u.test(packageName) ? {kind: "development", packageName} : null} catch {return null}
+  }
   if (pathname === "/networks") return {kind: "networks"}
   const segments = pathname.split("/")
   if (segments.length !== 3 || segments[0] !== "") return null
@@ -42,6 +47,7 @@ export function parseProductRoute(pathname: string): ProductRoute | null {
 /** Кодирует только product routes; malformed identity отклоняется до History mutation. */
 export function productRoutePath(route: ProductRoute): string {
   if (route.kind === "root") return "/"
+  if (route.kind === "development") return route.packageName === null ? "/cosmos" : `/cosmos/package/${encodeURIComponent(route.packageName)}`
   if (route.kind === "networks") return "/networks"
   if (!verse(route.verseId) || !opaque(route.atomId)) throw new Error("Invalid Verse or Atom address")
   return `/${encodeURIComponent(route.verseId)}/${encodeURIComponent(route.atomId)}`
@@ -53,7 +59,7 @@ export const isProductPath = (pathname: string): boolean => parseProductRoute(pa
 /** Разрешает выбор в полученном публичном Graph без RPC и canonical writes. См. release README, spec/product-router.spec.ts. */
 export function resolveProductRoute(route: ProductRoute | null, context: ProductRouteContext, pathname = ""): ProductRouteResolution {
   if (!route) return {kind: "invalidRoute", pathname}
-  if (route.kind === "networks") return route
+  if (route.kind === "development" || route.kind === "networks") return route
   if (context.status === "loading") return {kind: "loading"}
   if (context.status === "unavailable" || !context.graph || !context.verseId)
     return {kind: "unavailable", error: context.error ?? "Verse address context is unavailable"}

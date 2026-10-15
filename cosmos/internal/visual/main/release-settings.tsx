@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useState} from "@zavx0z/immersive/XReact"
-import {Button, Typography} from "@zavx0z/immersive/ui"
+import {Button, Panel, Typography} from "@zavx0z/immersive/ui"
 
 import type {ReleaseManagementSnapshot, ReleaseManagementClient} from "../../../release/shared/management"
 export type {ReleaseManagementSnapshot} from "../../../release/shared/management"
@@ -155,9 +155,23 @@ function ReleaseSettingsContent(props: Readonly<{
 }>) {
   const {state, controller} = props
   const snapshot = state.snapshot
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [technicalOpen, setTechnicalOpen] = useState(false)
   const locked = !state.fresh || state.pending !== null
   const status = snapshot?.operation
   const unknownOutcome = state.pending !== null && status?.id !== state.pending
+  const candidates = snapshot?.candidates ?? []
+  const active = candidates.find(candidate => candidate.digest === snapshot?.active?.digest)
+  const previous = candidates.find(candidate => candidate.previousSuccessful)
+  const compatible = (candidate: ReleaseManagementSnapshot["candidates"][number]) =>
+    active?.compatibilityLine !== null && active?.compatibilityLine !== undefined && candidate.compatibilityLine === active.compatibilityLine
+  const upgrades = candidates.filter(candidate => !candidate.active && !candidate.previousSuccessful && compatible(candidate)
+    && candidate.activate.allowed && compareVersions(candidate.version, snapshot?.active?.version ?? "") > 0)
+    .sort((left, right) => compareVersions(right.version, left.version))
+  const history = candidates.filter(candidate => !candidate.active && !candidate.previousSuccessful && compatible(candidate)
+    && compareVersions(candidate.version, snapshot?.active?.version ?? "") <= 0)
+    .sort((left, right) => compareVersions(right.version, left.version))
+  const archived = candidates.filter(candidate => !candidate.active && !compatible(candidate)).length
   const operationLabel = unknownOutcome || status?.state === "unknown" ? "Подтверждение этой операции не получено; выполняется только чтение состояния"
     : status?.state === "complete" ? "Смена сборки завершена"
     : status?.state === "failed" ? "Смена сборки не выполнена"
@@ -167,69 +181,136 @@ function ReleaseSettingsContent(props: Readonly<{
     flex-direction: column;
     gap: 14px;
   `}>
-    <Typography text={snapshot?.active ? `Текущая сборка: ${snapshot.active.version}` : snapshot ? "Активная сборка не выбрана" : "Читаем установленные сборки…"} />
-    <Button label="Обновить состояние" onClick={() => {void controller?.refresh()}} />
+    <section style={css`
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    `}>
+      <Typography text={snapshot?.active ? `Текущая версия: ${snapshot.active.version}` : snapshot ? "Активная версия не выбрана" : "Читаем установленные версии…"} />
+      <Button label="Обновить состояние" variant="text" size="small" onClick={() => {void controller?.refresh()}} />
+    </section>
     {operationLabel ? <Typography text={operationLabel} /> : null}
-    {state.pending || status ? <Typography text={`Операция: ${state.pending ?? status!.id}`} /> : null}
-    {status && !unknownOutcome ? <Typography text={`Целевой выпуск: ${status.target}`} /> : null}
     {state.error ? <Typography text={state.error} /> : null}
     {state.pending ? <Typography text="Во время перезапуска связь может прерваться. Состояние обновится после подключения." /> : null}
-    {(snapshot?.candidates ?? []).map(candidate => <ReleaseCandidate
-      key={candidate.digest}
-      candidate={candidate}
-      locked={locked}
-      controller={controller}
-    />)}
-  </section>
-}
-
-function ReleaseCandidate(props: Readonly<{
-  candidate: ReleaseManagementSnapshot["candidates"][number]
-  locked: boolean
-  controller: ReturnType<typeof createReleaseSettingsController> | null
-}>) {
-  const {candidate} = props
-  return <section
-    data-release-candidate={candidate.digest}
-    style={css`
+    {snapshot ? <ReleaseReturn previous={previous} pending={state.pending !== null} locked={locked} controller={controller} /> : null}
+    {upgrades.length ? <ReleaseUpdates candidates={upgrades} locked={locked} controller={controller} /> : null}
+    {snapshot && !state.pending && !upgrades.length ? <Typography text="Подготовленных совместимых обновлений нет." /> : null}
+    <section aria-label="Восстановление из терминала" style={css`
       display: flex;
       flex-direction: column;
-      gap: 8px;
-      padding: 12px;
-      border: 1px solid rgb(var(--surface-600) / 0.5);
-      border-radius: 6px;
-    `}
-  >
-    <Typography text={candidate.version} />
-    <Typography text={candidate.active ? "Текущая" : candidate.previousSuccessful ? "Предыдущая успешно запущенная" : "Подготовленная"} />
-    <Typography text={candidate.digest} />
-    <Typography text={candidate.compatibilityLine ? `Совместимость данных: ${candidate.compatibilityLine}` : "Совместимость данных неизвестна"} />
-    {!candidate.active ? <ReleaseCandidateActions candidate={candidate} locked={props.locked} controller={props.controller} /> : null}
+      gap: 6px;
+    `}>
+      <Typography text="Если интерфейс не открывается, выполните в терминале:" />
+      <code>metafor downgrade</code>
+      <Typography text="Меняется версия программы. Беседы и исходные файлы сохраняют текущее состояние; их прошлые версии не восстанавливаются. Совместимость данных проверяется до переключения." />
+    </section>
+    {history.length ? <Panel
+      label={`Другие совместимые сборки (${history.length})`}
+      expanded={historyOpen}
+      onToggle={setHistoryOpen}
+    >
+      {historyOpen ? <ReleaseHistory candidates={history} activeVersion={snapshot?.active?.version ?? ""} locked={locked} controller={controller} /> : null}
+    </Panel> : null}
+    {archived ? <Typography text={`Архив (${archived}). Совместимость этих сборок с текущими данными не подтверждена.`} /> : null}
+    <Panel
+      label="Технические подробности"
+      expanded={technicalOpen}
+      onToggle={setTechnicalOpen}
+    >
+      {technicalOpen ? <ReleaseTechnical state={state} /> : null}
+    </Panel>
   </section>
 }
 
-function ReleaseCandidateActions(props: Readonly<{
-  candidate: ReleaseManagementSnapshot["candidates"][number]
-  locked: boolean
-  controller: ReturnType<typeof createReleaseSettingsController> | null
-}>) {
-  const {candidate, locked, controller} = props
-  return <section style={css`
+type Candidate = ReleaseManagementSnapshot["candidates"][number]
+type Controller = ReturnType<typeof createReleaseSettingsController> | null
+
+function ReleaseReturn(props: Readonly<{previous?: Candidate | undefined; pending: boolean; locked: boolean; controller: Controller}>) {
+  const {previous} = props
+  return <section aria-label="Возврат рабочей версии" style={css`
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid rgb(var(--surface-600) / 0.5);
+    border-radius: 6px;
+  `}>
+    {previous?.downgrade.allowed ? <Button
+      label={`Вернуть предыдущую рабочую версию ${previous.version}`}
+      tone="primary"
+      disabled={props.locked}
+      onClick={() => {void props.controller?.request("downgrade", previous.digest)}}
+    /> : <Typography text={props.pending
+      ? "Дождитесь подтверждения текущего переключения."
+      : previous ? "Совместимой точки возврата сейчас нет. Предыдущая рабочая версия недоступна для этих данных."
+        : "Точки возврата пока нет. После первого совместимого обновления текущая версия станет предыдущей рабочей."} />}
+  </section>
+}
+
+function ReleaseUpdates(props: Readonly<{candidates: readonly Candidate[]; locked: boolean; controller: Controller}>) {
+  return <section aria-label="Доступные обновления" style={css`
     display: flex;
     flex-direction: column;
     gap: 8px;
   `}>
-    <Button
-      label={`Активировать ${candidate.version}`}
-      disabled={locked || !candidate.activate.allowed}
-      onClick={() => {void controller?.request("activate", candidate.digest)}}
-    />
-    {!candidate.activate.allowed && candidate.activate.reason ? <Typography text={candidate.activate.reason} /> : null}
-    <Button
-      label={`Вернуться к ${candidate.version}`}
-      disabled={locked || !candidate.downgrade.allowed}
-      onClick={() => {void controller?.request("downgrade", candidate.digest)}}
-    />
-    {!candidate.downgrade.allowed && candidate.downgrade.reason ? <Typography text={candidate.downgrade.reason} /> : null}
+    <Typography text="Подготовленные обновления" />
+    {props.candidates.map(candidate => <Button
+      key={candidate.digest}
+      label={`Установить обновление ${candidate.version}`}
+      variant="outlined"
+      disabled={props.locked}
+      onClick={() => {void props.controller?.request("activate", candidate.digest)}}
+    />)}
   </section>
+}
+
+function ReleaseHistory(props: Readonly<{candidates: readonly Candidate[]; activeVersion: string; locked: boolean; controller: Controller}>) {
+  return <section aria-label="Другие совместимые сборки" style={css`
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  `}>
+    {props.candidates.map(candidate => <ReleaseAlternative
+      key={candidate.digest}
+      candidate={candidate}
+      sameVersion={candidate.version === props.activeVersion}
+      locked={props.locked}
+      controller={props.controller}
+    />)}
+  </section>
+}
+
+function ReleaseAlternative(props: Readonly<{candidate: Candidate; sameVersion: boolean; locked: boolean; controller: Controller}>) {
+  return <section>
+    {props.candidate.activate.allowed ? <Button
+      label={props.sameVersion ? `Установить другой состав ${props.candidate.version}` : `Установить версию ${props.candidate.version}`}
+      variant="outlined"
+      disabled={props.locked}
+      onClick={() => {void props.controller?.request("activate", props.candidate.digest)}}
+    /> : <Typography text={props.sameVersion ? `Другой состав ${props.candidate.version}` : `Версия ${props.candidate.version}`} />}
+  </section>
+}
+
+function ReleaseTechnical(props: Readonly<{state: State}>) {
+  return <pre aria-label="Технические данные выпуска" style={css`
+    margin: 0;
+    font-size: 12px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  `}>{JSON.stringify({pendingOperation: props.state.pending, ...props.state.snapshot}, null, 2)}</pre>
+}
+
+/** Только порядок отображения: доступность действий по-прежнему решает owner snapshot. */
+function compareVersions(left: string, right: string): number {
+  const pattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
+  if (!pattern.test(left) || !pattern.test(right)) return 0
+  const a = left.split("."), b = right.split(".")
+  for (let index = 0; index < 3; index++) {
+    const order = a[index]!.length - b[index]!.length || (a[index]! < b[index]! ? -1 : a[index]! > b[index]! ? 1 : 0)
+    if (order) return order
+  }
+  return 0
 }

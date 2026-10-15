@@ -49,7 +49,7 @@ try {
     document.head.append(declaration)
   }
 
-  const {runtime, presentInfrastructure, connectAgents, clientControls, clientDiagnostics, connectAnnotationFeedback, presentAtomRoute, connectAtomNavigation, connectReleaseManagement} = await import("@internal/visual")
+  const {runtime, presentInfrastructure, connectAgents, clientControls, clientDiagnostics, connectAnnotationFeedback, presentAtomRoute, connectAtomNavigation, connectReleaseManagement, connectDevelopmentNavigation, presentDevelopment} = await import("@internal/visual")
   const disconnectReleaseManagement = connectReleaseManagement(createReleaseManagementClient())
   controls = clientControls
   diagnostics = clientDiagnostics
@@ -68,7 +68,8 @@ try {
     subscribe: agents.subscribe,
   }, applyRoute(route, context) {
     if (context.cause === "presentation" || context.preservePresentation) return
-    if (route.kind === "atom") presentAtomRoute({kind: "atom", ref: route.ref})
+    if (route.kind === "development") presentDevelopment(route.packageName)
+    else if (route.kind === "atom") presentAtomRoute({kind: "atom", ref: route.ref})
     else if (route.kind === "networks") presentAtomRoute(route)
     else presentAtomRoute({kind: "unavailable", message: route.kind === "loading" ? "Загрузка Verse…" : route.kind === "noSuchAtom" ? `Atom ${route.atomId ?? ""} не найден в Verse` : route.kind === "noSuchVerse" ? `Verse ${route.verseId} не подключена` : route.kind === "unavailable" ? route.error : "Адрес не соответствует Verse и Atom"})
   }})
@@ -78,6 +79,12 @@ try {
       if (verseId) router.navigate({kind: "atom", verseId, atomId: ref.slice(5)})
     },
     networks() {router.navigate({kind: "networks"})},
+  })
+  const disconnectDevelopment = connectDevelopmentNavigation({
+    open() {router.navigate({kind: "development", packageName: null})},
+    navigate(packageName) {router.navigate({kind: "development", packageName})},
+    quantum() {router.navigate({kind: "root"})},
+    observe: client.observeDevelopment,
   })
   router.start()
   let stopObserving = observeBrowserNetwork(presentInfrastructure)
@@ -89,6 +96,7 @@ try {
       disconnectNavigation()
       disconnectReleaseManagement()
       router.dispose()
+      disconnectDevelopment()
       clientControls.dispose()
       disconnectFeedback()
       disconnectAgents()

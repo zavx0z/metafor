@@ -1,3 +1,5 @@
+import type {DevelopmentObserver} from "../../../release/shared/development"
+import type {DevelopmentWorkbenchProps} from "./development-workbench"
 /**
 Browser entrypoint готовой визуальной среды Cosmos.
 
@@ -55,6 +57,8 @@ const scene: AtomSceneModel = createAtomScene({workspace, contentFor: atom => ({
 })})
 const annotations = createProductAnnotationState()
 let releaseManagement: ReleaseSettingsClient | undefined
+let development: Omit<DevelopmentWorkbenchProps, "width" | "height"> | undefined
+let developmentNavigation: {open(): void; quantum(): void; navigate(name: string): void; observe: DevelopmentObserver} | undefined
 let currentBot: Awaited<ReturnType<typeof loadBot>> | undefined
 function renderApp() {root.render(
   <App
@@ -64,10 +68,26 @@ function renderApp() {root.render(
     scene={scene}
     bot={currentBot}
     releaseManagement={releaseManagement}
+    development={development}
+    onDevelopment={developmentNavigation?.open}
   />,
 )}
 renderApp()
 
+/** Один History owner и тот же client push channel назначаются release. */
+export function connectDevelopmentNavigation(input: NonNullable<typeof developmentNavigation>): () => void {
+  developmentNavigation = input
+  renderApp()
+  return () => {if (developmentNavigation === input) developmentNavigation = undefined}
+}
+export function presentDevelopment(packageName: string | null) {
+  if (!developmentNavigation) throw new Error("Development navigation is not assigned")
+  workspace.parkViews()
+  addressedRoute = {kind: "unavailable", message: "Саморазработка Cosmos"}
+  scene.applyRoute(addressedRoute)
+  development = {active: true, packageName, observe: developmentNavigation.observe, navigate: developmentNavigation.navigate, quantum: developmentNavigation.quantum}
+  renderApp()
+}
 /** Release назначает Settings capability тому же App; cleanup не создаёт transport или второй Document. */
 export function connectReleaseManagement(client: ReleaseSettingsClient): () => void {
   releaseManagement = client
@@ -94,9 +114,11 @@ export function fitInfrastructure(): void { scene.navigateNetworks() }
 /** Window router назначает адрес; движение камеры этот адрес не меняет. */
 let addressedRoute: AtomSceneRoute | undefined
 export function presentAtomRoute(route: AtomSceneRoute): void {
+  if (development?.active) development = {...development, active: false}
   if (JSON.stringify(addressedRoute) !== JSON.stringify(route)) workspace.parkViews()
   addressedRoute = route
   if (route.kind === "atom") {
+    ensureBot()
     const scoped = agentsForAtom(workspace, route.ref)
     if (!scoped.some(agent => agent.key === workspace.getSnapshot().selected)) {
       if (scoped.length) workspace.select(scoped[0]!.key)
@@ -160,12 +182,15 @@ export const clientControls = {
   },
   dispose() {stopFocus(); controls.dispose(); clientDiagnostics.dispose()},
 }
-void loadBot(`/@internal/visual/bots.glb?env=main&version=${packageVersion}`).then(bot => {
-  currentBot = bot
-  if (!workspace.disposed) renderApp()
-}).catch(error => console.error("[@internal/visual:main]", "не удалось загрузить avatar asset офиса", {
-  error: error instanceof Error ? error.message : String(error),
-}))
+let loadingBot: Promise<void> | undefined
+function ensureBot() {
+  loadingBot ??= loadBot(`/@internal/visual/bots.glb?env=main&version=${packageVersion}`).then(bot => {
+    currentBot = bot
+    if (!workspace.disposed) renderApp()
+  }).catch(error => console.error("[@internal/visual:main]", "не удалось загрузить avatar asset офиса", {
+    error: error instanceof Error ? error.message : String(error),
+  }))
+}
 
 console.debug("[@internal/visual:main]", "основное visual-окружение создано", {
   space: runtime.space,

@@ -1,3 +1,4 @@
+import type {DevelopmentSubscription} from "../shared/development"
 /** Release владеет временными соединениями Window и закрытыми Oracle methods. @packageDocumentation */
 import type {CosmosConversationSnapshot} from "@metafor/types/cosmos/conversations"
 import type {ClientConversationSubscription, ClientWorkspaceSubscription} from "@metafor/types/cosmos/client"
@@ -15,7 +16,7 @@ import {authorizeAgentRequest} from "./agents"
 
 export type ClientSocketData = {kind: "cosmos-client", connectionId: string}
 type Socket = Pick<Bun.ServerWebSocket<ClientSocketData>, "data" | "send" | "close"> & {getBufferedAmount?(): number}
-type Observation = {stop?: () => void; timer?: ReturnType<typeof setTimeout>; latest?: CosmosConversationSnapshot; blockedAt?: number}
+type Observation = {stop?: () => void; timer?: ReturnType<typeof setTimeout>; latest?: unknown; blockedAt?: number}
 type Entry = {workspace?: {stop?: () => void}, observations: Map<string, Observation>, socket: Socket, world: ClientWorld, descriptor?: ClientDescriptor, traceSequence?: number, expires: ReturnType<typeof setTimeout>}
 type Pending = {capture?: {metadata: ClientCaptureMetadata; characters: number; received: number; chunks: string[]}, entry: Entry, operation: ClientOperation, finish(receipt: ClientCommandReceipt): void, timer: ReturnType<typeof setTimeout>}
 type Host = {requestIP(request: Request): {address: string} | null, upgrade(request: Request, options: {data: ClientSocketData}): boolean}
@@ -33,7 +34,7 @@ Window errors сохраняются в ограниченном журнале 
 компактный snapshot при backpressure. Detach никогда не отменяет model turn. Проверки настоящего
 Oracle router и loopback sockets: [clients.spec.ts](../spec/clients.spec.ts).
 */
-export function createClientRegistry(options: {world(): Promise<ClientWorld>, admitted?: () => boolean, instance?: string, timeoutMs?: number, heartbeatMs?: number, feedback?: (input: ClientAnnotationFeedback) => Promise<AgentFeedbackReceipt>, observeConversation?: ClientConversationSubscription | undefined, observeWorkspace?: ClientWorkspaceSubscription | undefined}) {
+export function createClientRegistry(options: {world(): Promise<ClientWorld>, admitted?: () => boolean, instance?: string, timeoutMs?: number, heartbeatMs?: number, feedback?: (input: ClientAnnotationFeedback) => Promise<AgentFeedbackReceipt>, observeConversation?: ClientConversationSubscription | undefined, observeWorkspace?: ClientWorkspaceSubscription | undefined, observeDevelopment?: DevelopmentSubscription | undefined}) {
   const instance = options.instance ?? `${process.pid}-${Date.now()}`
   const entries = new Map<string, Entry>()
   const pending = new Map<string, Pending>()
@@ -95,8 +96,8 @@ export function createClientRegistry(options: {world(): Promise<ClientWorld>, ad
       else observation.stop = stop
     } catch (error) {failure(error instanceof Error ? error.message : "Workspace observer failed")}
   }
-  const observeConversation = (entry: Entry, input: Extract<NonNullable<ReturnType<typeof parseClientInbound>>, {type: "conversation.subscribe" | "conversation.unsubscribe"}>) => {
-    const key = input.subscriptionId
+  const observeConversation = (entry: Entry, input: Extract<NonNullable<ReturnType<typeof parseClientInbound>>, {type: "conversation.subscribe" | "conversation.unsubscribe" | "development.subscribe" | "development.unsubscribe"}>) => {
+    const key = input.subscriptionId, development = input.type.startsWith("development.")
     const release = () => {
       const current = entry.observations.get(key)
       if (!current) return
@@ -107,12 +108,12 @@ export function createClientRegistry(options: {world(): Promise<ClientWorld>, ad
     const fail = (code: ClientFailureCode, message: string) => {
       release()
       if (entries.get(entry.socket.data.connectionId) !== entry) return
-      try {entry.socket.send(JSON.stringify({type: "conversation.error", connectionId: entry.socket.data.connectionId, subscriptionId: key,
+      try {entry.socket.send(JSON.stringify({type: development ? "development.error" : "conversation.error", connectionId: entry.socket.data.connectionId, subscriptionId: key,
         error: {code, message: message.slice(0, 512)}} satisfies ClientOutbound))} catch {}
     }
-    if (input.type === "conversation.unsubscribe") {release(); return}
+    if (input.type === "conversation.unsubscribe" || input.type === "development.unsubscribe") {release(); return}
     if (entry.observations.has(key)) {fail("conflict", "Conversation subscription already exists"); return}
-    if (!options.observeConversation) {fail("unsupported", "Conversation observer is unavailable"); return}
+    if (development ? !options.observeDevelopment : !options.observeConversation) {fail("unsupported", "Session observer is unavailable"); return}
     if (entry.observations.size >= CLIENT_CONVERSATION_MAX_SUBSCRIPTIONS) {fail("conflict", "Conversation subscription capacity exceeded"); return}
     const observation: Observation = {}
     entry.observations.set(key, observation)
@@ -127,21 +128,23 @@ export function createClientRegistry(options: {world(): Promise<ClientWorld>, ad
         return
       }
       delete observation.blockedAt
-      const text = JSON.stringify({type: "conversation.snapshot", connectionId: entry.socket.data.connectionId, subscriptionId: key, snapshot: observation.latest} satisfies ClientOutbound)
+      const text = JSON.stringify({type: development ? "development.snapshot" : "conversation.snapshot", connectionId: entry.socket.data.connectionId, subscriptionId: key, snapshot: observation.latest} as ClientOutbound)
       delete observation.latest
       if (Buffer.byteLength(text) > CLIENT_WIRE_MAX_BYTES) {fail("invalid_reply", "Conversation snapshot exceeds transport capacity"); return}
       try {entry.socket.send(text)} catch {fail("disconnected", "Conversation stream transport failed")}
     }
     void (async () => {
       ready()
-      if (!sameWorld(entry.world, await readWorld())) throw new Error("Conversation client world changed")
+      if (!development && !sameWorld(entry.world, await readWorld())) throw new Error("Conversation client world changed")
       ready()
       if (entry.observations.get(key) !== observation) return
-      const stop = await options.observeConversation!(input.scope, input.sessionId, snapshot => {
+      const receive = (snapshot: unknown) => {
         if (entry.observations.get(key) !== observation || closed) return
         observation.latest = snapshot
         if (!observation.timer) observation.timer = setTimeout(flush, 0)
-      })
+      }
+      const stop = await (input.type === "development.subscribe" ? options.observeDevelopment!(input.scope, receive)
+        : options.observeConversation!(input.scope, input.sessionId, receive))
       if (entry.observations.get(key) !== observation) stop()
       else observation.stop = stop
     })().catch(error => {
@@ -232,7 +235,7 @@ export function createClientRegistry(options: {world(): Promise<ClientWorld>, ad
         }
         if (!entry.descriptor || input.connectionId !== socket.data.connectionId) {remove(entry); socket.close(1008, "Client incarnation mismatch"); return}
         if (input.type === "workspace.subscribe" || input.type === "workspace.unsubscribe") {observeWorkspace(entry, input.type); return}
-        if (input.type === "conversation.subscribe" || input.type === "conversation.unsubscribe") {observeConversation(entry, input); return}
+        if (input.type === "conversation.subscribe" || input.type === "conversation.unsubscribe" || input.type === "development.subscribe" || input.type === "development.unsubscribe") {observeConversation(entry, input); return}
         if (input.type === "feedback") {
           const feedback = input.feedback, selected = target(entry)
           if (!sameWorld(feedback.world, entry.world) || feedback.request.correlation.clientId !== selected.clientId) {socket.close(1008, "Feedback pinned client/world mismatch"); return}
@@ -306,13 +309,13 @@ export function createClientRegistry(options: {world(): Promise<ClientWorld>, ad
 }
 
 /** Подключает действующие client methods к существующему Oracle router до запуска Quantum. */
-export function createClientOracle(options: {admitted?: () => boolean, world?: () => Promise<ClientWorld>, timeoutMs?: number, heartbeatMs?: number, observeConversation?: ClientConversationSubscription | undefined, observeWorkspace?: ClientWorkspaceSubscription | undefined} = {}) {
+export function createClientOracle(options: {admitted?: () => boolean, world?: () => Promise<ClientWorld>, timeoutMs?: number, heartbeatMs?: number, observeConversation?: ClientConversationSubscription | undefined, observeWorkspace?: ClientWorkspaceSubscription | undefined, observeDevelopment?: DevelopmentSubscription | undefined} = {}) {
   let peer: OracleRpcPeer
   const local = createLocalOracleChannelPair("cosmos-clients", () => peer.methods())
   peer = new OracleRpcPeer(local.peer)
   const feedbackLifetime = new AbortController()
   const feedback = createClientFeedbackBridge({peer, admitted: () => options.admitted?.() !== false, signal: feedbackLifetime.signal})
-  const registry = createClientRegistry({feedback, observeWorkspace: options.observeWorkspace, observeConversation: options.observeConversation, ...(options.timeoutMs === undefined ? {} : {timeoutMs: options.timeoutMs}), ...(options.heartbeatMs === undefined ? {} : {heartbeatMs: options.heartbeatMs}), ...(options.admitted ? {admitted: options.admitted} : {}), world: options.world ?? (async () => {
+  const registry = createClientRegistry({feedback, observeWorkspace: options.observeWorkspace, observeConversation: options.observeConversation, observeDevelopment: options.observeDevelopment, ...(options.timeoutMs === undefined ? {} : {timeoutMs: options.timeoutMs}), ...(options.heartbeatMs === undefined ? {} : {heartbeatMs: options.heartbeatMs}), ...(options.admitted ? {admitted: options.admitted} : {}), world: options.world ?? (async () => {
     const [graph, history] = await Promise.all([peer.call<{root: string}>("dark", READ_GRAPH_METHOD, {}), peer.call<DarkForceHistoryReadReceipt>("dark", DARK_FORCE_HISTORY_READ_METHOD, {contractVersion: 1, query: {kind: "frontier"}})])
     if (!graph.root || !history.frontier.cutId) throw new Error("Client world binding unavailable")
     return {root: graph.root, cutId: history.frontier.cutId}

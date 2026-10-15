@@ -1,8 +1,9 @@
+import type {DevelopmentChatScope, DevelopmentObserver} from "../shared/development"
 import type {ClientConversationObserver, ClientWorkspaceObserver} from "@metafor/types/cosmos/client"
 import type {CosmosAgentScope} from "@metafor/types/cosmos/agent-profile"
 import type {CosmosConversationSnapshot} from "@metafor/types/cosmos/conversations"
 import type {ClientInbound, ClientOutbound} from "../shared/clients"
-import {CLIENT_CAPABILITIES, CLIENT_SOCKET_PATH, CLIENT_WIRE_MAX_BYTES, CLIENT_CAPTURE_CHUNK_CHARS, CLIENT_CONVERSATION_MAX_SUBSCRIPTIONS, isClientConversationScope, isClientConversationSnapshot, isClientWorkspaceRoom, clientRecord, isClientCapture, isClientAction, clientId} from "../shared/clients"
+import {CLIENT_CAPABILITIES, CLIENT_SOCKET_PATH, CLIENT_WIRE_MAX_BYTES, CLIENT_CAPTURE_CHUNK_CHARS, CLIENT_CONVERSATION_MAX_SUBSCRIPTIONS, isDevelopmentChatScope, isClientConversationScope, isClientConversationSnapshot, isClientWorkspaceRoom, clientRecord, isClientCapture, isClientAction, clientId} from "../shared/clients"
 import type {ClientAnnotationFeedback, ClientCacheInventory, ClientDescriptor, ClientInspection, ClientLogs, ClientViewActionResult, ClientFailureCode, ClientStatus, ClientTrace, ClientViewAction, ClientViewInspection, ClientDiagnosticsOptions, ClientDiagnostics, ClientCapture, ClientCommandValue} from "@metafor/types/cosmos/client"
 import {createServiceDiagnosticsClient, readClientCache} from "./service-diagnostics"
 import {createClientLogRecorder} from "./client-logs"
@@ -74,11 +75,31 @@ export function createBrowserClient(options: BrowserClientOptions) {
       if (work.sentConnection !== registered.connectionId && send({type: "feedback", connectionId: registered.connectionId, feedback: work.input})) work.sentConnection = registered.connectionId
     }
   }
+  const developments = new Map<string, {scope: DevelopmentChatScope, listener(snapshot: unknown): void, onError(error: Error): void, sentConnection?: string}>()
+  const transmitDevelopment = () => {
+    if (!registered) return
+    for (const [subscriptionId, work] of developments) if (work.sentConnection !== registered.connectionId
+      && send({type: "development.subscribe", connectionId: registered.connectionId, subscriptionId, scope: work.scope})) work.sentConnection = registered.connectionId
+  }
+  const observeDevelopment: DevelopmentObserver = (scope, listener, onError) => {
+    if (disposed || !isDevelopmentChatScope(scope)) throw new Error("Invalid development observer scope")
+    if (developments.size >= CLIENT_CONVERSATION_MAX_SUBSCRIPTIONS) {onError(new Error("Development subscription capacity exceeded")); return () => {}}
+    const subscriptionId = crypto.randomUUID()
+    developments.set(subscriptionId, {scope: structuredClone(scope), listener, onError})
+    transmitDevelopment()
+    return () => {
+      const work = developments.get(subscriptionId)
+      if (!work) return
+      developments.delete(subscriptionId)
+      if (registered && work.sentConnection === registered.connectionId) send({type: "development.unsubscribe", connectionId: registered.connectionId, subscriptionId})
+    }
+  }
   const conversations = new Map<string, {scope: CosmosAgentScope; sessionId?: string; listener(snapshot: CosmosConversationSnapshot): void; onError(error: Error): void; sentConnection?: string}>()
   const conversationError = (work: {onError(error: Error): void}, error: Error) => {
     try {work.onError(error)} catch (failure) {logs.record("error", ["Conversation observer error callback failed", failure])}
   }
   const transmitConversations = () => {
+    transmitDevelopment()
     if (!registered) return
     for (const [subscriptionId, work] of conversations) {
       if (work.sentConnection === registered.connectionId) continue
@@ -240,6 +261,16 @@ export function createBrowserClient(options: BrowserClientOptions) {
       }
       return
     }
+    if ((message.type === "development.snapshot" || message.type === "development.error") && registered && message.connectionId === registered.connectionId && id(message.subscriptionId)) {
+      const work = developments.get(message.subscriptionId)
+      if (!work || work.sentConnection !== registered.connectionId) return
+      if (!clientRecord(message, ["type", "connectionId", "subscriptionId", message.type === "development.error" ? "error" : "snapshot"])) {conversationError(work, new Error("Invalid development stream frame")); return}
+      if (message.type === "development.error") conversationError(work, new Error(object(message.error) && typeof message.error.message === "string" ? message.error.message.slice(0, 512) : "Development observer failed"))
+      else if (!object(message.snapshot) || message.snapshot.address !== work.scope.address || work.scope.sessionId !== undefined && message.snapshot.id !== work.scope.sessionId
+        || work.scope.executorId !== undefined && message.snapshot.executorId !== work.scope.executorId) conversationError(work, new Error("Development snapshot scope changed"))
+      else {try {work.listener(message.snapshot)} catch (error) {logs.record("error", ["Development observer failed", error])}}
+      return
+    }
     if ((message.type === "conversation.snapshot" || message.type === "conversation.error") && registered && message.connectionId === registered.connectionId && id(message.subscriptionId)) {
       const work = conversations.get(message.subscriptionId)
       if (!work || work.sentConnection !== registered.connectionId) return
@@ -321,6 +352,7 @@ export function createBrowserClient(options: BrowserClientOptions) {
       clearPending()
       trace("disconnect")
       for (const work of conversations.values()) conversationError(work, new Error("Conversation stream disconnected; reconnecting"))
+      for (const work of developments.values()) conversationError(work, new Error("Development stream disconnected; reconnecting"))
       for (const observer of workspaceObservers) conversationError(observer, new Error("Workspace stream disconnected; reconnecting"))
       if (running && !disposed) retry = setTimeout(connect, options.reconnectMs ?? 1000)
     })
@@ -379,7 +411,7 @@ export function createBrowserClient(options: BrowserClientOptions) {
   const listeners: [Surface, string, EventListener][] = [[view, "pointerdown", pointer], [view, "pointermove", pointer], [view, "keydown", keyboard], [view, "focus", focus],
     [view, "pageshow", pageshow], [view, "pagehide", pagehide], [view, "error", errored], [view, "unhandledrejection", rejected], [page, "visibilitychange", visibility]]
   for (const [target, name, listener] of listeners) target.addEventListener(name, listener)
-  return {start, stop, trace, observeConversation, observeWorkspace, getStatus: status, logs: logs.read,
+  return {start, stop, trace, observeConversation, observeDevelopment, observeWorkspace, getStatus: status, logs: logs.read,
     getDescriptor: () => registered ? structuredClone(registered) : null,
     feedback(input: ClientAnnotationFeedback, signal: AbortSignal) {
       signal.throwIfAborted()
@@ -418,6 +450,7 @@ export function createBrowserClient(options: BrowserClientOptions) {
       for (const work of feedbackPending.values()) {work.cleanup(); work.reject(new Error("Window feedback delivery closed; accepted outcome may be unknown"))}
       feedbackPending.clear()
       conversations.clear()
+      developments.clear()
       workspaceObservers.clear()
     },
   }

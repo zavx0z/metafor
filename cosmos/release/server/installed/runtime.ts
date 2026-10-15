@@ -1,3 +1,4 @@
+import {configuredDevelopment} from "../development"
 import {createNetworkObservationSurface} from "../network-observation"
 import {createHash, timingSafeEqual} from "node:crypto"
 import {realpath} from "node:fs/promises"
@@ -71,6 +72,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
   let agentUi: ReturnType<typeof createAgentUiOracle> | undefined
   let clients: ReturnType<typeof createClientOracle> | undefined
   let nativeRepl: Awaited<ReturnType<typeof configuredNativeReplOracle>> = null
+  let development: Awaited<ReturnType<typeof configuredDevelopment>> = null
   let codespaceHost: ReturnType<typeof configuredCodespaceHostOracle> = null
   const storeRoot = await realpath(options.storeRoot)
   const requestedRoot = Bun.env.METAFOR_ROOT_META?.trim()
@@ -149,6 +151,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
 
   async function handle(request: Request, current: Bun.Server<ReleaseServerSocketData>, rendezvous: RendezvousHandler | null): Promise<Response | undefined> {
     const url = new URL(request.url)
+    if (url.pathname.startsWith("/cosmos/development/")) return development ? development.fetch(request, current) : Response.json({error: {message: "Development workspace is not assigned"}}, {status: 404})
     if (url.pathname === RELEASE_MANAGEMENT_PATH) return management.fetch(request, current)
     if (url.pathname === CLIENT_SOCKET_PATH) return clients ? clients.fetch(request, current) : new Response(null, {status: 404})
     if (url.pathname === "/peer") {
@@ -315,16 +318,20 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
   control = await attachServerProcessControl({
     async bind() {
       if (destroyed || server) throw new Error("Installed server cannot bind")
+      nativeRepl = await configuredNativeReplOracle(Bun.env, () => admitting && !destroyed)
       if (quantumOptions) {
-        nativeRepl = await configuredNativeReplOracle(Bun.env, () => admitting && !destroyed)
         agentUi = createAgentUiOracle({admitted: () => admitting && !destroyed, verseId: Bun.env.COSMOS_VERSE_ID, conversationsDirectory: resolve(Bun.env.COSMOS_CONVERSATIONS_PATH ?? join(quantumOptions.stateRoot, "cosmos", "conversations"))})
-        clients = createClientOracle({admitted: () => admitting && !destroyed, observeConversation: agentUi.observeConversation, observeWorkspace: agentUi.observeWorkspace})
+        clients = createClientOracle({admitted: () => admitting && !destroyed, observeConversation: agentUi.observeConversation, observeWorkspace: agentUi.observeWorkspace, observeDevelopment: (scope, listener) => {if (!development) throw new Error("Development workspace is not assigned"); return development.subscribe(scope, listener)}})
         codespaceHost = configuredCodespaceHostOracle(Bun.env, () => admitting && !destroyed)
         quantum = await prepareQuantumRuntime({...quantumOptions,
           onWorldChange: acceptance => {try {return quantumOptions!.onWorldChange?.(acceptance)} finally {agentUi!.notifyWorldChanged()}},
           localOracleChannels: [...(quantumOptions.localOracleChannels ?? []), agentUi.channel, clients.channel, ...(nativeRepl ? [nativeRepl.channel] : []), ...(codespaceHost ? [codespaceHost.channel] : [])],
-        }).catch(async error => {await agentUi?.close(); await clients?.close(); await nativeRepl?.close(); await codespaceHost?.close(); throw error})
+        }).catch(async error => {await agentUi?.close(); await clients?.close(); await development?.close(); await nativeRepl?.close(); await codespaceHost?.close(); throw error})
       }
+      development = await configuredDevelopment(Bun.env, nativeRepl).catch(async error => {
+        await clients?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum?.close()
+        throw error
+      })
       const rendezvous = options.signalingToken ? createRendezvousHandler({token: options.signalingToken, relay: true}) : null
       let current: Bun.Server<ReleaseServerSocketData>
       try {current = Bun.serve<ReleaseServerSocketData>({
@@ -384,14 +391,14 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
           },
         },
       })} catch (error) {
-        await clients?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum?.close(); rendezvous?.close()
+        await clients?.close(); await development?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum?.close(); rendezvous?.close()
         throw error
       }
       signaling = rendezvous
       server = current
       if (quantum) {
         try {await quantum.start(current.port!)} catch (error) {
-          await clients?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum.close()
+          await clients?.close(); await development?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum.close()
           rendezvous?.close()
           await current.stop(true)
           server = null
@@ -450,7 +457,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       agentUi = undefined
       await clients?.close()
       clients = undefined
-      await nativeRepl?.close()
+      await development?.close(); development = null; await nativeRepl?.close()
       nativeRepl = null
       await codespaceHost?.close()
       codespaceHost = null
@@ -470,7 +477,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       agentUi = undefined
       await clients?.close()
       clients = undefined
-      await nativeRepl?.close()
+      await development?.close(); development = null; await nativeRepl?.close()
       nativeRepl = null
       await codespaceHost?.close()
       codespaceHost = null

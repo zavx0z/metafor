@@ -28,6 +28,8 @@ export function createNativeReplOracle(options: {assignment: NativeReplAssignmen
   if (assignment.token.length < 24 || !isAbsolute(assignment.cwd)) throw new Error("Invalid native REPL assignment")
   const incarnation = crypto.randomUUID()
   const sessions = new Map<string, Session>(), opens = new Map<string, Promise<ReplSession>>()
+  const observers = new Map<string, Set<() => void>>()
+  const notify = (session: Session) => {for (const listener of observers.get(session.view.sessionId) ?? []) listener()}
   let closed = false, peer: OracleRpcPeer
   const local = createLocalOracleChannelPair(REPL_CHANNEL, () => peer.methods())
   peer = new OracleRpcPeer(local.peer)
@@ -61,6 +63,7 @@ export function createNativeReplOracle(options: {assignment: NativeReplAssignmen
     if (session.active) {session.active.state = "uncertain"; session.active.finishedAt = Date.now(); session.active.error = reason; session.active = null}
     for (const job of session.queue.splice(0)) {job.state = "cancelled"; job.finishedAt = Date.now(); job.error = reason}
     kill(session)
+    notify(session)
   }
   const log = (session: Session, stream: ReplLog["stream"], text: string) => {
     for (let offset = 0; offset < text.length; offset += 8192) {
@@ -68,6 +71,7 @@ export function createNativeReplOracle(options: {assignment: NativeReplAssignmen
       session.logs.push(item); session.logBytes += Buffer.byteLength(item.text)
       while (session.logs.length > 512 || session.logBytes > 128 * 1024) {const removed = session.logs.shift()!; session.logBytes -= Buffer.byteLength(removed.text); session.droppedThrough = removed.sequence}
     }
+    notify(session)
   }
   const consume = async (session: Session, stream: ReplLog["stream"], source: ReadableStream<Uint8Array>) => {
     const reader = source.getReader(), decoder = new TextDecoder()
@@ -122,7 +126,7 @@ export function createNativeReplOracle(options: {assignment: NativeReplAssignmen
             const job = session.active!; clearTimeout(session.timer)
             job.state = message.error ? "failed" : "completed"; job.finishedAt = Date.now(); job.result = typeof message.result === "string" ? message.result : null; job.error = typeof message.error === "string" ? message.error : null
             if (typeof message.cwd === "string") session.view.cwd = message.cwd
-            session.active = null; dispatch(session)
+            session.active = null; notify(session); dispatch(session)
           } else if (message.kind === "oracle-call" && typeof message.id === "string" && typeof message.target === "string" && typeof message.method === "string") {
             void Promise.resolve().then(() => peer.call(message.target as string, message.method as string, message.params)).then(
               result => {if (session.view.state !== "closed") child.send({kind: "oracle-result", id: message.id, ok: true, value: result})},
@@ -159,6 +163,29 @@ export function createNativeReplOracle(options: {assignment: NativeReplAssignmen
     return snapshot({schema: "cosmos/repl-read/v1", version: 1, session: session.view, jobs: jobs.map(jobView), jobsTotal: all.length, jobsTruncated: jobs.length < all.length,
       logs, cursor: logs.at(-1)?.sequence ?? Math.max(value.cursor, session.droppedThrough), droppedThrough: session.droppedThrough})
   }
+  /** Factory-only ожидание producer событий; не добавляет RPC/model method и не повторяет evaluate. */
+  const waitForJob = (input: unknown, signal: AbortSignal): Promise<ReplReadReceipt> => {
+    const value = authorize(input, ["sessionId", "incarnation", "cursor", "jobId"], ["limit"]), session = target(value)
+    signal.throwIfAborted()
+    return new Promise((resolve, reject) => {
+      const listeners = observers.get(session.view.sessionId) ?? new Set<() => void>()
+      observers.set(session.view.sessionId, listeners)
+      let finished = false
+      const cleanup = () => {listeners.delete(check); if (!listeners.size) observers.delete(session.view.sessionId); signal.removeEventListener("abort", abort)}
+      const finish = (result?: ReplReadReceipt, error?: unknown) => {if (finished) return; finished = true; cleanup(); if (result) resolve(result); else reject(error)}
+      const check = () => {
+        try {
+          const result = read(value), job = result.jobs.find(job => job.id === value.jobId)
+          if (!job) throw new Error("Native REPL job is unavailable")
+          if (job.state !== "queued" && job.state !== "running") finish(result)
+        } catch (error) {finish(undefined, error)}
+      }
+      const abort = () => finish(undefined, signal.reason ?? new Error("Native REPL wait cancelled"))
+      listeners.add(check)
+      signal.addEventListener("abort", abort, {once: true})
+      check()
+    })
+  }
   const closeSession = async (input: unknown): Promise<ReplSession> => {
     const session = target(authorize(input, ["sessionId", "incarnation"]))
     finishSession(session, "Native REPL session closed; in-flight outcome may be uncertain")
@@ -167,7 +194,7 @@ export function createNativeReplOracle(options: {assignment: NativeReplAssignmen
   }
   peer.expose(REPL_METHODS[0], capabilities); peer.expose(REPL_METHODS[1], openSession); peer.expose(REPL_METHODS[2], evaluate); peer.expose(REPL_METHODS[3], read); peer.expose(REPL_METHODS[4], closeSession)
   let closing: Promise<void> | undefined
-  return {channel: local.router, capabilities, open: openSession, evaluate, read, closeSession,
+  return {channel: local.router, capabilities, open: openSession, evaluate, read, waitForJob, closeSession,
     close() {return closing ??= (async () => {closed = true; for (const session of sessions.values()) finishSession(session, "Release REPL incarnation closed; in-flight outcome may be uncertain"); await Promise.allSettled([...sessions.values()].flatMap(session => [session.child.exited, ...session.drained])); peer.close(); await local.peer.close(); await local.router.close()})()},
   }
 }

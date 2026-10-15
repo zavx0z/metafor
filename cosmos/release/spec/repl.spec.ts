@@ -119,6 +119,30 @@ test("crash retains uncertain record, cancels queued work and rejects session fr
   } finally {await service.close(); await replacement.close(); await rm(cwd, {recursive: true, force: true})}
 })
 
+test("factory job wait follows producer completion, abort and close without a new RPC method", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "cosmos-repl-wait-"))
+  const service = createNativeReplOracle({assignment: {token, cwd}})
+  try {
+    const session = await service.open({...auth, requestId: "wait-open"})
+    const assigned = target(session)
+    const admitted = service.evaluate({...assigned, requestId: "complete", code: 'await Bun.sleep(30); "producer-finished"'})
+    const receipt = await service.waitForJob({...assigned, cursor: 0, jobId: admitted.job.id}, new AbortController().signal)
+    expect(receipt.jobs[0]).toMatchObject({state: "completed", result: "'producer-finished'"})
+    expect((await service.waitForJob({...assigned, cursor: receipt.cursor, jobId: admitted.job.id}, new AbortController().signal)).jobs[0]?.state).toBe("completed")
+    const running = service.evaluate({...assigned, requestId: "pending", code: "await Bun.sleep(10000)"})
+    const abort = new AbortController()
+    const cancelled = service.waitForJob({...assigned, cursor: receipt.cursor, jobId: running.job.id}, abort.signal)
+    abort.abort(new Error("Reader detached"))
+    await expect(cancelled).rejects.toThrow("Reader detached")
+    expect(service.read({...assigned, cursor: receipt.cursor, jobId: running.job.id}).jobs[0]?.state).toBe("running")
+    const closing = service.waitForJob({...assigned, cursor: receipt.cursor, jobId: running.job.id}, new AbortController().signal)
+    const close = service.closeSession(assigned)
+    expect((await closing).jobs[0]?.state).toBe("uncertain")
+    await close
+    expect(service.channel.methods).not.toContain("waitForJob")
+  } finally {await service.close(); await rm(cwd, {recursive: true, force: true})}
+})
+
 test("private assignment fails closed and disabled is not an anonymous capability", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "cosmos-repl-config-")), config = join(cwd, "private.json")
   try {
