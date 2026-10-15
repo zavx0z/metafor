@@ -1,88 +1,92 @@
 # Короткий вход для следующей сессии
 
-Передай этот текст новому агенту. Полная передача — соседний [README.md](README.md).
-Это рабочий контекст, не разрешение обойти правила назначенной среды.
+Состояние обновлено 16 октября 2026.
 
----
+Продолжай MetaFor Владимира в назначенном checkout. Приоритет — разработка самой
+системы внутри `/cosmos` и восстановление независимо от повреждённого UI или
+исходного CLI. Управление/агенты как Quantum; комнаты, главный Display и рабочие
+средства Storybook. Полная передача — [README.md](README.md), первый раздел
+актуальный, последующие старые разделы сохранены как история.
 
-Ты продолжаешь MetaFor Владимира, дата передачи 15 октября 2026. Цель — один
-надёжный цикл разработки самой системы из её веб-чата без обязательного
-платного Codex. Не начинай с новых визуальных возможностей и не перечитывай
-многодневную историю целиком: используй handoff и нужные владельческие документы.
+Сначала AGENTS.md, GET environment по приватному server.json без вывода токена,
+docs/README.md и правила владельца. Проверь branch/HEAD, dirty files, worktrees и
+ownership runtime. Не создавай ветки/клоны/worktree, не читай production/Concept,
+не трогай чужие процессы. Task-scoped commits разрешены; push не разрешён.
 
-Начни с AGENTS.md, GET environment по локальному server.json без вывода токена,
-docs/README.md и правил выбранного владельца. Сначала проверь фактический
-checkout, branch/HEAD, dirty files и ownership runtime. Не создавай ветки,
-worktree или клоны; не трогай production/Concept и чужие процессы.
+Проверенная активная версия — Core 0.3.45 / Visual 0.3.38, digest
+`8322bbd6bc34588eb2e2cd05787ba46126bfd3c7566dcc49d500e2679fdbf90a`.
+Live handover с 0.3.44 подтверждён CLI: `active.json` revision 36, operation
+`cbcd4060-7cef-4eee-8374-4bbd4384ca9e` complete, Core PID 42535; health 200,
+`ok: true`, Force `state: running`, три дочерних домена ready. Предыдущий
+0.3.44 оставался запущенным около восьми часов, включая паузу в работе.
+MetaFor code `91571d5e4`, Storybook `36ac9cb4`. Runtime управляется установленным
+frozen operator через `metafor`; он лежит вне изменяемых source roots.
+`metafor downgrade` проверяет совместимость и возвращает прежний admitted выпуск.
+После unknown сначала readback; не повторять действие. Новый operator нельзя
+устанавливать поверх процесса старого artifact без его штатной остановки.
 
-Последний baseline: MetaFor `e77ccbfb3`, Provider `48076b5`, Storybook `5c80458e`,
-Capsule `c0eafb1`. Установлен Core0.3.33/Visual0.3.29. Работа из текущего checkout; эти изменения
-закоммичены локально, наличие их на remote не подтверждено.
+Обновление 0.3.42 → 0.3.43 не дождалось ready за 120 секунд; active 0.3.42
+сохранился как выбор, но runtime остановился. Cold start 0.3.42 тоже отказал,
+cleanup скрывал исходную ошибку. Core 0.3.44 восстановил запуск: Source init
+стал ленивым, health await ограничен deadline фазы, добавлены фазовые timings
+и cleanup со стабильным ownership и сохранением исходной ошибки. Прошли
+19 целевых тестов / 508 assertions; repair мира/history не потребовался.
+Failed operation 0.3.43 сохранялась после cold start 0.3.44; текущий record
+уже содержит complete перехода на 0.3.45.
+Сохранённый в Source UI `Failed to fetch` от простоя снят явным
+«Обновить каталог», каталог вернулся в ready.
 
-Реальное состояние:
+В 0.3.45 исправлен только UI статусов: ошибка привязана к версии target
+candidate, поэтому прежний отказ 0.3.43 не становится общей ошибкой текущего
+выпуска. 11 целевых тестов / 140 assertions и Visual typecheck прошли.
+Oracle подтвердил ready UI 0.3.45 и открытие раздела настроек. Затем все три
+Window стали скрытыми, capture истёк: свежая визуальная проверка текста пока
+открыта. Management отдельно подтвердил active 0.3.45 и complete, HTTP 200 за
+3930 мс, header digest совпал. Не повторять activation ради снимка.
 
-- Cosmos Session/Store/stream/общий Storybook UI уже есть. История в Cosmos,
-  отдельно от Quantum/Mass. Один semantic Document/Canvas; не создавать обходов.
-- Новый чат ещё не получает Session Environment для source read/patch/test.
-  В Storybook `chat/session/contract/environment.ts` уже есть content/execute/
-  dispose/authorize и строгий цикл JSON `{name,arguments}`. Reuse этого механизма,
-  не новый цикл. Cosmos composition: `cosmos/release/server/conversations.ts`.
-- Текущий Oracle Process scope full-root; subtree не обещать. `cwd` беседы —
-  история, не исходники. Native REPL даёт ОС-доступ и не является scope sandbox.
-- DeepSeek на Mac авторизован по подтверждению Владимира 15 октября. Последняя
-  страница показала `Server is temporarily unavailable`; Cosmos не получил
-  полную квитанцию. Не переотправлять неизвестный исход. Preview отдельно был
-  capture-required. Не заводить профиль и не просить login вслепую.
-- Старый диагностический request в session d7973392-20a9-438b-ad9a-119e82ef3047
-  остался pending после failed+stop. Перед prepare/send прочитай состояние;
-  prepare может продолжить pending. Не повторяй неизвестные эффекты.
-- Qwen preview bootstrap восстановлен: два 200 через MetaFor за 2–2,5 секунды.
-  Перезапущен только Provider; Capsule/Chrome сохранены. Вход, видео и модельный
-  ход этим не подтверждаются. Capsule screenshot timer `Illegal invocation`
-  исправлен; Mac capture-required остаётся отдельным вопросом.
-- Qwen Mac тоже подключён: агент «Qwen · MacBook», «Рабочий чат · Qwen»,
-  `mac-qwen` в существующем Chrome Studio профиле. Реальные ответы «Готово.»
-  и после stop/prepare «MetaFor». Native Mac Provider теперь использует
-  browser-host-background-20261015, PID29742/4447; browser prompt работает
-  через focus emulation без автоматического Target.activateTarget. Ошибка
-  не поднимает окно fallback-ом; ручная активация сохранена. OS focus отдельно
-  не измерялся. Chrome/профиль и ai-srv/Codespace bundles не менялись.
-- ai-srv-origin: RTX5060Ti16GB, RAM61GiB. Отдельный контейнер
-  metafor-provider-ai-ollama, одна очередь. qwen3.5:9b дал две реальные реплики
-  через Cosmos с той же native identity, без дубля сообщения после восстановления.
-  Агент «Ollama · ai-srv» в atom:1, беседа «Рабочий чат · Ollama».
-  Во время генерации GPU занимала около 6800 MiB; контекст 32768.
-- Peer Ollama теперь поддержан по exact private assignment. Standalone native
-  driver сохранён. Исправлен graceful peer close до освобождения bootstrap.
-- Старые thought chunks теперь показываются одной накопительной карточкой.
-  Cache перестраивается из журнала, raw evidence остаётся. В живой беседе
-  служебные группы уменьшились с 2713/215 до 4/5 элементов.
-  Мысль выводится общим ChatContent как Markdown. Два текста побайтно совпали
-  с native thinking (SHA-256/длины); потери не было, ошибка была в представлении.
-- Вход/Back показывают комнату целиком спереди; live-снимок с 8 агентами получен.
-  Перекрытие соседних head Chat ещё относится к T11, не объявлять layout готовым.
-- Native context option пока теряется в Session; любое non-model значение
-  ошибочно относилось бы к thoughtLevel. Нужен отдельный settings срез, не
-  простое снятие фильтра. Thinking values реальный Ollama не сообщает;
-  не придумывай переключатели. Первый ответ медленный; cancel ещё не принят.
-- Новый Codespace bots-work/miniature-happiness-jjjrvqg6x7qgcq97 Available,
-  2CPU8GB; VPN уже поднят другой задачей. Не останавливай его. Старые billing402
-  относятся к другим аккаунтам. ChatGPT/Capsule на новом ресурсе ещё не приняты.
+Исторически на 0.3.42 реальными controls двух Window пройден путь Package Display →
+room → chat → session → Quantum → Cosmos → тот же chat. Draft сохранён и очищен;
+в Quantum нет Minimap Cosmos. Свежий кадр видимой комнаты получен через Oracle.
+Диагностический текст нигде не отправлялся модели. Main Display содержит
+«Зависимости» и «Исходники», агент — сессии и настройки имени/пола. Visual 0.3.37
+с исправлением общей глубины взят из 0.3.43 и был установлен в составе 0.3.44.
+Историческая живая проверка 0.3.44 одного Window прошла: MetaFor Package →
+Display → room → «Основной» → «Беседы» → «Рабочая · Ollama» → draft → room →
+Quantum → Cosmos → тот же chat. Draft сохранился и очищен без отправки модели;
+header настроек работает, вкладки «Зависимости»/«Исходники» присутствуют.
+Proof: `.local/oracle-agent-provider/source44-ui-proof/window_92134-1792073422776_1/proof.json`.
+Свежий видимый Oracle-кадр `frame-1792074183217.png` в `browser-api-live`,
+1362×2158, presented 2016 → 2064: ноги на полу, надголовный чат и HUD на месте,
+Minimap не перекрывает room. Это принятый узкий визуальный путь 0.3.44.
+Его Main Display отдельно просмотрен: `frame-1792074455279.png`, 1362×2158,
+presented 14804 → 14844, содержимое Storybook и вкладки HUD видны, Minimap не
+мешает. Окно выпуска — `frame-1792074803967.png`, presented 24954 → 24987:
+текущий 0.3.44, rollback 0.3.42 и CLI. Замеченная stale-ошибка исправлена в
+0.3.45, но старый кадр не подтверждает новый UI. Полный цикл
+source patch/check/build/publication этими проверками не доказан.
 
-Выбери ровно один срез из T1–T4 полной передачи. Ollama→Cosmos text/resume уже
-подтверждены; основной следующий шаг — Environment→одно выданное чтение, patch,
-проверка и видимый diff. Подготовь owner law/contract только по необходимости,
-сохрани существующие approvals и введи конечный бюджет шагов.
+Главный незаконченный путь — source edit → check → prepared complete release →
+explicit activate → recover. Source Session уже использует portable Package
+Environment Storybook, filesystem/knowledge tools и назначенный `bun.evaluate`.
+Ollama реально выполнила read и Bun tool и завершила ход. Второй model/tool loop
+не нужен. Файловый scope — назначенный Package; машинный REPL — отдельное явное
+полномочие, не файловая песочница. Сессии приходят по stream, GET каталога теперь
+читает snapshot; refresh только явный.
 
-Зачёт: реальная модель в той же Cosmos Session читает разрешённый исходник,
-выполняет согласованный hash-checked patch, запускает одну назначенную проверку,
-показывает её exit/stdout и точный diff. После разрыва сохраняется identity и
-нет повторного patch/prompt. API readiness и обычного ответа модели недостаточно.
+`cosmos.prepare`, executable source scenarios и автоматическая team-coordination
+ещё не выданы агентам. Не переносить вслепую
+`.local/paused-cosmos-preparation-2026-10-15`: там нет доказанного source closure,
+а publisher может оставить version/artifact после позднего отказа. Следующий
+срез — существующий build/release owner с точной квитанцией источников и эффекта,
+не новый сервис и не копия Repo. После него выдать model-tools просмотра строго
+назначенного Window и согласованные team tools.
 
-Если в текущем веб-чате инструменты вообще не выданы, прямо скажи это. Не
-изображай чтение файлов и исполнение команд. Можно подготовить ограниченный
-patch по явно предоставленным исходникам, но это ещё не сквозной зачёт.
+Qwen Mac авторизован в существующем Chrome Studio, новый профиль не нужен.
+Финальный tool round дал server-ID mismatch после двух успешных инструментов;
+не повторять неизвестный эффект. Ollama ai-srv работает независимо. ChatGPT
+остаётся задачей Codespace; чужой VPN не останавливать. Видео не доказывает
+аудио, микрофон, native Save/Open или стабильность модели.
 
-Итог каждого среза: что проверено, какой commit/revision, одна следующая задача,
-что остаётся неподтверждённым. Commit/push/deploy — по актуальному разрешению
-Владимира, без наследования старого разрешения на другой объём работ.
+Отделяй source/tests, installed runtime, tool-run модели и визуальную приёмку.
+Реальные доказательства и оставшаяся очередь перечислены в README. Приоритет
+саморазработки и восстановления не заменять косметикой и вторичными провайдерами.
