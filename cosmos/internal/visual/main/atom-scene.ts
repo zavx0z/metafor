@@ -62,6 +62,7 @@ export function createAtomScene(options: Readonly<{
   let pendingFocus: {ref: AtomRef; focus: boolean} | null = null
   let view: AtomSceneView = "display"
   let openingDisplay = false
+  let active = true
   let stopCamera = () => {}
   const residents = new Set<AtomRef>()
   let snapshot: AtomSceneSnapshot = {mode: "unavailable", message: route.message, selectedAtom: null, view, canGoBack: false, source, geometryNodes: [], offices: []}
@@ -103,15 +104,15 @@ export function createAtomScene(options: Readonly<{
   const updateVisibility = () => {
     if (route.kind !== "atom") return
     const display = displayFor(route.ref)
-    if (display && display.hidden !== (view !== "display")) display.hidden = view !== "display"
+    if (display && display.hidden !== (!active || view !== "display")) display.hidden = !active || view !== "display"
     glass?.update()
   }
   const onHost: SpatialTreeSnapshot["onHost"] = (id, display) => {
     spatial.getSnapshot()?.onHost(id, display)
-    if (display) display.hidden = view !== "display" || route.kind !== "atom" || route.ref !== id
+    if (display) display.hidden = !active || view !== "display" || route.kind !== "atom" || route.ref !== id
   }
   const observeRoom = () => {
-    if (!root || view !== "display" || route.kind !== "atom") return
+    if (!root || !active || view !== "display" || route.kind !== "atom") return
     const ref = route.ref
     const node = snapshot.geometryNodes.find(node => node.id === ref)
     if (!node) return
@@ -216,6 +217,7 @@ export function createAtomScene(options: Readonly<{
     spatial: visible,
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) {listeners.add(listener); return () => {listeners.delete(listener)}},
+    setActive(next: boolean) {assertActive(); active = next; updateVisibility(); if (next && root) refresh(false)},
     attach(value: Presentation, networkModel: Network) {
       assertActive()
       if (root === value) return
@@ -225,7 +227,7 @@ export function createAtomScene(options: Readonly<{
         if (batch.records.some(record => record.target === value.viewPoint)) observeRoom()
       })
       stopPresented = root.subscribePresented(() => {
-        if (disposed || snapshot.mode !== "atoms") return
+        if (disposed || !active || snapshot.mode !== "atoms") return
         const size = viewport()
         if (size && (!geometryViewport || size.width !== geometryViewport.width || size.height !== geometryViewport.height)) {
           if (resizeQueued) return

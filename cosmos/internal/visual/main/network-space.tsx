@@ -11,6 +11,7 @@ import {
   type SpatialTreeSnapshot,
 } from "@zavx0z/immersive/nodes/spatial/tree"
 import type {InfrastructureProjection} from "./infrastructure-model.ts"
+import {useSpatialVisibility} from "./spatial-visibility"
 
 const ROOT_ID = "network:root"
 const frameId = (id: string) => `network:frame:${id}`
@@ -348,12 +349,14 @@ export function createNetworkSpace() {
 export type NetworkSpaceModel = ReturnType<typeof createNetworkSpace>
 
 /** Тонкие поверхности сущностей и cubic-связи в том же единственном Space. */
-export function NetworkSpace(props: Readonly<{model: NetworkSpaceModel}>) {
+export function NetworkSpace(props: Readonly<{model: NetworkSpaceModel; active?: boolean | undefined}>) {
   const links = useSyncExternalStore(props.model.state.subscribe, props.model.getEdgeSnapshot)
   const labels = useSyncExternalStore(props.model.state.subscribe, props.model.getLabelSnapshot)
+  const active = props.active !== false
+  const spatial = useSpatialVisibility(props.model.state, active)
   return <>
     <SpatialTree
-      source={props.model.state}
+      source={spatial}
       style={css`
         background: rgb(var(--surface-900) / .78);
         --spatial-node-surface-opacity: .32;
@@ -361,15 +364,18 @@ export function NetworkSpace(props: Readonly<{model: NetworkSpaceModel}>) {
         font-family: var(--font-family);
         --spatial-volume-opacity: .12;
         --spatial-volume-outline-opacity: .65;
+        ${!active && css`
+          display: none;
+        `}
       `}
     />
-    {labels.map(node => <NetworkCoarseLabel key={node.id} node={node} model={props.model} />)}
-    {links.edges.length === 0 ? null : <SpatialEdges edges={links.edges} geometryRevision={links.geometryRevision} name="Наблюдаемые соединения сети" />}
+    {labels.map(node => <NetworkCoarseLabel key={node.id} node={node} model={props.model} active={active} />)}
+    {links.edges.length === 0 ? null : <SpatialEdges edges={links.edges} geometryRevision={links.geometryRevision} visible={active} name="Наблюдаемые соединения сети" />}
   </>
 }
 
 /** Нативный лёгкий текст на той же мировой поверхности; тяжёлый content остаётся в SpatialTree. */
-function NetworkCoarseLabel(props: Readonly<{node: CoarseLabel; model: NetworkSpaceModel}>) {
+function NetworkCoarseLabel(props: Readonly<{node: CoarseLabel; model: NetworkSpaceModel; active: boolean}>) {
   const node = props.node
   return <xr-text
     name={`network:label:${node.id}`}
@@ -378,6 +384,7 @@ function NetworkCoarseLabel(props: Readonly<{node: CoarseLabel; model: NetworkSp
     x={node.rect.x + 8}
     y={node.rect.y + node.rect.height / 2}
     z={node.rect.z + 1}
+    visible={props.active}
     onClick={() => props.model.select(node.id, true)}
   >
     <xr-material kind="text" color="#ffffff" />

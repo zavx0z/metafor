@@ -11,12 +11,12 @@ import type {AtomSceneModel} from "./atom-scene"
 import type {OfficeDisplayGeometry} from "./office-display-view"
 
 /** Офис занимает тело своего Atom в общей пространственной проекции Matter. */
-export function AtomOffices(props: Readonly<{scene: AtomSceneModel; workspace: AgentWorkspaceModel; bot?: Bot | undefined}>) {
+export function AtomOffices(props: Readonly<{active?: boolean | undefined; scene: AtomSceneModel; workspace: AgentWorkspaceModel; bot?: Bot | undefined}>) {
   const snapshot = useSyncExternalStore(props.scene.subscribe, props.scene.getSnapshot)
-  return <>{props.bot ? <SceneOffices snapshot={snapshot} bot={props.bot} workspace={props.workspace} /> : null}</>
+  return <>{props.bot ? <SceneOffices active={props.active !== false} snapshot={snapshot} bot={props.bot} workspace={props.workspace} /> : null}</>
 }
 
-function SceneOffices(props: Readonly<{snapshot: ReturnType<AtomSceneModel["getSnapshot"]>; bot: Bot; workspace: AgentWorkspaceModel}>) {
+function SceneOffices(props: Readonly<{active: boolean; snapshot: ReturnType<AtomSceneModel["getSnapshot"]>; bot: Bot; workspace: AgentWorkspaceModel}>) {
   const signature = JSON.stringify(props.snapshot.offices.map(({office, position}) => [office.id, office.bounds, position,
     office.agents.map(agent => [agent.id, agent.profile?.gender ?? "male"])]))
   const rooms = useMemo(() => props.snapshot.offices.map(placed => ({...placed, id: placed.office.id,
@@ -28,9 +28,10 @@ function SceneOffices(props: Readonly<{snapshot: ReturnType<AtomSceneModel["getS
   useMemo(() => {instances.update(rooms)}, [instances, rooms])
   useEffect(() => () => instances.dispose(), [instances])
   return <>
-    <xr-asset name="Все агенты и устройства Verse" factory={instances.object} />
+    <xr-asset name="Все агенты и устройства Verse" factory={instances.object} visible={props.active} />
     {rooms.filter(room => props.snapshot.view === "room" && room.office.owner === props.snapshot.selectedAtom?.ref).map(room => <VisitedOfficeScreens
       key={room.id}
+      active={props.active}
       office={room.office}
       layout={room.layout}
       position={room.position}
@@ -39,9 +40,10 @@ function SceneOffices(props: Readonly<{snapshot: ReturnType<AtomSceneModel["getS
   </>
 }
 
-function VisitedOfficeScreens(props: Readonly<{office: AgentOfficeSnapshot; layout: OfficeLayout; position: {x: number; y: number; z: number}; workspace: AgentWorkspaceModel}>) {
+function VisitedOfficeScreens(props: Readonly<{active: boolean; office: AgentOfficeSnapshot; layout: OfficeLayout; position: {x: number; y: number; z: number}; workspace: AgentWorkspaceModel}>) {
   return <>{props.layout.agents.map(agent => <OfficeAgentScreens
     key={agent.id}
+    active={props.active}
     office={props.office}
     agent={agent}
     position={props.position}
@@ -174,18 +176,20 @@ function Office(props: Readonly<{office: AgentOfficeSnapshot; position: {x: numb
 }
 
 function OfficeAgentScreens(props: Readonly<{
+  active?: boolean | undefined
   office: AgentOfficeSnapshot
   agent: OfficeLayout["agents"][number]
   position: {x: number; y: number; z: number}
   workspace: AgentWorkspaceModel
 }>) {
   return <>
-    {props.agent.displays.map(display => <OfficeScreen key={display.id} office={props.office} agent={props.agent}
+    {props.agent.displays.map(display => <OfficeScreen key={display.id} active={props.active !== false} office={props.office} agent={props.agent}
       display={display} position={props.position} workspace={props.workspace} />)}
   </>
 }
 
 function OfficeScreen(props: Readonly<{
+  active: boolean
   office: AgentOfficeSnapshot
   agent: OfficeLayout["agents"][number]
   display: OfficeLayout["agents"][number]["displays"][number]
@@ -243,6 +247,9 @@ function OfficeScreen(props: Readonly<{
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      ${!props.active && css`
+        display: none;
+      `}
     `}
   />
 }

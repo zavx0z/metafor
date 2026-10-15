@@ -18,11 +18,10 @@ import {loadBot, type Bot} from "./bot.ts"
 import {createAgentWorkspace as createAgentWorkspaceSource} from "../../../release/main/agents"
 import {AGENT_UI_SCHEMA, type AgentUiSnapshot} from "../../../release/shared/agents"
 import {agentWorkspaceGraph} from "../../../release/spec/agent-graph-fixture"
-import type {DevelopmentWorkbenchProps} from "./development-workbench"
 
 let directory = ""
 let app: DOMComponentConstructor<{network: NetworkSpaceModel; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined;
-  development?: Omit<DevelopmentWorkbenchProps, "width" | "height"> | undefined}>
+  development?: Readonly<{active: boolean}> | undefined}>
 let createNetworkSpace: () => NetworkSpaceModel
 let createAgentWorkspace: () => AgentWorkspaceModel
 
@@ -139,7 +138,7 @@ test("Visual network owns one Document, Space, ViewPoint, shared lights and HUD"
   expect(readDocumentCompiledStyleSheets(view.document).styleSheets).toEqual([])
 })
 
-test("renderer places Quantum and Cosmos windows in one shared HUD layer with Settings reachable", async () => {
+test("renderer keeps one shared HUD layer and Settings reachable across modes", async () => {
   const width = Object.getOwnPropertyDescriptor(globalThis, "innerWidth"), height = Object.getOwnPropertyDescriptor(globalThis, "innerHeight")
   Object.defineProperty(globalThis, "innerWidth", {value: 1200, configurable: true})
   Object.defineProperty(globalThis, "innerHeight", {value: 800, configurable: true})
@@ -160,11 +159,10 @@ test("renderer places Quantum and Cosmos windows in one shared HUD layer with Se
     expect(view.document.querySelectorAll("hud")).toHaveLength(1)
     const settings = view.document.getElementById("storybook-execution-settings")!
     expect(settings.closest("[data-window-area]")?.parentElement).toBe(hud)
-    view.root.render(app, {network: view.network, workspace, annotations, development: {active: true, packageName: null,
-      observe() {return () => {}}, navigate() {}, quantum() {}}})
+    view.root.render(app, {network: view.network, workspace, annotations, development: {active: true}})
     await layout()
     const areas = [...hud.querySelectorAll("[data-window-area]")]
-    expect(areas.length).toBeGreaterThanOrEqual(3)
+    expect(areas.length).toBeGreaterThanOrEqual(2)
     expect(new Set(areas.map(area => area.parentElement))).toEqual(new Set([hud]))
     const open = [...hud.querySelectorAll("button")].find(button => button.getAttribute("aria-label") === "Настройки") as HTMLButtonElement
     expect(open).toBeDefined()
@@ -172,7 +170,7 @@ test("renderer places Quantum and Cosmos windows in one shared HUD layer with Se
     await layout()
     expect(settings.textContent).toContain("Сборки и откат")
     expect(view.document.querySelectorAll("space")).toHaveLength(1)
-    expect(view.document.getElementById("cosmos-development-display")).not.toBeNull()
+    expect(view.document.getElementById("cosmos-development-display")).toBeNull()
   } finally {
     renderer.dispose()
     view.root.unmount()

@@ -3,6 +3,7 @@ import listFiles from "@zavx0z/ai-filesystem-list"
 import readFile from "@zavx0z/ai-filesystem-read"
 import writeFile from "@zavx0z/ai-filesystem-write"
 import ToolError from "@zavx0z/ai-tech-failure"
+import {extname} from "node:path"
 import type {createDevelopmentCatalog} from "./development-catalog"
 
 /**
@@ -24,6 +25,17 @@ export function createDevelopmentSources(catalog: Pick<Awaited<ReturnType<typeof
     return {source, workspace}
   }
   return {
+    resource(packageName: string, path: string) {
+      const {workspace} = assigned(packageName)
+      const types: Readonly<Record<string, string>> = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml"}
+      const type = types[extname(path).toLowerCase()]
+      if (!type) throw new ToolError("INVALID_PATH_TYPE", "Документ может открыть только принадлежащее пакету изображение")
+      const result = readFile({path, encoding: "base64", maxBytes: 8_388_608}, workspace)
+      if (result.truncated || result.contentHash === null) throw new ToolError("LIMIT_EXCEEDED", "Ресурс документа превышает 8 МиБ", 413)
+      return new Response(Buffer.from(result.content, "base64"), {headers: {"content-type": type, "cache-control": "no-store",
+        "x-content-type-options": "nosniff", "content-security-policy": "default-src 'none'; sandbox", etag: `"${result.contentHash}"`}})
+    },
     async list(packageName: string, path = ".") {
       const {workspace} = assigned(packageName)
       const result = listFiles({path, recursive: false, maxEntries: 1000}, workspace)

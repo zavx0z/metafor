@@ -1,4 +1,5 @@
 import {createDevelopmentSources} from "./development-source"
+import {createDevelopmentContent} from "./development-content"
 import {createOptionalDevelopment} from "./development-availability"
 import type {createNativeReplOracle} from "./repl"
 import {readNativeReplAssignment} from "./repl"
@@ -29,8 +30,10 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
     get snapshot() {return observed.snapshot},
     source: name => observed.source(name),
     subject: address => observed.subject(address),
+    contentNode: (name, nodeId) => observed.contentNode(name, nodeId),
   }
   let refreshing: Promise<void> | undefined
+  let catalogRequested = false
   const refresh = () => refreshing ??= createDevelopmentCatalog(config).then(value => {observed = value}).finally(() => {refreshing = undefined})
   const assignment = config.machine?.enabled ? await readNativeReplAssignment(environment) : null
   if (config.machine?.enabled && (!assignment || !repl)) throw new Error("Development machine was enabled without its native owner assignment")
@@ -39,6 +42,7 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
       hostId: config.machine!.hostId, revision: config.machine!.revision})} : {}),
   })
   const sources = createDevelopmentSources(catalog)
+  const content = createDevelopmentContent(catalog)
   const readers = new Map<string, number>()
   let closed = false
   const ready = () => {if (closed) throw new Error("Development workspace is closed")}
@@ -52,7 +56,16 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
         authorizeAgentRequest(request, host)
         const url = new URL(request.url)
         if (url.search) return new Response(null, {status: 400})
-        if (url.pathname === `${DEVELOPMENT_PATH}/catalog` && request.method === "GET") {await refresh(); return Response.json(catalog.snapshot, {headers: {"cache-control": "no-store"}})}
+        if (request.method === "GET" && url.pathname.startsWith(`${DEVELOPMENT_PATH}/resource/`)) {
+          const [name, ...parts] = url.pathname.slice(`${DEVELOPMENT_PATH}/resource/`.length).split("/")
+          if (!name || !parts.length) return new Response(null, {status: 400})
+          return sources.resource(decodeURIComponent(name), parts.map(decodeURIComponent).join("/"))
+        }
+        if (url.pathname === `${DEVELOPMENT_PATH}/catalog` && request.method === "GET") {
+          if (catalogRequested) await refresh()
+          catalogRequested = true
+          return Response.json(catalog.snapshot, {headers: {"cache-control": "no-store"}})
+        }
         if (request.method !== "POST") return new Response(null, {status: 405})
         const body = await readAgentBody(request)
         if (url.pathname === `${DEVELOPMENT_PATH}/reader`) {
@@ -66,6 +79,16 @@ export async function configuredDevelopment(environment: Readonly<Record<string,
         }
         const token = request.headers.get("x-storybook-session")
         if (!token || (readers.get(token) ?? 0) <= Date.now()) return new Response(null, {status: 401})
+        if (url.pathname === `${DEVELOPMENT_PATH}/resource`) {
+          if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).sort().join() !== "packageName,path" ||
+              !("packageName" in body) || typeof body.packageName !== "string" || !("path" in body) || typeof body.path !== "string") return new Response(null, {status: 400})
+          return sources.resource(body.packageName, body.path)
+        }
+        if (url.pathname === `${DEVELOPMENT_PATH}/content`) {
+          if (!body || typeof body !== "object" || Array.isArray(body) || !("packageName" in body) || typeof body.packageName !== "string" ||
+              Object.keys(body).some(key => key !== "packageName" && key !== "nodeId") || "nodeId" in body && typeof body.nodeId !== "string") return new Response(null, {status: 400})
+          return Response.json(await content(body.packageName, "nodeId" in body ? body.nodeId as string : undefined), {headers: {"cache-control": "no-store"}})
+        }
         if (url.pathname.startsWith(`${DEVELOPMENT_PATH}/source/`)) {
           if (!body || typeof body !== "object" || Array.isArray(body) || !("packageName" in body) || typeof body.packageName !== "string") return new Response(null, {status: 400})
           const value = body as Record<string, unknown>, operation = url.pathname.slice(`${DEVELOPMENT_PATH}/source/`.length)

@@ -53,7 +53,7 @@ export function RoomActions(props: RoomActionsProps) {
     reading.current = null
     setBusy(operation.current)
     setMode(null); setName(""); setMembers([]); setRevision(null); setKnownGroups(null); setChatActor(""); setError("")
-  }, [scopeKey, props.clientDirectory, props.visible])
+  }, [scopeKey, props.clientDirectory])
   useEffect(() => {alive.current = true; return () => {alive.current = false; generation.current++; reading.current?.abort()}}, [])
   const capability = () => {
     const value = current.current
@@ -129,7 +129,7 @@ export function RoomActions(props: RoomActionsProps) {
     {available ? <Window
       id={windowId}
       title={mode === "group" ? "Добавить группу" : mode === "chat" ? "Добавить чат" : "Добавить агента"}
-      open={mode !== null}
+      open={available && mode !== null}
       onOpenChange={value => {if (!value && !operation.current) {reading.current?.abort(); setMode(null)}}}
       geometry={{x: 24, y: 24, width: 420, height: 380}}
       movable={true}

@@ -2,8 +2,8 @@ import {afterAll, beforeAll, expect, spyOn, test} from "bun:test"
 import {mkdtemp, rm, symlink} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {pathToFileURL} from "node:url"
-import {createDocument, createDomRoot, HTMLTextAreaElement, HTMLButtonElement, InputEvent, subscribeDocumentCompiledStyleSheets, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
-import {readDisplayStyle} from "@zavx0z/immersive/renderer/html"
+import {createDocument, createDomRoot, flushDocumentLayoutObservers, HTMLTextAreaElement, HTMLButtonElement, InputEvent, subscribeDocumentCompiledStyleSheets, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
+import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/immersive/renderer/html"
 import {ViewPoint} from "@zavx0z/immersive/engine"
 import {createSpaceElementFactories, readSpaceTree, XRAssetElement} from "@zavx0z/immersive/space"
 import type {AtomContext, AtomViewSnapshot} from "@metafor/agent/atom"
@@ -15,10 +15,11 @@ import type {NetworkSpaceModel} from "./network-space"
 import {agentWorkspaceGraph} from "../../../release/spec/agent-graph-fixture"
 import {loadBot, type Bot} from "./bot"
 import {createProductRouter} from "../../../release/main/router"
-import createJsxBunPlugin from "@zavx0z/immersive/compiler"
+import visualTemplatePlugin from "../build/template.plugin"
 
 let directory = "", bot: Bot
-let App: DOMComponentConstructor<{network: NetworkSpaceModel; workspace: AgentWorkspaceModel; scene: AtomSceneModel; bot: Bot}>
+let App: DOMComponentConstructor<{network: NetworkSpaceModel; workspace: AgentWorkspaceModel; scene: AtomSceneModel; bot: Bot;
+  development?: Readonly<{active: boolean}>; onDevelopment?: () => void; onQuantum?: () => void}>
 let AtomSurface: DOMComponentConstructor<{atom: RuntimeAtom; workspace: AgentWorkspaceModel; scene: AtomSceneModel}>
 let createWorkspace: typeof import("./agent-workspace").createAgentWorkspace
 let createScene: typeof import("./atom-scene").createAtomScene
@@ -28,11 +29,6 @@ beforeAll(async () => {
   directory = await mkdtemp(join(import.meta.dir, ".compiled-atoms-"))
   await symlink(resolve(import.meta.dir, "../node_modules"), join(directory, "node_modules"), "dir")
   // Один compiler session принадлежит одной Bun.build, включая соседние suites в одном process.
-  const visualRoot = resolve(import.meta.dir, ".."), agentRoot = resolve(visualRoot, "../../../standard/agent")
-  const chatRoot = resolve(Bun.resolveSync("@zavx0z/chat/composer", agentRoot), "../../../..")
-  const settingsRoot = resolve(Bun.resolveSync("@zavx0z/storybook-app-web-page-shell-execution-settings", visualRoot), "..")
-  const visualTemplatePlugin = createJsxBunPlugin({cwd: visualRoot, sourceRoots: [resolve(visualRoot, "main"), agentRoot, chatRoot, resolve(Bun.resolveSync("@zavx0z/storybook-chat-preferences", agentRoot), ".."), resolve(Bun.resolveSync("@zavx0z/storybook-chat-view/timeline", agentRoot), "../.."), settingsRoot ],
-    styleSourceRootIds: ["@internal/visual", "@metafor/agent", "@zavx0z/chat", "@zavx0z/storybook-chat-preferences", "@zavx0z/storybook-chat-view", "@zavx0z/storybook-app-web-page-shell-execution-settings"]})
   const result = await Bun.build({entrypoints: ["app.tsx", "atom-surface.tsx", "atom-scene.ts", "agent-workspace.ts", "network-space.tsx"].map(file => join(import.meta.dir, file)),
     outdir: directory, target: "bun", conditions: ["metafor:main"], format: "esm", splitting: true,
     external: ["@zavx0z/immersive", "@zavx0z/immersive/*"], plugins: [visualTemplatePlugin]})
@@ -165,6 +161,83 @@ test("compiled Atom App has one Document/Space, all Matter geometry, only visite
     expect([...f.document.querySelectorAll('[data-agent-atom="atom:2"] button')].some(button => button.getAttribute("aria-label") === "Провайдер")).toBeFalse()
   } finally {f.dispose()}
 })
+
+test("Quantum/Cosmos tabs retain the room and draft while hiding only the inactive projection", async () => {
+  const width = Object.getOwnPropertyDescriptor(globalThis, "innerWidth"), height = Object.getOwnPropertyDescriptor(globalThis, "innerHeight")
+  Object.defineProperty(globalThis, "innerWidth", {value: 1200, configurable: true})
+  Object.defineProperty(globalThis, "innerHeight", {value: 800, configurable: true})
+  const f = fixture()
+  const hud = f.document.querySelector("hud")!
+  const renderer = createDocumentRenderer({document: f.document, root: hud, viewport: f.viewport})
+  let mode: "quantum" | "cosmos" = "quantum"
+  const render = () => f.root.render(App, {network: f.network, workspace: f.workspace, scene: f.scene, bot,
+    development: {active: mode === "cosmos"},
+    onDevelopment() {if (mode === "cosmos") return; f.workspace.parkViews(); mode = "cosmos"; render()},
+    onQuantum() {if (mode === "quantum") return; mode = "quantum"; render()},
+  })
+  const settle = async () => {
+    for (let turn = 0; turn < 8; turn++) {
+      await f.settle()
+      renderer.flush()
+      flushDocumentLayoutObservers(f.document)
+      await Bun.sleep(0)
+    }
+  }
+  const modeButton = (label: string) => {
+    const found = [...hud.querySelectorAll("button")].find(value => value.getAttribute("aria-label") === label || value.textContent === label)
+    if (!(found instanceof HTMLButtonElement)) throw new Error(`${label} tab button missing`)
+    return found
+  }
+  try {
+    f.route({kind: "atom", ref: "atom:1"})
+    await f.settle()
+    expect(f.scene.enterRoom()).toBeTrue()
+    render()
+    await settle()
+    const geometry = f.document.querySelector('xr-group[name="Призматическое дерево"]')!
+    const atomDisplay = f.document.querySelector('[data-spatial-node-id="atom:1"]')!
+    const display = f.document.querySelector('[data-agent-screen="assistant"]') as import("@zavx0z/immersive").DisplayElement
+    const office = f.document.querySelector('xr-asset[name="Все агенты и устройства Verse"]')!
+    const chat = f.document.querySelector('[data-agent-atom="atom:2"]')!
+    const draft = chat.querySelector('textarea[aria-label="Сообщение"]')
+    if (!(draft instanceof HTMLTextAreaElement)) throw new Error("Agent draft missing")
+    draft.value = "Черновик остаётся"
+    draft.dispatchEvent(new InputEvent("input", {bubbles: true}))
+    await settle()
+    expect(modeButton("Cosmos").closest("[data-tab]")).not.toBeNull()
+    expect(geometry.querySelectorAll('xr-mesh[name="spatial-volume-surfaces"]').length).toBeGreaterThan(0)
+    expect((office as XRAssetElement).visible).toBe(true)
+    expect(readDisplayStyle(f.document, display).transform.visible).toBe(true)
+    modeButton("Cosmos").click()
+    await settle()
+    expect(f.scene.getSnapshot().selectedAtom?.ref).toBe("atom:1")
+    expect(f.scene.getSnapshot().view).toBe("room")
+    expect(f.document.querySelector('xr-group[name="Призматическое дерево"]')).toBe(geometry)
+    expect(f.document.querySelector('[data-spatial-node-id="atom:1"]')).toBe(atomDisplay)
+    expect(f.document.querySelector('[data-agent-screen="assistant"]')).toBe(display)
+    expect(geometry.querySelectorAll('xr-mesh[name="spatial-volume-surfaces"]')).toHaveLength(0)
+    expect((office as XRAssetElement).visible).toBe(false)
+    expect(readDisplayStyle(f.document, display).transform.visible).toBe(false)
+    // Package rooms are exercised with their own assigned scene in development-rooms.spec.ts.
+    expect(hud.querySelector('[data-window][aria-label="MetaFor · Пакеты"]')).toBeNull()
+    expect(f.document.querySelectorAll("space")).toHaveLength(1)
+    modeButton("Quantum").click()
+    await settle()
+    expect(geometry.querySelectorAll('xr-mesh[name="spatial-volume-surfaces"]').length).toBeGreaterThan(0)
+    expect((office as XRAssetElement).visible).toBe(true)
+    expect(readDisplayStyle(f.document, display).transform.visible).toBe(true)
+    expect(hud.querySelector('[data-window][aria-label="MetaFor · Пакеты"]')).toBeNull()
+    expect(chat.querySelector('textarea[aria-label="Сообщение"]')).toBe(draft)
+    expect(draft.value).toBe("Черновик остаётся")
+    expect(f.scene.getSnapshot().selectedAtom?.ref).toBe("atom:1")
+    expect(f.document.querySelectorAll("hud")).toHaveLength(1)
+  } finally {
+    renderer.dispose()
+    f.dispose()
+    if (width) Object.defineProperty(globalThis, "innerWidth", width); else Reflect.deleteProperty(globalThis, "innerWidth")
+    if (height) Object.defineProperty(globalThis, "innerHeight", height); else Reflect.deleteProperty(globalThis, "innerHeight")
+  }
+}, 30000)
 
 test("one compiled Chat stays with its Agent while Atom inspector and route change", async () => {
   const f = fixture()

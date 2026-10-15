@@ -1,7 +1,7 @@
 {
   "name": "@cosmos/release",
   "label": "Релизы Cosmos",
-  "version": "0.3.37",
+  "version": "0.3.38",
   "private": true,
   "type": "module",
   "exports": {
@@ -43,6 +43,10 @@
     "@zavx0z/storybook-package-package-json": "^0.0.0",
     "@zavx0z/storybook-package-env": "^0.0.0",
     "@zavx0z/storybook-package-route-workspaces": "^0.0.0",
+    "@zavx0z/storybook-package-metadata-collect": "^0.0.0",
+    "@zavx0z/storybook-package-graph-create": "^0.0.0",
+    "@zavx0z/storybook-package-index": "^0.0.0",
+    "@zavx0z/storybook-package-documentation": "^0.0.0",
     "@zavx0z/ai-workspace": "^0.0.0",
     "@zavx0z/ai-filesystem-list": "^0.0.0",
     "@zavx0z/ai-filesystem-read": "^0.0.0",

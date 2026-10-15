@@ -1,0 +1,154 @@
+import {afterAll, beforeAll, expect, test} from "bun:test"
+import {mkdtemp, rm, symlink} from "node:fs/promises"
+import {join, resolve} from "node:path"
+import {pathToFileURL} from "node:url"
+import {createDocument, createDocumentClipboardController, createDomRoot, flushDocumentLayoutObservers, type DOMComponentConstructor, type Presentation} from "@zavx0z/immersive"
+import {createDocumentRenderer, readDisplayStyle} from "@zavx0z/immersive/renderer/html"
+import {createSpaceElementFactories, readSpaceTree, XRAssetElement} from "@zavx0z/immersive/space"
+import type {DevelopmentCatalog} from "../../../release/shared/development"
+import type {DevelopmentRoomAgentsModel} from "./development-room-agents"
+import type {DevelopmentRoomSceneModel} from "./development-room-scene"
+import {loadBot, type Bot} from "./bot"
+import visualTemplatePlugin from "../build/template.plugin"
+
+let directory = "", bot: Bot
+let Fixture: DOMComponentConstructor<{active: boolean; bot: Bot; scene: DevelopmentRoomSceneModel; agents: DevelopmentRoomAgentsModel}>
+let createScene: typeof import("./development-room-scene").createDevelopmentRoomScene
+let createAgents: typeof import("./development-room-agents").createDevelopmentRoomAgents
+let createSurface: typeof import("@zavx0z/storybook-app-web-page-shell/surface").createEmbeddedSurface
+let createContent: typeof import("@zavx0z/storybook-app-web-page-package/content").createSourcePackageContent
+beforeAll(async () => {
+  directory = await mkdtemp(join(import.meta.dir, ".compiled-development-rooms-"))
+  await symlink(resolve(import.meta.dir, "../node_modules"), join(directory, "node_modules"), "dir")
+  const result = await Bun.build({
+    entrypoints: ["development-rooms.fixture.tsx", "development-room-scene.ts", "development-room-agents.ts"].map(file => join(import.meta.dir, file)),
+    outdir: directory, target: "bun", conditions: ["metafor:main"], format: "esm", splitting: true,
+    external: ["@zavx0z/immersive", "@zavx0z/immersive/*"],
+    plugins: [visualTemplatePlugin],
+  })
+  if (!result.success) throw new AggregateError(result.logs, "Development Rooms did not compile")
+  const load = (file: string) => import(pathToFileURL(join(directory, file)).href)
+  const fixtureModule = await load("development-rooms.fixture.js")
+  Fixture = fixtureModule.DevelopmentRoomsFixture
+  createSurface = fixtureModule.createEmbeddedSurface
+  createContent = fixtureModule.createSourcePackageContent
+  createScene = (await load("development-room-scene.js")).createDevelopmentRoomScene
+  createAgents = (await load("development-room-agents.js")).createDevelopmentRoomAgents
+  const bytes = await Bun.file(new URL("./bots.glb", import.meta.url)).arrayBuffer()
+  bot = await loadBot(`data:model/gltf-binary;base64,${Buffer.from(bytes).toString("base64")}`)
+}, 30_000)
+afterAll(async () => {if (directory) await rm(directory, {recursive: true, force: true})})
+
+const catalog: DevelopmentCatalog = {schema: "cosmos:development/v1", workspaceId: "fixture", rootPackage: "@fixture/root", revision: "one", dependencies: [],
+  packages: [
+    {name: "@fixture/root", label: "Root", address: "/root", owner: null, ownerName: null, resolution: "source", writable: true},
+    {name: "@fixture/child", label: "Child", address: "/child", owner: "@fixture/root", ownerName: "@fixture/root", resolution: "source", writable: true},
+    {name: "@fixture/storybook", label: "Storybook", address: "/storybook", owner: null, ownerName: null, resolution: "source", writable: true},
+    {name: "@fixture/immersive", label: "Immersive", address: "/immersive", owner: null, ownerName: null, resolution: "source", writable: true},
+    {name: "@fixture/highlighter", label: "Highlighter", address: "/highlighter", owner: null, ownerName: null, resolution: "source", writable: true},
+  ]}
+
+test("actual renderer keeps one Space and package Display, enters nested room with two overhead chats, opens one fullscreen and returns", async () => {
+  const document = createDocument({elementFactories: createSpaceElementFactories()}), html = document.createElement("html"), body = document.createElement("body")
+  html.append(body)
+  document.append(html)
+  const clipboard = createDocumentClipboardController(document)
+  const root = createDomRoot(body)
+  const created: string[] = [], visits: string[] = []
+  const agents = createAgents({
+    content: async () => {throw new Error("not used")},
+    agents: {async list(name) {visits.push(name); return [{executorId: "one", label: "Первый"}, {executorId: "two", label: "Второй"}]},
+      async create() {throw new Error("not used")}},
+    chat({executorId}) {
+      created.push(executorId)
+      const element = document.createElement("div")
+      element.setAttribute("data-chat-executor", executorId)
+      return {element, moveTo(host) {host.append(element)}, setVisible(value) {element.hidden = !value}, dispose() {element.remove()}}
+    },
+  }, name => catalog.packages.find(pkg => pkg.name === name)?.address ?? null)
+  const scene = createScene({navigate() {}, visit(name) {agents.setRoom(name); void agents.visit(name)},
+    createView(presentation, id, title, mount, display, release) {
+      const surface = createSurface({root: presentation, display, hudId: "cosmos-development-hud", title, mount, onRelease: release})
+      const content = createContent({surface, content: {packageName: id, node: {id, kind: "package", packageName: id, label: title,
+        parentId: id === "@fixture/child" ? "@fixture/root" : null, childIds: [], routePath: id, sourcePath: "."}, revision: "one",
+        overview: {label: title, description: `Описание ${title}`}, documentation: null, entries: [], contracts: [],
+        dependencies: [], scenarios: {sourcePaths: [], executable: false, reason: "not prepared"}}})
+      return {display, dispose() {content.dispose(); surface.dispose()}}
+    }})
+  scene.configure(catalog)
+  scene.applyRoute(null)
+  scene.setActive(true)
+  agents.setActive(true)
+  root.render(Fixture, {active: true, scene, agents, bot})
+  const tree = readSpaceTree(document), presented = new Set<() => void>()
+  const presentation = {document, space: tree.space, viewPoint: tree.viewPoint,
+    canvas: {getBoundingClientRect: () => ({left: 0, top: 0, width: 1200, height: 800})},
+    getProjection: () => ({kind: "space", owner: tree.space, frustumPlanes: () => [], projectPoint: (p: {x: number; y: number}) => ({x: p.x, y: p.y}), fly() {}}),
+    subscribePresented(listener: () => void) {presented.add(listener); return () => {presented.delete(listener)}},
+    invalidate() {}, render() {root.flush(); for (const listener of presented) listener()},
+  } as unknown as Presentation
+  scene.attach(presentation)
+  agents.attach(presentation)
+  const renderer = createDocumentRenderer({document, root: tree.space, viewport: {width: 1200, height: 800}})
+  const settle = async () => {for (let n = 0; n < 8; n++) {root.flush(); renderer.flush(); flushDocumentLayoutObservers(document); await Bun.sleep(0)}}
+  try {
+    await settle()
+    expect(document.querySelectorAll("space")).toHaveLength(1)
+    expect(document.querySelectorAll("viewpoint")).toHaveLength(1)
+    expect(document.querySelectorAll("hud")).toHaveLength(1)
+    expect(scene.getSnapshot().view).toBe("overview")
+    expect(scene.getSnapshot().geometryNodes.map(node => [node.id, node.parentId ?? null])).toEqual([
+      ["@fixture/root", null], ["@fixture/child", "@fixture/root"],
+      ["@fixture/storybook", null], ["@fixture/immersive", null], ["@fixture/highlighter", null],
+    ])
+    expect(document.querySelectorAll("[data-storybook-workbench]")).toHaveLength(0)
+    scene.applyRoute("@fixture/child")
+    await settle()
+    expect(document.querySelector('[data-spatial-node-id="@fixture/child"]')).not.toBeNull()
+    expect(document.querySelector('[data-spatial-node-id="@fixture/child"] [data-storybook-workbench]')).not.toBeNull()
+    expect(document.querySelector('[data-spatial-node-id="@fixture/root"] [data-storybook-workbench]')).toBeNull()
+    expect(scene.enterRoom()).toBe(true)
+    await settle()
+    expect(visits).toEqual(["@fixture/child"])
+    expect(created).toEqual(["one", "two"])
+    expect(document.querySelectorAll("[data-development-actor]")).toHaveLength(2)
+    const office = document.querySelector('xr-asset[name="Агенты Child"]')
+    expect(office).toBeInstanceOf(XRAssetElement)
+    expect((office as XRAssetElement).visible).toBe(true)
+    const first = document.querySelector('[data-chat-executor="one"]')!
+    const second = document.querySelector('[data-chat-executor="two"]')!
+    expect(first.closest("[data-development-chat-wall]")).not.toBeNull()
+    expect(second.closest("[data-development-chat-wall]")).not.toBeNull()
+    agents.open("one")
+    await settle()
+    expect(document.querySelector('[data-chat-executor="one"]')).toBe(first)
+    expect(first.closest("[data-development-chat-window]")).not.toBeNull()
+    expect(second.closest("[data-development-chat-wall]")).not.toBeNull()
+    agents.close()
+    await settle()
+    expect(first.closest("[data-development-chat-wall]")).not.toBeNull()
+    expect(scene.back()).toBe(true)
+    await settle()
+    expect(scene.getSnapshot().view).toBe("display")
+    expect(document.querySelector('[data-spatial-node-id="@fixture/child"] [data-storybook-workbench]')).not.toBeNull()
+    scene.setActive(false)
+    agents.setActive(false)
+    root.render(Fixture, {active: false, scene, agents, bot})
+    await settle()
+    expect(first.closest("[data-development-chat-parking]")).not.toBeNull()
+    expect(document.querySelectorAll("space")).toHaveLength(1)
+    scene.setActive(true)
+    agents.setActive(true)
+    root.render(Fixture, {active: true, scene, agents, bot})
+    await settle()
+    expect(document.querySelector('[data-spatial-node-id="@fixture/child"] [data-storybook-workbench]')).not.toBeNull()
+    expect(document.querySelector('[data-chat-executor="one"]')).toBe(first)
+    expect(readDisplayStyle(document, document.querySelector('[data-spatial-node-id="@fixture/child"]') as import("@zavx0z/immersive").DisplayElement).transform.visible).toBe(true)
+  } finally {
+    renderer.dispose()
+    root.unmount()
+    agents.dispose()
+    scene.dispose()
+    clipboard.dispose()
+  }
+})

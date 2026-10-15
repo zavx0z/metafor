@@ -1,4 +1,3 @@
-import {DevelopmentWorkbench, DevelopmentMinimap, type DevelopmentWorkbenchProps, type DevelopmentWorkbenchModel} from "./development-workbench"
 import {useEffect, useMemo, useState, useSyncExternalStore} from "@zavx0z/immersive/XReact"
 import {HTMLElement} from "@zavx0z/immersive"
 import {Button, Tab, Typography} from "@zavx0z/immersive/ui"
@@ -8,6 +7,7 @@ import type {Bot} from "./bot.ts"
 import {createNetworkSpace, NetworkSpace, type NetworkSpaceModel} from "./network-space.tsx"
 import {AgentOffices, AtomOffices} from "./agent-offices"
 import {SpatialTree} from "@zavx0z/immersive/nodes/spatial/tree"
+import {useSpatialVisibility} from "./spatial-visibility"
 import {ProviderHUD} from "./provider-hud"
 import type {AtomSceneModel} from "./atom-scene"
 import type {AgentWorkspaceModel} from "./agent-workspace"
@@ -16,35 +16,32 @@ import {RoomActions} from "./room-actions"
 import {RoomContextMenu, RoomInfoWindow, RoomNavigationHUD} from "./room-navigation-hud"
 import {RoomChatWindow} from "./room-chat-window"
 import type {ReleaseSettingsClient} from "./release-settings"
+import type {DevelopmentRoomSceneModel} from "./development-room-scene"
+import type {DevelopmentRoomAgentsModel} from "./development-room-agents"
+import {DevelopmentRoomsHUD, DevelopmentRoomsSpace} from "./development-rooms"
 
 /** Одна сеть в одном Space и Document; свет, HUD и ввод разделяют общий lifecycle. */
-export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined; releaseManagement?: ReleaseSettingsClient | undefined; development?: Omit<DevelopmentWorkbenchProps, "width" | "height"> | undefined; onDevelopment?: (() => void) | undefined}>) {
+export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined; scene?: AtomSceneModel | undefined; releaseManagement?: ReleaseSettingsClient | undefined; development?: Readonly<{active: boolean}> | undefined; developmentScene?: DevelopmentRoomSceneModel | undefined; developmentAgents?: DevelopmentRoomAgentsModel | undefined; developmentError?: string | null | undefined; onRefreshDevelopmentCatalog?: (() => void) | undefined; onDevelopment?: (() => void) | undefined; onQuantum?: (() => void) | undefined}>) {
   const network = useMemo(() => props.network ?? createNetworkSpace(), [props.network])
-  const [viewport, setViewport] = useState(() => ({width: globalThis.innerWidth ?? 960, height: globalThis.innerHeight ?? 640}))
   const developing = props.development?.active === true
-  const [developmentModel, setDevelopmentModel] = useState<DevelopmentWorkbenchModel | null>(null)
-  useEffect(() => {
-    if (!developing) return
-    const resize = () => setViewport({width: globalThis.innerWidth, height: globalThis.innerHeight})
-    resize()
-    globalThis.addEventListener("resize", resize)
-    return () => globalThis.removeEventListener("resize", resize)
-  }, [developing])
-  const developmentDistance = viewport.height * 25.4 / 96 / (2 * Math.tan(INITIAL_VIEW_POINT.fov / 2))
   const [context, setContext] = useState<{x: number; y: number} | null>(null)
   useEffect(() => () => {
     props.scene?.dispose()
     props.annotations?.dispose()
     props.workspace?.dispose()
+    props.developmentAgents?.dispose()
+    props.developmentScene?.dispose()
     network.dispose()
-  }, [network, props.workspace, props.annotations, props.scene])
+  }, [network, props.workspace, props.annotations, props.scene, props.developmentAgents, props.developmentScene])
   return <>
     <link
       rel="stylesheet"
       href={`/@internal/visual/theme.css?env=main&version=${import.meta.env.COSMOS_PACKAGE_VERSION}`}
     />
     <space onContextMenu={event => {
-      if (event.defaultPrevented || props.scene?.getSnapshot().mode !== "atoms") return
+      if (event.defaultPrevented || (developing
+        ? props.developmentScene?.getSnapshot().selectedPackage?.resolution !== "source"
+        : props.scene?.getSnapshot().mode !== "atoms")) return
       if (event.target instanceof HTMLElement && event.target.closest("input, textarea, select, [contenteditable]")) return
       event.preventDefault()
       setContext({x: event.clientX, y: event.clientY})
@@ -62,16 +59,16 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
       & [data-metafor-display-fitted="true"] {backdrop-filter: blur(8px); --spatial-node-surface-opacity: .16;}
     `}>
       <viewpoint
-        x={developing ? 0 : INITIAL_VIEW_POINT.position.x}
-        y={developing ? -developmentDistance : INITIAL_VIEW_POINT.position.y}
-        z={developing ? 0 : INITIAL_VIEW_POINT.position.z}
-        targetX={developing ? 0 : INITIAL_VIEW_POINT.target.x}
-        targetY={developing ? 0 : INITIAL_VIEW_POINT.target.y}
-        targetZ={developing ? 0 : INITIAL_VIEW_POINT.target.z}
+        x={INITIAL_VIEW_POINT.position.x}
+        y={INITIAL_VIEW_POINT.position.y}
+        z={INITIAL_VIEW_POINT.position.z}
+        targetX={INITIAL_VIEW_POINT.target.x}
+        targetY={INITIAL_VIEW_POINT.target.y}
+        targetZ={INITIAL_VIEW_POINT.target.z}
         fov={INITIAL_VIEW_POINT.fov}
         near={INITIAL_VIEW_POINT.near}
         far={INITIAL_VIEW_POINT.far}
-        controls={!developing}
+        controls={true}
       />
       <xr-light
         name="Основной свет сети"
@@ -100,54 +97,66 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
         y={100000}
         z={60000}
       />
-      {props.scene ? <AtomSceneView scene={props.scene} network={network} workspace={props.workspace!} bot={props.bot} /> : <NetworkSpace model={network} />}
-      {props.workspace === undefined && props.bot !== undefined ? <BotAvatar bot={props.bot!} /> : null}
-      {props.workspace === undefined || props.scene !== undefined ? null : <AgentOffices workspace={props.workspace!} bot={props.bot} />}
-      {props.development ? <DevelopmentWorkbench
-        active={props.development.active}
-        packageName={props.development.packageName}
-        width={viewport.width}
-        height={viewport.height}
-        observe={props.development.observe}
-        navigate={props.development.navigate}
-        quantum={props.development.quantum}
-        onReady={setDevelopmentModel}
+      {props.scene ? <AtomSceneView active={!developing} scene={props.scene} network={network} workspace={props.workspace!} bot={props.bot} /> : null}
+      {!props.scene && !developing ? <NetworkSpace model={network} /> : null}
+      {!developing && props.workspace === undefined && props.bot !== undefined ? <BotAvatar bot={props.bot!} /> : null}
+      {developing || props.workspace === undefined || props.scene !== undefined ? null : <AgentOffices workspace={props.workspace!} bot={props.bot} />}
+      {props.developmentScene && props.developmentAgents ? <DevelopmentRoomsSpace
+        active={developing}
+        scene={props.developmentScene}
+        agents={props.developmentAgents}
+        bot={props.bot}
       /> : null}
       <hud id="cosmos-development-hud">
-      <div style={css`
-        ${developing && css`
-          display: none;
-        `}
-      `}>
-        {props.onDevelopment ? <Button label="Cosmos" title="Саморазработка и инструменты" onClick={props.onDevelopment} /> : null}
+        {props.onDevelopment && props.onQuantum ? <ModeTabs active={developing ? "cosmos" : "quantum"}
+          onQuantum={props.onQuantum} onCosmos={props.onDevelopment} /> : null}
+        <div hidden={developing} style={css`
+          &[hidden] {
+            display: none;
+          }
+        `}>
         {props.scene ? <AtomNavigation scene={props.scene} workspace={props.workspace!} annotations={props.annotations} /> : <NetworkNavigation network={network} workspace={props.workspace} annotations={props.annotations} />}
-      </div>
-        {props.workspace && props.scene ? <AgentRoomHUD workspace={props.workspace} scene={props.scene} /> : null}
+        </div>
+        {props.workspace && props.scene ? <AgentRoomHUD active={!developing} workspace={props.workspace} scene={props.scene} /> : null}
         {props.workspace && props.scene ? <RoomExperience
+          active={!developing}
           workspace={props.workspace}
           scene={props.scene}
           context={context}
           onCloseContext={() => setContext(null)}
         /> : null}
         {props.workspace ? <AgentParking workspace={props.workspace} /> : null}
-        {props.annotations ? <AnnotationHUD model={props.annotations} workspace={props.workspace} /> : null}
-        {developmentModel && developing ? <DevelopmentMinimap model={developmentModel} /> : null}
+        {props.annotations ? <AnnotationHUD active={!developing} model={props.annotations} workspace={props.workspace} /> : null}
+        {props.developmentScene && props.developmentAgents ? <DevelopmentRoomsHUD
+          active={developing}
+          scene={props.developmentScene}
+          agents={props.developmentAgents}
+          catalogError={props.developmentError ?? null}
+          onRefreshCatalog={props.onRefreshDevelopmentCatalog}
+          context={context}
+          onCloseContext={() => setContext(null)}
+        /> : null}
         {props.workspace ? <AgentProviderHUD workspace={props.workspace} scene={props.scene} releaseManagement={props.releaseManagement} /> : null}
       </hud>
     </space>
   </>
 }
 
-function AtomSceneView(props: Readonly<{scene: AtomSceneModel; network: NetworkSpaceModel; workspace: AgentWorkspaceModel; bot?: Bot | undefined}>) {
+function AtomSceneView(props: Readonly<{active: boolean; scene: AtomSceneModel; network: NetworkSpaceModel; workspace: AgentWorkspaceModel; bot?: Bot | undefined}>) {
   const state = useSyncExternalStore(props.scene.subscribe, props.scene.getSnapshot)
+  const spatial = useSpatialVisibility(props.scene.spatial, props.active)
   return <>
-    <SpatialTree source={props.scene.spatial} />
-    <AtomOffices scene={props.scene} workspace={props.workspace} bot={props.bot} />
-    {state.mode === "networks" ? <NetworkSpace model={props.network} /> : null}
+    <SpatialTree source={spatial} style={css`
+      ${!props.active && css`
+        display: none;
+      `}
+    `} />
+    <AtomOffices active={props.active} scene={props.scene} workspace={props.workspace} bot={props.bot} />
+    {state.mode === "networks" ? <NetworkSpace model={props.network} active={props.active} /> : null}
   </>
 }
 
-function AgentRoomHUD(props: Readonly<{scene: AtomSceneModel; workspace: AgentWorkspaceModel}>) {
+function AgentRoomHUD(props: Readonly<{active: boolean; scene: AtomSceneModel; workspace: AgentWorkspaceModel}>) {
   const scene = useSyncExternalStore(props.scene.subscribe, props.scene.getSnapshot)
   const workspace = useSyncExternalStore(props.workspace.subscribe, props.workspace.getSnapshot)
   const roomScope = scene.selectedAtom && workspace.input.verseId ? {verseId: workspace.input.verseId, atomRef: scene.selectedAtom.ref} : null
@@ -162,7 +171,7 @@ function AgentRoomHUD(props: Readonly<{scene: AtomSceneModel; workspace: AgentWo
       .filter((connection, index, all) => all.findIndex(other => other.id === connection.id) === index)
       .map(connection => ({id: connection.id, label: connection.label ?? connection.id, enabled: connection.enabled})) ?? []}
     clientDirectory={props.workspace.conversations ?? null}
-    visible={scene.mode === "atoms" && roomScope !== null && workspace.input.status === "ready"}
+    visible={props.active && scene.mode === "atoms" && roomScope !== null && workspace.input.status === "ready"}
     selectedAgentRef={selected?.scope?.agentRef}
     onCreated={async value => {
       const scope = value.kind === "agent" ? value.agent.scope : value.groups.scope
@@ -178,6 +187,7 @@ function AgentRoomHUD(props: Readonly<{scene: AtomSceneModel; workspace: AgentWo
 }
 
 function RoomExperience(props: Readonly<{
+  active: boolean
   workspace: AgentWorkspaceModel
   scene: AtomSceneModel
   context: {x: number; y: number} | null
@@ -203,7 +213,7 @@ function RoomExperience(props: Readonly<{
     if (ref) props.scene.select(ref, true)
   }
   return <>
-    <section hidden={scene.mode !== "atoms"} style={css`
+    <section hidden={!props.active || scene.mode !== "atoms"} style={css`
       position: absolute;
       left: 12px;
       top: 12px;
@@ -227,12 +237,12 @@ function RoomExperience(props: Readonly<{
     </section>
     <RoomChatWindow
       workspace={props.workspace}
-      open={chat !== undefined && scene.view === "room"}
+      open={props.active && chat !== undefined && scene.view === "room"}
       title={`${roomLabel ?? "Комната"} · ${chat?.name ?? "Чат"}${observationError ? " · Наблюдение недоступно" : ""}`}
       onBack={() => props.workspace.closeChat()}
     />
     <RoomContextMenu
-      open={scene.mode === "atoms" && props.context !== null}
+      open={props.active && scene.mode === "atoms" && props.context !== null}
       x={props.context?.x ?? 0}
       y={props.context?.y ?? 0}
       roomLabel={roomLabel ?? "Текущая комната"}
@@ -244,7 +254,7 @@ function RoomExperience(props: Readonly<{
       onInfo={() => setInfo(true)}
     />
     <RoomInfoWindow
-      open={info && scene.mode === "atoms"}
+      open={props.active && info && scene.mode === "atoms"}
       onOpenChange={setInfo}
       roomLabel={roomLabel ?? "Atom"}
       atom={scene.selectedAtom}
@@ -275,6 +285,24 @@ function AtomNavigationContents(props: Readonly<{scene: AtomSceneModel; annotati
       </nav>
       <Typography text={state.message ?? ""} />
   </>
+}
+
+/** Два маршрутных режима используют пристыкованные Tab одного HUD. */
+function ModeTabs(props: Readonly<{active: "quantum" | "cosmos"; onQuantum(): void; onCosmos(): void}>) {
+  return <div id="cosmos-mode-dock" style={css`
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  `}>
+    <Tab label="Quantum" position={{edge: "bottom", offset: .08}}>
+      <Button label="Quantum" selected={props.active === "quantum"} onClick={() => {if (props.active !== "quantum") props.onQuantum()}} />
+    </Tab>
+    <Tab label="Cosmos" position={{edge: "bottom", offset: .2}}>
+      <Button label="Cosmos" selected={props.active === "cosmos"} onClick={() => {if (props.active !== "cosmos") props.onCosmos()}} />
+    </Tab>
+  </div>
 }
 
 function AgentParking(props: Readonly<{workspace: AgentWorkspaceModel}>) {

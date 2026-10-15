@@ -17,12 +17,13 @@ export function AnnotationControl(props: Readonly<{model: ProductAnnotationState
 }
 
 /** Окно и отметки принадлежат существующему HUD; unknown projection не рисует фиктивную геометрию. */
-export function AnnotationHUD(props: Readonly<{model: ProductAnnotationState; workspace?: AgentWorkspaceModel | undefined}>) {
+export function AnnotationHUD(props: Readonly<{model: ProductAnnotationState; workspace?: AgentWorkspaceModel | undefined; active?: boolean | undefined}>) {
   const state = useSyncExternalStore(props.model.subscribe, props.model.getSnapshot)
+  const visible = props.active !== false && state.enabled
   return <>
-    {state.enabled && state.selected?.projection.hudPoint ? <AnnotationMark target={state.selected} label="Выбрано" /> : null}
-    {state.enabled && state.active?.projection.hudPoint && state.active.semanticNodeId !== state.selected?.semanticNodeId ? <AnnotationMark target={state.active} label="Активно" /> : null}
-    <Window id="root-annotation-window" title="Аннотация · Root" open={state.enabled} onOpenChange={open => props.model.setEnabled(open)}
+    {visible && state.selected?.projection.hudPoint ? <AnnotationMark target={state.selected} label="Выбрано" /> : null}
+    {visible && state.active?.projection.hudPoint && state.active.semanticNodeId !== state.selected?.semanticNodeId ? <AnnotationMark target={state.active} label="Активно" /> : null}
+    <Window id="root-annotation-window" title="Аннотация · Root" open={visible} onOpenChange={open => props.model.setEnabled(open)}
       geometry={{x: 24, y: 24, width: 360, height: 320}} movable={true} resizable={true}>
       <AnnotationBody model={props.model} workspace={props.workspace} />
     </Window>
