@@ -13,6 +13,7 @@ import type {RemoteForceDomain} from "../../../quantum/dark/force/store"
 import type {OracleChannel} from "shared/transport/oracle"
 import {DOMAIN_OBSERVATION_SCHEMA, type DomainTransportReport, type ObservedChannelState} from "../shared/peer-observation"
 import {reportQuantumDomainFailure} from "./quantum-diagnostics"
+import {createReadinessTrace, withinReadinessDeadline} from "./readiness"
 import type {MetaForceAcceptanceIdentity} from "shared/protocol/metafor/authoring"
 
 /** Four-domain incarnation owned by one release; its persistent state is outside immutable artifacts. */
@@ -172,6 +173,7 @@ export async function prepareQuantumRuntime(options: QuantumRuntimeOptions) {
   const children: {domain: ChildDomain, process: ReturnType<typeof Bun.spawn>}[] = []
   let stopping: Promise<void> | undefined
   let born = false
+  let startReadiness: ReturnType<typeof createReadinessTrace> | undefined
   let worldReady = false
   let ready = false
   let stopped = false
@@ -196,7 +198,12 @@ export async function prepareQuantumRuntime(options: QuantumRuntimeOptions) {
   }
   const failure = new Promise<never>((_, reject) => {failed = reject})
   void failure.catch(() => {})
+  const readinessObservation = () => {
+    const view = observeDomains()
+    return {state: currentDark?.status().state ?? "unborn", domains: view.domains, links: view.links}
+  }
   const close = () => stopping ??= (async () => {
+    startReadiness?.interrupted(readinessObservation())
     stopped = true
     ready = false
     clearInterval(watchdog)
@@ -227,14 +234,14 @@ export async function prepareQuantumRuntime(options: QuantumRuntimeOptions) {
     rendezvous?.close()
     if (failures.length) throw new AggregateError(failures, "Quantum stopping input or owned domain cleanup failed")
   })()
-  const wait = async (check: (health: Awaited<ReturnType<DarkRuntime["health"]>>) => boolean) => {
+  const wait = async (phase: string, check: (health: Awaited<ReturnType<DarkRuntime["health"]>>) => boolean) => {
     const deadline = Date.now() + (options.readyTimeoutMs ?? 60_000)
     while (!stopped && Date.now() < deadline) {
-      const health = await Promise.race([getDark().health(), failure])
+      const health = await withinReadinessDeadline(() => Promise.race([getDark().health(), failure]), deadline, phase)
       if (check(health)) return
       await Promise.race([Bun.sleep(50), failure])
     }
-    throw new Error(stopped ? "Domain incarnation stopped during birth" : "Domain incarnation readiness timed out")
+    throw new Error(stopped ? "Domain incarnation stopped during birth" : `${phase} readiness timed out`)
   }
   return {
     get dark() {return getDark()}, failure, close,
@@ -283,6 +290,7 @@ export async function prepareQuantumRuntime(options: QuantumRuntimeOptions) {
     async start(port: number) {
       if (born || stopped) throw new Error("Domain incarnation cannot start twice")
       born = true
+      const progress = startReadiness = createReadinessTrace("quantum")
       const executable = resolve(options.executable ?? process.argv[1] ?? "")
       const origin = `http://127.0.0.1:${port}`
       const inherited = {...process.env, ...options.env}
@@ -301,47 +309,52 @@ export async function prepareQuantumRuntime(options: QuantumRuntimeOptions) {
       }
       try {
         if (peerMode) {
-          network = await openDomainNetwork(`${origin.replace("http:", "ws:")}${path}`, darkId, token)
-          currentDark = await createDark()
+          network = await progress.step("peer-network", () => openDomainNetwork(`${origin.replace("http:", "ws:")}${path}`, darkId, token))
+          currentDark = await progress.step("dark-create", createDark)
         }
         for (const domain of ["boundary", "energy", "matrix"] as const) {
-          const child = Bun.spawn({cmd: [process.execPath, executable], cwd: stateRoot,
-            env: {...inherited, ...(domain === "energy" ? energyEnvironment : {}), ...context, COSMOS_QUANTUM_DOMAIN: domain, COSMOS_QUANTUM_PEER_ID: `${incarnation}-${domain}`},
-            stdin: "ignore", stdout: "inherit", stderr: "inherit"})
-          children.push({domain, process: child})
-          void child.exited.then(code => {
-            if (!stopped) {
-              failed(new Error(`Release domain ${domain} exited with code ${code}`))
-              void close()
-            }
-          })
-          await wait(health => {
-            const status = (health.domains as Record<string, {rpc?: string, initialized?: boolean}>)[domain]
-            return domain === "boundary" ? status?.rpc === "ready" : status?.initialized === true
+          const phase = domain === "boundary" ? "boundary-ready" : `${domain}-initialized`
+          await progress.step(phase, async () => {
+            const child = Bun.spawn({cmd: [process.execPath, executable], cwd: stateRoot,
+              env: {...inherited, ...(domain === "energy" ? energyEnvironment : {}), ...context, COSMOS_QUANTUM_DOMAIN: domain, COSMOS_QUANTUM_PEER_ID: `${incarnation}-${domain}`},
+              stdin: "ignore", stdout: "inherit", stderr: "inherit"})
+            children.push({domain, process: child})
+            void child.exited.then(code => {
+              if (!stopped) {
+                failed(new Error(`Release domain ${domain} exited with code ${code}`))
+                void close()
+              }
+            })
+            await wait(phase, health => {
+              const status = (health.domains as Record<string, {rpc?: string, initialized?: boolean}>)[domain]
+              return domain === "boundary" ? status?.rpc === "ready" : status?.initialized === true
+            })
           })
         }
-        await wait(health => health.ok === true)
+        await progress.step("causal-health", () => wait("causal-health", health => health.ok === true))
         watchdog = setInterval(() => {
           if (getDark().status().state !== "error" || stopped) return
           failed(new Error("Dark causal contour failed"))
           void close()
         }, 250)
         let initialization: {mode: "initialized" | "restored"} | undefined
-        if (options.root) initialization = await getDark().initializeRoot(options.root)
+        if (options.root) {const root = options.root; initialization = await progress.step("root-state", () => getDark().initializeRoot(root))}
         else if (options.sources?.length) {
           if (options.sources.length !== 1) throw new Error("Quantum initialization requires one root Meta")
-          initialization = await getDark().initializeRoot(async () => ({source: options.sources![0]!}))
+          initialization = await progress.step("root-state", () => getDark().initializeRoot(async () => ({source: options.sources![0]!})))
         }
         if (initialization?.mode === "initialized" && options.initialRootFields !== undefined)
-          await getDark().applyInitialRootFields(options.initialRootFields)
+          await progress.step("initial-fields", () => getDark().applyInitialRootFields(options.initialRootFields!))
         else if (!initialization && options.initialRootFields !== undefined)
           throw new Error("Initial Root Fields require root initialization")
         worldReady = true
-        await getDark().applyRootLifecycle("started")
+        await progress.step("root-started", () => getDark().applyRootLifecycle("started"))
         ready = true
+        progress.complete()
         return initialization
       } catch (error) {
-        try {await close()} catch (cleanup) {throw new AggregateError([error, cleanup], "Quantum birth and cleanup failed")}
+        progress.failed(error, readinessObservation())
+        try {await close()} catch (cleanup) {throw new AggregateError([error, cleanup], "Quantum birth and cleanup failed", {cause: error})}
         throw error
       }
     },

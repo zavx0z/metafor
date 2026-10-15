@@ -41,7 +41,11 @@ for (const reason of ["occupied-port", "invalid-installed-root"] as const) test(
       METAFOR_WEAK_BACKEND: "cpu", METAFOR_ROOT_META: invalidRoot,
       ...serverProcessIdentityEnvironment(identity), ...serverProcessLaunchEnvironment({mode: "prepared", transitionId: "initial"})},
     ipc(value) {messages.push(value as typeof messages[number])}})
-  const stderr = new Response(child.stderr).text()
+  let errorOutput = ""
+  const stderr = (async () => {
+    for await (const bytes of child.stderr) errorOutput += new TextDecoder().decode(bytes)
+    return errorOutput
+  })()
   const stdout = new Response(child.stdout).text()
   try {
     await until(() => messages.some(message => message.type === "prepared"), 5000)
@@ -53,7 +57,9 @@ for (const reason of ["occupied-port", "invalid-installed-root"] as const) test(
     // Parent requests teardown after receiving failure; a generous parent SIGKILL
     // budget must not hide a permanently pending runInstalledRelease top-level await.
     child.kill("SIGTERM")
-    await until(() => child.exitCode !== null, 3000)
+    await until(() => child.exitCode !== null, 3000).catch(error => {
+      throw new Error(`${error.message}\nIPC: ${JSON.stringify(messages)}\n${errorOutput.slice(-6000)}`, {cause: error})
+    })
     expect(await child.exited).not.toBe(0)
     expect(await stderr).toContain(failure.error!)
     await stdout

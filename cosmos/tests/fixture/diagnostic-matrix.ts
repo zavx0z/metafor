@@ -22,6 +22,20 @@ const checkpoint = (
 
 export const diagnosticStories: DiagnosticStory[] = [
   {
+    id: "optional-source-availability",
+    checkpoints: [checkpoint("error", "[@cosmos/release:development]", "Исходное окружение Cosmos недоступно; Core и настройки продолжают работу", ["code"])],
+    proofs: [{file: "../release/spec/development-availability.spec.ts", test: "broken assigned package manifest does not reject optional initialization and repairs through one explicit retry"}],
+  },
+  {
+    id: "release-readiness-gates",
+    checkpoints: [
+      checkpoint("debug", "[@cosmos/release:readiness]", "readiness complete", ["owner", "elapsedMs", "completed"]),
+      checkpoint("error", "[@cosmos/release:readiness]", "readiness failed", ["owner", "phase", "elapsedMs", "phaseElapsedMs", "completed", "causes", "observation"]),
+      checkpoint("error", "[@cosmos/release:readiness]", "readiness interrupted", ["owner", "phase", "elapsedMs", "phaseElapsedMs", "completed", "observation"]),
+    ],
+    proofs: [{file: "readiness.spec.ts", test: "readiness diagnostics retain elapsed completed phases and the exact pending await on interruption"}],
+  },
+  {
     id: "owned-quantum-domain-failure",
     checkpoints: [
       checkpoint("error", "[@cosmos/release:server:quantum]", "owned peer failed", ["domain", "error"]),

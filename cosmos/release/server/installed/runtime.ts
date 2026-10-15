@@ -3,6 +3,7 @@ import {createNetworkObservationSurface} from "../network-observation"
 import {createHash, timingSafeEqual} from "node:crypto"
 import {realpath} from "node:fs/promises"
 import {isAbsolute, join, relative, resolve, sep} from "node:path"
+import {collectReadinessCleanup, createReadinessTrace} from "../readiness"
 import {createInstalledReleaseStore} from "@metafor/tech-release/installed"
 import {currentServerProcessIdentity} from "../../../shared/package/process"
 import {parseReleaseCurrentMessage, releaseDeltaMessage} from "../../shared/protocol"
@@ -113,6 +114,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
   let admitting = false
   let destroyed = false
   let control: Awaited<ReturnType<typeof attachServerProcessControl>>
+  let bindReadiness: ReturnType<typeof createReadinessTrace> | undefined
   const observations=createNetworkObservationSurface({local:()=>quantum?.observeDomains()??null,authorizePublisher:(request,server)=>quantum?.authorizeObservation(request,server)??false})
   const inFlight = new Set<Promise<unknown>>()
   const background = new Set<Promise<unknown>>()
@@ -318,100 +320,98 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
   control = await attachServerProcessControl({
     async bind() {
       if (destroyed || server) throw new Error("Installed server cannot bind")
-      nativeRepl = await configuredNativeReplOracle(Bun.env, () => admitting && !destroyed)
-      if (quantumOptions) {
-        agentUi = createAgentUiOracle({admitted: () => admitting && !destroyed, verseId: Bun.env.COSMOS_VERSE_ID, conversationsDirectory: resolve(Bun.env.COSMOS_CONVERSATIONS_PATH ?? join(quantumOptions.stateRoot, "cosmos", "conversations"))})
-        clients = createClientOracle({admitted: () => admitting && !destroyed, observeConversation: agentUi.observeConversation, observeWorkspace: agentUi.observeWorkspace, observeDevelopment: (scope, listener) => {if (!development) throw new Error("Development workspace is not assigned"); return development.subscribe(scope, listener)}})
-        codespaceHost = configuredCodespaceHostOracle(Bun.env, () => admitting && !destroyed)
-        quantum = await prepareQuantumRuntime({...quantumOptions,
-          onWorldChange: acceptance => {try {return quantumOptions!.onWorldChange?.(acceptance)} finally {agentUi!.notifyWorldChanged()}},
-          localOracleChannels: [...(quantumOptions.localOracleChannels ?? []), agentUi.channel, clients.channel, ...(nativeRepl ? [nativeRepl.channel] : []), ...(codespaceHost ? [codespaceHost.channel] : [])],
-        }).catch(async error => {await agentUi?.close(); await clients?.close(); await development?.close(); await nativeRepl?.close(); await codespaceHost?.close(); throw error})
-      }
-      development = await configuredOptionalDevelopment(Bun.env, nativeRepl)
-      const rendezvous = options.signalingToken ? createRendezvousHandler({token: options.signalingToken, relay: true}) : null
-      let current: Bun.Server<ReleaseServerSocketData>
-      try {current = Bun.serve<ReleaseServerSocketData>({
-        port,
-        fetch(request, current) {
-          const pathname = new URL(request.url).pathname
-          if (quantum?.handles(pathname)) return quantum.fetch(request, current)
-          if (options.quantum && rendezvous && pathname === "/peer")
-            return rendezvous.upgrade(request, (request, data) => current.upgrade(request, {data}))
-          if(pathname==="/sw"&&request.headers.get("X-Cosmos-Observation")==="publisher")return handle(request,current,rendezvous)
-          if (!admitting) return new Response("release admission closed", {status: 503})
-          return track(handle(request, current, rendezvous)).then(response => {
-            if (!response) return
-            response.headers.set("X-Cosmos-Release", options.digest)
-            response.headers.set("X-Cosmos-Server-Version", identity.version)
-            return response
-          }).catch(error => new Response(null, {status: error instanceof ControlRequestError ? error.status : 500}))
-        },
-        websocket: {
-          open(socket) {
-            if (clients?.owns(socket.data)) {clients.websocket.open(socket as Bun.ServerWebSocket<ClientSocketData>); return}
-            if (agentUi?.owns(socket.data)) {agentUi.websocket.open(socket as Bun.ServerWebSocket<AgentBrowserSocketData>); return}
-            if (quantum?.owns(socket.data)) { quantum.websocket.open(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>); return }
-            if (options.quantum && rendezvous?.owns(socket.data)) { rendezvous.websocket.open(socket); return }
-            if ((!admitting && (socket.data as RpcSocketData).observation !== "publisher") || destroyed) { socket.close(1012, "release handover"); return }
-            if (rendezvous?.owns(socket.data)) rendezvous.websocket.open(socket)
-            else sockets.add(socket as Bun.ServerWebSocket<RpcSocketData>)
-          },
-          message(socket, message) {
-            if (clients?.owns(socket.data)) return clients.websocket.message(socket as Bun.ServerWebSocket<ClientSocketData>, message)
-            if (agentUi?.owns(socket.data)) return agentUi.websocket.message(socket as Bun.ServerWebSocket<AgentBrowserSocketData>, message)
-            if (quantum?.owns(socket.data)) return quantum.websocket.message(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>, message)
-            if (options.quantum && rendezvous?.owns(socket.data)) { rendezvous.websocket.message(socket, message); return }
-            if ((socket.data as RpcSocketData).source === "release/service") {
-              let value:unknown
-              try{if((socket.data as RpcSocketData).observation === "publisher" && message.length>128*1024){socket.close(1008,"Observation limit");return};value=JSON.parse(String(message))}catch{}
-              if(observations.message(socket as Bun.ServerWebSocket<RpcSocketData>,value))return
-            }
-            if (!admitting) { socket.close(1012, "release handover"); return }
-            if (rendezvous?.owns(socket.data)) { rendezvous.websocket.message(socket, message); return }
-            const work = Promise.resolve().then(() => {
-              let value: unknown
-              try { value = JSON.parse(typeof message === "string" ? message : message.toString()) }
-              catch { socket.close(1008, "invalid release current"); return }
-              const current = parseReleaseCurrentMessage(value)
-              if (!current) { socket.close(1008, "invalid release current"); return }
-              socket.send(JSON.stringify(releaseDeltaMessage(releaseDelta(delivery.desiredBrowserArtifacts(), current.current))))
-            })
-            void track(work)
-          },
-          close(socket, code, reason) {
-            if (clients?.owns(socket.data)) {clients.websocket.close(socket as Bun.ServerWebSocket<ClientSocketData>); return}
-            if (agentUi?.owns(socket.data)) agentUi.websocket.close(socket as Bun.ServerWebSocket<AgentBrowserSocketData>)
-            else if (quantum?.owns(socket.data)) quantum.websocket.close(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>)
-            else if (rendezvous?.owns(socket.data)) rendezvous.websocket.close(socket, code, reason)
-            else {observations.close(socket as Bun.ServerWebSocket<RpcSocketData>);sockets.delete(socket as Bun.ServerWebSocket<RpcSocketData>)}
-          },
-        },
-      })} catch (error) {
-        await clients?.close(); await development?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum?.close(); rendezvous?.close()
-        throw error
-      }
-      signaling = rendezvous
-      server = current
-      if (quantum) {
-        try {await quantum.start(current.port!)} catch (error) {
-          await clients?.close(); await development?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum.close()
-          rendezvous?.close()
-          await current.stop(true)
-          server = null
-          throw error
+      const trace = bindReadiness = createReadinessTrace("bind")
+      const owned = {nativeRepl: null as typeof nativeRepl, agentUi: undefined as typeof agentUi, clients: undefined as typeof clients,
+        development: null as typeof development, codespaceHost: null as typeof codespaceHost, quantum: undefined as typeof quantum,
+        node: undefined as typeof node, server: null as Bun.Server<ReleaseServerSocketData> | null, signaling: null as typeof signaling}
+      try {
+        nativeRepl = owned.nativeRepl = await trace.step("native-oracle", () => configuredNativeReplOracle(Bun.env, () => admitting && !destroyed))
+        if (quantumOptions) {
+          const boundOptions = quantumOptions
+          agentUi = owned.agentUi = createAgentUiOracle({admitted: () => admitting && !destroyed, verseId: Bun.env.COSMOS_VERSE_ID, conversationsDirectory: resolve(Bun.env.COSMOS_CONVERSATIONS_PATH ?? join(boundOptions.stateRoot, "cosmos", "conversations"))})
+          clients = owned.clients = createClientOracle({admitted: () => admitting && !destroyed, observeConversation: agentUi.observeConversation, observeWorkspace: agentUi.observeWorkspace, observeDevelopment: (scope, listener) => {if (!development) throw new Error("Development workspace is not assigned"); return development.subscribe(scope, listener)}})
+          codespaceHost = owned.codespaceHost = configuredCodespaceHostOracle(Bun.env, () => admitting && !destroyed)
+          quantum = owned.quantum = await trace.step("quantum-prepare", () => prepareQuantumRuntime({...boundOptions,
+            onWorldChange: acceptance => {try {return boundOptions.onWorldChange?.(acceptance)} finally {if (!destroyed) owned.agentUi?.notifyWorldChanged()}},
+            localOracleChannels: [...(boundOptions.localOracleChannels ?? []), owned.agentUi!.channel, owned.clients!.channel, ...(owned.nativeRepl ? [owned.nativeRepl.channel] : []), ...(owned.codespaceHost ? [owned.codespaceHost.channel] : [])],
+          }))
         }
-        void quantum.failure.catch(async () => {
-          admitting = false
-          // Domain failure must become an observed process failure, including
-          // when IPC would otherwise keep the stopped listener incarnation alive.
-          try { await control.destroy() }
-          finally { process.exit(1) }
-        })
-      }
-      if (options.node && !options.quantum) {
-        try {
-          node = await startReleaseNode({config: options.node, observation:{async read(){return null},publish:snapshot=>observations.publish(snapshot)}, source: {
+        development = owned.development = await trace.step("optional-handle", () => configuredOptionalDevelopment(Bun.env, nativeRepl))
+        if (destroyed) throw new Error("Installed server was destroyed during binding")
+        const rendezvous = owned.signaling = options.signalingToken ? createRendezvousHandler({token: options.signalingToken, relay: true}) : null
+        let current: Bun.Server<ReleaseServerSocketData>
+        current = await trace.step("listener-bind", () => Bun.serve<ReleaseServerSocketData>({
+          port,
+          fetch(request, current) {
+            const pathname = new URL(request.url).pathname
+            if (quantum?.handles(pathname)) return quantum.fetch(request, current)
+            if (options.quantum && rendezvous && pathname === "/peer")
+              return rendezvous.upgrade(request, (request, data) => current.upgrade(request, {data}))
+            if(pathname==="/sw"&&request.headers.get("X-Cosmos-Observation")==="publisher")return handle(request,current,rendezvous)
+            if (!admitting) return new Response("release admission closed", {status: 503})
+            return track(handle(request, current, rendezvous)).then(response => {
+              if (!response) return
+              response.headers.set("X-Cosmos-Release", options.digest)
+              response.headers.set("X-Cosmos-Server-Version", identity.version)
+              return response
+            }).catch(error => new Response(null, {status: error instanceof ControlRequestError ? error.status : 500}))
+          },
+          websocket: {
+            open(socket) {
+              if (clients?.owns(socket.data)) {clients.websocket.open(socket as Bun.ServerWebSocket<ClientSocketData>); return}
+              if (agentUi?.owns(socket.data)) {agentUi.websocket.open(socket as Bun.ServerWebSocket<AgentBrowserSocketData>); return}
+              if (quantum?.owns(socket.data)) { quantum.websocket.open(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>); return }
+              if (options.quantum && rendezvous?.owns(socket.data)) { rendezvous.websocket.open(socket); return }
+              if ((!admitting && (socket.data as RpcSocketData).observation !== "publisher") || destroyed) { socket.close(1012, "release handover"); return }
+              if (rendezvous?.owns(socket.data)) rendezvous.websocket.open(socket)
+              else sockets.add(socket as Bun.ServerWebSocket<RpcSocketData>)
+            },
+            message(socket, message) {
+              if (clients?.owns(socket.data)) return clients.websocket.message(socket as Bun.ServerWebSocket<ClientSocketData>, message)
+              if (agentUi?.owns(socket.data)) return agentUi.websocket.message(socket as Bun.ServerWebSocket<AgentBrowserSocketData>, message)
+              if (quantum?.owns(socket.data)) return quantum.websocket.message(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>, message)
+              if (options.quantum && rendezvous?.owns(socket.data)) { rendezvous.websocket.message(socket, message); return }
+              if ((socket.data as RpcSocketData).source === "release/service") {
+                let value:unknown
+                try{if((socket.data as RpcSocketData).observation === "publisher" && message.length>128*1024){socket.close(1008,"Observation limit");return};value=JSON.parse(String(message))}catch{}
+                if(observations.message(socket as Bun.ServerWebSocket<RpcSocketData>,value))return
+              }
+              if (!admitting) { socket.close(1012, "release handover"); return }
+              if (rendezvous?.owns(socket.data)) { rendezvous.websocket.message(socket, message); return }
+              const work = Promise.resolve().then(() => {
+                let value: unknown
+                try { value = JSON.parse(typeof message === "string" ? message : message.toString()) }
+                catch { socket.close(1008, "invalid release current"); return }
+                const current = parseReleaseCurrentMessage(value)
+                if (!current) { socket.close(1008, "invalid release current"); return }
+                socket.send(JSON.stringify(releaseDeltaMessage(releaseDelta(delivery.desiredBrowserArtifacts(), current.current))))
+              })
+              void track(work)
+            },
+            close(socket, code, reason) {
+              if (clients?.owns(socket.data)) {clients.websocket.close(socket as Bun.ServerWebSocket<ClientSocketData>); return}
+              if (agentUi?.owns(socket.data)) agentUi.websocket.close(socket as Bun.ServerWebSocket<AgentBrowserSocketData>)
+              else if (quantum?.owns(socket.data)) quantum.websocket.close(socket as Bun.ServerWebSocket<QuantumRuntimeSocketData>)
+              else if (rendezvous?.owns(socket.data)) rendezvous.websocket.close(socket, code, reason)
+              else {observations.close(socket as Bun.ServerWebSocket<RpcSocketData>);sockets.delete(socket as Bun.ServerWebSocket<RpcSocketData>)}
+            },
+          },
+        }))
+        signaling = rendezvous
+        server = owned.server = current
+        const boundQuantum = owned.quantum
+        if (boundQuantum) {
+          await trace.step("quantum-start", () => boundQuantum.start(current.port!))
+          void boundQuantum.failure.catch(async () => {
+            admitting = false
+            // Domain failure remains an observed process failure after ownership cleanup.
+            try { await control.destroy() }
+            finally { process.exit(1) }
+          })
+        }
+        if (options.node && !options.quantum) {
+          const nodeConfig = options.node
+          node = owned.node = await trace.step("node-start", () => startReleaseNode({config: nodeConfig, observation:{async read(){return null},publish:snapshot=>observations.publish(snapshot)}, source: {
             async readGraph(digest) {
               if (!admitting || digest !== options.digest) throw new Error("Release composition is not admitted")
               return delivery.graph
@@ -420,14 +420,18 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
               if (!admitting) throw new Error("Release admission is closed")
               return Bun.file(await store.artifactPath(options.digest, artifact)).stream()
             },
-          }})
-        } catch (error) {
-          await quantum?.close()
-          rendezvous?.close()
-          await current.stop(true)
-          server = null
-          throw error
+          }}))
         }
+        if (destroyed) throw new Error("Installed server was destroyed during binding")
+        trace.complete()
+      } catch (error) {
+        trace.failed(error)
+        throw await collectReadinessCleanup(error, [
+          () => owned.clients?.close(), () => owned.development?.close(), () => owned.nativeRepl?.close(),
+          () => owned.agentUi?.close(), () => owned.codespaceHost?.close(), () => owned.node?.close(),
+          () => owned.quantum?.close(), () => owned.signaling?.close(),
+          async () => {await owned.server?.stop(true); if (server === owned.server) server = null},
+        ])
       }
     },
     async admit() {
@@ -467,6 +471,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
       server = null
     },
     async destroy() {
+      bindReadiness?.interrupted()
       destroyed = true
       admitting = false
       abort.abort(new Error("Installed release destroyed"))

@@ -9,6 +9,7 @@ import {
   type ServerProcessOperation,
   type ServerProcessHandoverRequest,
 } from "../../../shared/package/process"
+import {readinessCauses} from "../readiness"
 
 /** Принадлежащие release действия над подготовленным рабочим входом. */
 export interface ServerApplicationLifecycle {
@@ -184,4 +185,4 @@ export async function attachServerProcessControl(runtime: ServerApplicationLifec
   }
 }
 
-function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error) }
+function errorMessage(error: unknown) { return readinessCauses(error).join(": ").slice(0, 4096) }
