@@ -1,4 +1,5 @@
 import type {createReleaseStorage} from "./storage"
+import {createHash} from "node:crypto"
 import {readExistingVersion} from "./legacy"
 import {copyFile, link, mkdir, mkdtemp, rename, rm} from "node:fs/promises"
 import {dirname, join} from "node:path"
@@ -6,12 +7,14 @@ import {
   isBrowserPackageEnvironment,
   type BrowserPackageEnvironment,
   type PackageEnvironment,
+  isPackageEnvironment,
+  isSha256,
 } from "@metafor/tech-build/identity"
 import {validateTargetReleaseVersions, type ReleaseCompositionMember} from "./composition"
 import type {PackageBuildArtifact, PackageManifest, PackageOwner} from "@metafor/tech-build"
-import type {PackageChange, PackageReleaseResult, PackageReleaseResultSet, ReleaseFileOperations} from "./contracts"
+import type {PackageChange, PackageReleaseResult, PackageReleaseResultSet, ReleaseFileOperations, ReleasePublicationEffects, ReleasePublicationOptions, ReleasePublicationPlan} from "./contracts"
 import {packageArtifact, packageManifest} from "@metafor/tech-build"
-import {nextPackageVersion} from "./version"
+import {isVersion, nextPackageVersion} from "./version"
 import {sourceMapArtifact} from "@metafor/tech-build"
 import {
   isGeneratedPackageArtifactKey,
@@ -73,8 +76,35 @@ export function createPublication(
   const {replaceDesiredBrowserArtifacts, replaceDesiredPackageArtifacts} = projection
   const {readReleasedPackages} = state
   /** Сериализует и выполняет одну package root-first publication. */
-  function publishPackages(changes: PackageChange[]): Promise<PackageReleaseResultSet> {
-    return serializePublication(() => runPublication(changes))
+  function publishPackages(changes: PackageChange[], request: ReleasePublicationOptions = {}): Promise<PackageReleaseResultSet> {
+    return serializePublication(() => runPublication(changes, request))
+  }
+
+  /** Читает точную цель в очереди; не резервирует её и не запускает сборку. */
+  function planPublication(changes: PackageChange[]): Promise<ReleasePublicationPlan> {
+    return serializePublication(async () => (await publicationPlans(changes)).plan)
+  }
+
+  /**
+  Наблюдает сохранённые эффекты даже незавершённой цели. Не ждёт очереди,
+  не восстанавливает outputs и не вызывает recoverPublication.
+  Проверка: [частичная подготовка и повтор](./spec/provenance.spec.ts).
+  */
+  async function readPublicationEffects(plan: ReleasePublicationPlan): Promise<ReleasePublicationEffects> {
+    validatePlan(plan)
+    const rootSource = await Bun.file(options.manifest).text()
+    const root = JSON.parse(rootSource) as PackageManifest
+    const intent = Object.fromEntries(Object.entries(root.dependencies ?? {}).filter(([name]) => options.isMember(name)))
+    const packages = await Promise.all(plan.packages.map(async item => {
+      const location = await options.builder.packageSourceLocation(item.name)
+      const manifest = await packageManifest(location.manifest)
+      const records = await storage.read(item.name, item.version)
+      return {name: item.name, version: item.version,
+        childVersion: typeof manifest.version === "string" ? manifest.version : null,
+        ready: await storage.isReady(item.name, item.version),
+        prepared: records.map(({env, outputs, provenance}) => ({env, outputs, ...(provenance ? {provenance} : {})}))}
+    }))
+    return {root: {manifestSha256: hash(rootSource), intent, matchesPlan: sameRecord(intent, plan.rootIntent)}, packages}
   }
 
   /** До открытия listener доводит durable root intent до полного состояния. */
@@ -82,7 +112,8 @@ export function createPublication(
     return serializePublication(runRecovery)
   }
 
-  async function runPublication(changes: PackageChange[]): Promise<PackageReleaseResultSet> {
+  async function publicationPlans(changes: PackageChange[]) {
+    const rootSource = await Bun.file(options.manifest).text()
     const composition = await readReleaseComposition()
     const members = new Map(composition.map((member) => [member.name, member]))
     const unique = new Map<string, PackageChange>()
@@ -120,8 +151,29 @@ export function createPublication(
       options.isMember,
     )
 
+    if (await Bun.file(options.manifest).text() !== rootSource) throw new Error("Publication root changed while planning")
+    const root = JSON.parse(rootSource) as PackageManifest
+    const rootIntent = Object.fromEntries(Object.entries(root.dependencies ?? {}).filter(([name]) => options.isMember(name))) as Record<string, string>
+    for (const {name, version} of plans) rootIntent[name] = `workspace:^${version}`
+    const plan: ReleasePublicationPlan = {schemaVersion: 1, rootManifestSha256: hash(rootSource), rootIntent,
+      packages: plans.map(({name, change, previousVersion, version, member}) => ({name, change, previousVersion, version,
+        environments: member.owners.map(({env}) => env).sort()})).sort((left, right) => left.name.localeCompare(right.name))}
+    return {plans, plan, rootSource}
+  }
+
+  async function runPublication(changes: PackageChange[], request: ReleasePublicationOptions): Promise<PackageReleaseResultSet> {
+    const {plans, plan, rootSource} = await publicationPlans(changes)
+    if (request.expectedPlan !== undefined) {
+      validatePlan(request.expectedPlan)
+      if (JSON.stringify(request.expectedPlan) !== JSON.stringify(plan)) throw new Error("Publication plan changed")
+    }
+    if (request.provenance !== undefined) {
+      if (!isSha256(request.provenance.inventorySha256) ||
+        (await options.builder.sourceInventory()).sha256 !== request.provenance.inventorySha256)
+        throw new Error("Publication source inventory changed before intent")
+    }
+
     const staging = await mkdtemp(join(options.root, ".package-update-"))
-    const rootSource = await Bun.file(options.manifest).text()
     const childSources = new Map(
       await Promise.all(
         plans.map(
@@ -148,7 +200,10 @@ export function createPublication(
         })),
       })
 
-      const results = await buildPlans(plans)
+      // Root intent — собственный эффект публикации. Receipt сравнивается уже
+      // с этим контекстом, поэтому повтор прежней цели не требует нормализации source.
+      const inventory = request.provenance === undefined ? undefined : (await options.builder.sourceInventory()).sha256
+      const results = await buildPlans(plans, inventory)
       if (results.some((result) => !result.success)) {
         await restoreManifest(options.manifest, rootSource, renameManifest)
         rootIntentWritten = false
@@ -163,6 +218,8 @@ export function createPublication(
         return {success: false, results, packages: []}
       }
 
+      if (inventory !== undefined && (await options.builder.sourceInventory()).sha256 !== inventory)
+        throw new Error("Publication source inventory changed before commit")
       await materializePlans(plans, results)
       for (const plan of plans) await storage.markReady(plan.name, plan.version)
       await writeChildVersions(plans, async (source, target) => {
@@ -294,7 +351,15 @@ export function createPublication(
     }
   }
 
-  async function buildPlans(plans: ReleasePlan[]): Promise<PackageReleaseResult[]> {
+  async function buildPlans(plans: ReleasePlan[], inventory?: string): Promise<PackageReleaseResult[]> {
+    if (inventory !== undefined) {
+      // Сначала проверяем все retained receipts, чтобы отказ reuse не создавал
+      // новые артефакты остальных environments той же группы.
+      for (const plan of plans) for (const record of await storage.read(plan.name, plan.version)) {
+        if (!record.provenance) throw new Error(`Prepared provenance is missing: ${plan.name}:${record.env}@${plan.version}`)
+        await options.builder.verifyProvenance(plan.name, {env: record.env, version: plan.version}, record.provenance, inventory)
+      }
+    }
     // Зафиксированная child version и сохранившиеся файлы доказывают существование
     // опубликованной версии. Потеря её root не разрешает вызывать компилятор.
     const publishedVersions = new Set<string>()
@@ -331,6 +396,7 @@ export function createPublication(
               throw new Error(`Immutable artifact conflict: ${legacy.path}`)
           }
           const legacy = prepared ? null : await readExistingVersion(plan.name, artifact.owner, plan.version)
+          if (inventory !== undefined && legacy) throw new Error(`Prepared provenance is missing: ${plan.name}:${artifact.env}@${plan.version}`)
           if (legacy) artifact.owner = legacy.owner
           const existing = prepared ? await storage.restore(prepared) : legacy?.outputs
           if (!existing && publishedVersions.has(`${plan.name}@${plan.version}`))
@@ -344,6 +410,7 @@ export function createPublication(
                 stdout: "",
                 stderr: "",
                 outputs: existing,
+                ...(prepared?.provenance ? {provenance: prepared.provenance} : {}),
               }
             : await buildPackage(
                 plan.name,
@@ -352,6 +419,10 @@ export function createPublication(
                   : {env: artifact.env, artifact: artifact.stagedArtifact, version: plan.version},
               )
           if (build.success && !prepared) {
+            if (inventory !== undefined) {
+              if (!build.provenance) throw new Error(`Build provenance is missing: ${plan.name}:${artifact.env}@${plan.version}`)
+              await options.builder.verifyProvenance(plan.name, {env: artifact.env, version: plan.version}, build.provenance, inventory)
+            }
             const outputs = build.outputs.map((output) => ({
               ...output,
               path: publishedOutputPath(artifact.owner, plan.version, output),
@@ -365,6 +436,7 @@ export function createPublication(
                 dependencies: plan.member.dependencies,
                 environments: plan.member.owners.map(({env}) => env),
                 outputs,
+                ...(build.provenance ? {provenance: build.provenance} : {}),
               },
               build.outputs,
             )
@@ -556,7 +628,26 @@ export function createPublication(
     })
   }
 
-  return {publishPackages, recoverPublication}
+  function validatePlan(plan: ReleasePublicationPlan) {
+    if (!plan || plan.schemaVersion !== 1 || !isSha256(plan.rootManifestSha256) || !plan.rootIntent ||
+      !Array.isArray(plan.packages) || plan.packages.length === 0 ||
+      new Set(plan.packages.map(item => item?.name)).size !== plan.packages.length)
+      throw new Error("Invalid publication plan")
+    for (const item of plan.packages) {
+      if (!item || typeof item.name !== "string" || !options.isMember(item.name) ||
+        !["patch", "minor", "major"].includes(item.change) || !isVersion(item.previousVersion) || !isVersion(item.version) ||
+        nextPackageVersion(item.previousVersion, item.change) !== item.version ||
+        !Array.isArray(item.environments) || item.environments.length === 0 || item.environments.some(env => !isPackageEnvironment(env)))
+        throw new Error("Invalid publication plan member")
+    }
+  }
+
+  return {publishPackages, recoverPublication, planPublication, readPublicationEffects}
+}
+
+function hash(source: string) {return createHash("sha256").update(source).digest("hex")}
+function sameRecord(left: Record<string, unknown>, right: Record<string, unknown>) {
+  return Object.keys(left).length === Object.keys(right).length && Object.entries(left).every(([key, value]) => right[key] === value)
 }
 async function publishPreparedArtifact(
   staged: string,

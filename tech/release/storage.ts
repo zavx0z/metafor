@@ -1,6 +1,6 @@
 import {copyFile, link, mkdir, readdir, rename, rm} from "node:fs/promises"
 import {dirname, join, relative, resolve, sep} from "node:path"
-import {packageArtifact, sourceMapArtifact, type PackageBuildArtifact, type PackageOwner} from "@metafor/tech-build"
+import {packageArtifact, sourceMapArtifact, type PackageBuildArtifact, type PackageBuildProvenance, type PackageOwner} from "@metafor/tech-build"
 import {
   type PackageEnvironment,
   isPackageEnvironment,
@@ -20,6 +20,8 @@ export interface PreparedEnvironment {
   dependencies: Record<string, unknown>
   environments: PackageEnvironment[]
   outputs: PackageBuildArtifact[]
+  /** Происхождение bytes, если сборщик работал с назначенным source inventory. */
+  provenance?: PackageBuildProvenance
 }
 
 /** Сохраняет подготовленные байты до публикации, чтобы продолжение не вызывало компилятор. */
@@ -94,6 +96,8 @@ export function createReleaseStorage(
             new Set(record.environments).size !== record.environments.length
           )
             throw new Error(`Invalid prepared release record ${name}@${version}/${entry}`)
+          if (record.provenance !== undefined && !validProvenance(record.provenance, version))
+            throw new Error(`Invalid prepared provenance ${name}@${version}/${entry}`)
           for (const output of record.outputs) {
             if (
               !isSha256(output.sha256) ||
@@ -158,7 +162,8 @@ export function createReleaseStorage(
     const file = join(receiptDirectory(record.name, record.version), `${record.env}.json`)
     const existing = (await read(record.name, record.version)).find(({env}) => env === record.env)
     if (existing) {
-      if (JSON.stringify(existing.outputs) !== JSON.stringify(record.outputs))
+      if (JSON.stringify(existing.outputs) !== JSON.stringify(record.outputs) ||
+        JSON.stringify(existing.provenance) !== JSON.stringify(record.provenance))
         throw new Error(
           `Immutable prepared version conflict: ${record.name}:${record.env}@${record.version}`,
         )
@@ -267,4 +272,17 @@ async function copyVerified(
 function inside(root: string, path: string) {
   const local = relative(resolve(root), resolve(path))
   return local !== "" && local !== ".." && !local.startsWith(`..${sep}`) && !local.startsWith(sep)
+}
+
+function validProvenance(value: PackageBuildProvenance, version: string) {
+  const strings = (value: unknown) => Array.isArray(value) && value.every(item => typeof item === "string")
+  const files = (value: unknown) => Array.isArray(value) && value.every(item => item && typeof item.path === "string" && isSha256(item.sha256))
+  return value !== null && value.kind === "bounded-source-inventory" &&
+    strings(value.roots) && value.roots.length > 0 && strings(value.excludedDirectoryNames) &&
+    strings(value.excludedDirectoryNamePrefixes) && isSha256(value.inventorySha256) &&
+    files(value.compilerInputs) && value.compilerInputs.length > 0 && files(value.prepared) &&
+    (value.adapter === undefined || value.adapter !== null && typeof value.adapter.path === "string" && isSha256(value.adapter.sha256)) &&
+    value.bun && typeof value.bun.path === "string" && isSha256(value.bun.sha256) && typeof value.bun.version === "string" &&
+    (value.profile === "production" || value.profile === "development") && value.targetVersion === version &&
+    isSha256(value.buildPlanSha256)
 }

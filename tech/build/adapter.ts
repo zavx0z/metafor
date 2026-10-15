@@ -164,6 +164,7 @@ export async function runIsolatedPackageBuild(
     const externalImports = reportExternalImports(result.metafile).filter(imported => !readyUrls.has(imported.path))
     const rootProjection = await projectRootClosure(request, [...outputs, ...prepared], result.outputs)
     const report: PackageBuildReport = {
+      inputs: Object.keys(result.metafile.inputs).sort(),
       outputs: [...outputs, ...prepared, ...copies],
       externalImports,
       rootClosure: rootProjection.outputs,

@@ -326,12 +326,15 @@ function validatePackageBuildReport(value: PackageBuildReport) {
   if (
     typeof value !== "object" ||
     value === null ||
+    !Array.isArray(value.inputs) ||
     !Array.isArray(value.outputs) ||
     !Array.isArray(value.externalImports) ||
     !Array.isArray(value.rootClosure) ||
     !Array.isArray(value.publicArtifactUrls)
   )
     throw new Error("Package build report has invalid shape")
+  if (value.inputs.length === 0 || value.inputs.some((input) => typeof input !== "string" || input === ""))
+    throw new Error("Package build report input graph is invalid")
   for (const output of value.outputs) {
     if (
       typeof output !== "object" ||

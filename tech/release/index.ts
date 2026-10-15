@@ -25,6 +25,12 @@ export interface ReleaseOptions {
 intent перед подготовкой и фиксирует child versions после всех outputs.
 `recoverPublication` продолжает сохранённую цель либо подготавливает первый
 состав. `releasedPackages` ожидает очередь и читает подтверждённые версии.
+`planPublication` читает точную цель без effects. `readPublicationEffects`
+наблюдает её root intent, child versions и prepared receipts без продолжения.
+Опциональные `expectedPlan` и `provenance.inventorySha256` у `publishPackages`
+проверяют цель и назначенные исходники перед root intent. Подтверждения новых и
+сохранённых bytes проверяются сборщиком в контексте применённого intent;
+несовпадение сохраняет immutable artifacts и даёт явный отказ.
 
 Внутренние подтверждения и копии байтов находятся в `.release/` корня. Ready
 связывает hashes всех environment receipts; повреждение подтверждения вызывает
@@ -41,6 +47,7 @@ Cache Storage и активация runtime остаются у потребит
 
 Сценарии: [выпуск](./spec/scenario.spec.ts),
 [продолжение](./spec/recovery.spec.ts), [отказы](./spec/failures.spec.ts).
+Проверенные исходники и видимые эффекты: [guarded publication](./spec/provenance.spec.ts).
 */
 export function createRelease(options: ReleaseOptions) {
   const context = {...options, manifest: join(options.root, "package.json")}

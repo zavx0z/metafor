@@ -33,11 +33,43 @@ export interface PackageBuildResult {
   env: PackageEnvironment
   success: boolean
   /** Стадия отказа после разрешения package contract; отсутствует при успехе. */
-  stage?: "configuration" | "typecheck" | "compiler" | "outputs"
+  stage?: "configuration" | "typecheck" | "compiler" | "outputs" | "inputs"
   exitCode: number | null
   stdout: string
   stderr: string
   outputs: PackageBuildArtifact[]
+  /** Подтверждение ограниченного хостом снимка исходников; только при успехе. */
+  provenance?: PackageBuildProvenance
+}
+
+/** Хост назначает проверяемую область до разрешения контракта пакета. */
+export interface PackageBuildProvenanceAssignment {
+  readonly roots: readonly string[]
+  /** Имена каталогов выходов и состояния, исключённых хостом из снимка. */
+  readonly excludedDirectoryNames: readonly string[]
+  /** Префиксы имён генерируемых каталогов с переменным суффиксом. */
+  readonly excludedDirectoryNamePrefixes?: readonly string[]
+}
+
+/**
+ * Входы компилятора подтверждены стабильным снимком назначенной области.
+ * Побочные чтения плагина вне неё не наблюдаются. Подтверждение не доказывает
+ * все возможные эффекты произвольного кода плагина.
+ */
+export interface PackageBuildProvenance {
+  readonly kind: "bounded-source-inventory"
+  readonly roots: readonly string[]
+  readonly excludedDirectoryNames: readonly string[]
+  readonly excludedDirectoryNamePrefixes: readonly string[]
+  readonly inventorySha256: string
+  readonly compilerInputs: readonly {path: string; sha256: string}[]
+  readonly prepared: readonly {path: string; sha256: string}[]
+  readonly bun: {path: string; sha256: string; version: string}
+  /** Точные байты адаптера из установленного графа либо исходного контура. */
+  readonly adapter?: {path: string; sha256: string}
+  readonly profile: "development" | "production"
+  readonly targetVersion: string
+  readonly buildPlanSha256: string
 }
 
 /** Необязательная цель package build для staging-транзакции. */
@@ -100,6 +132,8 @@ Report удаляется после parent validation и никогда не с
 publication metadata или browser protocol.
 */
 export interface PackageBuildReport {
+  /** Фактические входы одного запуска компилятора Bun из metafile. */
+  inputs: readonly string[]
   outputs: readonly PackageBuildReportOutput[]
   externalImports: readonly PackageBuildReportImport[]
   /** Physical output relatives, статически достижимые из root entry. */

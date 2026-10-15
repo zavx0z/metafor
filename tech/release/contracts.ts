@@ -1,6 +1,7 @@
 import type {copyFile, link, rename} from "node:fs/promises"
-import type {PackageBuildResult} from "@metafor/tech-build"
+import type {PackageBuildArtifact, PackageBuildProvenance, PackageBuildResult} from "@metafor/tech-build"
 import type {BrowserPackageEnvironment, BrowserPackageIdentity} from "@metafor/tech-build/identity"
+import type {PackageEnvironment} from "@metafor/tech-build/identity"
 export type ReleasablePackage = string
 
 /** Разрешённый вид следующего SemVer одного package. */
@@ -30,6 +31,50 @@ export interface PackageReleaseResultSet {
   success: boolean
   results: PackageReleaseResult[]
   packages: ReleasedPackage[]
+}
+
+/**
+Точная цель [публикации](./README.md), прочитанная без изменений файлов.
+`expectedPlan` проверяет её заново внутри очереди перед первым эффектом.
+План не резервирует версии и не означает успешной публикации.
+*/
+export interface ReleasePublicationPlan {
+  schemaVersion: 1
+  rootManifestSha256: string
+  rootIntent: Record<string, string>
+  packages: Array<PackageChange & {
+    previousVersion: string
+    version: string
+    environments: PackageEnvironment[]
+  }>
+}
+
+/** Опциональные preconditions доверенного host; обычная публикация их не требует. */
+export interface ReleasePublicationOptions {
+  expectedPlan?: ReleasePublicationPlan
+  /** Снимок проверенных исходников ДО записи root intent, полученный от этого сборщика. */
+  provenance?: {inventorySha256: string}
+}
+
+/**
+Read-only наблюдение конкретной цели; подготовленные receipts остаются видимыми
+при отказе и восстановлении прежних manifests. Чтение не восстанавливает bytes,
+не вызывает compiler и не даёт гарантии atomic snapshot при внешней записи.
+`ready` относится к package version, а не к успешному запуску runtime.
+*/
+export interface ReleasePublicationEffects {
+  root: {manifestSha256: string; intent: Record<string, unknown>; matchesPlan: boolean}
+  packages: Array<{
+    name: string
+    version: string
+    childVersion: string | null
+    ready: boolean
+    prepared: Array<{
+      env: PackageEnvironment
+      outputs: PackageBuildArtifact[]
+      provenance?: PackageBuildProvenance
+    }>
+  }>
 }
 
 /** Системные операции публикации; хост может предоставить собственный файловый адаптер. */

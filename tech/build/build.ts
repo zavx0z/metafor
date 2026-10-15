@@ -1,5 +1,6 @@
-import {mkdir, mkdtemp, rm} from "node:fs/promises"
-import {basename, dirname, join, resolve} from "node:path"
+import {lstat, mkdir, mkdtemp, realpath, rm} from "node:fs/promises"
+import {createHash} from "node:crypto"
+import {basename, dirname, isAbsolute, join, resolve} from "node:path"
 import {tmpdir} from "node:os"
 import {fileURLToPath} from "node:url"
 import {
@@ -13,6 +14,8 @@ import type {
   BuildablePackage,
   PackageBuildArtifact,
   PackageBuildOptions,
+  PackageBuildProvenance,
+  PackageBuildProvenanceAssignment,
   PackageBuildResult,
   PackageOwner,
 } from "./contracts"
@@ -22,13 +25,20 @@ import {packageBuildEntrypoints} from "./source"
 import {isGeneratedPackageArtifactKey, rootPackageArtifact} from "./identity/artifact"
 import {validatePackageBuildOutputs} from "./report"
 import {preparePackageDependencies, type PreparedPackageDependency, type PreparedDependencyGraph} from "./prepared"
+import {readBuildToolchain, snapshotBuildInventory, verifyBuildInventory} from "./provenance"
 
 export interface PackageBuilderOptions extends PackageReaderOptions {
   profile?: "development" | "production"
   /** Политика host передаёт готовые прямые зависимости только выбранному environment. */
   preparedDependencies?(owner: PackageOwner): Promise<readonly PreparedPackageDependency[]>
-  /** Instance-owned executor; по умолчанию штатный Bun.spawn. */
+  /** Исполнитель дочерних процессов экземпляра сохраняет переданные signal и detached. */
   spawn?: typeof Bun.spawn
+  /** Назначенные хостом корни для ограниченного подтверждения исходников. */
+  provenance?: PackageBuildProvenanceAssignment
+  /** Хост возвращает абсолютный путь к проверенному адаптеру установленного выпуска. */
+  adapterEntrypoint?(): Promise<string>
+  /** Сигнал жизненного цикла владельца завершает принадлежащие сборщику дочерние процессы. */
+  signal?: AbortSignal
 }
 
 /**
@@ -43,6 +53,10 @@ Target version задаётся отдельно от исходного manifes
 дочернего процесса, собирает stdout/stderr, проверяет полный compiler report
 и освобождает временный report при успехе, отказе и прерывании. Development
 выносит карты исходников в отдельные companions перед вычислением identity.
+Сигнал владельца привязан к жизненному циклу экземпляра и передаётся проверке
+типов и компилятору; прерванная операция не возвращает успешный граф выходов.
+При отмене завершается отдельная группа принадлежащего сборке процесса, включая
+вложенный скрипт пакета. Подменённый `spawn` сохраняет параметры signal и detached.
 
 @throws Проверка входного контракта отклоняет недопустимые декларации до
   запуска compiler. Отказы исполнения возвращаются с exitCode, стадией и
@@ -57,6 +71,10 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
   const {packageOwner, packageSourceLocation} = reader
   const optionsProfile = () => options.profile ?? "production"
   const preparedDependenciesFor = options.preparedDependencies
+  const provenanceAssignment = options.provenance
+  const adapterEntrypointFor = options.adapterEntrypoint
+  const signal = options.signal
+  const childLifetime = signal === undefined ? {} : {signal, killSignal: "SIGKILL" as const, detached: true}
   const pendingBuilds = new Map<string, Promise<PackageBuildResult>>()
   const pendingTypechecks = new Map<string, Promise<PackageTypecheckResult>>()
 
@@ -70,7 +88,10 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     | {
         kind: "legacy"
         artifact: string
+        version: string
         command: string[]
+        reportDirectory?: string
+        inputReport?: string
       }
     | {
         kind: "adapter"
@@ -113,7 +134,13 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     name: BuildablePackage,
     options: PackageBuildOptions = {},
   ): Promise<PackageBuildResult> {
+    signal?.throwIfAborted()
+    const before = provenanceAssignment === undefined
+      ? undefined
+      : await snapshotBuildInventory(provenanceAssignment)
+    signal?.throwIfAborted()
     const owner = await packageOwner(name, options.env)
+    signal?.throwIfAborted()
     const key = [
       name,
       owner.env,
@@ -124,7 +151,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     const pending = pendingBuilds.get(key)
     if (pending) return pending
 
-    const build = runPackageBuild(name, owner, options)
+    const build = runPackageBuild(name, owner, options, before)
     pendingBuilds.set(key, build)
     void build.then(
       () => pendingBuilds.delete(key),
@@ -137,19 +164,29 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     name: BuildablePackage,
     owner: PackageOwner,
     options: PackageBuildOptions,
+    before?: Awaited<ReturnType<typeof snapshotBuildInventory>>,
   ): Promise<PackageBuildResult> {
     let reportDirectory: string | undefined
     let finishChild: (() => Promise<void>) | undefined
+    let releaseChildGroup: (() => void) | undefined
     let stage: NonNullable<PackageBuildResult["stage"]> = "configuration"
     let exitCode: number | null = null
     let stdout = ""
     let stderr = ""
     try {
       const profile = optionsProfile()
+      signal?.throwIfAborted()
       const execution = await packageBuildExecution(name, owner, options, profile)
-      if (execution.kind === "adapter") reportDirectory = execution.reportDirectory
+      reportDirectory = execution.reportDirectory
+      const compilerToolchain = before === undefined
+        ? undefined
+        : await readBuildToolchain(execution.command[0]!)
+      const adapterArtifact = execution.kind === "adapter" && before !== undefined
+        ? await readAdapterArtifact(execution.command[1]!)
+        : undefined
       stage = "typecheck"
       const typecheck = await runPackageTypecheck(name, owner)
+      signal?.throwIfAborted()
       if (typecheck.exitCode !== 0) {
         return {
           module: name,
@@ -164,6 +201,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
       }
 
       stage = "compiler"
+      signal?.throwIfAborted()
       debug("сборка artifact начата", {
         artifact: execution.kind === "legacy" ? execution.artifact : execution.output,
         command: execution.command,
@@ -177,11 +215,13 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
         execution.kind === "legacy"
           ? spawn(execution.command, {
               cwd: owner.root,
+              ...childLifetime,
               stdout: "pipe",
               stderr: "pipe",
             })
           : spawn(execution.command, {
               cwd: owner.root,
+              ...childLifetime,
               env: {...process.env, NODE_ENV: profile},
               stdin: new Blob([
                 JSON.stringify({
@@ -200,8 +240,12 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
               stdout: "pipe",
               stderr: "pipe",
             })
+      releaseChildGroup = bindOwnedGroup(child)
       finishChild = async () => {
-        if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM")
+        if (child.exitCode === null && child.signalCode === null) {
+          if (signal) killOwnedGroup(child)
+          else child.kill("SIGTERM")
+        }
         await child.exited
       }
       const [buildExitCode, buildStdout, buildStderr] = await Promise.all([
@@ -212,6 +256,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
       exitCode = buildExitCode
       stdout = `${typecheck.stdout}${buildStdout}`
       stderr = `${typecheck.stderr}${buildStderr}`
+      signal?.throwIfAborted()
 
       if (exitCode !== 0) {
         if (execution.kind === "adapter" && await Bun.file(execution.report).exists()) {
@@ -229,6 +274,10 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
       }
 
       stage = "outputs"
+      signal?.throwIfAborted()
+      const report = execution.kind === "adapter"
+        ? await Bun.file(execution.report).json()
+        : undefined
       const outputs =
         execution.kind === "legacy"
           ? await legacyBuildOutputs(execution.artifact)
@@ -236,7 +285,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
               name,
               owner,
               execution,
-              await Bun.file(execution.report).json(),
+              report,
               profile,
             )
       if (outputs.length === 0)
@@ -247,7 +296,52 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
 
       debug("сборка artifact завершена", {outputs, env: owner.env, exitCode, package: name})
 
-      return {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs}
+      signal?.throwIfAborted()
+      if (before === undefined)
+        return {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs}
+
+      stage = "inputs"
+      const inputReport = execution.kind === "legacy"
+        ? execution.inputReport === undefined ? undefined : await Bun.file(execution.inputReport).json()
+        : report
+      if (!Array.isArray(inputReport?.inputs) &&
+        (typeof inputReport?.inputs !== "object" || inputReport.inputs === null))
+        throw new Error("Build compiler input graph is missing")
+      const compilerInputs = Array.isArray(inputReport.inputs)
+        ? inputReport.inputs
+        : Object.keys(inputReport.inputs)
+      if (compilerInputs.length === 0 || compilerInputs.some((input: unknown) => typeof input !== "string"))
+        throw new Error("Build compiler input graph is invalid")
+      const rawSources = owner.sources
+        .filter(({source}) => source !== owner.entrypoint)
+        .map(({source}) => resolve(owner.root, source))
+      const bunfig = join(owner.root, "bunfig.toml")
+      const required = [owner.manifest, ...owner.plugins, ...rawSources]
+      if (await Bun.file(bunfig).exists()) required.push(bunfig)
+      if (execution.kind === "adapter" && adapterEntrypointFor === undefined)
+        required.push(execution.command[1]!)
+      if (adapterArtifact !== undefined &&
+        (await readAdapterArtifact(adapterArtifact.path)).sha256 !== adapterArtifact.sha256)
+        throw new Error("Package build adapter changed during preparation")
+      const provenance = await verifyBuildInventory(
+        before,
+        await snapshotBuildInventory(provenanceAssignment!),
+        owner.root,
+        compilerInputs,
+        required,
+        profile,
+        compilerToolchain!,
+        adapterArtifact,
+        execution.kind === "adapter"
+          ? execution.preparedDependencies.flatMap((graph) => graph.files.map((file) => ({
+              path: join(graph.root, file.path), sha256: file.digest,
+            })))
+          : [],
+        execution.version,
+        buildPlanDigest(name, owner, execution.version, profile, execution.kind === "adapter" ? execution.plan : undefined),
+      )
+      signal?.throwIfAborted()
+      return {module: name, env: owner.env, success: true, exitCode, stdout, stderr, outputs, provenance}
     } catch (error) {
       debug("сборка artifact завершилась с ошибкой", {
         env: owner.env,
@@ -267,6 +361,7 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
       }
     } finally {
       await finishChild?.()
+      releaseChildGroup?.()
       if (reportDirectory !== undefined) await rm(reportDirectory, {recursive: true, force: true})
     }
   }
@@ -295,11 +390,19 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
       const version = canonicalBuildVersion(options.version ?? owner.version)
       const artifact = options.artifact ?? owner.artifact
       await mkdir(dirname(artifact), {recursive: true})
+      const reportDirectory = provenanceAssignment === undefined
+        ? undefined
+        : await mkdtemp(join(tmpdir(), "cosmos-package-build-report-"))
+      const inputReport = reportDirectory === undefined ? undefined : join(reportDirectory, "metafile.json")
       return {
         kind: "legacy",
         artifact,
+        version,
+        ...(reportDirectory === undefined ? {} : {reportDirectory}),
+        ...(inputReport === undefined ? {} : {inputReport}),
         command: [
           ...withPackageBuildOutput(packageBuildCommand(owner.build, profile), artifact),
+          ...(inputReport === undefined ? [] : [`--metafile=${inputReport}`]),
           `--define=import.meta.env.COSMOS_PACKAGE_NAME=${JSON.stringify(name)}`,
           `--define=import.meta.env.COSMOS_PACKAGE_ENV=${JSON.stringify(owner.env)}`,
           `--define=import.meta.env.COSMOS_PACKAGE_VERSION=${JSON.stringify(version)}`,
@@ -396,10 +499,26 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
   }
 
   async function packageBuildAdapterEntrypoint() {
-    const source = fileURLToPath(import.meta.resolve("@metafor/tech-build/adapter"))
-    if (await Bun.file(source).exists()) return source
+    const source = adapterEntrypointFor === undefined
+      ? fileURLToPath(import.meta.resolve("@metafor/tech-build/adapter"))
+      : await adapterEntrypointFor()
+    return (await readAdapterArtifact(source)).path
+  }
 
-    throw new Error("Package build adapter source is missing")
+  async function readAdapterArtifact(path: string) {
+    if (!isAbsolute(path)) throw new Error("Package build adapter entrypoint must be absolute")
+    let canonical: string
+    try {
+      canonical = await realpath(path)
+    } catch {
+      throw new Error(`Package build adapter is missing: ${path}`)
+    }
+    if (!(await lstat(canonical)).isFile())
+      throw new Error(`Package build adapter is not a file: ${path}`)
+    const sha256 = createHash("sha256")
+      .update(new Uint8Array(await Bun.file(canonical).arrayBuffer()))
+      .digest("hex")
+    return {path: canonical, sha256}
   }
 
   /** Один раз проверяет package перед параллельной группой его env builds. */
@@ -424,18 +543,42 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     return typecheck
   }
 
-  async function executePackageTypecheck(owner: PackageOwner): Promise<PackageTypecheckResult> {
+  async function executePackageTypecheck(owner: PackageOwner, ownerSignal = signal): Promise<PackageTypecheckResult> {
+    ownerSignal?.throwIfAborted()
     const child = spawn([Bun.which("bun") ?? "bun", "run", "--silent", owner.typecheck], {
       cwd: owner.root,
+      ...(ownerSignal === undefined ? {} : {signal: ownerSignal, killSignal: "SIGKILL" as const, detached: true}),
       stdout: "pipe",
       stderr: "pipe",
     })
-    const [exitCode, stdout, stderr] = await Promise.all([
-      child.exited,
-      new Response(child.stdout).text(),
-      new Response(child.stderr).text(),
-    ])
-    return {exitCode, stdout, stderr}
+    const releaseGroup = bindOwnedGroup(child, ownerSignal)
+    try {
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ])
+      return {exitCode, stdout, stderr}
+    } finally {
+      if (ownerSignal && child.exitCode === null && child.signalCode === null) killOwnedGroup(child)
+      await child.exited
+      releaseGroup()
+    }
+  }
+
+  /** Отдельная группа процессов принадлежит только этому потомку и его дочерним процессам. */
+  function bindOwnedGroup(child: Bun.Subprocess, ownerSignal = signal) {
+    if (!ownerSignal) return () => {}
+    const abort = () => killOwnedGroup(child)
+    ownerSignal.addEventListener("abort", abort, {once: true})
+    if (ownerSignal.aborted) abort()
+    return () => ownerSignal.removeEventListener("abort", abort)
+  }
+
+  function killOwnedGroup(child: Bun.Subprocess) {
+    try {process.kill(-child.pid, "SIGKILL")}
+    catch (error) {if (!(error instanceof Error && "code" in error && error.code === "ESRCH"))
+      debug("owned build group cancellation failed", {pid: child.pid, error: errorMessage(error)})}
   }
 
   function buildContractFailure(result: PackageBuildResult, artifact: string): PackageBuildResult {
@@ -457,7 +600,24 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
     return error instanceof Error ? error.message : String(error)
   }
 
+  /** Проверяет типы пакета в том же управляемом контуре без сборки артефактов. */
+  async function checkPackage(name: string, request: {signal?: AbortSignal} = {}): Promise<PackageTypecheckResult> {
+    const ownerSignal = signal && request.signal
+      ? AbortSignal.any([signal, request.signal])
+      : signal ?? request.signal
+    ownerSignal?.throwIfAborted()
+    const owner = (await reader.packageOwners(name))[0]
+    if (!owner) throw new Error(`Package ${name} has no build environment`)
+    ownerSignal?.throwIfAborted()
+    const result = request.signal
+      ? await executePackageTypecheck(owner, ownerSignal)
+      : await runPackageTypecheck(name, owner)
+    ownerSignal?.throwIfAborted()
+    return result
+  }
+
   async function preparePackage(name: string, target: {outdir: string; version?: string}) {
+    signal?.throwIfAborted()
     const owners = await reader.packageOwners(name)
     return await Promise.all(
       owners.map((owner) =>
@@ -478,7 +638,83 @@ export function createPackageBuilder(options: PackageBuilderOptions) {
       ),
     )
   }
-  return {...reader, buildPackage, preparePackage, buildablePackage, knownPackage}
+  /** Та же назначенная хостом область исходников связывает проверку с подготовкой. */
+  async function sourceInventory() {
+    if (provenanceAssignment === undefined) throw new Error("Build source inventory is not assigned")
+    const snapshot = await snapshotBuildInventory(provenanceAssignment)
+    return {
+      roots: snapshot.roots,
+      excludedDirectoryNames: snapshot.excludedDirectoryNames,
+      excludedDirectoryNamePrefixes: snapshot.excludedDirectoryNamePrefixes,
+      sha256: snapshot.digest,
+    }
+  }
+  /** Проверяет прежнее подтверждение без компиляции, временных файлов и записи. */
+  async function verifyProvenance(
+    name: string,
+    target: {env: PackageEnvironment; version: string},
+    proof: PackageBuildProvenance,
+    expectedInventorySha256: string,
+  ) {
+    if (provenanceAssignment === undefined) throw new Error("Build source inventory is not assigned")
+    if (proof.kind !== "bounded-source-inventory" || proof.targetVersion !== target.version)
+      throw new Error("Prepared build provenance target differs")
+    const inventory = await sourceInventory()
+    if (inventory.sha256 !== expectedInventorySha256 || proof.inventorySha256 !== inventory.sha256 ||
+      JSON.stringify(proof.roots) !== JSON.stringify(inventory.roots) ||
+      JSON.stringify(proof.excludedDirectoryNames) !== JSON.stringify(inventory.excludedDirectoryNames) ||
+      JSON.stringify(proof.excludedDirectoryNamePrefixes) !== JSON.stringify(inventory.excludedDirectoryNamePrefixes))
+      throw new Error("Prepared build provenance source inventory differs")
+    const owner = await packageOwner(name, target.env)
+    const profile = optionsProfile()
+    if (proof.profile !== profile) throw new Error("Prepared build provenance profile differs")
+    const prepared = await preparePackageDependencies(owner, await preparedDependenciesFor?.(owner) ?? [])
+    const actualPrepared = prepared.flatMap((graph) => graph.files.map((file) => ({
+      path: join(graph.root, file.path), sha256: file.digest,
+    }))).sort((left, right) => left.path.localeCompare(right.path))
+    if (JSON.stringify(proof.prepared) !== JSON.stringify(actualPrepared))
+      throw new Error("Prepared build provenance dependency graph differs")
+    const legacy = owner.sources.length === 1 && owner.sources[0]?.artifact === rootPackageArtifact &&
+      prepared.length === 0 && owner.plugins.length === 0
+    const plan = legacy ? undefined : packageProgrammaticBuildPlan(
+      owner.build,
+      profile,
+      packageBuildEntrypoints(owner.sources).length > 1 ? "multi" : "single",
+    )
+    if (proof.buildPlanSha256 !== buildPlanDigest(name, owner, target.version, profile, plan))
+      throw new Error("Prepared build provenance plan differs")
+    const actualAdapter = legacy ? undefined : await readAdapterArtifact(await packageBuildAdapterEntrypoint())
+    if (JSON.stringify(proof.adapter) !== JSON.stringify(actualAdapter))
+      throw new Error("Prepared build provenance adapter differs")
+    const currentToolchain = await readBuildToolchain(proof.bun.path)
+    if (JSON.stringify(proof.bun) !== JSON.stringify(currentToolchain))
+      throw new Error("Prepared build provenance toolchain differs")
+    const after = await sourceInventory()
+    if (after.sha256 !== inventory.sha256)
+      throw new Error("Build source inventory changed during provenance check")
+  }
+
+  function buildPlanDigest(
+    name: string,
+    owner: PackageOwner,
+    version: string,
+    profile: "development" | "production",
+    plan?: PackageProgrammaticBuildPlan,
+  ) {
+    return createHash("sha256").update(JSON.stringify({
+      name,
+      env: owner.env,
+      version,
+      profile,
+      build: owner.build,
+      loaders: owner.loaders,
+      plugins: owner.plugins,
+      sources: owner.sources,
+      ...(plan === undefined ? {} : {plan}),
+    })).digest("hex")
+  }
+
+  return {...reader, buildPackage, preparePackage, checkPackage, buildablePackage, knownPackage, sourceInventory, verifyProvenance}
 }
 
 export type PackageBuilder = ReturnType<typeof createPackageBuilder>
