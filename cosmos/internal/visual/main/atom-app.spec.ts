@@ -320,8 +320,9 @@ test("portrait Display and Room follow native resize, keep fitted view and retai
   } finally {clock.mockRestore(); f.dispose()}
 })
 
-test("room opens the same Chat in a fill Window and Back restores its head and draft", async () => {
-  const f = fixture()
+for (const scenario of [{width: 1200, height: 800, agents: 1}, {width: 390, height: 844, agents: 2}])
+test(`room opens the same Chat in a fill Window and Back restores its head and draft (${scenario.agents} agents, ${scenario.width}×${scenario.height})`, async () => {
+  const f = fixture({width: scenario.width, height: scenario.height}, scenario.agents)
   let now = performance.now()
   const clock = spyOn(performance, "now").mockImplementation(() => now)
   const pulse = async () => {
@@ -343,6 +344,10 @@ test("room opens the same Chat in a fill Window and Back restores its head and d
     draft.dispatchEvent(new InputEvent("input", {bubbles: true}))
     await f.settle()
     const roomPose = pose()
+    const room = f.scene.getSnapshot().geometryNodes.find(node => node.id === "atom:1")!.rect
+    expect(f.tree.viewPoint.y).toBeLessThan(room.y)
+    expect(f.tree.viewPoint.targetX).toBe(f.tree.viewPoint.x)
+    expect(f.tree.viewPoint.targetZ).toBe(f.tree.viewPoint.z)
     const key = f.workspace.getSnapshot().agents[0]!.key
     f.workspace.openChat(key)
     await pulse()

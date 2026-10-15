@@ -1,4 +1,5 @@
 import {DisplayElement, type DOMSlotContent, type Presentation} from "@zavx0z/immersive"
+import {ViewPoint} from "@zavx0z/immersive/engine"
 import {createSpatialTreeController, createSpatialTreeState, type SpatialTreeController, type SpatialTreeSnapshot} from "@zavx0z/immersive/nodes/spatial/tree"
 import type {AtomRef, RuntimeAtom} from "@metafor/types/metafor/graph"
 import type {AgentWorkspaceModel} from "./agent-workspace"
@@ -272,24 +273,30 @@ export function createAtomScene(options: Readonly<{
         controller?.fit()
       } else if (snapshot.mode === "networks") network?.fit()
     },
-    /** Вход в фактические bounds комнаты одной записью public ViewPoint. */
+    /** Общий фронтальный план фактических bounds комнаты через public ViewPoint. */
     enterRoom() {
       assertActive()
       if (!root || !controller || snapshot.mode !== "atoms" || route.kind !== "atom" || view !== "display") return false
       const ref = route.ref
       const node = snapshot.geometryNodes.find(node => node.id === ref)
-      if (!node) return false
+      const size = viewport()
+      if (!node || !size) return false
       controller.select(ref, false)
       openingDisplay = false
       view = "room"
       const r = node.rect, eye = root.viewPoint
+      const bounds = {min: {x: r.x, y: r.y, z: r.z - BODY_DEPTH}, max: {x: r.x + r.width, y: r.y + r.height, z: r.z}}
+      const pose = ViewPoint.fitPoseForBounds(bounds, {x: 0, y: -1, z: 0}, {fov: eye.fov, aspect: size.width / size.height})
+      const range = ViewPoint.depthRangeForBounds(bounds, pose)
       root.document.transaction(() => {
-        eye.x = r.x + r.width / 2
-        eye.y = r.y + r.height * .15
-        eye.z = r.z - BODY_DEPTH * .45
-        eye.targetX = eye.x
-        eye.targetY = r.y + r.height * .75
-        eye.targetZ = eye.z
+        eye.x = pose.position.x
+        eye.y = pose.position.y
+        eye.z = pose.position.z
+        eye.targetX = pose.target.x
+        eye.targetY = pose.target.y
+        eye.targetZ = pose.target.z
+        eye.near = Math.max(1, range?.near ?? 1)
+        eye.far = Math.max(100000, range?.far ?? 100000)
         eye.controls = true
         eye.navigation = "fly"
         eye.flySpeed = BODY_DEPTH / 40

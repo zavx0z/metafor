@@ -5,6 +5,7 @@ import type {SpatialTreeSnapshot} from "@zavx0z/immersive/nodes/spatial/tree"
 import {parseMetaAddress, type Graph, type RuntimeAtom} from "@metafor/types/metafor/graph"
 import type {AgentWorkspaceModel} from "./agent-workspace"
 import type {AgentWorkspaceSnapshot} from "./agent-workspace-types"
+import {layoutAgentOffice} from "@metafor/agent/office-layout"
 import {createAtomScene} from "./atom-scene"
 
 const meta = parseMetaAddress("@fixture/environment")!
@@ -219,6 +220,36 @@ test("unknown/unavailable route never selects first Agent; cleanup releases owne
   expect(() => f.model.applyRoute({kind: "networks"})).toThrow("disposed")
 })
 
+test("room entry frames the complete prism, avatars and overhead chats frontally in wide and narrow viewports", () => {
+  for (const count of [1, 5]) for (const size of [{width: 1200, height: 800}, {width: 390, height: 844}]) {
+    const initial = input(), agents = Array.from({length: count}, (_, index) => ({id: `agent-${index}`}))
+    const f = fixture({...initial, offices: initial.offices.map(office => office.owner === "atom:root" ? {...office, agents} : office)}, size)
+    try {
+      f.model.applyRoute({kind: "atom", ref: "atom:root"})
+      f.model.attach(f.root, f.network)
+      expect(f.model.enterRoom()).toBeTrue()
+      const placed = f.model.getSnapshot().offices[0]!, eye = f.viewPoint
+      const layout = layoutAgentOffice({roomBounds: placed.office.bounds, overheadDisplayId: "chat",
+        humanoid: {min: {x: -300, y: -150, z: 0}, max: {x: 300, y: 150, z: 1800}},
+        agents: agents.map(agent => ({...agent, displays: [{id: "chat", width: 900, height: 600, depth: 20}]}))})
+      expect(layout.agents).toHaveLength(count)
+      expect(eye.y).toBeLessThan(placed.position.y + layout.bounds.min.y)
+      expect(eye.targetX).toBe(eye.x)
+      expect(eye.targetZ).toBe(eye.z)
+      expect(eye.targetY).toBeGreaterThan(eye.y)
+      const bounds = [layout.bounds, ...layout.agents.flatMap(agent => [agent.bounds, ...agent.displays.map(display => display.bounds)])]
+      for (const box of bounds) for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+        const depth = y + placed.position.y - eye.y
+        const halfHeight = depth * Math.tan(eye.fov / 2)
+        expect(depth).toBeGreaterThan(eye.near)
+        expect(depth).toBeLessThan(eye.far)
+        expect(Math.abs((x + placed.position.x - eye.x) / (halfHeight * size.width / size.height))).toBeLessThanOrEqual(1)
+        expect(Math.abs((z + placed.position.z - eye.z) / halfHeight)).toBeLessThanOrEqual(1)
+      }
+    } finally {f.dispose()}
+  }
+})
+
 test("room navigation uses one retained Display, native focus/back, and hides the roof after fly-through", async () => {
   const f = fixture()
   let now = performance.now()
@@ -243,7 +274,7 @@ test("room navigation uses one retained Display, native focus/back, and hides th
     expect(display.getAttribute("data-metafor-display-fitted")).toBeNull()
     expect(f.viewPoint.z).toBeGreaterThan(r.z - 180)
     expect(f.viewPoint.z).toBeLessThan(r.z)
-    expect(f.viewPoint.y).toBeGreaterThan(r.y)
+    expect(f.viewPoint.y).toBeLessThan(r.y)
     expect(f.viewPoint.targetY).toBeLessThan(r.y + r.height)
     expect(f.viewPoint.targetY).toBeGreaterThan(f.viewPoint.y)
     expect(f.viewPoint.targetZ).toBe(f.viewPoint.z)
