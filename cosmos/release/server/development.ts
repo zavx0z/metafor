@@ -1,4 +1,5 @@
 import {createDevelopmentSources} from "./development-source"
+import {createOptionalDevelopment} from "./development-availability"
 import type {createNativeReplOracle} from "./repl"
 import {readNativeReplAssignment} from "./repl"
 import {authorizeAgentRequest, readAgentBody} from "./agents"
@@ -6,9 +7,18 @@ import {readDevelopmentConfiguration} from "./development-config"
 import {createDevelopmentCatalog} from "./development-catalog"
 import {createDevelopmentConversations} from "./development-conversations"
 import {createDevelopmentMachineGrant} from "./development-machine"
-import {DEVELOPMENT_PATH, type DevelopmentSubscription} from "../shared/development"
+import {DEVELOPMENT_PATH, type DevelopmentSubscription, type DevelopmentChatScope} from "../shared/development"
 
 type Host = {requestIP(request: Request): {address: string} | null}
+
+/** Ошибка source assignment не меняет готовность обязательных участников Core. */
+export function configuredOptionalDevelopment(environment: Readonly<Record<string, string | undefined>>, repl: ReturnType<typeof createNativeReplOracle> | null) {
+  return createOptionalDevelopment<Host, DevelopmentChatScope>({
+    initialize: () => configuredDevelopment(environment, repl),
+    authorize: authorizeAgentRequest,
+    failed() {console.error("[@cosmos/release:development]", "Исходное окружение Cosmos недоступно; Core и настройки продолжают работу", {code: "workspace_unavailable"})},
+  })
+}
 
 /** Один owner в существующем release, без listener, второго REPL и внешнего Project. */
 export async function configuredDevelopment(environment: Readonly<Record<string, string | undefined>>, repl: ReturnType<typeof createNativeReplOracle> | null) {

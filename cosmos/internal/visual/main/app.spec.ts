@@ -18,9 +18,11 @@ import {loadBot, type Bot} from "./bot.ts"
 import {createAgentWorkspace as createAgentWorkspaceSource} from "../../../release/main/agents"
 import {AGENT_UI_SCHEMA, type AgentUiSnapshot} from "../../../release/shared/agents"
 import {agentWorkspaceGraph} from "../../../release/spec/agent-graph-fixture"
+import type {DevelopmentWorkbenchProps} from "./development-workbench"
 
 let directory = ""
-let app: DOMComponentConstructor<{network: NetworkSpaceModel; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined}>
+let app: DOMComponentConstructor<{network: NetworkSpaceModel; bot?: Bot | undefined; workspace?: AgentWorkspaceModel | undefined; annotations?: ProductAnnotationState | undefined;
+  development?: Omit<DevelopmentWorkbenchProps, "width" | "height"> | undefined}>
 let createNetworkSpace: () => NetworkSpaceModel
 let createAgentWorkspace: () => AgentWorkspaceModel
 
@@ -136,6 +138,48 @@ test("Visual network owns one Document, Space, ViewPoint, shared lights and HUD"
   expect(view.body.childNodes).toHaveLength(0)
   expect(readDocumentCompiledStyleSheets(view.document).styleSheets).toEqual([])
 })
+
+test("renderer places Quantum and Cosmos windows in one shared HUD layer with Settings reachable", async () => {
+  const width = Object.getOwnPropertyDescriptor(globalThis, "innerWidth"), height = Object.getOwnPropertyDescriptor(globalThis, "innerHeight")
+  Object.defineProperty(globalThis, "innerWidth", {value: 1200, configurable: true})
+  Object.defineProperty(globalThis, "innerHeight", {value: 800, configurable: true})
+  const workspace = createAgentWorkspace(), annotations = createProductAnnotationState()
+  const view = mount(undefined, undefined, workspace, annotations)
+  const hud = view.document.querySelector("hud")!
+  const renderer = createDocumentRenderer({document: view.document, root: hud, viewport: view.viewport})
+  const layout = async () => {
+    for (let turn = 0; turn < 8; turn++) {
+      view.root.flush()
+      renderer.flush()
+      flushDocumentLayoutObservers(view.document)
+      await Bun.sleep(0)
+    }
+  }
+  try {
+    await layout()
+    expect(view.document.querySelectorAll("hud")).toHaveLength(1)
+    const settings = view.document.getElementById("storybook-execution-settings")!
+    expect(settings.closest("[data-window-area]")?.parentElement).toBe(hud)
+    view.root.render(app, {network: view.network, workspace, annotations, development: {active: true, packageName: null,
+      observe() {return () => {}}, navigate() {}, quantum() {}}})
+    await layout()
+    const areas = [...hud.querySelectorAll("[data-window-area]")]
+    expect(areas.length).toBeGreaterThanOrEqual(3)
+    expect(new Set(areas.map(area => area.parentElement))).toEqual(new Set([hud]))
+    const open = [...hud.querySelectorAll("button")].find(button => button.getAttribute("aria-label") === "Настройки") as HTMLButtonElement
+    expect(open).toBeDefined()
+    open.click()
+    await layout()
+    expect(settings.textContent).toContain("Сборки и откат")
+    expect(view.document.querySelectorAll("space")).toHaveLength(1)
+    expect(view.document.getElementById("cosmos-development-display")).not.toBeNull()
+  } finally {
+    renderer.dispose()
+    view.root.unmount()
+    if (width) Object.defineProperty(globalThis, "innerWidth", width); else Reflect.deleteProperty(globalThis, "innerWidth")
+    if (height) Object.defineProperty(globalThis, "innerHeight", height); else Reflect.deleteProperty(globalThis, "innerHeight")
+  }
+}, 30000)
 
 test("network values retain geometry, selection is lazy and real connections are spatial cubic edges", async () => {
   const view = mount()

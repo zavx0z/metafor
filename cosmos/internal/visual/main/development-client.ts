@@ -41,12 +41,20 @@ export const developmentChatFetcher: typeof fetch = Object.assign((input: Parame
   return fetch(target, init)
 }, {preconnect: fetch.preconnect}) as typeof fetch
 
-export async function readDevelopmentCatalog(signal: AbortSignal): Promise<DevelopmentCatalog> {
+export async function readDevelopmentCatalog(signal: AbortSignal, retry = false): Promise<DevelopmentCatalog> {
+  if (retry) {
+    const renewed = await fetch(`${DEVELOPMENT_PATH}/retry`, {method: "POST", headers: {"content-type": "application/json"}, body: "{}", signal})
+    if (!renewed.ok) throw new Error(await developmentFailure(renewed))
+  }
   const response = await fetch(`${DEVELOPMENT_PATH}/catalog`, {signal})
-  if (!response.ok) throw new Error("Хост не назначил рабочую область Cosmos")
+  if (!response.ok) throw new Error(await developmentFailure(response))
   const value = await response.json()
   if (value.schema !== "cosmos:development/v1" || !Array.isArray(value.packages) || !Array.isArray(value.dependencies)) throw new Error("Неверный каталог Cosmos")
   return value
+}
+async function developmentFailure(response: Response): Promise<string> {
+  const value = await response.json().catch(() => null)
+  return typeof value?.error?.message === "string" ? value.error.message : "Исходное окружение Cosmos недоступно; настройки выпуска остаются доступны"
 }
 
 export const developmentSourceClient: DevelopmentSourceClient = {

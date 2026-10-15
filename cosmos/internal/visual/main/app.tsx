@@ -121,6 +121,7 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
       `}>
         {props.onDevelopment ? <Button label="Cosmos" title="Саморазработка и инструменты" onClick={props.onDevelopment} /> : null}
         {props.scene ? <AtomNavigation scene={props.scene} workspace={props.workspace!} annotations={props.annotations} /> : <NetworkNavigation network={network} workspace={props.workspace} annotations={props.annotations} />}
+      </div>
         {props.workspace && props.scene ? <AgentRoomHUD workspace={props.workspace} scene={props.scene} /> : null}
         {props.workspace && props.scene ? <RoomExperience
           workspace={props.workspace}
@@ -130,8 +131,7 @@ export function App(props: Readonly<{network?: NetworkSpaceModel | undefined; bo
         /> : null}
         {props.workspace ? <AgentParking workspace={props.workspace} /> : null}
         {props.annotations ? <AnnotationHUD model={props.annotations} workspace={props.workspace} /> : null}
-      </div>
-        {developmentModel ? <DevelopmentMinimap model={developmentModel} active={developing} /> : null}
+        {developmentModel && developing ? <DevelopmentMinimap model={developmentModel} /> : null}
         {props.workspace ? <AgentProviderHUD workspace={props.workspace} scene={props.scene} releaseManagement={props.releaseManagement} /> : null}
       </hud>
     </space>

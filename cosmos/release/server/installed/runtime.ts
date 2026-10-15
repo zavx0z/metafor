@@ -1,4 +1,4 @@
-import {configuredDevelopment} from "../development"
+import {configuredOptionalDevelopment} from "../development"
 import {createNetworkObservationSurface} from "../network-observation"
 import {createHash, timingSafeEqual} from "node:crypto"
 import {realpath} from "node:fs/promises"
@@ -72,7 +72,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
   let agentUi: ReturnType<typeof createAgentUiOracle> | undefined
   let clients: ReturnType<typeof createClientOracle> | undefined
   let nativeRepl: Awaited<ReturnType<typeof configuredNativeReplOracle>> = null
-  let development: Awaited<ReturnType<typeof configuredDevelopment>> = null
+  let development: Awaited<ReturnType<typeof configuredOptionalDevelopment>> | null = null
   let codespaceHost: ReturnType<typeof configuredCodespaceHostOracle> = null
   const storeRoot = await realpath(options.storeRoot)
   const requestedRoot = Bun.env.METAFOR_ROOT_META?.trim()
@@ -328,10 +328,7 @@ export async function runInstalledRelease(options: InstalledServerOptions): Prom
           localOracleChannels: [...(quantumOptions.localOracleChannels ?? []), agentUi.channel, clients.channel, ...(nativeRepl ? [nativeRepl.channel] : []), ...(codespaceHost ? [codespaceHost.channel] : [])],
         }).catch(async error => {await agentUi?.close(); await clients?.close(); await development?.close(); await nativeRepl?.close(); await codespaceHost?.close(); throw error})
       }
-      development = await configuredDevelopment(Bun.env, nativeRepl).catch(async error => {
-        await clients?.close(); await nativeRepl?.close(); await agentUi?.close(); await codespaceHost?.close(); await quantum?.close()
-        throw error
-      })
+      development = await configuredOptionalDevelopment(Bun.env, nativeRepl)
       const rendezvous = options.signalingToken ? createRendezvousHandler({token: options.signalingToken, relay: true}) : null
       let current: Bun.Server<ReleaseServerSocketData>
       try {current = Bun.serve<ReleaseServerSocketData>({

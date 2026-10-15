@@ -31,8 +31,8 @@ export function DevelopmentWorkbench(props: DevelopmentWorkbenchProps) {
   const createSocket = useMemo(() => (_path: string) => createDevelopmentSocket(props.observe), [props.observe])
   const current = useRef(props)
   current.current = props
-  const refresh = async (signal: AbortSignal) => {
-    try {const next = await readDevelopmentCatalog(signal); if (!signal.aborted) {setCatalog(next); setError("")}}
+  const refresh = async (signal: AbortSignal, retry = false) => {
+    try {const next = await readDevelopmentCatalog(signal, retry); if (!signal.aborted) {setCatalog(next); setError("")}}
     catch (cause) {if (!signal.aborted) setError(cause instanceof Error ? cause.message : String(cause))}
   }
   useEffect(() => {
@@ -103,7 +103,7 @@ export function DevelopmentWorkbench(props: DevelopmentWorkbenchProps) {
       `}>
         <Typography text="Cosmos · Саморазработка" />
         <Button label="Quantum" onClick={props.quantum} />
-        <Button label="Обновить каталог" onClick={() => {void refresh(new AbortController().signal)}} />
+        <Button label="Обновить каталог" onClick={() => {void refresh(new AbortController().signal, true)}} />
         {error ? <Typography text={error} /> : null}
       </nav>
       <Workbench
@@ -116,20 +116,14 @@ export function DevelopmentWorkbench(props: DevelopmentWorkbenchProps) {
   </>
 }
 
-export function DevelopmentMinimap(props: {model: Model; active: boolean}) {
+export function DevelopmentMinimap(props: {model: Model}) {
   const view = useSyncExternalStore(props.model.subscribe, props.model.getSnapshot)
-  return <div style={css`
-    ${!props.active && css`
-      display: none;
-    `}
-  `}>
-    <Minimap
+  return <Minimap
     projectName="MetaFor · Пакеты"
     catalog={{label: view.state["catalog.label"], items: view.state["catalog.items"], activeId: view.state["catalog.active"],
       search: view.state["catalog.search"], management: null, onAction: view.onCatalogAction, onNavigate: view.onCatalogNavigate,
       onSearch: view.onCatalogSearch, onGroupToggle: view.onGroupToggle, navigationExpansion: view.navigationExpansion}}
-    />
-  </div>
+  />
 }
 function DevelopmentPackageView(props: {catalog: DevelopmentCatalog; selected: DevelopmentPackage; navigate(name: string): void;
   sourceClient: typeof developmentSourceClient; onDirtyChange(dirty: boolean): void}) {
