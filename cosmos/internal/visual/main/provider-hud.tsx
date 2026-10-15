@@ -93,7 +93,7 @@ export function createProviderSettingsClient(props: () => ProviderHUDProps, sign
       const binding = bindingId(connectionId)
       const check = checked.registry.settings.connectionChecks?.[connectionId] ?? checked.registry.entries.find(row => row.id === binding)?.checks
       if (!binding || check?.status === "failed") throw new Error(check?.message ?? "Назначение Provider не подтверждено")
-      if (connection.provider === "ollama") {
+      if (connection.provider === "ollama" && !connection.peer) {
         const selected = owner()
         const response = await fetch("/agents/connections", {method: "POST", headers: {"content-type": "application/json"},
           body: JSON.stringify({providerRef: selected.ref, options: {connectionId, ...(model ? {model} : {})}}), signal})

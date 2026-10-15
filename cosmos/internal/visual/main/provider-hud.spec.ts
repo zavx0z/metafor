@@ -187,6 +187,35 @@ test("HUD renews only its owned browser ticket, validates the receipt and aborts
   } finally {viewerScope.abort(); scope.abort(); globalThis.fetch = originalFetch}
 }, 30000)
 
+test("peer Ollama settings check admission without reading a local endpoint or inventing a model catalog", async () => {
+  const {createProviderRegistry} = await import("@metafor/types/metafor/provider-validation")
+  const binding = {id: "ai-ollama", service: "ollama", host: "ai-srv", remotePeerId: "ai-peer", executorId: "ollama"}
+  const registry = createProviderRegistry([{...binding, source: {kind: "native-bootstrap", assignmentId: binding.id, remoteGraph: "unknown"},
+    resolution: "exact", connection: "connected", capabilities: {modelTurn: true, browserPreview: false, browserControl: false},
+    checks: {status: "unknown", checkedAt: 1, message: null}}])
+  registry.revision = 1
+  registry.settings = {selectedId: binding.id, configuration: {schemaVersion: 1, revision: 1,
+    connections: [{id: "remote-ollama", label: "Ollama · ai-srv", enabled: true, provider: "ollama",
+      endpoint: {url: "http://127.0.0.1:11434"}, peer: {peerId: binding.remotePeerId, executorId: binding.executorId}}],
+    general: {}, types: {}}, connectionBindings: {"remote-ollama": binding.id},
+    connectionChecks: {"remote-ollama": {status: "unknown", checkedAt: 1, message: null}}}
+  const originalFetch = globalThis.fetch
+  const calls: unknown[] = []
+  try {
+    globalThis.fetch = Object.assign(async (url: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(url).toBe("/agents/connections")
+      const request = JSON.parse(String(init?.body))
+      calls.push(request)
+      expect(request).toEqual({providerRef: "atom:4", check: "remote-ollama"})
+      return Response.json({ref: "atom:4", registry})
+    }, {preconnect: originalFetch.preconnect}) as typeof fetch
+    const client = compiledHUD.createProviderSettingsClient(() => ({atom: null, open: true, onOpenChange() {}, registries: [{ref: "atom:4", registry}]}), new AbortController().signal)
+    expect(await client.options("remote-ollama")).toEqual([])
+    expect(calls).toHaveLength(1)
+    expect((await client.read()).connections[0]?.peer).toEqual({peerId: "ai-peer", executorId: "ollama"})
+  } finally {globalThis.fetch = originalFetch}
+}, 30000)
+
 test("Ollama HUD retains the assigned server and requests real per-model options without an Agent session or invented thinking levels", async () => {
   const {createProviderRegistry} = await import("@metafor/types/metafor/provider-validation")
   const binding = {id: "native-ollama", service: "ollama", host: "native", remotePeerId: "native", executorId: "ollama"}

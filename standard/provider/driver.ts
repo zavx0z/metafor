@@ -79,6 +79,8 @@ async function privateText(path: string, maximum: number): Promise<string> {
 }
 
 const ollamaBinding: ProviderBinding = {id: "native-ollama", service: "ollama", host: "native", remotePeerId: "native", executorId: "ollama"}
+const isLocalOllamaBinding = (binding: ProviderBinding) => binding.id === ollamaBinding.id && binding.service === ollamaBinding.service &&
+  binding.host === ollamaBinding.host && binding.remotePeerId === ollamaBinding.remotePeerId && binding.executorId === ollamaBinding.executorId
 const localOllamaBinding = (installation: OllamaInstallation): ProviderBinding => ({...ollamaBinding,
   assignmentId: `ollama-${createHash("sha256").update(JSON.stringify([new URL(installation.url).href, installation.directory])).digest("hex")}`})
 async function assignedOllama(binding?: ProviderBinding): Promise<OllamaInstallation> {
@@ -92,7 +94,7 @@ async function assignedOllama(binding?: ProviderBinding): Promise<OllamaInstalla
 }
 /** Каталог только выданного native endpoint; чтение не создаёт сессию и не генерирует ответ. */
 export async function readProviderOptions(binding: ProviderBinding, model: string | undefined, signal: AbortSignal) {
-  if (binding.service !== "ollama") throw new Error("Подключение не предоставляет независимый каталог моделей")
+  if (!isLocalOllamaBinding(binding)) throw new Error("Подключение не предоставляет независимый каталог моделей")
   return readOllamaOptions(await assignedOllama(binding), model, signal)
 }
 
@@ -183,7 +185,7 @@ entries. Credentials remain native; the returned driver retains the exact
 Provider-owned descriptor. Legacy Codex is an explicit native transport only.
 */
 export async function authorizedProviderDriver(binding: ProviderBinding): Promise<ChatDriver> {
-  if (binding.service === "ollama") return {...createOllamaDriver(await assignedOllama(binding)), binding: structuredClone(binding)}
+  if (isLocalOllamaBinding(binding)) return {...createOllamaDriver(await assignedOllama(binding)), binding: structuredClone(binding)}
   if (binding.id === "legacy-codex" && binding.service === "codex" && binding.host === "native" && binding.remotePeerId === "native" && binding.executorId === "codex" && binding.assignmentId === undefined) {
     if (!process.env.ORACLE_AGENT_CODEX_COMMAND || !process.env.ORACLE_AGENT_CODEX_CWD) throw new Error("Host has not assigned the legacy Codex capability")
     return {...codexDriver, binding: structuredClone(binding)}
@@ -206,7 +208,7 @@ export async function authorizedProviderPeerLease(binding: ProviderBinding, sign
 /** Transport admission is a current observation; it never claims a successful model response or login. */
 export async function checkProviderBinding(binding: ProviderBinding, signal: AbortSignal) {
   const bounded = AbortSignal.any([signal, AbortSignal.timeout(15_000)])
-  if (binding.id === "legacy-codex" || binding.service === "ollama") {
+  if (binding.id === "legacy-codex" || isLocalOllamaBinding(binding)) {
     const driver = await authorizedProviderDriver(binding)
     if (!driver.check) throw new Error("Assigned Provider has no finite check")
     await driver.check(bounded)
@@ -214,7 +216,7 @@ export async function checkProviderBinding(binding: ProviderBinding, signal: Abo
     const {checkPeerProvider} = await import("./peer-driver")
     await checkPeerProvider(await peerOptions(binding), bounded)
   }
-  return {connection: "connected" as const, checks: {status: "unknown" as const, checkedAt: Date.now(), message: binding.service === "ollama" ? "Installed Ollama model metadata observed; no generation was tested" : "ACP admission confirmed; no model response or login readiness was tested"}}
+  return {connection: "connected" as const, checks: {status: "unknown" as const, checkedAt: Date.now(), message: isLocalOllamaBinding(binding) ? "Installed Ollama model metadata observed; no generation was tested" : "ACP admission confirmed; no model response or login readiness was tested"}}
 }
 
 /**
@@ -273,13 +275,15 @@ async function assignedBrowserClient(binding: ProviderBinding, signal: AbortSign
 export async function resolveConfiguredProvider(connection: ProviderConnection, entries: readonly ProviderCatalogEntry[]): Promise<ProviderBinding> {
   if (!connection.enabled) throw new Error("Подключение выключено")
   if (connection.provider === "ollama") {
-    if (connection.peer || connection.endpoint.ssh) throw new Error("Хост не назначил удалённый Ollama transport")
-    const assigned = await assignedOllama()
-    if (new URL(connection.endpoint.url).href !== new URL(assigned.url).href) throw new Error("Ollama endpoint находится вне назначения хоста")
-    return localOllamaBinding(assigned)
+    if (connection.endpoint.ssh) throw new Error("Хост не назначил удалённый Ollama transport")
+    if (!connection.peer) {
+      const assigned = await assignedOllama()
+      if (new URL(connection.endpoint.url).href !== new URL(assigned.url).href) throw new Error("Ollama endpoint находится вне назначения хоста")
+      return localOllamaBinding(assigned)
+    }
   }
-  if (connection.ssh) throw new Error("Хост не предоставил native adapter для этого подключения")
-  const service = connection.provider === "codex" ? "codex" : connection.endpoint.service
+  if ("ssh" in connection && connection.ssh) throw new Error("Хост не предоставил native adapter для этого подключения")
+  const service = connection.provider === "codex" ? "codex" : connection.provider === "ollama" ? "ollama" : connection.endpoint.service
   const descriptors = new Map<string, ProviderConnection>()
   const candidates: ProviderBinding[] = entries.filter(entry => entry.service === service)
   if (process.env.ORACLE_AGENT_PROVIDER_CONFIG) {
@@ -292,11 +296,15 @@ export async function resolveConfiguredProvider(connection: ProviderConnection, 
   }
   const matches = (descriptor: ProviderConnection) => {
     if (descriptor.provider !== connection.provider) return false
-    if (connection.provider === "codex" || descriptor.provider === "codex") return JSON.stringify(connection.ssh) === JSON.stringify(descriptor.ssh)
+    if (connection.provider === "codex") return descriptor.provider === "codex" && JSON.stringify(connection.ssh) === JSON.stringify(descriptor.ssh)
+    if (descriptor.provider === "codex") return false
+    if (connection.provider === "ollama") return descriptor.provider === "ollama" && !descriptor.endpoint.ssh &&
+      !!connection.endpoint.url && !!descriptor.endpoint.url && new URL(connection.endpoint.url).href === new URL(descriptor.endpoint.url).href
+    if (descriptor.provider === "ollama") return false
     return (!connection.endpoint.url && connection.peer !== undefined || new URL(connection.endpoint.url).href === new URL(descriptor.endpoint.url).href) &&
       (!connection.endpoint.profile && connection.peer !== undefined || connection.endpoint.profile === descriptor.endpoint.profile) && connection.endpoint.service === descriptor.endpoint.service
   }
-  const unique = [...new Map(candidates.filter(entry => entry.service === service && (!descriptors.has(entry.id) || matches(descriptors.get(entry.id)!)) && (connection.peer
+  const unique = [...new Map(candidates.filter(entry => entry.service === service && (connection.provider !== "ollama" || descriptors.has(entry.id)) && (!descriptors.has(entry.id) || matches(descriptors.get(entry.id)!)) && (connection.peer
     ? entry.remotePeerId === connection.peer.peerId && entry.executorId === connection.peer.executorId
     : descriptors.has(entry.id) && matches(descriptors.get(entry.id)!) || entry.id === connection.id || connection.provider === "codex" && entry.id === "legacy-codex")).map(entry => [entry.id, entry])).values()]
   if (unique.length !== 1) throw new Error("Хост не предоставил однозначное назначение для этого подключения")

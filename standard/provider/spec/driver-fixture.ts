@@ -66,7 +66,7 @@ const config=join(directory,"providers.json"),token=join(directory,"token")
 await writeFile(token,"fixture-only-owner-private-token",{mode:0o600})
 await writeFile(config,JSON.stringify({version:1,hosts:{assigned:{peerId:"host",network:{peerId:"consumer",viewerPeerId:"viewer",conversationPeerId:"conversations",signalingUrl:"ws://127.0.0.1:9/peer",tokenFile:token,relay:true}}},bindings:{selected:{service:"chatgpt",host:"assigned",executorId:"browser",connection:{id:"selected",provider:"capsule",label:"Assigned Capsule",enabled:true,endpoint:{url:`http://127.0.0.1:${native.port}`,profile:"assigned",service:"chatgpt"}}}}}),{mode:0o600})
 process.env.ORACLE_AGENT_PROVIDER_CONFIG=config
-const {checkProviderBinding,checkProviderRegistration,authorizedProviderBrowserClient,authorizedProviderPeerLease,parseNativeProviderCapabilities,resolveConfiguredProvider}=await import("../driver")
+const {checkProviderBinding,checkProviderRegistration,authorizedProviderDriver,authorizedProviderBrowserClient,authorizedProviderPeerLease,parseNativeProviderCapabilities,resolveConfiguredProvider,readProviderOptions}=await import("../driver")
 const binding={id:"selected",service:"chatgpt",host:"assigned",remotePeerId:"host",executorId:"browser"}
 try{
   const which=process.argv[2]
@@ -173,6 +173,47 @@ try{
     for(const endpoint of [{...connection.endpoint,profile:"foreign"},{...connection.endpoint,url:"http://127.0.0.1:1"}]){
       await expect(resolveConfiguredProvider({...connection,endpoint},[])).rejects.toThrow("назначение")
     }
+  }else if(which==="register-ollama-peer"){
+    const configured=JSON.parse(await readFile(config,"utf8"))
+    const connection={id:"ollama-ui",provider:"ollama" as const,label:"Assigned Ollama peer",enabled:true,endpoint:{url:"http://127.0.0.1:11434"},peer:{peerId:"host",executorId:"browser"}}
+    configured.bindings.selected={service:"ollama",host:"assigned",executorId:"browser",assignmentId:"ollama-v1",connection}
+    await writeFile(config,JSON.stringify(configured))
+    const expected={...binding,service:"ollama",assignmentId:"ollama-v1"}
+    const resolved=await resolveConfiguredProvider(connection,[])
+    expect(resolved).toEqual(expected)
+    expect((await authorizedProviderDriver(resolved)).binding).toEqual(expected)
+    for(const foreign of [{...resolved,assignmentId:"foreign"},{...resolved,remotePeerId:"foreign"},{...resolved,executorId:"foreign"}]){
+      await expect(authorizedProviderDriver(foreign)).rejects.toThrow("outside its assigned")
+      await expect(authorizedProviderPeerLease(foreign,AbortSignal.timeout(2000))).rejects.toThrow("outside its assigned")
+    }
+    for(const altered of [{...connection,enabled:false},{...connection,endpoint:{url:"http://127.0.0.1:11435"}},{...connection,endpoint:{url:""}},
+      {...connection,peer:{peerId:"foreign",executorId:"browser"}},{...connection,peer:{peerId:"host",executorId:"foreign"}}]){
+      await expect(resolveConfiguredProvider(altered,[])).rejects.toThrow()
+    }
+    delete configured.bindings.selected.connection
+    await writeFile(config,JSON.stringify(configured))
+    await expect(resolveConfiguredProvider(connection,[])).rejects.toThrow("назначение")
+    configured.bindings.selected.connection=connection
+    await writeFile(config,JSON.stringify(configured))
+    await expect(readProviderOptions(resolved,undefined,AbortSignal.timeout(2000))).rejects.toThrow("независимый каталог")
+    expect(factories).toBe(0)
+    const checked=await checkProviderRegistration(resolved,AbortSignal.timeout(2000))
+    expect(checked).toMatchObject({connection:"connected",capabilities:{modelTurn:true,browserPreview:false,browserControl:false},checks:{status:"unknown"}})
+    expect(checked.checks.message).toContain("ACP admission confirmed")
+    expect(initializations).toBe(1)
+    const lease=await authorizedProviderPeerLease(resolved,AbortSignal.timeout(2000))
+    expect(lease.network.id).toBe("conversations")
+    await lease.close()
+    expect(connects).toEqual(["consumer:host","conversations:host"])
+    expect(closes).toEqual(["consumer","conversations"])
+    configured.bindings["native-ollama"]=configured.bindings.selected
+    delete configured.bindings.selected
+    await writeFile(config,JSON.stringify(configured))
+    const collision=await resolveConfiguredProvider(connection,[])
+    expect(collision).toEqual({...expected,id:"native-ollama"})
+    expect((await authorizedProviderDriver(collision)).binding).toEqual(collision)
+    expect((await checkProviderRegistration(collision,AbortSignal.timeout(2000))).checks.message).toContain("ACP admission confirmed")
+    expect(initializations).toBe(2)
   }else if(which==="register-denied"){
     nativeActive=false
     await expect(checkProviderRegistration(binding,AbortSignal.timeout(3000))).rejects.toThrow("Browser peer executor unavailable")
