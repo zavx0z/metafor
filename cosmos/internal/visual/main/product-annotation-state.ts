@@ -1,5 +1,5 @@
 import {DisplayElement, HUDElement, Element, Node, HTMLInputElement, type Document, type Presentation, type Event as DomEvent} from "@zavx0z/immersive"
-import {createDomInspector} from "@zavx0z/immersive/diagnostics"
+import createDomInspector from "@zavx0z/immersive/diagnostics"
 import {readSpatialHit, type SpatialHit} from "@zavx0z/immersive/space"
 import type {ClientAnnotations, ClientAnnotationTarget, ClientAnnotationFeedback, ClientDescriptor} from "@metafor/types/cosmos/client"
 import type {AgentFeedbackReceipt} from "@metafor/types/metafor/agents"
