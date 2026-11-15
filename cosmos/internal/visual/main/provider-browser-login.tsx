@@ -1,7 +1,9 @@
 import {useEffect, useMemo, useRef, useState} from "@zavx0z/immersive/XReact"
 import {Button, Typography} from "@zavx0z/immersive/ui"
-import BrowserPreview, {type BrowserClient} from "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview"
+import BrowserPreview, {type StorybookAppWebPageShellExecutionSettingsBrowserPreview as Preview} from "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview"
 import {createProviderSettingsClient, type ProviderBrowserAccess} from "./provider-hud"
+
+type BrowserClient = Preview.Input["client"]
 
 export type ProviderBrowserLoginProps = Readonly<{
   access: ProviderBrowserAccess
