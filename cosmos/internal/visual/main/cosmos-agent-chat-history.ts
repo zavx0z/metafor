@@ -1,5 +1,5 @@
 import {createHistoryResidencyBudget, createHistoryWindow, type HistoryController, type HistoryBody} from "@zavx0z/chat/history"
-import type {HistoryGroup, HistoryOccurrence, StorybookChatSession} from "@zavx0z/storybook-chat-session"
+import type {StorybookChatSession} from "@zavx0z/storybook-chat-session"
 import type {StorybookChatView} from "@zavx0z/storybook-chat-view"
 import type {CosmosConversationClient, CosmosConversationSnapshot} from "./agent-workspace-types"
 
@@ -110,3 +110,8 @@ export function createCosmosConversationHistory(client: CosmosConversationClient
     dispose() {disposed = true; controller.dispose(); for (const group of groups) group.dispose(); groups.clear(); listeners.clear(); selected = null},
   }
 }
+
+/** Группа служебных записей, раскрываемая публичной проекцией сессии. */
+type HistoryGroup = Extract<Awaited<ReturnType<StorybookChatSession.Output["displayHistory"]>>["items"][number], {kind: "group"}>
+/** Запись внутри публичного окна группы истории. */
+type HistoryOccurrence = Awaited<ReturnType<StorybookChatSession.Output["groupHistory"]>>["items"][number]
