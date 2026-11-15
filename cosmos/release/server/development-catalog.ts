@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto"
 import {lstat, realpath} from "node:fs/promises"
 import {join, relative, resolve, sep} from "node:path"
-import readManifest from "@zavx0z/storybook-package-package-json"
+import readManifest from "@zavx0z/storybook-package-manifest"
 import collectMetadata from "@zavx0z/storybook-package-metadata-collect"
 import createGraph from "@zavx0z/storybook-package-graph-create"
 import {DEVELOPMENT_SCHEMA, type DevelopmentCatalog, type DevelopmentDependencyKind, type DevelopmentPackage, type DevelopmentSourceNode, type DevelopmentWorkspaceAssignment} from "../shared/development"

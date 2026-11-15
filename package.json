@@ -140,7 +140,7 @@
     "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview": "link:@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview",
     "@zavx0z/storybook-app-environment": "link:@zavx0z/storybook-app-environment",
     "@zavx0z/storybook-app-environment-binding": "link:@zavx0z/storybook-app-environment-binding",
-    "@zavx0z/storybook-package-package-json": "link:@zavx0z/storybook-package-package-json",
+    "@zavx0z/storybook-package-manifest": "link:@zavx0z/storybook-package-manifest",
     "@zavx0z/storybook-package-env": "link:@zavx0z/storybook-package-env",
     "@zavx0z/storybook-specs-scenarios-reader": "link:@zavx0z/storybook-specs-scenarios-reader",
     "@zavx0z/storybook-package-route-workspaces": "link:@zavx0z/storybook-package-route-workspaces",

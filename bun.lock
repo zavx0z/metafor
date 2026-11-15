@@ -42,9 +42,9 @@
       "name": "@metafor/cosmos",
       "version": "0.1.0",
       "dependencies": {
-        "@cosmos/release": "workspace:^0.3.45",
+        "@cosmos/release": "workspace:^0.3.46",
         "@cosmos/startup": "workspace:^0.1.12",
-        "@internal/visual": "workspace:^0.3.38",
+        "@internal/visual": "workspace:^0.3.39",
         "@metafor/tech-build": "workspace:*",
         "@metafor/tech-release": "workspace:*",
         "@zavx0z/immersive": "^0.0.0",
@@ -167,8 +167,8 @@
         "@zavx0z/storybook-package-env": "^0.0.0",
         "@zavx0z/storybook-package-graph-create": "^0.0.0",
         "@zavx0z/storybook-package-index": "^0.0.0",
+        "@zavx0z/storybook-package-manifest": "^0.0.0",
         "@zavx0z/storybook-package-metadata-collect": "^0.0.0",
-        "@zavx0z/storybook-package-package-json": "^0.0.0",
         "@zavx0z/storybook-package-route-workspaces": "^0.0.0",
         "@zavx0z/storybook-specs-scenarios-reader": "^0.0.0",
         "@zavx0z/storybook-tech-acp": "^0.0.0",
@@ -595,8 +595,8 @@
     "@zavx0z/storybook-package-env": "link:@zavx0z/storybook-package-env",
     "@zavx0z/storybook-package-graph-create": "link:@zavx0z/storybook-package-graph-create",
     "@zavx0z/storybook-package-index": "link:@zavx0z/storybook-package-index",
+    "@zavx0z/storybook-package-manifest": "link:@zavx0z/storybook-package-manifest",
     "@zavx0z/storybook-package-metadata-collect": "link:@zavx0z/storybook-package-metadata-collect",
-    "@zavx0z/storybook-package-package-json": "link:@zavx0z/storybook-package-package-json",
     "@zavx0z/storybook-package-route-workspaces": "link:@zavx0z/storybook-package-route-workspaces",
     "@zavx0z/storybook-specs-scenarios-reader": "link:@zavx0z/storybook-specs-scenarios-reader",
     "@zavx0z/storybook-tech-acp": "link:@zavx0z/storybook-tech-acp",
@@ -890,9 +890,9 @@
 
     "@zavx0z/storybook-package-index": ["@zavx0z/storybook-package-index@link:@zavx0z/storybook-package-index", {}],
 
-    "@zavx0z/storybook-package-metadata-collect": ["@zavx0z/storybook-package-metadata-collect@link:@zavx0z/storybook-package-metadata-collect", {}],
+    "@zavx0z/storybook-package-manifest": ["@zavx0z/storybook-package-manifest@link:@zavx0z/storybook-package-manifest", {}],
 
-    "@zavx0z/storybook-package-package-json": ["@zavx0z/storybook-package-package-json@link:@zavx0z/storybook-package-package-json", {}],
+    "@zavx0z/storybook-package-metadata-collect": ["@zavx0z/storybook-package-metadata-collect@link:@zavx0z/storybook-package-metadata-collect", {}],
 
     "@zavx0z/storybook-package-route-workspaces": ["@zavx0z/storybook-package-route-workspaces@link:@zavx0z/storybook-package-route-workspaces", {}],
 
