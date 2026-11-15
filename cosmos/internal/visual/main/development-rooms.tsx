@@ -273,7 +273,7 @@ export function DevelopmentRoomsHUD(props: Readonly<{
         onInfo={() => setInfo(true)}
         onDisplay={() => {props.agents.close(); props.scene.showDisplay()}}
       />}
-      {scene.view === "room" && pkg?.resolution === "source" && !agents.chatOpen ? <Panel label="Новый агент" expanded={false}>
+      {scene.view === "room" && pkg?.resolution === "source" && !agents.chatOpen ? <Panel label="Добавить агента" expanded={false}>
         <TextField label="Имя агента" value={newName} disabled={creating} onInput={setNewName} />
         <Button
           label="Создать агента"
