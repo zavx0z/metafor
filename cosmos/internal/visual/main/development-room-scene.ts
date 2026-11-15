@@ -1,7 +1,7 @@
 import {DisplayElement, type DOMSlotContent, type Presentation} from "@zavx0z/immersive"
 import {ViewPoint} from "@zavx0z/immersive/engine"
 import {createSpatialTreeState, type SpatialTreeSnapshot} from "@zavx0z/immersive/nodes/spatial/tree"
-import {createSubjectGraph} from "@zavx0z/storybook-app-web-page-shell/workspace"
+import createSubjectGraph from "@zavx0z/storybook-app-web-page-workspace"
 import type {DevelopmentCatalog, DevelopmentPackage} from "../../../release/shared/development"
 
 /** Глубина Source комнаты согласована с её офисом и публичным SpatialTree. */

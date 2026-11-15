@@ -153,6 +153,7 @@
     "@zavx0z/ai-filesystem-read": "link:@zavx0z/ai-filesystem-read",
     "@zavx0z/ai-filesystem-write": "link:@zavx0z/ai-filesystem-write",
     "@zavx0z/ai-tech-failure": "link:@zavx0z/ai-tech-failure",
+    "@zavx0z/storybook-app-web-page-workspace": "link:@zavx0z/storybook-app-web-page-workspace",
     "@zavx0z/storybook-app-web-page-shell": "link:@zavx0z/storybook-app-web-page-shell",
     "@zavx0z/storybook-app-web-page-package": "link:@zavx0z/storybook-app-web-page-package",
     "@zavx0z/storybook-app-web-page-shell-workbench": "link:@zavx0z/storybook-app-web-page-shell-workbench",

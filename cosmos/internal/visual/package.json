@@ -32,6 +32,7 @@
     "@metafor/agent": "workspace:*",
     "@zavx0z/immersive": "^0.0.0",
     "@zavx0z/immersive-nodes": "^0.0.0",
+    "@zavx0z/storybook-app-web-page-workspace": "^0.0.0",
     "@zavx0z/storybook-app-web-page-shell": "^0.0.0",
     "@zavx0z/storybook-app-web-page-package": "^0.0.0",
     "@zavx0z/storybook-app-web-page-shell-execution-settings": "^0.0.0",

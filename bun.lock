@@ -127,6 +127,7 @@
         "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview": "^0.0.0",
         "@zavx0z/storybook-app-web-page-shell-minimap": "^0.0.0",
         "@zavx0z/storybook-app-web-page-shell-workbench": "^0.0.0",
+        "@zavx0z/storybook-app-web-page-workspace": "^0.0.0",
         "@zavx0z/storybook-chat-session": "^0.0.0",
         "@zavx0z/storybook-chat-view": "^0.0.0",
       },
@@ -588,6 +589,7 @@
     "@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview": "link:@zavx0z/storybook-app-web-page-shell-execution-settings-browser-preview",
     "@zavx0z/storybook-app-web-page-shell-minimap": "link:@zavx0z/storybook-app-web-page-shell-minimap",
     "@zavx0z/storybook-app-web-page-shell-workbench": "link:@zavx0z/storybook-app-web-page-shell-workbench",
+    "@zavx0z/storybook-app-web-page-workspace": "link:@zavx0z/storybook-app-web-page-workspace",
     "@zavx0z/storybook-chat-preferences": "link:@zavx0z/storybook-chat-preferences",
     "@zavx0z/storybook-chat-session": "link:@zavx0z/storybook-chat-session",
     "@zavx0z/storybook-chat-view": "link:@zavx0z/storybook-chat-view",
@@ -875,6 +877,8 @@
     "@zavx0z/storybook-app-web-page-shell-minimap": ["@zavx0z/storybook-app-web-page-shell-minimap@link:@zavx0z/storybook-app-web-page-shell-minimap", {}],
 
     "@zavx0z/storybook-app-web-page-shell-workbench": ["@zavx0z/storybook-app-web-page-shell-workbench@link:@zavx0z/storybook-app-web-page-shell-workbench", {}],
+
+    "@zavx0z/storybook-app-web-page-workspace": ["@zavx0z/storybook-app-web-page-workspace@link:@zavx0z/storybook-app-web-page-workspace", {}],
 
     "@zavx0z/storybook-chat-preferences": ["@zavx0z/storybook-chat-preferences@link:@zavx0z/storybook-chat-preferences", {}],
 
