@@ -2,9 +2,9 @@ import {createHistoryWindow, type HistoryBody} from "@zavx0z/chat/history"
 import type {StorybookChatView} from "@zavx0z/storybook-chat-view"
 import type {AtomChatMessage} from "./atom"
 
-type Header = StorybookChatView.Timeline["history"]["rows"][number]["header"]
-type Body = NonNullable<StorybookChatView.Timeline["history"]["rows"][number]["body"]>
-type Evidence = NonNullable<StorybookChatView.Timeline["history"]["rows"][number]["evidence"]>["items"][number]
+type Header = Timeline["history"]["rows"][number]["header"]
+type Body = NonNullable<Timeline["history"]["rows"][number]["body"]>
+type Evidence = NonNullable<Timeline["history"]["rows"][number]["evidence"]>["items"][number]
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value)
 const same = (left: AtomChatMessage | undefined, right: AtomChatMessage) => left?.id === right.id && left.role === right.role && left.content === right.content && JSON.stringify(left.tool) === JSON.stringify(right.tool)
 
@@ -15,7 +15,7 @@ Cosmos. Источник принадлежит вызывающему host; hel
 */
 export function createAgentChatHistory() {
   let messages: readonly AtomChatMessage[] = [], revision = 0
-  let previousTimelineSource: unknown, previousTimeline: StorybookChatView.Timeline | undefined
+  let previousTimelineSource: unknown, previousTimeline: Timeline | undefined
   const bodyRevisions = new Map<string, {message: AtomChatMessage; revision: number}>(), listeners = new Set<() => void>()
   const entry = (message: AtomChatMessage, ordinal: number): Body => {
     const base = {id: message.id, sequence: ordinal + 1, origin: "local" as const}
@@ -62,7 +62,7 @@ export function createAgentChatHistory() {
       for (const message of next) {const old = bodyRevisions.get(message.id); bodyRevisions.set(message.id, {message, revision: same(old?.message, message) ? old!.revision : (old?.revision ?? 0) + 1})}
       controller.accept({id: identity, history: {revision, total: messages.length}})
     },
-    timeline(snapshot = controller.getSnapshot()): StorybookChatView.Timeline {
+    timeline(snapshot = controller.getSnapshot()): Timeline {
       if (previousTimelineSource === snapshot && previousTimeline) return previousTimeline
       const {conversationId, ...history} = snapshot
       const rows = history.rows.map(({evidence, ...row}) => ({...row, ...(evidence ? {evidence: {...evidence, chatId: evidence.conversationId}} : {})}))
@@ -73,3 +73,6 @@ export function createAgentChatHistory() {
     dispose() {controller.dispose(); listeners.clear(); messages = []; bodyRevisions.clear()},
   }
 }
+
+/** Публичная часть ChatView, необходимая для отображения управляемой истории. */
+type Timeline = Pick<StorybookChatView.Input, "history" | "onHistoryViewport" | "onHistoryVisible" | "onHistoryExpand" | "onHistoryRetry" | "onHistoryEvidence" | "onHistoryTail" | "onHistoryRetryPage" | "createGroupHistory" | "readHistoryContent" | "readHistoryTerminal" | "readHistoryDetail" | "onMedia" | "onCopyMessage" | "onCopyText">

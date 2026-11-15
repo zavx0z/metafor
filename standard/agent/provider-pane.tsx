@@ -58,7 +58,7 @@ function ProviderSettings(props: Readonly<{atom: AtomContext; snapshot: AtomView
     catch (error) {if (!signal.aborted) setNotice(error instanceof Error ? error.message : "Окружение отклонило настройки")}
     finally {if (!signal.aborted) setBusy(false)}
   }
-  const disabled: StorybookChatPreferences.Field[] = []
+  const disabled: NonNullable<StorybookChatPreferences.Input["fields"]>[number][] = []
   if (!props.atom.actions.selectProvider || props.snapshot.providerBinding?.locked) disabled.push("connectionId")
   if (!props.atom.actions.configureProvider) disabled.push("model", "thoughtLevel")
   return <section aria-label="Настройки провайдера Atom" style={css`display: flex; flex-direction: column; min-height: 0; gap: var(--spacing-8);`}>
