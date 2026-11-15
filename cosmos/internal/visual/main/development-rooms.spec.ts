@@ -26,7 +26,7 @@ let directory = "", bot: Bot
 let Fixture: DOMComponentConstructor<{active: boolean; bot: Bot; scene: DevelopmentRoomSceneModel; agents: DevelopmentRoomAgentsModel; onSelectPackage?(name: string): void}>
 let createScene: typeof import("./development-room-scene").createDevelopmentRoomScene
 let createAgents: typeof import("./development-room-agents").createDevelopmentRoomAgents
-let createSurface: typeof import("@zavx0z/storybook-app-web-page-shell/surface").createEmbeddedSurface
+let createSurface: typeof import("@zavx0z/storybook-app-web-page-surface").default
 let createContent: typeof import("@zavx0z/storybook-app-web-page-package/content").createSourcePackageContent
 let App: DOMComponentConstructor<{network: NetworkSpaceModel; bot: Bot; development: {active: boolean};
   developmentScene: DevelopmentRoomSceneModel; developmentAgents: DevelopmentRoomAgentsModel;

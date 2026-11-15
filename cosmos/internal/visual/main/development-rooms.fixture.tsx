@@ -7,7 +7,7 @@ export {sourcePackageCatalog} from "./development-room-minimap"
 export {developmentRoomCatalogItems} from "./development-room-catalog"
 import {useState, useSyncExternalStore} from "@zavx0z/immersive/XReact"
 import type {StorybookAppWebPageShellMinimap} from "@zavx0z/storybook-app-web-page-shell-minimap"
-export {createEmbeddedSurface} from "@zavx0z/storybook-app-web-page-shell/surface"
+export {default as createEmbeddedSurface} from "@zavx0z/storybook-app-web-page-surface"
 export {createSourcePackageContent} from "@zavx0z/storybook-app-web-page-package/content"
 
 /** Renderer fixture uses the same single Space, ViewPoint and HUD composition as the product. */

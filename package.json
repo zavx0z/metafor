@@ -158,7 +158,8 @@
     "@zavx0z/storybook-app-web-page-package": "link:@zavx0z/storybook-app-web-page-package",
     "@zavx0z/storybook-app-web-page-shell-workbench": "link:@zavx0z/storybook-app-web-page-shell-workbench",
     "@zavx0z/storybook-app-web-page-presentation": "link:@zavx0z/storybook-app-web-page-presentation",
-    "@zavx0z/storybook-app-web-page-shell-minimap": "link:@zavx0z/storybook-app-web-page-shell-minimap"
+    "@zavx0z/storybook-app-web-page-shell-minimap": "link:@zavx0z/storybook-app-web-page-shell-minimap",
+    "@zavx0z/storybook-app-web-page-surface": "link:@zavx0z/storybook-app-web-page-surface"
   },
   "exports": {
     ".": "./cosmos/cli.ts",
